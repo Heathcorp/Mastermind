@@ -18,9 +18,6 @@ impl Tape {
   fn move_head_position(&mut self, amount: i32) {
     self.head_position += amount;
   }
-  fn set_head_position(&mut self, position: i32) {
-    self.head_position = position;
-  }
   // TODO: simplify all this duplicated code
   fn modify_current_cell(&mut self, amount: Wrapping<u8>) {
     if self.head_position < 0 {
@@ -138,5 +135,58 @@ impl BVM {
 
       pc += 1;
     }
+  }
+}
+
+#[cfg(test)]
+mod tests {
+  use super::*;
+
+  use std::io::Cursor;
+
+  fn run_program(program: String, input: String) -> String {
+    let mut bvm = BVM::new(program.chars().collect());
+
+    let input_bytes: Vec<u8> = input.bytes().collect();
+    let mut input_stream = Cursor::new(input_bytes);
+    let mut output_stream = Cursor::new(Vec::new());
+
+    bvm.run(&mut input_stream, &mut output_stream);
+    
+    unsafe {
+      String::from_utf8_unchecked(output_stream.into_inner())
+    }
+  }
+
+  #[test]
+  fn dummy_test() {
+    let program = String::from("");
+    let input = String::from("");
+    let desired_output = String::from("");
+    assert_eq!(desired_output, run_program(program, input))
+  }
+
+  #[test]
+  fn hello_world_1() {
+    let program = String::from("++++++++[>++++[>++>+++>+++>+<<<<-]>+>+>->>+[<]<-]>>.>---.+++++++..+++.>>.<-.<.+++.------.--------.>>+.>++.");
+    let input = String::from("");
+    let desired_output = String::from("Hello World!\n");
+    assert_eq!(desired_output, run_program(program, input))
+  }
+
+  #[test]
+  fn hello_world_2() {
+    let program = String::from("+[-->-[>>+>-----<<]<--<---]>-.>>>+.>>..+++[.>]<<<<.+++.------.<<-.>>>>+.");
+    let input = String::from("");
+    let desired_output = String::from("Hello, World!");
+    assert_eq!(desired_output, run_program(program, input))
+  }
+
+  #[test]
+  fn random_mess() {
+    let program = String::from("+++++[>+++++[>++>++>+++>+++>++++>++++<<<<<<-]<-]+++++[>>[>]<[+.<<]>[++.>>>]<[+.<]>[-.>>]<[-.<<<]>[.>]<[+.<]<-]++++++++++.");
+    let input = String::from("");
+    let desired_output = String::from("eL34NfeOL454KdeJ44JOdefePK55gQ67ShfTL787KegJ77JTeghfUK88iV9:XjgYL:;:KfiJ::JYfijgZK;;k[<=]lh^L=>=KgkJ==J^gklh_K>>m`?@bnicL@A@KhmJ@@JchmnidKAA\n");
+    assert_eq!(desired_output, run_program(program, input))
   }
 }
