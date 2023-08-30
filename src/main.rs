@@ -1,12 +1,12 @@
 mod brainfuck;
-use brainfuck::BrainfuckVirtualMachine;
+use brainfuck::BVM;
 
 use std::io::{stdin, stdout};
 
 
 fn main() {
-  let prog = ",.+.+.>----++++,.+.<.<,.+.+.>.";
-  let mut vm = BrainfuckVirtualMachine::new(prog.chars().collect());
+  let prog = "";
+  let mut vm = BVM::new(prog.chars().collect());
 
   vm.run(&mut stdin(), &mut stdout());
 

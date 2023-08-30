@@ -71,21 +71,22 @@ impl Tape {
   }
 }
 
-pub struct BrainfuckVirtualMachine {
+pub struct BVM {
   tape: Tape,
   program: Vec<char>,
 }
 
-impl BrainfuckVirtualMachine {
+impl BVM {
   pub fn new(program: Vec<char>) -> Self {
-    BrainfuckVirtualMachine {
+    BVM {
       tape: Tape::new(),
       program,
     }
   }
   pub fn run(&mut self, input: &mut impl Read, output: &mut impl Write) {
-    let mut pc = 0;
-    // let loops = Vec::new();
+    let mut pc: usize = 0;
+    // this could be more efficient with a pre-computed map
+    let mut loop_stack: Vec<usize> = Vec::new();
 
     while pc < self.program.len() {
 
@@ -103,7 +104,36 @@ impl BrainfuckVirtualMachine {
         },
         '>' => {self.tape.move_head_position(1);},
         '<' => {self.tape.move_head_position(-1);},
-        _ => break
+        '[' => {
+          // entering a loop
+          if self.tape.get_current_cell().0 == 0 {
+            // skip the loop, (advance to the corresponding closing loop brace)
+            // TODO: make this more efficient by pre-computing a loops map
+            let mut loop_count = 1;
+            while loop_count > 0 {
+              pc += 1;
+              loop_count += match self.program[pc] {
+                '[' => 1,
+                ']' => -1,
+                _ => 0,
+              }
+            }
+          } else {
+            // add the open loop to the stack and proceed
+            loop_stack.push(pc);
+          }
+        },
+        ']' => {
+          if self.tape.get_current_cell().0 == 0 {
+            // exit the loop
+            loop_stack.pop();
+          } else {
+            // cell isn't 0 so jump back to corresponding opening loop brace
+            // not sure what rust will do if the stack is empty
+            pc = loop_stack[loop_stack.len() - 1];
+          }
+        },
+        _ => (),
       };
 
       pc += 1;
