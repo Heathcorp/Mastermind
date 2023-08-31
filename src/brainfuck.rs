@@ -1,4 +1,4 @@
-use std::{io::Read, io::Write, num::Wrapping};
+use std::{io::Read, io::Write, num::Wrapping, fmt};
 
 struct Tape {
   positive_array: Vec<Wrapping<u8>>,
@@ -15,58 +15,98 @@ impl Tape {
       head_position: 0,
     }
   }
+  fn get_cell(&self, index: i32) -> Wrapping<u8> {
+    let mut array;
+    let i: usize = (match index < 0 {
+      true => {
+        array = &self.negative_array;
+        -index - 1
+      },
+      false => {
+        array = &self.positive_array;
+        index
+      }
+    }).try_into().unwrap();
+    
+    match i < array.len() {
+      true => array[i],
+      false => Wrapping(0u8)
+    }
+  }
   fn move_head_position(&mut self, amount: i32) {
     self.head_position += amount;
   }
-  // TODO: simplify all this duplicated code
-  fn modify_current_cell(&mut self, amount: Wrapping<u8>) {
-    if self.head_position < 0 {
-      let i: usize = (-1 - self.head_position).try_into().unwrap();
-      if i >= self.negative_array.len() {
-        self.negative_array.resize(i + 1, Wrapping(0u8));
+  fn modify_current_cell(&mut self, amount: Wrapping<u8>, clear: Option<bool>) {
+    let array;
+    let i: usize = (match self.head_position < 0 {
+      true => {
+        array = &mut self.negative_array;
+        -self.head_position - 1
+      },
+      false => {
+        array = &mut self.positive_array;
+        self.head_position
       }
-      self.negative_array[i] += amount;
-    } else {
-      let i: usize = self.head_position.try_into().unwrap();
-      if i >= self.positive_array.len() {
-        self.positive_array.resize(i + 1, Wrapping(0u8));
-      }
-      self.positive_array[i] += amount;
+    }).try_into().unwrap();
+
+    if i >= array.len() {
+      array.resize(i + 1, Wrapping(0u8));
     }
+
+    array[i] = match clear.unwrap_or(false) {
+      true => amount,
+      false => array[i] + amount,
+    };
   }
   fn set_current_cell(&mut self, value: Wrapping<u8>) {
-    if self.head_position < 0 {
-      let i: usize = (-1 - self.head_position).try_into().unwrap();
-      if i >= self.negative_array.len() {
-        self.negative_array.resize(i + 1, Wrapping(0u8));
-      }
-      self.negative_array[i] = value;
-    } else {
-      let i: usize = self.head_position.try_into().unwrap();
-      if i >= self.positive_array.len() {
-        self.positive_array.resize(i + 1, Wrapping(0u8));
-      }
-      self.positive_array[i] = value;
-    }
+    self.modify_current_cell(value, Some(true));
   }
+  // TODO: simplify duplicated code? probably could use an optional mutable reference thing
   fn get_current_cell(&self) -> Wrapping<u8> {
-    if self.head_position < 0 {
-      let i: usize = (-1 - self.head_position).try_into().unwrap();
-      if i >= self.negative_array.len() {
-        return Wrapping(0u8);
-      } else {
-        return self.negative_array[i];
-      }
-    } else {
-      let i: usize = self.head_position.try_into().unwrap();
-      if i >= self.positive_array.len() {
-        return Wrapping(0u8);
-      } else {
-        return self.positive_array[i];
-      }
-    }
+    self.get_cell(self.head_position)
   }
 }
+
+impl fmt::Display for Tape {
+  fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+    let mut line_1 = String::with_capacity(50);
+    let mut line_2 = String::with_capacity(50);
+    let mut line_3 = String::with_capacity(50);
+
+    // disgusting
+    line_1.push('|');
+    line_2.push('|');
+    line_3.push('|');
+
+    for (i, pos) in ((self.head_position - 10)..(self.head_position + 10)).enumerate() {
+      let val = self.get_cell(pos).0;
+      let mut dis = 32u8;
+      if val.is_ascii_alphanumeric() || val.is_ascii_punctuation() {
+        dis = val;
+      }
+
+      // dodgy af, I don't know rust or the best way but I know this isn't
+      line_1.push_str(format!("{val:02x}").as_str());
+      line_2.push(' '); line_2.push(dis as char);
+      line_3 += match pos == self.head_position { true => "^^", false => "--"};
+
+      line_1.push('|');
+      line_2.push('|');
+      line_3.push('|');
+    }
+
+    // disgusting but I just want this to work
+    let _ = f.write_str(&line_1);
+    let _ = f.write_str("\n");
+    let _ = f.write_str(&line_2);
+    let _ = f.write_str("\n");
+    let _ = f.write_str(&line_3);
+    let _ = f.write_str("\n");
+    
+    Ok(())
+  }
+}
+
 
 pub struct BVM {
   tape: Tape,
@@ -88,8 +128,8 @@ impl BVM {
     while pc < self.program.len() {
 
       match self.program[pc] {
-        '+' => {self.tape.modify_current_cell(Wrapping(1));},
-        '-' => {self.tape.modify_current_cell(Wrapping(255u8));},
+        '+' => {self.tape.modify_current_cell(Wrapping(1), None);},
+        '-' => {self.tape.modify_current_cell(Wrapping(255), None);},
         ',' => {
           let mut buf = [0; 1];
           input.read_exact(&mut buf);
@@ -130,6 +170,7 @@ impl BVM {
             pc = loop_stack[loop_stack.len() - 1];
           }
         },
+        '#' => {println!("{}",self.tape);}
         _ => (),
       };
 
@@ -140,6 +181,7 @@ impl BVM {
 
 #[cfg(test)]
 mod tests {
+  // TODO: add unit tests for Tape
   use super::*;
 
   use std::io::Cursor;
@@ -153,6 +195,7 @@ mod tests {
 
     bvm.run(&mut input_stream, &mut output_stream);
     
+    // TODO: fix this unsafe stuff
     unsafe {
       String::from_utf8_unchecked(output_stream.into_inner())
     }
