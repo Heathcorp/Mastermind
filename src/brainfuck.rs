@@ -96,6 +96,7 @@ impl fmt::Display for Tape {
     }
 
     // disgusting but I just want this to work
+    let _ = f.write_str("\n");
     let _ = f.write_str(&line_1);
     let _ = f.write_str("\n");
     let _ = f.write_str(&line_2);
