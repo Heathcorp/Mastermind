@@ -1,6 +1,9 @@
 mod brainfuck;
 use brainfuck::BVM;
 
+mod brainlove;
+use brainlove::BrainloveCompiler;
+
 use std::{io::{stdin, stdout, Cursor}, fs::File};
 
 use clap::Parser;
@@ -14,6 +17,8 @@ struct Arguments {
   program: Option<String>,
   #[arg(short, long)]
   input: Option<String>,
+  #[arg(short, long, default_value_t = false)]
+  compile: bool,
 }
 
 fn main() {
@@ -27,11 +32,19 @@ fn main() {
     String::new()
   };
 
-  let mut bvm = BVM::new(program.chars().collect());
-  
-  if args.input.is_some() {
-    bvm.run(&mut Cursor::new(args.input.unwrap()), &mut stdout());
+
+  if !args.compile { 
+    // run brainfuck
+    let mut bvm = BVM::new(program.chars().collect());
+    
+    if args.input.is_some() {
+      bvm.run(&mut Cursor::new(args.input.unwrap()), &mut stdout());
+    } else {
+      bvm.run(&mut stdin(), &mut stdout());
+    }
   } else {
-    bvm.run(&mut stdin(), &mut stdout());
+    // run the compiler on the provided file
+    let mut mfc = BrainloveCompiler::new();
+    mfc.compile(program);
   }
 }
