@@ -50,7 +50,9 @@ impl BrainloveCompiler {
 		let lines: Vec<&str> = source.lines().collect();
 
 		// step one strip and get the type of each line for ease of processing
-		let line_pairs: Vec<(LineType, &str)> = lines
+		// I think this could be combined into the parse block function, seems a bit redundant at the moment
+		// TODO: simplify
+		let line_pairs: Vec<LinePair> = lines
 			.into_iter()
 			.map(|line| {
 				let trimmed = Self::strip_line(line);
@@ -59,17 +61,19 @@ impl BrainloveCompiler {
 			.filter(|pair| pair.0 != LineType::None)
 			.collect();
 
+		println!("{:#?}", line_pairs);
+
 		let root_block = self.parse_block(&line_pairs);
 
 		println!("{:#?}", root_block);
 
-		let output = self.transpile_block(root_block);
+		let output: String = self.transpile_block(root_block).into_iter().collect();
 
 		println!("{:#?}", output);
 	}
 
 	// recursive function to create a tree representation of the program
-	fn parse_block<'a>(&'a self, line_pairs: &Vec<(LineType, &'a str)>) -> Block {
+	fn parse_block<'a>(&'a self, line_pairs: &'a [LinePair]) -> Block {
 		let mut parsed_block = Block {
 			functions: Vec::new(),
 			variables: Vec::new(),
@@ -97,6 +101,32 @@ impl BrainloveCompiler {
 						};
 					}
 				}
+				LineType::LoopDefinition => {
+					// find the start block
+					while line_pairs[i].0 != LineType::BlockStart {
+						i += 1;
+					}
+					let start_line = i;
+					let mut depth = 1;
+					// skip to the corresponding end block
+					while depth > 0 {
+						i += 1;
+						depth += match line_pairs[i].0 {
+							LineType::BlockStart => 1,
+							LineType::BlockEnd => -1,
+							_ => 0,
+						};
+					}
+					let end_line = i;
+
+					// recursively parse the loop's block
+					let range = &line_pairs[start_line..=end_line];
+					let block = self.parse_block(range);
+					let var_name = words[1];
+					parsed_block
+						.commands
+						.push(Command::Loop { var_name, block });
+				}
 				LineType::VariableDeclaration => {
 					let var_name = words[1];
 					parsed_block.variables.push(Variable {
@@ -118,6 +148,15 @@ impl BrainloveCompiler {
 					// surely I can use references to point to the actual variable object
 					let var_name: &str = words[1];
 					let imm: i32 = words[2].parse().unwrap();
+
+					parsed_block
+						.commands
+						.push(Command::AddImmediate { var_name, imm });
+				}
+				LineType::SubOperation => {
+					// surely I can use references to point to the actual variable object
+					let var_name: &str = words[1];
+					let imm: i32 = -words[2].parse::<i32>().unwrap();
 
 					parsed_block
 						.commands
@@ -153,14 +192,15 @@ impl BrainloveCompiler {
 			"int[1]" => LineType::VariableDeclaration,
 			"start" => LineType::BlockStart,
 			"end" => LineType::BlockEnd,
-			"loop" => LineType::LoopStart,
+			"loop" => LineType::LoopDefinition,
 			"add" => LineType::AddOperation,
+			"sub" => LineType::SubOperation,
 			"call" => LineType::FunctionCall,
 			_ => LineType::None,
 		}
 	}
 
-	fn transpile_block(&self, block: Block) -> Vec<char> {
+	fn transpile_block<'a>(&self, block: Block) -> Vec<char> {
 		// the real meat and potatoes
 		let mut output: Vec<char> = Vec::new();
 
@@ -177,40 +217,53 @@ impl BrainloveCompiler {
 
 		// go through commands, part 2 of the special sauce
 		{
-			let mut tape_pos: usize = 0;
-			for cmd in block.commands.iter() {
-				match cmd {
-					Command::AddImmediate { var_name, imm } => {
-						// move to the variable's tape pos, could probably make this a function
-						let target_tape_pos = var_map.get(var_name).unwrap().clone();
-						let direction: i32 = match target_tape_pos > tape_pos {
-							true => 1,
-							false => -1,
-						};
-						let arrow = match target_tape_pos > tape_pos {
-							true => '>',
-							false => '<',
-						};
-						for i in (0..tape_pos.abs_diff(target_tape_pos)) {
-							output.push(arrow);
-							match direction > 0 {
-								true => {
-									tape_pos += 1;
-								}
-								false => {
-									tape_pos -= 1;
-								}
+			let move_to_pos =
+				|program: &mut Vec<char>, current_tape_pos: &mut usize, target_tape_pos| {
+					let direction: i32 = match target_tape_pos > *current_tape_pos {
+						true => 1,
+						false => -1,
+					};
+					let arrow = match target_tape_pos > *current_tape_pos {
+						true => '>',
+						false => '<',
+					};
+					for i in (0..current_tape_pos.abs_diff(target_tape_pos)) {
+						program.push(arrow);
+						match direction > 0 {
+							true => {
+								*current_tape_pos += 1;
+							}
+							false => {
+								*current_tape_pos -= 1;
 							}
 						}
+					}
+				};
+			let move_to_var =
+				|program: &mut Vec<char>, current_tape_pos: &mut usize, var_name: &str| {
+					move_to_pos(program, current_tape_pos, *var_map.get(var_name).unwrap())
+				};
+			let add_imm_to_cell = |program: &mut Vec<char>, imm: i32| {
+				let operator = match imm < 0 {
+					true => '-',
+					false => '+',
+				};
+				for i in 0..imm.abs() {
+					program.push(operator);
+				}
+			};
+
+			let mut tape_pos: usize = 0;
+
+			// let move_to_var = |var_name| move_to_pos(var_map.get(var_name).unwrap().clone());
+			for cmd in block.commands.iter() {
+				match *cmd {
+					Command::AddImmediate { var_name, imm } => {
+						// move to the variable's tape pos
+						move_to_var(&mut output, &mut tape_pos, var_name);
 
 						// add the immediate number
-						let operator = match imm.clone() < 0 {
-							true => '-',
-							false => '+',
-						};
-						for i in (0..imm.abs()) {
-							output.push(operator);
-						}
+						add_imm_to_cell(&mut output, imm);
 					}
 					// Command::Loop(block) => {}
 					_ => (),
@@ -252,7 +305,7 @@ struct Variable<'a> {
 #[derive(Debug)]
 enum Command<'a> {
 	AddImmediate { var_name: &'a str, imm: i32 },
-	Loop(Block<'a>),
+	Loop { var_name: &'a str, block: Block<'a> },
 }
 
 #[derive(Debug, PartialEq)]
@@ -261,8 +314,11 @@ enum LineType {
 	FunctionDefinition,
 	FunctionCall,
 	VariableDeclaration,
-	LoopStart,
+	LoopDefinition,
 	BlockStart,
 	BlockEnd,
 	AddOperation,
+	SubOperation,
 }
+
+type LinePair<'a> = (LineType, &'a str);
