@@ -11,6 +11,7 @@ end a
 // program start
 int[1] a 4
 int[1] b 3
+add a 1
 #debug
 call add a b
 #debug
