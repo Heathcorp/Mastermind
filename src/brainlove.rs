@@ -34,7 +34,7 @@
 // 5. at the start of each loop iteration, keep track of the tape pos and return back at the end of the block (this will be different for strings possibly)
 // 6. this will have to change for other things as well but that wil come in stage 2
 
-use std::collections::HashMap;
+use crate::construction::BrainfuckBuilder;
 
 pub struct BrainloveCompiler {}
 
@@ -67,7 +67,11 @@ impl BrainloveCompiler {
 
 		println!("{:#?}", root_block);
 
-		let output: String = self.transpile_block(root_block).into_iter().collect();
+		let mut builder = BrainfuckBuilder::new();
+		self.transpile_block(root_block, &mut builder);
+
+		println!("{:#?}", builder);
+		let output = builder.to_string();
 
 		println!("{:#?}", output);
 	}
@@ -75,7 +79,7 @@ impl BrainloveCompiler {
 	// recursive function to create a tree representation of the program
 	fn parse_block<'a>(&'a self, line_pairs: &'a [LinePair]) -> Block {
 		let mut parsed_block = Block {
-			functions: Vec::new(),
+			// functions: Vec::new(),
 			variables: Vec::new(),
 			commands: Vec::new(),
 		};
@@ -200,78 +204,21 @@ impl BrainloveCompiler {
 		}
 	}
 
-	fn transpile_block<'a>(&self, block: Block) -> Vec<char> {
+	fn transpile_block(&self, block: Block, builder: &mut BrainfuckBuilder) {
 		// the real meat and potatoes
-		let mut output: Vec<char> = Vec::new();
-
-		// start with the variables, probably the special gravy of this whole thing
-		// will be structuring multi-cell variables so that they can be operated on
-		let mut var_map: HashMap<&str, usize> = HashMap::new();
-
-		{
-			for (i, var) in block.variables.iter().enumerate() {
-				var_map.insert(var.name, i);
-				// this will need to change for multi-cell variables
-			}
+		for var in block.variables {
+			builder.allocate_var(var.name);
 		}
 
-		// go through commands, part 2 of the special sauce
-		{
-			let move_to_pos =
-				|program: &mut Vec<char>, current_tape_pos: &mut usize, target_tape_pos| {
-					let direction: i32 = match target_tape_pos > *current_tape_pos {
-						true => 1,
-						false => -1,
-					};
-					let arrow = match target_tape_pos > *current_tape_pos {
-						true => '>',
-						false => '<',
-					};
-					for i in (0..current_tape_pos.abs_diff(target_tape_pos)) {
-						program.push(arrow);
-						match direction > 0 {
-							true => {
-								*current_tape_pos += 1;
-							}
-							false => {
-								*current_tape_pos -= 1;
-							}
-						}
-					}
-				};
-			let move_to_var =
-				|program: &mut Vec<char>, current_tape_pos: &mut usize, var_name: &str| {
-					move_to_pos(program, current_tape_pos, *var_map.get(var_name).unwrap())
-				};
-			let add_imm_to_cell = |program: &mut Vec<char>, imm: i32| {
-				let operator = match imm < 0 {
-					true => '-',
-					false => '+',
-				};
-				for i in 0..imm.abs() {
-					program.push(operator);
+		for cmd in block.commands {
+			match cmd {
+				Command::AddImmediate { var_name, imm } => {
+					builder.move_to_var(var_name);
+					builder.add_to_cell(imm);
 				}
-			};
-
-			let mut tape_pos: usize = 0;
-
-			// let move_to_var = |var_name| move_to_pos(var_map.get(var_name).unwrap().clone());
-			for cmd in block.commands.iter() {
-				match *cmd {
-					Command::AddImmediate { var_name, imm } => {
-						// move to the variable's tape pos
-						move_to_var(&mut output, &mut tape_pos, var_name);
-
-						// add the immediate number
-						add_imm_to_cell(&mut output, imm);
-					}
-					// Command::Loop(block) => {}
-					_ => (),
-				}
+				_ => (),
 			}
 		}
-
-		output
 	}
 }
 
@@ -279,7 +226,7 @@ impl BrainloveCompiler {
 
 #[derive(Debug)]
 struct Block<'a> {
-	functions: Vec<Function>,
+	// functions: Vec<Function>,
 	variables: Vec<Variable<'a>>,
 	commands: Vec<Command<'a>>,
 }

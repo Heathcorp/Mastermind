@@ -1,13 +1,11 @@
 mod brainfuck;
-use brainfuck::BVM;
-
 mod brainlove;
+mod construction;
+
+use brainfuck::BVM;
 use brainlove::BrainloveCompiler;
 
-use std::{
-	fs::File,
-	io::{stdin, stdout, Cursor},
-};
+use std::io::{stdin, stdout, Cursor};
 
 use clap::Parser;
 
@@ -27,7 +25,7 @@ struct Arguments {
 fn main() {
 	let args = Arguments::parse();
 
-	let mut program = if args.file.is_some() {
+	let program = if args.file.is_some() {
 		std::fs::read_to_string(args.file.unwrap()).unwrap()
 	} else if args.program.is_some() {
 		args.program.unwrap()

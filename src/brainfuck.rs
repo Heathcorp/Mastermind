@@ -16,7 +16,7 @@ impl Tape {
 		}
 	}
 	fn get_cell(&self, index: i32) -> Wrapping<u8> {
-		let mut array;
+		let array;
 		let i: usize = (match index < 0 {
 			true => {
 				array = &self.negative_array;
@@ -82,7 +82,7 @@ impl fmt::Display for Tape {
 		line_2.push('|');
 		line_3.push('|');
 
-		for (i, pos) in ((self.head_position - 10)..(self.head_position + 10)).enumerate() {
+		for pos in (self.head_position - 10)..(self.head_position + 10) {
 			let val = self.get_cell(pos).0;
 			let mut dis = 32u8;
 			if val.is_ascii_alphanumeric() || val.is_ascii_punctuation() {
