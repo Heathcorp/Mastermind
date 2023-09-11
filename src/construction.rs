@@ -65,4 +65,12 @@ impl BrainfuckBuilder {
 		self.variables_map
 			.insert(String::from(var_name), max_val + 1);
 	}
+
+	pub fn open_loop(&mut self) {
+		self.program.push('[');
+	}
+
+	pub fn close_loop(&mut self) {
+		self.program.push(']');
+	}
 }

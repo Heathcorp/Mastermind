@@ -129,7 +129,7 @@ impl BrainloveCompiler {
 					let var_name = words[1];
 					parsed_block
 						.commands
-						.push(Command::Loop { var_name, block });
+						.push(Command::ConsumeLoop { var_name, block });
 				}
 				LineType::VariableDeclaration => {
 					let var_name = words[1];
@@ -204,6 +204,7 @@ impl BrainloveCompiler {
 		}
 	}
 
+	// I don't think this construction is a good one, not very functional
 	fn transpile_block(&self, block: Block, builder: &mut BrainfuckBuilder) {
 		// the real meat and potatoes
 		for var in block.variables {
@@ -215,6 +216,21 @@ impl BrainloveCompiler {
 				Command::AddImmediate { var_name, imm } => {
 					builder.move_to_var(var_name);
 					builder.add_to_cell(imm);
+				}
+				Command::ConsumeLoop {
+					var_name,
+					block: loop_block,
+				} => {
+					// to start the loop move to the variable you want to consume
+					builder.move_to_var(var_name);
+					builder.open_loop();
+					// do what you want to do in the loop
+					self.transpile_block(loop_block, builder);
+					// decrement the variable
+					builder.move_to_var(var_name);
+					builder.add_to_cell(-1);
+
+					builder.close_loop();
 				}
 				_ => (),
 			}
@@ -252,7 +268,7 @@ struct Variable<'a> {
 #[derive(Debug)]
 enum Command<'a> {
 	AddImmediate { var_name: &'a str, imm: i32 },
-	Loop { var_name: &'a str, block: Block<'a> },
+	ConsumeLoop { var_name: &'a str, block: Block<'a> },
 }
 
 #[derive(Debug, PartialEq)]
