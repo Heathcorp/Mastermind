@@ -1,20 +1,17 @@
-// def add
-//   int[1] a
-//   int[1] b consume
-// start
-//   loop b
-//   start
-//     add a 1
-//   end
-// end a
+def add
+  int[1] c
+  int[1] d
+start
+  loop d
+  start
+    add c 1
+  end
+end
 
 // program start
 int[1] a 4
 int[1] b 3
-loop b
-start
-  add a 1
-end
+call add a b
 
 // desired output:
 // ++++>+++<# >[-<+>]#

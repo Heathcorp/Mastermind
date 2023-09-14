@@ -1,9 +1,9 @@
 mod brainfuck;
-mod brainlove;
 mod construction;
+mod mastermind;
 
 use brainfuck::BVM;
-use brainlove::BrainloveCompiler;
+use mastermind::MastermindCompiler;
 
 use std::io::{stdin, stdout, Cursor};
 
@@ -44,7 +44,7 @@ fn main() {
 		}
 	} else {
 		// run the compiler on the provided file
-		let mut mfc = BrainloveCompiler::new();
+		let mut mfc = MastermindCompiler::new();
 		mfc.compile(program);
 	}
 }

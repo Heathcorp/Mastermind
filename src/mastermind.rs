@@ -34,13 +34,15 @@
 // 5. at the start of each loop iteration, keep track of the tape pos and return back at the end of the block (this will be different for strings possibly)
 // 6. this will have to change for other things as well but that wil come in stage 2
 
+use std::{clone, collections::HashMap};
+
 use crate::construction::BrainfuckBuilder;
 
-pub struct BrainloveCompiler {}
+pub struct MastermindCompiler {}
 
-impl BrainloveCompiler {
+impl MastermindCompiler {
 	pub fn new() -> Self {
-		BrainloveCompiler {}
+		MastermindCompiler {}
 	}
 
 	pub fn compile<'a>(&mut self, source: String) {
@@ -79,21 +81,25 @@ impl BrainloveCompiler {
 	// recursive function to create a tree representation of the program
 	fn parse_block<'a>(&'a self, line_pairs: &'a [LinePair]) -> Block {
 		let mut parsed_block = Block {
-			// functions: Vec::new(),
 			variables: Vec::new(),
 			commands: Vec::new(),
 		};
+		// functions are inlined as there are no functions in brainfuck and it is easier to inline them at the syntax tree step than at the next step
+		let mut functions: Vec<Function> = Vec::new();
 
 		let mut i = 0;
 		while i < line_pairs.len() {
-			let words: Vec<&str> = line_pairs[i].1.split_whitespace().collect();
+			let line_words: Vec<&str> = line_pairs[i].1.split_whitespace().collect();
 			match line_pairs[i].0 {
 				LineType::FunctionDefinition => {
-					// skip the whole definition for now (TODO)
+					i += 1;
+					// start at the arguments to include them in the block
+					let args_start_line = i;
 					// find the start block
 					while line_pairs[i].0 != LineType::BlockStart {
 						i += 1;
 					}
+					let block_start_line = i;
 					let mut depth = 1;
 					// skip to the corresponding end block
 					while depth > 0 {
@@ -104,7 +110,20 @@ impl BrainloveCompiler {
 							_ => 0,
 						};
 					}
+					let end_line = i;
+
+					// recursively parse the function's block
+					let range = &line_pairs[args_start_line..=end_line];
+					let mut function_block = self.parse_block(range);
+					for i in 0..(block_start_line - args_start_line) {
+						function_block.variables[i].argument = true;
+					}
+					functions.push(Function {
+						name: line_words[1],
+						block: function_block,
+					})
 				}
+
 				LineType::LoopDefinition => {
 					// find the start block
 					while line_pairs[i].0 != LineType::BlockStart {
@@ -126,23 +145,22 @@ impl BrainloveCompiler {
 					// recursively parse the loop's block
 					let range = &line_pairs[start_line..=end_line];
 					let block = self.parse_block(range);
-					let var_name = words[1];
+					let var_name = line_words[1];
 					parsed_block
 						.commands
 						.push(Command::ConsumeLoop { var_name, block });
 				}
 				LineType::VariableDeclaration => {
-					let var_name = words[1];
+					let var_name = line_words[1];
 					parsed_block.variables.push(Variable {
 						name: var_name,
-						var_type: VariableType::Int,
+						val_type: ValueType::Int,
 						length: 1,
 						argument: false,
-						consumed: words.contains(&"consume"),
 					});
-					if words.len() > 2 {
+					if line_words.len() > 2 {
 						// initialisation immediate value
-						let imm: i32 = words[2].parse().unwrap();
+						let imm: i32 = line_words[2].parse().unwrap();
 						parsed_block
 							.commands
 							.push(Command::AddImmediate { var_name, imm });
@@ -150,8 +168,8 @@ impl BrainloveCompiler {
 				}
 				LineType::AddOperation => {
 					// surely I can use references to point to the actual variable object
-					let var_name: &str = words[1];
-					let imm: i32 = words[2].parse().unwrap();
+					let var_name: &str = line_words[1];
+					let imm: i32 = line_words[2].parse().unwrap();
 
 					parsed_block
 						.commands
@@ -159,12 +177,78 @@ impl BrainloveCompiler {
 				}
 				LineType::SubOperation => {
 					// surely I can use references to point to the actual variable object
-					let var_name: &str = words[1];
-					let imm: i32 = -words[2].parse::<i32>().unwrap();
+					let var_name: &str = line_words[1];
+					let imm: i32 = -line_words[2].parse::<i32>().unwrap();
 
 					parsed_block
 						.commands
 						.push(Command::AddImmediate { var_name, imm });
+				}
+				LineType::FunctionCall => {
+					// tricky part, inlining function calls
+
+					// get the function being called
+					let function_name = line_words[1];
+					let mut function_instance: Function = functions
+						.iter()
+						.find(|f| f.name == function_name)
+						.unwrap()
+						.clone();
+					let function_arg_vars: Vec<&str> = function_instance
+						.block
+						.variables
+						.iter()
+						.filter_map(|var| match var.argument {
+							true => Some(var.name),
+							false => None,
+						})
+						.collect();
+
+					// get the variables being called as arguments
+					let mut variable_translations: HashMap<&str, &str> = HashMap::new();
+					for (i, outer_var_name) in line_words[2..].iter().enumerate() {
+						let function_var = function_arg_vars[i];
+						variable_translations.insert(function_var, *outer_var_name);
+					}
+
+					// stick the commands and variables into the block, final step
+					// TODO: maybe create a variable scope here?
+					parsed_block.variables.extend(
+						function_instance
+							.block
+							.variables
+							.iter()
+							.filter(|var| !var.argument)
+							.map(|var| var.clone()),
+					);
+					parsed_block
+						.commands
+						.extend(function_instance.block.commands.iter().map(|cmd| {
+							// translate the function block variables to the calling arguments
+							// TODO: redo this so that we avoid variable naming issues, maybe keep track of scopes, tricky tricky
+							// atm this will not work if we call a function with arg g and the function's block has g defined
+							// actually it's worse than that because this function does not recursively translate so loop blocks don't work
+							// need to do it properly
+
+							let old_var_name = match cmd {
+								Command::AddImmediate { var_name, imm: _ }
+								| Command::ConsumeLoop { var_name, block: _ } => var_name,
+							};
+							let new_name = variable_translations
+								.get(old_var_name)
+								.unwrap_or(old_var_name);
+
+							match cmd {
+								Command::AddImmediate { var_name, imm } => Command::AddImmediate {
+									var_name: new_name,
+									imm: *imm,
+								},
+								Command::ConsumeLoop { var_name, block } => Command::ConsumeLoop {
+									var_name: new_name,
+									block: block.clone(),
+								},
+							}
+						}));
 				}
 				_ => (),
 			}
@@ -215,7 +299,7 @@ impl BrainloveCompiler {
 			match cmd {
 				Command::AddImmediate { var_name, imm } => {
 					builder.move_to_var(var_name);
-					builder.add_to_cell(imm);
+					builder.add_to_current_cell(imm);
 				}
 				Command::ConsumeLoop {
 					var_name,
@@ -228,44 +312,49 @@ impl BrainloveCompiler {
 					self.transpile_block(loop_block, builder);
 					// decrement the variable
 					builder.move_to_var(var_name);
-					builder.add_to_cell(-1);
+					builder.add_to_current_cell(-1);
 
 					builder.close_loop();
 				}
 				_ => (),
 			}
 		}
+
+		// for var in block.variables {
+		// 	builder.free_var(var.name);
+		// }
 	}
 }
 
 // TODO: use enums
 
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 struct Block<'a> {
-	// functions: Vec<Function>,
 	variables: Vec<Variable<'a>>,
 	commands: Vec<Command<'a>>,
 }
 
-#[derive(Debug)]
-struct Function {}
+#[derive(Debug, Clone)]
+struct Function<'a> {
+	name: &'a str,
+	block: Block<'a>,
+}
 
-#[derive(Debug)]
-enum VariableType {
+#[derive(Debug, Clone)]
+enum ValueType {
 	Str,
 	Int,
 }
 
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 struct Variable<'a> {
 	name: &'a str,
-	var_type: VariableType,
+	val_type: ValueType,
 	length: usize,
 	argument: bool,
-	consumed: bool,
 }
 
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 enum Command<'a> {
 	AddImmediate { var_name: &'a str, imm: i32 },
 	ConsumeLoop { var_name: &'a str, block: Block<'a> },
