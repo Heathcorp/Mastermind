@@ -70,7 +70,7 @@ impl MastermindCompiler {
 		println!("{:#?}", root_block);
 
 		let mut builder = BrainfuckBuilder::new();
-		self.transpile_block(root_block, &mut builder);
+		self.compile_block(root_block, &mut builder);
 
 		println!("{:#?}", builder);
 		let output = builder.to_string();
@@ -185,7 +185,7 @@ impl MastermindCompiler {
 						.push(Command::AddImmediate { var_name, imm });
 				}
 				LineType::FunctionCall => {
-					// tricky part, inlining function calls
+					// tricky part, expanding function calls
 
 					// get the function being called
 					let function_name = line_words[1];
@@ -194,7 +194,7 @@ impl MastermindCompiler {
 						.find(|f| f.name == function_name)
 						.unwrap()
 						.clone();
-					let function_arg_vars: Vec<&str> = function_instance
+					let function_arg_names: Vec<&str> = function_instance
 						.block
 						.variables
 						.iter()
@@ -205,50 +205,18 @@ impl MastermindCompiler {
 						.collect();
 
 					// get the variables being called as arguments
-					let mut variable_translations: HashMap<&str, &str> = HashMap::new();
+					let mut var_translations: HashMap<&str, &str> = HashMap::new();
 					for (i, outer_var_name) in line_words[2..].iter().enumerate() {
-						let function_var = function_arg_vars[i];
-						variable_translations.insert(function_var, *outer_var_name);
+						let function_var = function_arg_names[i];
+						var_translations.insert(function_var, *outer_var_name);
 					}
 
 					// stick the commands and variables into the block, final step
-					// TODO: maybe create a variable scope here?
-					parsed_block.variables.extend(
-						function_instance
-							.block
-							.variables
-							.iter()
-							.filter(|var| !var.argument)
-							.map(|var| var.clone()),
-					);
-					parsed_block
-						.commands
-						.extend(function_instance.block.commands.iter().map(|cmd| {
-							// translate the function block variables to the calling arguments
-							// TODO: redo this so that we avoid variable naming issues, maybe keep track of scopes, tricky tricky
-							// atm this will not work if we call a function with arg g and the function's block has g defined
-							// actually it's worse than that because this function does not recursively translate so loop blocks don't work
-							// need to do it properly
 
-							let old_var_name = match cmd {
-								Command::AddImmediate { var_name, imm: _ }
-								| Command::ConsumeLoop { var_name, block: _ } => var_name,
-							};
-							let new_name = variable_translations
-								.get(old_var_name)
-								.unwrap_or(old_var_name);
-
-							match cmd {
-								Command::AddImmediate { var_name, imm } => Command::AddImmediate {
-									var_name: new_name,
-									imm: *imm,
-								},
-								Command::ConsumeLoop { var_name, block } => Command::ConsumeLoop {
-									var_name: new_name,
-									block: block.clone(),
-								},
-							}
-						}));
+					parsed_block.commands.push(Command::ScopedBlock {
+						var_translations,
+						block: function_instance.block,
+					});
 				}
 				_ => (),
 			}
@@ -289,10 +257,16 @@ impl MastermindCompiler {
 	}
 
 	// I don't think this construction is a good one, not very functional
-	fn transpile_block(&self, block: Block, builder: &mut BrainfuckBuilder) {
+	// kind of dependency injection but not really, it's not too too bad but I'm sure there is a better way
+	fn compile_block(&self, block: Block, builder: &mut BrainfuckBuilder) {
 		// the real meat and potatoes
-		for var in block.variables {
-			builder.allocate_var(var.name);
+
+		// start a new variable name scope
+
+		for var in block.variables.iter() {
+			if !var.argument {
+				builder.allocate_var(var.name);
+			}
 		}
 
 		for cmd in block.commands {
@@ -309,20 +283,36 @@ impl MastermindCompiler {
 					builder.move_to_var(var_name);
 					builder.open_loop();
 					// do what you want to do in the loop
-					self.transpile_block(loop_block, builder);
+					self.compile_block(loop_block, builder);
 					// decrement the variable
 					builder.move_to_var(var_name);
 					builder.add_to_current_cell(-1);
 
 					builder.close_loop();
 				}
+				Command::ScopedBlock {
+					var_translations,
+					block,
+				} => {
+					// tricky stuff, this is only used for functions atm
+					// basically we need to recursively compile the contained block,
+					// I think this will have to be done in the builder
+
+					// prime the builder with the variable translations
+					builder.open_scope(&var_translations);
+
+					self.compile_block(block, builder);
+
+					// remove the variable translations from the builder
+					builder.close_scope();
+				}
 				_ => (),
 			}
 		}
 
-		// for var in block.variables {
-		// 	builder.free_var(var.name);
-		// }
+		for var in block.variables.iter() {
+			builder.free_var(var.name);
+		}
 	}
 }
 
@@ -356,8 +346,18 @@ struct Variable<'a> {
 
 #[derive(Debug, Clone)]
 enum Command<'a> {
-	AddImmediate { var_name: &'a str, imm: i32 },
-	ConsumeLoop { var_name: &'a str, block: Block<'a> },
+	AddImmediate {
+		var_name: &'a str,
+		imm: i32,
+	},
+	ConsumeLoop {
+		var_name: &'a str,
+		block: Block<'a>,
+	},
+	ScopedBlock {
+		var_translations: HashMap<&'a str, &'a str>,
+		block: Block<'a>,
+	},
 }
 
 #[derive(Debug, PartialEq)]

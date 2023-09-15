@@ -1,4 +1,4 @@
-use std::{collections::HashMap, hash::Hash};
+use std::collections::HashMap;
 
 #[derive(Debug)]
 pub struct BrainfuckBuilder {
@@ -19,6 +19,15 @@ pub struct VariableScope {
 	variable_map: HashMap<String, i32>,
 }
 
+impl VariableScope {
+	pub fn new() -> VariableScope {
+		VariableScope {
+			variable_aliases: HashMap::new(),
+			variable_map: HashMap::new(),
+		}
+	}
+}
+
 // not sure what this would be equivalent to in a normal compiler,
 // but basically this "class" is the only thing that directly writes brainfuck code,
 // it keeps track of tape memory allocation and abstracts tape head positioning from the actual compiler
@@ -26,7 +35,7 @@ impl BrainfuckBuilder {
 	pub fn new() -> BrainfuckBuilder {
 		BrainfuckBuilder {
 			program: Vec::new(),
-			variable_scopes: Vec::new(),
+			variable_scopes: Vec::from([VariableScope::new()]),
 			allocation_array_zero_offset: 0,
 			allocation_array: Vec::new(),
 			tape_offset_pos: 0,
@@ -76,6 +85,7 @@ impl BrainfuckBuilder {
 
 	pub fn move_to_var(&mut self, var_name: &str) {
 		let target_pos = self.get_var_pos(var_name);
+		println!("{var_name}: {target_pos}");
 		self.move_to_pos(target_pos);
 	}
 
@@ -149,11 +159,12 @@ impl BrainfuckBuilder {
 		self.loop_depth -= 1;
 	}
 
-	pub fn open_scope(&mut self) {
-		self.variable_scopes.push(VariableScope {
-			variable_aliases: HashMap::new(),
-			variable_map: HashMap::new(),
-		})
+	pub fn open_scope(&mut self, translations: &HashMap<&str, &str>) {
+		self.variable_scopes.push(VariableScope::new());
+		let scope_aliases = &mut self.variable_scopes.last_mut().unwrap().variable_aliases;
+		for (k, v) in translations.iter() {
+			scope_aliases.insert(String::from(*k), String::from(*v));
+		}
 	}
 
 	pub fn close_scope(&mut self) {
