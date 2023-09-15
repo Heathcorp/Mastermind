@@ -2,6 +2,7 @@ def add
   int[1] c
   int[1] d
 start
+  int[1] a 5 // how should this be handled given that the main program has "a"
   loop d
   start
     add c 1

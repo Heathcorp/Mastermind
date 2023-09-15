@@ -1,17 +1,22 @@
-use std::collections::HashMap;
+use std::{collections::HashMap, hash::Hash};
 
 #[derive(Debug)]
 pub struct BrainfuckBuilder {
 	program: Vec<char>,
-	// originally this was a hashmap but I did it this way so that variables can share names
-	// TODO: redo this to keep track of scopes so we can have multiple variables with the same name
-	variables_map: Vec<(String, i32)>,
+	// would very much like to have a tree/linked structure here but rust is anal about these things, even if my implementation is correct???
+	variable_scopes: Vec<VariableScope>,
 	// the position that tape cell zero is on the allocation array
 	allocation_array_zero_offset: i32,
 	allocation_array: Vec<bool>,
 	tape_offset_pos: i32,
 
 	loop_depth: usize,
+}
+
+#[derive(Debug)]
+pub struct VariableScope {
+	variable_aliases: HashMap<String, String>,
+	variable_map: HashMap<String, i32>,
 }
 
 // not sure what this would be equivalent to in a normal compiler,
@@ -21,7 +26,7 @@ impl BrainfuckBuilder {
 	pub fn new() -> BrainfuckBuilder {
 		BrainfuckBuilder {
 			program: Vec::new(),
-			variables_map: Vec::new(),
+			variable_scopes: Vec::new(),
 			allocation_array_zero_offset: 0,
 			allocation_array: Vec::new(),
 			tape_offset_pos: 0,
@@ -48,15 +53,25 @@ impl BrainfuckBuilder {
 		}
 	}
 
-	pub fn get_var_pos(&self, var_name: &str) -> i32 {
-		// iterate in reverse through the variables so that we can have multiple variables named the same
-		println!("{var_name} {:#?}", self.variables_map);
-		self.variables_map
-			.iter()
-			.rev()
-			.find(|(vn, pos)| var_name == *vn)
-			.unwrap()
-			.1
+	pub fn get_var_scope<'a>(&'a mut self, var_name: &'a str) -> (&'a mut VariableScope, &'a str) {
+		// tried very hard to do this recursively but rust is ridiculous
+		let mut var_alias = var_name;
+		let scope_iter = self.variable_scopes.iter_mut().rev();
+		for scope in scope_iter {
+			if scope.variable_map.contains_key(var_alias) {
+				return (scope, var_alias);
+			}
+			if scope.variable_aliases.contains_key(var_alias) {
+				var_alias = scope.variable_aliases.get(var_alias).unwrap();
+			}
+		}
+		panic!();
+	}
+
+	pub fn get_var_pos(&mut self, var_name: &str) -> i32 {
+		// iterate in reverse through the variables to check the latest scopes first
+		let (var_scope, alias_name) = self.get_var_scope(var_name);
+		var_scope.variable_map.get(alias_name).unwrap().clone()
 	}
 
 	pub fn move_to_var(&mut self, var_name: &str) {
@@ -81,24 +96,21 @@ impl BrainfuckBuilder {
 	// find free variable spaces and add to hashmap, you need to free this variable
 	pub fn allocate_var(&mut self, var_name: &str) {
 		let cell = self.allocate_cell();
-		self.variables_map.push((String::from(var_name), cell));
+		self.variable_scopes
+			.last_mut()
+			.unwrap()
+			.variable_map
+			.insert(String::from(var_name), cell);
 	}
 
 	pub fn free_var(&mut self, var_name: &str) {
 		// could probably be simplified
-		let (index, (vn, cell)) = self
-			.variables_map
-			.iter()
-			.enumerate()
-			.rev()
-			.find(|(i, (vn, cell))| var_name == *vn)
-			.unwrap();
+		let (scope, var_alias) = self.get_var_scope(var_name);
 
-		self.free_cell(*cell);
-		// probably could be optimised, this can have O(n) if shifting a lot of elements,
-		// theoretically you shouldn't be freeing old variables often enough for this to matter,
-		// also this is a compiler not an interpreter
-		self.variables_map.remove(index);
+		let cell = *scope.variable_map.get(var_alias).unwrap();
+		scope.variable_map.remove(var_alias);
+
+		self.free_cell(cell);
 	}
 
 	// find free cell and return the offset position (pointer basically)
@@ -135,6 +147,19 @@ impl BrainfuckBuilder {
 	pub fn close_loop(&mut self) {
 		self.program.push(']');
 		self.loop_depth -= 1;
+	}
+
+	pub fn open_scope(&mut self) {
+		self.variable_scopes.push(VariableScope {
+			variable_aliases: HashMap::new(),
+			variable_map: HashMap::new(),
+		})
+	}
+
+	pub fn close_scope(&mut self) {
+		// if you do not free all variables then they will be deleted but not deallocated (not cool)
+		// it will not error out though, not sure if that's a good thing
+		self.variable_scopes.pop();
 	}
 
 	pub fn combine_builder(&mut self, other: &BrainfuckBuilder) {}
