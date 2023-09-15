@@ -45,7 +45,7 @@ impl MastermindCompiler {
 		MastermindCompiler {}
 	}
 
-	pub fn compile<'a>(&mut self, source: String) {
+	pub fn compile<'a>(&mut self, source: String) -> String {
 		// basic steps:
 		// 1. tokenise the source code into commands, blocks, variables
 
@@ -76,6 +76,8 @@ impl MastermindCompiler {
 		let output = builder.to_string();
 
 		println!("{:#?}", output);
+
+		output
 	}
 
 	// recursive function to create a tree representation of the program
@@ -218,6 +220,9 @@ impl MastermindCompiler {
 						block: function_instance.block,
 					});
 				}
+				LineType::Debug => {
+					parsed_block.commands.push(Command::DebugTape);
+				}
 				_ => (),
 			}
 			i += 1;
@@ -252,6 +257,7 @@ impl MastermindCompiler {
 			"add" => LineType::AddOperation,
 			"sub" => LineType::SubOperation,
 			"call" => LineType::FunctionCall,
+			"#debug" => LineType::Debug,
 			_ => LineType::None,
 		}
 	}
@@ -306,12 +312,17 @@ impl MastermindCompiler {
 					// remove the variable translations from the builder
 					builder.close_scope();
 				}
+				Command::DebugTape => {
+					builder.add_symbol('#');
+				}
 				_ => (),
 			}
 		}
 
 		for var in block.variables.iter() {
-			builder.free_var(var.name);
+			if !var.argument {
+				builder.free_var(var.name);
+			}
 		}
 	}
 }
@@ -358,6 +369,7 @@ enum Command<'a> {
 		var_translations: HashMap<&'a str, &'a str>,
 		block: Block<'a>,
 	},
+	DebugTape,
 }
 
 #[derive(Debug, PartialEq)]
@@ -371,6 +383,7 @@ enum LineType {
 	BlockEnd,
 	AddOperation,
 	SubOperation,
+	Debug,
 }
 
 type LinePair<'a> = (LineType, &'a str);

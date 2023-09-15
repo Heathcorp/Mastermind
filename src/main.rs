@@ -20,9 +20,13 @@ struct Arguments {
 	input: Option<String>,
 	#[arg(short, long, default_value_t = false)]
 	compile: bool,
+	#[arg(short, long, default_value_t = false)]
+	run: bool,
 }
 
 fn main() {
+	std::env::set_var("RUST_BACKTRACE", "1");
+
 	let args = Arguments::parse();
 
 	let program = if args.file.is_some() {
@@ -33,18 +37,23 @@ fn main() {
 		String::new()
 	};
 
-	if !args.compile {
+	let bf_program = match args.compile {
+		true => {
+			// run the compiler on the provided file
+			let mut mfc = MastermindCompiler::new();
+			mfc.compile(program)
+		}
+		false => program,
+	};
+
+	if args.run {
 		// run brainfuck
-		let mut bvm = BVM::new(program.chars().collect());
+		let mut bvm = BVM::new(bf_program.chars().collect());
 
 		if args.input.is_some() {
 			bvm.run(&mut Cursor::new(args.input.unwrap()), &mut stdout());
 		} else {
 			bvm.run(&mut stdin(), &mut stdout());
 		}
-	} else {
-		// run the compiler on the provided file
-		let mut mfc = MastermindCompiler::new();
-		mfc.compile(program);
 	}
 }

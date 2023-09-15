@@ -74,7 +74,7 @@ impl BrainfuckBuilder {
 				var_alias = scope.variable_aliases.get(var_alias).unwrap();
 			}
 		}
-		panic!();
+		panic!("Could not find variable \"{}\"", var_name);
 	}
 
 	pub fn get_var_pos(&mut self, var_name: &str) -> i32 {
@@ -171,6 +171,10 @@ impl BrainfuckBuilder {
 		// if you do not free all variables then they will be deleted but not deallocated (not cool)
 		// it will not error out though, not sure if that's a good thing
 		self.variable_scopes.pop();
+	}
+
+	pub fn add_symbol(&mut self, symbol: char) {
+		self.program.push(symbol);
 	}
 
 	pub fn combine_builder(&mut self, other: &BrainfuckBuilder) {}
