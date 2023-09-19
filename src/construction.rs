@@ -2,7 +2,7 @@ use std::collections::HashMap;
 
 #[derive(Debug)]
 pub struct BrainfuckBuilder {
-	program: Vec<char>,
+	pub program: Vec<char>,
 	// would very much like to have a tree/linked structure here but rust is anal about these things, even if my implementation is correct???
 	variable_scopes: Vec<VariableScope>,
 	// the position that tape cell zero is on the allocation array
@@ -11,6 +11,10 @@ pub struct BrainfuckBuilder {
 	tape_offset_pos: i32,
 
 	loop_depth: usize,
+	// loop balance is 0 if the cell that started the loop is the same as the when you end the loop
+	// basically if the number of < and > is equal inside a loop
+	// each frame of the stack represents a loop, the last one is the current loop's balance factor
+	loop_balance_stack: Vec<i32>,
 }
 
 #[derive(Debug)]
@@ -40,6 +44,7 @@ impl BrainfuckBuilder {
 			allocation_array: Vec::new(),
 			tape_offset_pos: 0,
 			loop_depth: 0,
+			loop_balance_stack: Vec::new(),
 		}
 	}
 
@@ -53,6 +58,11 @@ impl BrainfuckBuilder {
 			true => '>',
 			false => '<',
 		};
+
+		if let Some(balance) = self.loop_balance_stack.last_mut() {
+			*balance += target_pos - self.tape_offset_pos;
+		}
+
 		for _ in 0..self.tape_offset_pos.abs_diff(target_pos) {
 			self.program.push(character);
 			self.tape_offset_pos += match forward {
@@ -77,6 +87,10 @@ impl BrainfuckBuilder {
 		panic!("Could not find variable \"{}\"", var_name);
 	}
 
+	pub fn get_current_scope(&mut self) -> &mut VariableScope {
+		self.variable_scopes.last_mut().unwrap()
+	}
+
 	pub fn get_var_pos(&mut self, var_name: &str) -> i32 {
 		// iterate in reverse through the variables to check the latest scopes first
 		let (var_scope, alias_name) = self.get_var_scope(var_name);
@@ -85,7 +99,6 @@ impl BrainfuckBuilder {
 
 	pub fn move_to_var(&mut self, var_name: &str) {
 		let target_pos = self.get_var_pos(var_name);
-		println!("{var_name}: {target_pos}");
 		self.move_to_pos(target_pos);
 	}
 
@@ -106,11 +119,20 @@ impl BrainfuckBuilder {
 	// find free variable spaces and add to hashmap, you need to free this variable
 	pub fn allocate_var(&mut self, var_name: &str) {
 		let cell = self.allocate_cell();
-		self.variable_scopes
-			.last_mut()
-			.unwrap()
+		self.get_current_scope()
 			.variable_map
 			.insert(String::from(var_name), cell);
+	}
+
+	// move a variable without moving any contents, just change the underlying cell that a variable points at, EXPERIMENTAL
+	// new_cell needs to already be allocated
+	pub fn change_var_cell(&mut self, var_name: &str, new_cell: i32) {
+		let (var_scope, alias_name) = self.get_var_scope(var_name);
+		let old_cell = var_scope
+			.variable_map
+			.insert(String::from(alias_name), new_cell)
+			.unwrap();
+		self.free_cell(old_cell);
 	}
 
 	pub fn free_var(&mut self, var_name: &str) {
@@ -151,19 +173,24 @@ impl BrainfuckBuilder {
 
 	pub fn open_loop(&mut self) {
 		self.program.push('[');
+		self.loop_balance_stack.push(0);
 		self.loop_depth += 1;
 	}
 
 	pub fn close_loop(&mut self) {
 		self.program.push(']');
 		self.loop_depth -= 1;
+
+		if self.loop_balance_stack.pop().unwrap() != 0 {
+			panic!("Loop unbalanced!");
+		}
 	}
 
-	pub fn open_scope(&mut self, translations: &HashMap<&str, &str>) {
+	pub fn open_scope(&mut self, translations: &HashMap<String, String>) {
 		self.variable_scopes.push(VariableScope::new());
 		let scope_aliases = &mut self.variable_scopes.last_mut().unwrap().variable_aliases;
 		for (k, v) in translations.iter() {
-			scope_aliases.insert(String::from(*k), String::from(*v));
+			scope_aliases.insert(k.clone(), v.clone());
 		}
 	}
 

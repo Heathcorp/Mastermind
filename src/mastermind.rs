@@ -63,14 +63,15 @@ impl MastermindCompiler {
 			.filter(|pair| pair.0 != LineType::None)
 			.collect();
 
-		println!("{:#?}", line_pairs);
+		// println!("{:#?}", line_pairs);
 
-		let root_block = self.parse_block(&line_pairs);
+		let functions = Vec::new();
+		let root_block = self.parse_block(&line_pairs, &functions);
 
-		println!("{:#?}", root_block);
+		// println!("{:#?}", root_block);
 
 		let mut builder = BrainfuckBuilder::new();
-		self.compile_block(root_block, &mut builder);
+		Self::compile_block(root_block, &mut builder);
 
 		println!("{:#?}", builder);
 		let output = builder.to_string();
@@ -81,14 +82,22 @@ impl MastermindCompiler {
 	}
 
 	// recursive function to create a tree representation of the program
-	fn parse_block<'a>(&'a self, line_pairs: &'a [LinePair]) -> Block {
+	fn parse_block<'a>(
+		&'a self,
+		line_pairs: &'a [LinePair],
+		outer_functions: &'a Vec<Function>,
+	) -> Block {
+		// functions are inlined as there are no functions in brainfuck and it is easier to inline them at the syntax tree step than at the next step
+		// might have to make them global??? hmm
+
+		let mut inner_functions: Vec<Function> = Vec::new();
+
 		let mut parsed_block = Block {
 			variables: Vec::new(),
 			commands: Vec::new(),
 		};
-		// functions are inlined as there are no functions in brainfuck and it is easier to inline them at the syntax tree step than at the next step
-		let mut functions: Vec<Function> = Vec::new();
 
+		// parse only functions first
 		let mut i = 0;
 		while i < line_pairs.len() {
 			let line_words: Vec<&str> = line_pairs[i].1.split_whitespace().collect();
@@ -116,17 +125,61 @@ impl MastermindCompiler {
 
 					// recursively parse the function's block
 					let range = &line_pairs[args_start_line..=end_line];
-					let mut function_block = self.parse_block(range);
+					let mut function_block = self.parse_block(range, outer_functions);
 					for i in 0..(block_start_line - args_start_line) {
 						function_block.variables[i].argument = true;
 					}
-					functions.push(Function {
-						name: line_words[1],
+					inner_functions.push(Function {
+						name: String::from(line_words[1]),
 						block: function_block,
-					})
+					});
 				}
+				LineType::BlockStart => {
+					// skip to the corresponding block end so that we only look at functions
+					let mut depth = 1;
+					while depth > 0 {
+						i += 1;
+						depth += match line_pairs[i].0 {
+							LineType::BlockStart => 1,
+							LineType::BlockEnd => -1,
+							_ => 0,
+						};
+					}
+				}
+				_ => (),
+			}
+			i += 1;
+		}
 
-				LineType::LoopDefinition => {
+		// create a new collection of all available functions
+		let mut combined_functions = Vec::new();
+		combined_functions.extend(inner_functions);
+		combined_functions.extend(outer_functions.iter().map(|of| of.clone()));
+
+		// parse all the other stuff
+		// should probably scope this i var instead of using it twice
+		i = 0;
+		while i < line_pairs.len() {
+			let line_words: Vec<&str> = line_pairs[i].1.split_whitespace().collect();
+			let line_type = line_pairs[i].0.clone();
+			match line_type {
+				LineType::FunctionDefinition => {
+					// find the function block start
+					while line_pairs[i].0 != LineType::BlockStart {
+						i += 1;
+					}
+					// skip to the corresponding block end so that we don't look at functions
+					let mut depth = 1;
+					while depth > 0 {
+						i += 1;
+						depth += match line_pairs[i].0 {
+							LineType::BlockStart => 1,
+							LineType::BlockEnd => -1,
+							_ => 0,
+						};
+					}
+				}
+				LineType::ConsumeLoopDefinition | LineType::WhileLoopDefinition => {
 					// find the start block
 					while line_pairs[i].0 != LineType::BlockStart {
 						i += 1;
@@ -146,16 +199,90 @@ impl MastermindCompiler {
 
 					// recursively parse the loop's block
 					let range = &line_pairs[start_line..=end_line];
-					let block = self.parse_block(range);
-					let var_name = line_words[1];
-					parsed_block
-						.commands
-						.push(Command::ConsumeLoop { var_name, block });
+					// see above, duplicate code, could be improved
+					let block = self.parse_block(range, &combined_functions);
+					let var_name = String::from(line_words[1]);
+
+					match line_type {
+						LineType::ConsumeLoopDefinition => {
+							parsed_block
+								.commands
+								.push(Command::ConsumeLoop { var_name, block });
+						}
+						LineType::WhileLoopDefinition => {
+							parsed_block
+								.commands
+								.push(Command::WhileLoop { var_name, block });
+						}
+						_ => (),
+					};
+				}
+				LineType::IfDefinition => {
+					let var_name = String::from(line_words[1]);
+					// TODO: simplify some of these match branches
+					// find the start line
+					while line_pairs[i].0 != LineType::BlockStart {
+						i += 1;
+					}
+					let if_start_line = i;
+					let mut depth = 1;
+					// skip to the corresponding end block
+					while depth > 0 {
+						i += 1;
+						depth += match line_pairs[i].0 {
+							LineType::BlockStart => 1,
+							LineType::BlockEnd => -1,
+							_ => 0,
+						};
+					}
+					let if_end_line = i;
+					// same for else block
+					i += 1;
+					let mut is_else = false;
+					if line_pairs.len() > i && line_pairs[i].0 == LineType::ElseDefinition {
+						is_else = true;
+					}
+					let mut else_start_line = i;
+					if is_else {
+						while line_pairs[i].0 != LineType::BlockStart {
+							i += 1;
+						}
+						else_start_line = i;
+						let mut depth = 1;
+						// skip to the corresponding end block
+						while depth > 0 {
+							i += 1;
+							depth += match line_pairs[i].0 {
+								LineType::BlockStart => 1,
+								LineType::BlockEnd => -1,
+								_ => 0,
+							};
+						}
+					}
+					let else_end_line = i;
+
+					let if_block = self.parse_block(
+						&line_pairs[if_start_line..=if_end_line],
+						&combined_functions,
+					);
+					let else_block = match is_else {
+						true => Some(self.parse_block(
+							&line_pairs[else_start_line..=else_end_line],
+							&combined_functions,
+						)),
+						false => None,
+					};
+
+					parsed_block.commands.push(Command::ConsumeIfElse {
+						var_name,
+						if_block,
+						else_block,
+					});
 				}
 				LineType::VariableDeclaration => {
-					let var_name = line_words[1];
+					let var_name = String::from(line_words[1]);
 					parsed_block.variables.push(Variable {
-						name: var_name,
+						name: var_name.clone(),
 						val_type: ValueType::Int,
 						length: 1,
 						argument: false,
@@ -170,7 +297,7 @@ impl MastermindCompiler {
 				}
 				LineType::AddOperation => {
 					// surely I can use references to point to the actual variable object
-					let var_name: &str = line_words[1];
+					let var_name = String::from(line_words[1]);
 					let imm: i32 = line_words[2].parse().unwrap();
 
 					parsed_block
@@ -178,51 +305,65 @@ impl MastermindCompiler {
 						.push(Command::AddImmediate { var_name, imm });
 				}
 				LineType::SubOperation => {
-					// surely I can use references to point to the actual variable object
-					let var_name: &str = line_words[1];
+					let var_name = String::from(line_words[1]);
 					let imm: i32 = -line_words[2].parse::<i32>().unwrap();
 
 					parsed_block
 						.commands
 						.push(Command::AddImmediate { var_name, imm });
 				}
+				LineType::CopyOperation => {
+					// copies are handled by the compiler I guess?
+					parsed_block.commands.push(Command::CopyVariable {
+						target_name: String::from(line_words[1]),
+						source_name: String::from(line_words[2]),
+					});
+				}
 				LineType::FunctionCall => {
 					// tricky part, expanding function calls
 
 					// get the function being called
 					let function_name = line_words[1];
-					let mut function_instance: Function = functions
+					let function_instance: Function = combined_functions
 						.iter()
 						.find(|f| f.name == function_name)
 						.unwrap()
 						.clone();
-					let function_arg_names: Vec<&str> = function_instance
+					let function_arg_names: Vec<String> = function_instance
 						.block
 						.variables
 						.iter()
 						.filter_map(|var| match var.argument {
-							true => Some(var.name),
+							true => Some(var.name.clone()),
 							false => None,
 						})
 						.collect();
 
 					// get the variables being called as arguments
-					let mut var_translations: HashMap<&str, &str> = HashMap::new();
+					let mut var_translations = HashMap::new();
 					for (i, outer_var_name) in line_words[2..].iter().enumerate() {
-						let function_var = function_arg_names[i];
-						var_translations.insert(function_var, *outer_var_name);
+						var_translations
+							.insert(function_arg_names[i].clone(), String::from(*outer_var_name));
 					}
 
 					// stick the commands and variables into the block, final step
 
 					parsed_block.commands.push(Command::ScopedBlock {
 						var_translations,
-						block: function_instance.block,
+						block: function_instance.block.clone(),
 					});
 				}
-				LineType::Debug => {
-					parsed_block.commands.push(Command::DebugTape);
-				}
+				LineType::Debug => match line_words[0] {
+					"#debug" => {
+						parsed_block.commands.push(Command::DebugTape);
+					}
+					"#goto" => {
+						parsed_block
+							.commands
+							.push(Command::DebugGoto(String::from(line_words[1])));
+					}
+					_ => (),
+				},
 				_ => (),
 			}
 			i += 1;
@@ -253,48 +394,172 @@ impl MastermindCompiler {
 			"int[1]" => LineType::VariableDeclaration,
 			"start" => LineType::BlockStart,
 			"end" => LineType::BlockEnd,
-			"loop" => LineType::LoopDefinition,
+			"loop" => LineType::ConsumeLoopDefinition,
+			"while" => LineType::WhileLoopDefinition,
+			"if" => LineType::IfDefinition,
+			"else" => LineType::ElseDefinition,
 			"add" => LineType::AddOperation,
 			"sub" => LineType::SubOperation,
+			"copy" => LineType::CopyOperation,
 			"call" => LineType::FunctionCall,
 			"#debug" => LineType::Debug,
+			"#goto" => LineType::Debug,
 			_ => LineType::None,
 		}
 	}
 
 	// I don't think this construction is a good one, not very functional
 	// kind of dependency injection but not really, it's not too too bad but I'm sure there is a better way
-	fn compile_block(&self, block: Block, builder: &mut BrainfuckBuilder) {
+	fn compile_block(block: Block, builder: &mut BrainfuckBuilder) {
+		let start_len = builder.program.len();
 		// the real meat and potatoes
 
 		// start a new variable name scope
 
 		for var in block.variables.iter() {
 			if !var.argument {
-				builder.allocate_var(var.name);
+				builder.allocate_var(var.name.as_str());
 			}
 		}
 
-		for cmd in block.commands {
+		for cmd in block.commands.clone() {
 			match cmd {
 				Command::AddImmediate { var_name, imm } => {
-					builder.move_to_var(var_name);
+					builder.move_to_var(&var_name);
 					builder.add_to_current_cell(imm);
+				}
+				Command::CopyVariable {
+					target_name,
+					source_name,
+				} => {
+					// because bf is fucked, the quickest way to copy consumes the original variable
+					// so we have to copy it twice, then copy one of them back to the original variable
+					let temp_cell = builder.allocate_cell();
+
+					builder.move_to_var(&source_name);
+					builder.open_loop();
+					// decrement the source variable
+					builder.add_to_current_cell(-1);
+					// increment the target variables
+					builder.move_to_var(&target_name);
+					builder.add_to_current_cell(1);
+					builder.move_to_pos(temp_cell);
+					builder.add_to_current_cell(1);
+
+					builder.move_to_var(&source_name);
+					builder.close_loop();
+
+					// copy back the temp cell
+					builder.move_to_pos(temp_cell);
+					builder.open_loop();
+					builder.add_to_current_cell(-1);
+
+					builder.move_to_var(&source_name);
+					builder.add_to_current_cell(1);
+
+					builder.move_to_pos(temp_cell);
+					builder.close_loop();
+
+					// free the temp memory
+					builder.free_cell(temp_cell);
 				}
 				Command::ConsumeLoop {
 					var_name,
 					block: loop_block,
 				} => {
 					// to start the loop move to the variable you want to consume
-					builder.move_to_var(var_name);
+					builder.move_to_var(&var_name);
 					builder.open_loop();
 					// do what you want to do in the loop
-					self.compile_block(loop_block, builder);
+					builder.add_symbol('\n');
+					Self::compile_block(loop_block, builder);
+					builder.add_symbol('\n');
 					// decrement the variable
-					builder.move_to_var(var_name);
+					builder.move_to_var(&var_name);
 					builder.add_to_current_cell(-1);
 
 					builder.close_loop();
+				}
+				Command::WhileLoop {
+					var_name,
+					block: loop_block,
+				} => {
+					// to start the loop move to the variable you want to consume
+					builder.move_to_var(&var_name);
+					builder.open_loop();
+
+					// do what you want to do in the loop
+					builder.add_symbol('\n');
+					Self::compile_block(loop_block, builder);
+					builder.add_symbol('\n');
+
+					builder.move_to_var(&var_name);
+					builder.close_loop();
+				}
+				Command::ConsumeIfElse {
+					var_name,
+					if_block,
+					else_block,
+				} => {
+					let else_condition_cell = match else_block {
+						Some(_) => {
+							let cell = builder.allocate_cell();
+							builder.move_to_pos(cell);
+							builder.add_to_current_cell(1);
+							Some(cell)
+						}
+						None => None,
+					};
+
+					// if block
+					builder.move_to_var(&var_name);
+					builder.open_loop();
+
+					// clear the variable used for the loop
+					// TODO: add boolean types so we can decide whether we need to loop to subtract
+					// builder.clear_cell();
+					builder.open_loop();
+					builder.add_to_current_cell(-1);
+					builder.close_loop();
+
+					match else_condition_cell {
+						Some(cell) => {
+							// remove the else condition so that it does not run
+							builder.move_to_pos(cell);
+							builder.open_loop(); //
+							builder.add_to_current_cell(-1);
+							builder.close_loop(); //
+						}
+						None => (),
+					};
+
+					builder.add_symbol('\n');
+					Self::compile_block(if_block, builder);
+					builder.add_symbol('\n');
+
+					builder.move_to_var(&var_name);
+					builder.close_loop();
+
+					match else_condition_cell {
+						Some(cell) => {
+							// else block
+							builder.move_to_pos(cell);
+							builder.open_loop();
+							// clear else condition variable
+							builder.open_loop(); //
+							builder.add_to_current_cell(-1);
+							builder.close_loop(); //
+
+							builder.add_symbol('\n');
+							Self::compile_block(else_block.unwrap(), builder);
+							builder.add_symbol('\n');
+
+							builder.move_to_pos(cell);
+							builder.close_loop();
+							builder.free_cell(cell);
+						}
+						None => (),
+					};
 				}
 				Command::ScopedBlock {
 					var_translations,
@@ -307,7 +572,9 @@ impl MastermindCompiler {
 					// prime the builder with the variable translations
 					builder.open_scope(&var_translations);
 
-					self.compile_block(block, builder);
+					builder.add_symbol('\n');
+					Self::compile_block(block, builder);
+					builder.add_symbol('\n');
 
 					// remove the variable translations from the builder
 					builder.close_scope();
@@ -315,30 +582,38 @@ impl MastermindCompiler {
 				Command::DebugTape => {
 					builder.add_symbol('#');
 				}
-				_ => (),
+				Command::DebugGoto(var_name) => {
+					builder.move_to_var(&var_name);
+				}
 			}
 		}
 
 		for var in block.variables.iter() {
 			if !var.argument {
-				builder.free_var(var.name);
+				builder.free_var(var.name.as_str());
 			}
 		}
+
+		///////
+		let s: String = builder.program[start_len..builder.program.len()]
+			.iter()
+			.collect();
+		println!("{block:#?} ::: {s}");
 	}
 }
 
 // TODO: use enums
 
 #[derive(Debug, Clone)]
-struct Block<'a> {
-	variables: Vec<Variable<'a>>,
-	commands: Vec<Command<'a>>,
+struct Block {
+	variables: Vec<Variable>,
+	commands: Vec<Command>,
 }
 
 #[derive(Debug, Clone)]
-struct Function<'a> {
-	name: &'a str,
-	block: Block<'a>,
+struct Function {
+	name: String,
+	block: Block,
 }
 
 #[derive(Debug, Clone)]
@@ -348,41 +623,59 @@ enum ValueType {
 }
 
 #[derive(Debug, Clone)]
-struct Variable<'a> {
-	name: &'a str,
+struct Variable {
+	name: String,
 	val_type: ValueType,
 	length: usize,
 	argument: bool,
 }
 
 #[derive(Debug, Clone)]
-enum Command<'a> {
+enum Command {
 	AddImmediate {
-		var_name: &'a str,
+		var_name: String,
 		imm: i32,
 	},
+	CopyVariable {
+		target_name: String,
+		source_name: String,
+	},
 	ConsumeLoop {
-		var_name: &'a str,
-		block: Block<'a>,
+		var_name: String,
+		block: Block,
+	},
+	WhileLoop {
+		var_name: String,
+		block: Block,
 	},
 	ScopedBlock {
-		var_translations: HashMap<&'a str, &'a str>,
-		block: Block<'a>,
+		var_translations: HashMap<String, String>,
+		block: Block,
 	},
 	DebugTape,
+	DebugGoto(String),
+	ConsumeIfElse {
+		var_name: String,
+		if_block: Block,
+		else_block: Option<Block>,
+	},
 }
 
-#[derive(Debug, PartialEq)]
+#[derive(Debug, PartialEq, Clone)]
 enum LineType {
 	None,
 	FunctionDefinition,
 	FunctionCall,
 	VariableDeclaration,
-	LoopDefinition,
+	ConsumeLoopDefinition,
+	WhileLoopDefinition,
+	IfDefinition,
+	ElseDefinition,
 	BlockStart,
 	BlockEnd,
 	AddOperation,
 	SubOperation,
+	CopyOperation,
 	Debug,
 }
 

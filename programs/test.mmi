@@ -1,0 +1,26 @@
+int[1] a -27
+
+int[1] var_if 1
+int[1] var_else 2
+int[1] var2 9
+
+#debug
+
+while var2
+start
+  sub var2 3
+  add a 9
+  int[1] R
+  copy R a
+  if R
+  start
+    #goto var_if
+    #debug
+  end
+  else
+  start
+    #goto var_else
+    #debug
+  end
+end
+

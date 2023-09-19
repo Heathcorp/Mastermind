@@ -1,4 +1,4 @@
-use std::{fmt, io::Read, io::Write, num::Wrapping};
+use std::{cmp, fmt, io::Read, io::Write, num::Wrapping};
 
 struct Tape {
 	positive_array: Vec<Wrapping<u8>>,
@@ -73,11 +73,13 @@ impl Tape {
 
 impl fmt::Display for Tape {
 	fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+		let mut line_0 = String::with_capacity(50);
 		let mut line_1 = String::with_capacity(50);
 		let mut line_2 = String::with_capacity(50);
 		let mut line_3 = String::with_capacity(50);
 
 		// disgusting
+		line_0.push('|');
 		line_1.push('|');
 		line_2.push('|');
 		line_3.push('|');
@@ -90,20 +92,25 @@ impl fmt::Display for Tape {
 			}
 
 			// dodgy af, I don't know rust or the best way but I know this isn't
-			line_1.push_str(format!("{val:02x}").as_str());
+			line_0.push_str(format!("{val:03}").as_str());
+			line_1.push_str(format!(" {val:02x}").as_str());
+			line_2.push(' ');
 			line_2.push(' ');
 			line_2.push(dis as char);
 			line_3 += match pos == self.head_position {
-				true => "^^",
-				false => "--",
+				true => "^^^",
+				false => "---",
 			};
 
+			line_0.push('|');
 			line_1.push('|');
 			line_2.push('|');
 			line_3.push('|');
 		}
 
 		// disgusting but I just want this to work
+		let _ = f.write_str("\n");
+		let _ = f.write_str(&line_0);
 		let _ = f.write_str("\n");
 		let _ = f.write_str(&line_1);
 		let _ = f.write_str("\n");
@@ -191,6 +198,12 @@ impl BVM {
 				_ => (),
 			};
 
+			// let s: String = self.program[(cmp::max(0i32, (pc as i32) - 10i32) as usize)
+			// 	..(cmp::min(self.program.len() as i32, (pc as i32) + 10i32) as usize)]
+			// 	.iter()
+			// 	.collect();
+			// println!("{s}");
+			// println!("{}", self.tape);
 			pc += 1;
 		}
 	}
