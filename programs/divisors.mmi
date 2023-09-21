@@ -3,4 +3,185 @@
 // A number is a divisor of another number if it can divide into it with no remainder.
 // Print the positive divisors of each number from 1 to 100 inclusive, on their own line, with each divisor separated by a space. 
 
-//TODO
+def divisible
+  int[1] result
+  int[1] dividend
+  int[1] divisor
+{
+  // iteratively subtract divisor from dividend
+  // if the result goes below zero, break out of the main loop once the subtraction is finished
+  int[1] iterating 1
+  copy result dividend
+  while iterating
+  {
+    int[1] d
+    copy d divisor
+    loop d
+    {
+      // check if result is zero, if so we set iterating to 0
+      int[1] result_copy
+      copy result_copy result
+      if result_copy
+      {
+      }
+      else
+      {
+        clear iterating
+      }
+
+      // typical brainfuck draining addition/subtraction loop
+      sub result 1
+    }
+
+    // check after inner loop as well
+    int[1] result_copy2
+    copy result_copy2 result
+    if result_copy2
+    {
+    }
+    else
+    {
+      clear iterating
+    }
+  }
+  // result = dividend - divisor * ceil(dividend / divisor)
+}
+
+def print_num
+  int[1] num
+{
+  int[1] hc
+  int[1] tc
+  // will only print single byte positive numbers, nothing more than 999 (limited by 255 though)
+  // this function is also not ideal and hacked together to make it work so don't judge
+  int[1] zero_char 48
+  
+  int[1] const_hundred 100
+  int[1] const_ten 10
+
+  int[1] radix
+
+  int[1] hundreds -1
+  int[1] tens -1
+  int[1] ones
+
+  int[1] ones_copy
+  int[1] iterating 1
+
+  copy ones_copy num
+  while iterating
+  {
+    clear ones
+    copy ones ones_copy
+
+    add hundreds 1
+
+    copy radix const_hundred
+    loop radix
+    {
+      int[1] cmp
+      copy cmp ones_copy
+      if cmp
+      {
+        sub ones_copy 1
+      }
+      else
+      {
+        clear iterating
+      }
+    }
+  }
+
+  copy ones_copy ones
+  add iterating 1
+  while iterating
+  {
+    clear ones
+    copy ones ones_copy
+
+    add tens 1
+
+    copy radix const_ten
+    loop radix
+    {
+      int[1] cmp
+      copy cmp ones_copy
+      if cmp
+      {
+        sub ones_copy 1
+      }
+      else
+      {
+        clear iterating
+      }
+    }
+  }
+
+  // this is ultra silly code, need lots of syntax sugar
+  copy hc hundreds
+  copy tc tens
+
+  // need some more sugar for this
+  // add 48 to each of the cells
+  loop zero_char
+  {
+    add hundreds 1
+    add tens 1
+    add ones 1
+  }
+
+  // maybe need some strings
+
+  if hc
+  {
+    output hundreds
+    output tens
+    clear tc
+  }
+  if tc
+  {
+    output tens
+  }
+  output ones
+
+  clear hundreds
+  clear tens
+  clear ones
+
+  clear const_hundred
+  clear const_ten
+}
+
+int[1] const_space 32
+int[1] const_newline 10
+
+int[1] n_iter 100
+int[1] n
+loop n_iter
+{
+  add n 1
+
+  int[1] i
+  int[1] i_iter
+  copy i_iter n
+  loop i_iter
+  {
+    int[1] divisible_result
+    add i 1
+
+    call divisible divisible_result n i
+    if divisible_result
+    {
+    }
+    else
+    {
+      // n % i == 0
+      call print_num i
+      output const_space
+    }
+  }
+
+  output const_newline
+  // important! // TODO: add some sugar for variable consumption?
+  clear i
+}

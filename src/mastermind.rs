@@ -63,8 +63,6 @@ impl MastermindCompiler {
 			.filter(|pair| pair.0 != LineType::None)
 			.collect();
 
-		// println!("{:#?}", line_pairs);
-
 		let functions = Vec::new();
 		let root_block = self.parse_block(&line_pairs, &functions);
 
@@ -73,10 +71,7 @@ impl MastermindCompiler {
 		let mut builder = BrainfuckBuilder::new();
 		Self::compile_block(root_block, &mut builder);
 
-		println!("{:#?}", builder);
 		let output = builder.to_string();
-
-		println!("{:#?}", output);
 
 		output
 	}
@@ -237,10 +232,13 @@ impl MastermindCompiler {
 					}
 					let if_end_line = i;
 					// same for else block
+					// I don't like how I've done this, TODO: redo with a better program design
 					i += 1;
 					let mut is_else = false;
 					if line_pairs.len() > i && line_pairs[i].0 == LineType::ElseDefinition {
 						is_else = true;
+					} else {
+						i -= 1;
 					}
 					let mut else_start_line = i;
 					if is_else {
@@ -319,6 +317,11 @@ impl MastermindCompiler {
 						source_name: String::from(line_words[2]),
 					});
 				}
+				LineType::ClearOperation => {
+					parsed_block.commands.push(Command::ClearVariable {
+						var_name: String::from(line_words[1]),
+					});
+				}
 				LineType::FunctionCall => {
 					// tricky part, expanding function calls
 
@@ -353,6 +356,11 @@ impl MastermindCompiler {
 						block: function_instance.block.clone(),
 					});
 				}
+				LineType::OutputOperation => {
+					parsed_block.commands.push(Command::OutputByte {
+						var_name: String::from(line_words[1]),
+					});
+				}
 				LineType::Debug => match line_words[0] {
 					"#debug" => {
 						parsed_block.commands.push(Command::DebugTape);
@@ -361,6 +369,11 @@ impl MastermindCompiler {
 						parsed_block
 							.commands
 							.push(Command::DebugGoto(String::from(line_words[1])));
+					}
+					"#print" => {
+						parsed_block
+							.commands
+							.push(Command::DebugPrintInt(String::from(line_words[1])));
 					}
 					_ => (),
 				},
@@ -392,8 +405,8 @@ impl MastermindCompiler {
 			"def" => LineType::FunctionDefinition,
 			// TODO: change this?
 			"int[1]" => LineType::VariableDeclaration,
-			"start" => LineType::BlockStart,
-			"end" => LineType::BlockEnd,
+			"start" | "{" => LineType::BlockStart,
+			"end" | "}" => LineType::BlockEnd,
 			"loop" => LineType::ConsumeLoopDefinition,
 			"while" => LineType::WhileLoopDefinition,
 			"if" => LineType::IfDefinition,
@@ -401,9 +414,12 @@ impl MastermindCompiler {
 			"add" => LineType::AddOperation,
 			"sub" => LineType::SubOperation,
 			"copy" => LineType::CopyOperation,
+			"clear" => LineType::ClearOperation,
 			"call" => LineType::FunctionCall,
+			"output" => LineType::OutputOperation,
 			"#debug" => LineType::Debug,
 			"#goto" => LineType::Debug,
+			"#print" => LineType::Debug,
 			_ => LineType::None,
 		}
 	}
@@ -463,6 +479,12 @@ impl MastermindCompiler {
 					// free the temp memory
 					builder.free_cell(temp_cell);
 				}
+				Command::ClearVariable { var_name } => {
+					builder.move_to_var(&var_name);
+					builder.open_loop();
+					builder.add_to_current_cell(-1);
+					builder.close_loop();
+				}
 				Command::ConsumeLoop {
 					var_name,
 					block: loop_block,
@@ -471,9 +493,9 @@ impl MastermindCompiler {
 					builder.move_to_var(&var_name);
 					builder.open_loop();
 					// do what you want to do in the loop
-					builder.add_symbol('\n');
+					// builder.add_symbol('\n');
 					Self::compile_block(loop_block, builder);
-					builder.add_symbol('\n');
+					// builder.add_symbol('\n');
 					// decrement the variable
 					builder.move_to_var(&var_name);
 					builder.add_to_current_cell(-1);
@@ -489,9 +511,9 @@ impl MastermindCompiler {
 					builder.open_loop();
 
 					// do what you want to do in the loop
-					builder.add_symbol('\n');
+					// builder.add_symbol('\n');
 					Self::compile_block(loop_block, builder);
-					builder.add_symbol('\n');
+					// builder.add_symbol('\n');
 
 					builder.move_to_var(&var_name);
 					builder.close_loop();
@@ -533,9 +555,9 @@ impl MastermindCompiler {
 						None => (),
 					};
 
-					builder.add_symbol('\n');
+					// builder.add_symbol('\n');
 					Self::compile_block(if_block, builder);
-					builder.add_symbol('\n');
+					// builder.add_symbol('\n');
 
 					builder.move_to_var(&var_name);
 					builder.close_loop();
@@ -550,9 +572,9 @@ impl MastermindCompiler {
 							builder.add_to_current_cell(-1);
 							builder.close_loop(); //
 
-							builder.add_symbol('\n');
+							// builder.add_symbol('\n');
 							Self::compile_block(else_block.unwrap(), builder);
-							builder.add_symbol('\n');
+							// builder.add_symbol('\n');
 
 							builder.move_to_pos(cell);
 							builder.close_loop();
@@ -572,9 +594,9 @@ impl MastermindCompiler {
 					// prime the builder with the variable translations
 					builder.open_scope(&var_translations);
 
-					builder.add_symbol('\n');
+					// builder.add_symbol('\n');
 					Self::compile_block(block, builder);
-					builder.add_symbol('\n');
+					// builder.add_symbol('\n');
 
 					// remove the variable translations from the builder
 					builder.close_scope();
@@ -584,6 +606,14 @@ impl MastermindCompiler {
 				}
 				Command::DebugGoto(var_name) => {
 					builder.move_to_var(&var_name);
+				}
+				Command::DebugPrintInt(var_name) => {
+					builder.move_to_var(&var_name);
+					builder.add_symbol('@');
+				}
+				Command::OutputByte { var_name } => {
+					builder.move_to_var(&var_name);
+					builder.add_symbol('.');
 				}
 			}
 		}
@@ -595,10 +625,10 @@ impl MastermindCompiler {
 		}
 
 		///////
-		let s: String = builder.program[start_len..builder.program.len()]
-			.iter()
-			.collect();
-		println!("{block:#?} ::: {s}");
+		// let s: String = builder.program[start_len..builder.program.len()]
+		// 	.iter()
+		// 	.collect();
+		// println!("{block:#?} ::: {s}");
 	}
 }
 
@@ -640,6 +670,9 @@ enum Command {
 		target_name: String,
 		source_name: String,
 	},
+	ClearVariable {
+		var_name: String,
+	},
 	ConsumeLoop {
 		var_name: String,
 		block: Block,
@@ -652,8 +685,12 @@ enum Command {
 		var_translations: HashMap<String, String>,
 		block: Block,
 	},
+	OutputByte {
+		var_name: String,
+	},
 	DebugTape,
 	DebugGoto(String),
+	DebugPrintInt(String),
 	ConsumeIfElse {
 		var_name: String,
 		if_block: Block,
@@ -676,6 +713,8 @@ enum LineType {
 	AddOperation,
 	SubOperation,
 	CopyOperation,
+	ClearOperation,
+	OutputOperation,
 	Debug,
 }
 

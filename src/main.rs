@@ -46,7 +46,7 @@ fn main() {
 		false => program,
 	};
 
-	if args.run {
+	if args.run || !args.compile {
 		// run brainfuck
 		let mut bvm = BVM::new(bf_program.chars().collect());
 
@@ -55,5 +55,7 @@ fn main() {
 		} else {
 			bvm.run(&mut stdin(), &mut stdout());
 		}
+	} else {
+		println!("{bf_program}");
 	}
 }

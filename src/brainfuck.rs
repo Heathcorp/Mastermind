@@ -77,12 +77,14 @@ impl fmt::Display for Tape {
 		let mut line_1 = String::with_capacity(50);
 		let mut line_2 = String::with_capacity(50);
 		let mut line_3 = String::with_capacity(50);
+		let mut line_4 = String::with_capacity(50);
 
 		// disgusting
 		line_0.push('|');
 		line_1.push('|');
 		line_2.push('|');
 		line_3.push('|');
+		line_4.push('|');
 
 		for pos in (self.head_position - 10)..(self.head_position + 10) {
 			let val = self.get_cell(pos).0;
@@ -93,11 +95,16 @@ impl fmt::Display for Tape {
 
 			// dodgy af, I don't know rust or the best way but I know this isn't
 			line_0.push_str(format!("{val:03}").as_str());
-			line_1.push_str(format!(" {val:02x}").as_str());
-			line_2.push(' ');
-			line_2.push(' ');
-			line_2.push(dis as char);
-			line_3 += match pos == self.head_position {
+
+			line_1.push_str(format!("{:3}", (val as i8)).as_str());
+
+			line_2.push_str(format!(" {val:02x}").as_str());
+
+			line_3.push(' ');
+			line_3.push(' ');
+			line_3.push(dis as char);
+
+			line_4 += match pos == self.head_position {
 				true => "^^^",
 				false => "---",
 			};
@@ -106,6 +113,7 @@ impl fmt::Display for Tape {
 			line_1.push('|');
 			line_2.push('|');
 			line_3.push('|');
+			line_4.push('|');
 		}
 
 		// disgusting but I just want this to work
@@ -117,6 +125,8 @@ impl fmt::Display for Tape {
 		let _ = f.write_str(&line_2);
 		let _ = f.write_str("\n");
 		let _ = f.write_str(&line_3);
+		let _ = f.write_str("\n");
+		let _ = f.write_str(&line_4);
 		let _ = f.write_str("\n");
 
 		Ok(())
@@ -194,6 +204,9 @@ impl BVM {
 				}
 				'#' => {
 					println!("{}", self.tape);
+				}
+				'@' => {
+					print!("{}", self.tape.get_current_cell().0 as i32);
 				}
 				_ => (),
 			};
