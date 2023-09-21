@@ -126,13 +126,15 @@ impl BrainfuckBuilder {
 
 	// move a variable without moving any contents, just change the underlying cell that a variable points at, EXPERIMENTAL
 	// new_cell needs to already be allocated
-	pub fn change_var_cell(&mut self, var_name: &str, new_cell: i32) {
+	pub fn change_var_cell(&mut self, var_name: &str, new_cell: i32) -> i32 {
 		let (var_scope, alias_name) = self.get_var_scope(var_name);
 		let old_cell = var_scope
 			.variable_map
 			.insert(String::from(alias_name), new_cell)
 			.unwrap();
-		self.free_cell(old_cell);
+
+		// basically a pop operation, return the old cell so that it can be restored later
+		return old_cell;
 	}
 
 	pub fn free_var(&mut self, var_name: &str) {
@@ -154,7 +156,8 @@ impl BrainfuckBuilder {
 				.try_into()
 				.unwrap();
 			if i >= self.allocation_array.len() {
-				self.allocation_array.push(true);
+				self.allocation_array.resize(i + 1, false);
+				*self.allocation_array.last_mut().unwrap() = true;
 				return pos;
 			} else if self.allocation_array[i] == false {
 				self.allocation_array[i] = true;

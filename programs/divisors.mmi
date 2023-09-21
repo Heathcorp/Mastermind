@@ -19,9 +19,7 @@ def divisible
     loop d
     {
       // check if result is zero, if so we set iterating to 0
-      int[1] result_copy
-      copy result_copy result
-      if result_copy
+      if result
       {
       }
       else
@@ -34,9 +32,7 @@ def divisible
     }
 
     // check after inner loop as well
-    int[1] result_copy2
-    copy result_copy2 result
-    if result_copy2
+    if result
     {
     }
     else
@@ -52,21 +48,21 @@ def print_num
 {
   int[1] hc
   int[1] tc
+  // variable layout could be optimised, TODO: allocate sequentially rather than hoisting
   // will only print single byte positive numbers, nothing more than 999 (limited by 255 though)
   // this function is also not ideal and hacked together to make it work so don't judge
   int[1] zero_char 48
   
-  int[1] const_hundred 100
   int[1] const_ten 10
-
-  int[1] radix
+  int[1] const_hundred 100
 
   int[1] hundreds -1
   int[1] tens -1
   int[1] ones
 
-  int[1] ones_copy
   int[1] iterating 1
+  int[1] radix
+  int[1] ones_copy
 
   copy ones_copy num
   while iterating
@@ -79,9 +75,7 @@ def print_num
     copy radix const_hundred
     loop radix
     {
-      int[1] cmp
-      copy cmp ones_copy
-      if cmp
+      if ones_copy
       {
         sub ones_copy 1
       }
@@ -104,9 +98,7 @@ def print_num
     copy radix const_ten
     loop radix
     {
-      int[1] cmp
-      copy cmp ones_copy
-      if cmp
+      if ones_copy
       {
         sub ones_copy 1
       }
@@ -117,7 +109,6 @@ def print_num
     }
   }
 
-  // this is ultra silly code, need lots of syntax sugar
   copy hc hundreds
   copy tc tens
 
@@ -134,12 +125,14 @@ def print_num
 
   if hc
   {
+    clear hc
+    clear tc
     output hundreds
     output tens
-    clear tc
   }
   if tc
   {
+    clear tc
     output tens
   }
   output ones
@@ -152,6 +145,7 @@ def print_num
   clear const_ten
 }
 
+// main
 int[1] const_space 32
 int[1] const_newline 10
 
@@ -179,9 +173,10 @@ loop n_iter
       call print_num i
       output const_space
     }
+    clear divisible_result
   }
+  clear i
 
   output const_newline
   // important! // TODO: add some sugar for variable consumption?
-  clear i
 }

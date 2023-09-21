@@ -271,7 +271,7 @@ impl MastermindCompiler {
 						false => None,
 					};
 
-					parsed_block.commands.push(Command::ConsumeIfElse {
+					parsed_block.commands.push(Command::IfElse {
 						var_name,
 						if_block,
 						else_block,
@@ -518,11 +518,12 @@ impl MastermindCompiler {
 					builder.move_to_var(&var_name);
 					builder.close_loop();
 				}
-				Command::ConsumeIfElse {
+				Command::IfElse {
 					var_name,
 					if_block,
 					else_block,
 				} => {
+					let temp_move_cell = builder.allocate_cell();
 					let else_condition_cell = match else_block {
 						Some(_) => {
 							let cell = builder.allocate_cell();
@@ -537,30 +538,44 @@ impl MastermindCompiler {
 					builder.move_to_var(&var_name);
 					builder.open_loop();
 
-					// clear the variable used for the loop
-					// TODO: add boolean types so we can decide whether we need to loop to subtract
-					// builder.clear_cell();
+					// move if condition to temp cell
+					builder.move_to_var(&var_name);
 					builder.open_loop();
 					builder.add_to_current_cell(-1);
+					builder.move_to_pos(temp_move_cell);
+					builder.add_to_current_cell(1);
+					builder.move_to_var(&var_name);
 					builder.close_loop();
+
+					// reassign the variable to the temporary cell so that if statement inner can use the variable
+					let old_var_cell = builder.change_var_cell(&var_name, temp_move_cell);
 
 					match else_condition_cell {
 						Some(cell) => {
 							// remove the else condition so that it does not run
 							builder.move_to_pos(cell);
-							builder.open_loop(); //
 							builder.add_to_current_cell(-1);
-							builder.close_loop(); //
 						}
 						None => (),
 					};
 
-					// builder.add_symbol('\n');
 					Self::compile_block(if_block, builder);
-					// builder.add_symbol('\n');
 
+					builder.move_to_pos(old_var_cell);
+					builder.close_loop();
+
+					// now copy back the variable from the temp cell
+					builder.move_to_var(&var_name);
+					builder.open_loop();
+					builder.add_to_current_cell(-1);
+					builder.move_to_pos(old_var_cell);
+					builder.add_to_current_cell(1);
 					builder.move_to_var(&var_name);
 					builder.close_loop();
+
+					// reassign the variable again (undo from before)
+					builder.change_var_cell(&var_name, old_var_cell);
+					builder.free_cell(temp_move_cell);
 
 					match else_condition_cell {
 						Some(cell) => {
@@ -568,11 +583,8 @@ impl MastermindCompiler {
 							builder.move_to_pos(cell);
 							builder.open_loop();
 							// clear else condition variable
-							builder.open_loop(); //
 							builder.add_to_current_cell(-1);
-							builder.close_loop(); //
 
-							// builder.add_symbol('\n');
 							Self::compile_block(else_block.unwrap(), builder);
 							// builder.add_symbol('\n');
 
@@ -691,7 +703,7 @@ enum Command {
 	DebugTape,
 	DebugGoto(String),
 	DebugPrintInt(String),
-	ConsumeIfElse {
+	IfElse {
 		var_name: String,
 		if_block: Block,
 		else_block: Option<Block>,
