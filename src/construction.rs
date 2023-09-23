@@ -87,6 +87,13 @@ impl BrainfuckBuilder {
 		panic!("Could not find variable \"{}\"", var_name);
 	}
 
+	// returns true if variable is defined in this current scope
+	// useful for const optimisations, basically check whether we can move the variable without affecting things
+	pub fn check_var_scope(&mut self, var_name: &str) -> bool {
+		let current_scope = self.variable_scopes.last().unwrap();
+		current_scope.variable_map.contains_key(var_name)
+	}
+
 	pub fn get_current_scope(&mut self) -> &mut VariableScope {
 		self.variable_scopes.last_mut().unwrap()
 	}
@@ -150,7 +157,8 @@ impl BrainfuckBuilder {
 	// find free cell and return the offset position (pointer basically)
 	// if you do not free this it will stay and clog up future allocations
 	pub fn allocate_cell(&mut self) -> i32 {
-		let mut pos = self.tape_offset_pos;
+		// let mut pos = self.tape_offset_pos;
+		let mut pos = 0;
 		loop {
 			let i: usize = (pos + self.allocation_array_zero_offset)
 				.try_into()
@@ -189,11 +197,14 @@ impl BrainfuckBuilder {
 		}
 	}
 
-	pub fn open_scope(&mut self, translations: &HashMap<String, String>) {
+	pub fn open_scope(&mut self, translations: Option<&HashMap<String, String>>) {
 		self.variable_scopes.push(VariableScope::new());
-		let scope_aliases = &mut self.variable_scopes.last_mut().unwrap().variable_aliases;
-		for (k, v) in translations.iter() {
-			scope_aliases.insert(k.clone(), v.clone());
+
+		if let Some(translations) = translations {
+			let scope_aliases = &mut self.variable_scopes.last_mut().unwrap().variable_aliases;
+			for (k, v) in translations.iter() {
+				scope_aliases.insert(k.clone(), v.clone());
+			}
 		}
 	}
 

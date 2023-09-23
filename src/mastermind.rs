@@ -129,18 +129,6 @@ impl MastermindCompiler {
 						block: function_block,
 					});
 				}
-				LineType::BlockStart => {
-					// skip to the corresponding block end so that we only look at functions
-					let mut depth = 1;
-					while depth > 0 {
-						i += 1;
-						depth += match line_pairs[i].0 {
-							LineType::BlockStart => 1,
-							LineType::BlockEnd => -1,
-							_ => 0,
-						};
-					}
-				}
 				_ => (),
 			}
 			i += 1;
@@ -273,6 +261,7 @@ impl MastermindCompiler {
 
 					parsed_block.commands.push(Command::IfElse {
 						var_name,
+						consume: line_words.len() > 2 && line_words[2] == "consume",
 						if_block,
 						else_block,
 					});
@@ -427,6 +416,8 @@ impl MastermindCompiler {
 	// I don't think this construction is a good one, not very functional
 	// kind of dependency injection but not really, it's not too too bad but I'm sure there is a better way
 	fn compile_block(block: Block, builder: &mut BrainfuckBuilder) {
+		builder.open_scope(None);
+
 		let start_len = builder.program.len();
 		// the real meat and potatoes
 
@@ -450,6 +441,8 @@ impl MastermindCompiler {
 				} => {
 					// because bf is fucked, the quickest way to copy consumes the original variable
 					// so we have to copy it twice, then copy one of them back to the original variable
+
+					// if the variable is in its top level scope then it's okay to move the variable
 					let temp_cell = builder.allocate_cell();
 
 					builder.move_to_var(&source_name);
@@ -465,19 +458,32 @@ impl MastermindCompiler {
 					builder.move_to_var(&source_name);
 					builder.close_loop();
 
-					// copy back the temp cell
-					builder.move_to_pos(temp_cell);
-					builder.open_loop();
-					builder.add_to_current_cell(-1);
+					match builder.check_var_scope(&source_name) {
+						true => {
+							// variable is defined in this scope so copying and moving is not a problem
+							// simply move the source variable to point to the temporary cell
+							let old_var_cell = builder.change_var_cell(&source_name, temp_cell);
+							// free up the old variable's spot for something else
+							// this won't be very helpful currently as variables are allocated before commands, TODO: change this
+							builder.free_cell(old_var_cell);
+						}
+						false => {
+							// variable is not within this scope so we need to satisfy the loop balance
+							// copy back the temp cell
+							builder.move_to_pos(temp_cell);
+							builder.open_loop();
+							builder.add_to_current_cell(-1);
 
-					builder.move_to_var(&source_name);
-					builder.add_to_current_cell(1);
+							builder.move_to_var(&source_name);
+							builder.add_to_current_cell(1);
 
-					builder.move_to_pos(temp_cell);
-					builder.close_loop();
+							builder.move_to_pos(temp_cell);
+							builder.close_loop();
 
-					// free the temp memory
-					builder.free_cell(temp_cell);
+							// free the temp memory
+							builder.free_cell(temp_cell);
+						}
+					}
 				}
 				Command::ClearVariable { var_name } => {
 					builder.move_to_var(&var_name);
@@ -493,9 +499,7 @@ impl MastermindCompiler {
 					builder.move_to_var(&var_name);
 					builder.open_loop();
 					// do what you want to do in the loop
-					// builder.add_symbol('\n');
 					Self::compile_block(loop_block, builder);
-					// builder.add_symbol('\n');
 					// decrement the variable
 					builder.move_to_var(&var_name);
 					builder.add_to_current_cell(-1);
@@ -511,19 +515,21 @@ impl MastermindCompiler {
 					builder.open_loop();
 
 					// do what you want to do in the loop
-					// builder.add_symbol('\n');
 					Self::compile_block(loop_block, builder);
-					// builder.add_symbol('\n');
 
 					builder.move_to_var(&var_name);
 					builder.close_loop();
 				}
 				Command::IfElse {
 					var_name,
+					consume,
 					if_block,
 					else_block,
 				} => {
-					let temp_move_cell = builder.allocate_cell();
+					let temp_move_cell = match consume {
+						false => Some(builder.allocate_cell()),
+						true => None,
+					};
 					let else_condition_cell = match else_block {
 						Some(_) => {
 							let cell = builder.allocate_cell();
@@ -538,17 +544,30 @@ impl MastermindCompiler {
 					builder.move_to_var(&var_name);
 					builder.open_loop();
 
-					// move if condition to temp cell
-					builder.move_to_var(&var_name);
-					builder.open_loop();
-					builder.add_to_current_cell(-1);
-					builder.move_to_pos(temp_move_cell);
-					builder.add_to_current_cell(1);
-					builder.move_to_var(&var_name);
-					builder.close_loop();
+					match temp_move_cell {
+						Some(cell) => {
+							// move if condition to temp cell
+							builder.open_loop();
+							builder.add_to_current_cell(-1);
+							builder.move_to_pos(cell);
+							builder.add_to_current_cell(1);
+							builder.move_to_var(&var_name);
+							builder.close_loop();
+						}
+						None => {
+							// consume the if variable instead
+							// TODO: check if it is a boolean and just decrement instead
+							builder.open_loop();
+							builder.add_to_current_cell(-1);
+							builder.close_loop();
+						}
+					}
 
 					// reassign the variable to the temporary cell so that if statement inner can use the variable
-					let old_var_cell = builder.change_var_cell(&var_name, temp_move_cell);
+					let old_var_cell = match temp_move_cell {
+						Some(cell) => Some(builder.change_var_cell(&var_name, cell)),
+						None => None,
+					};
 
 					match else_condition_cell {
 						Some(cell) => {
@@ -561,21 +580,31 @@ impl MastermindCompiler {
 
 					Self::compile_block(if_block, builder);
 
-					builder.move_to_pos(old_var_cell);
-					builder.close_loop();
+					match old_var_cell {
+						Some(cell) => {
+							// move to the original variable position to close the loop
+							builder.move_to_pos(cell);
+							builder.close_loop();
 
-					// now copy back the variable from the temp cell
-					builder.move_to_var(&var_name);
-					builder.open_loop();
-					builder.add_to_current_cell(-1);
-					builder.move_to_pos(old_var_cell);
-					builder.add_to_current_cell(1);
-					builder.move_to_var(&var_name);
-					builder.close_loop();
+							// now copy back the variable from the temp cell
+							builder.move_to_var(&var_name);
+							builder.open_loop();
+							builder.add_to_current_cell(-1);
+							builder.move_to_pos(cell);
+							builder.add_to_current_cell(1);
+							builder.move_to_var(&var_name);
+							builder.close_loop();
 
-					// reassign the variable again (undo from before)
-					builder.change_var_cell(&var_name, old_var_cell);
-					builder.free_cell(temp_move_cell);
+							// reassign the variable again (undo from before)
+							builder.change_var_cell(&var_name, cell);
+							builder.free_cell(temp_move_cell.unwrap());
+						}
+						None => {
+							// just move to the variable
+							builder.move_to_var(&var_name);
+							builder.close_loop();
+						}
+					}
 
 					match else_condition_cell {
 						Some(cell) => {
@@ -586,7 +615,6 @@ impl MastermindCompiler {
 							builder.add_to_current_cell(-1);
 
 							Self::compile_block(else_block.unwrap(), builder);
-							// builder.add_symbol('\n');
 
 							builder.move_to_pos(cell);
 							builder.close_loop();
@@ -604,11 +632,9 @@ impl MastermindCompiler {
 					// I think this will have to be done in the builder
 
 					// prime the builder with the variable translations
-					builder.open_scope(&var_translations);
+					builder.open_scope(Some(&var_translations));
 
-					// builder.add_symbol('\n');
 					Self::compile_block(block, builder);
-					// builder.add_symbol('\n');
 
 					// remove the variable translations from the builder
 					builder.close_scope();
@@ -636,6 +662,7 @@ impl MastermindCompiler {
 			}
 		}
 
+		builder.close_scope();
 		///////
 		// let s: String = builder.program[start_len..builder.program.len()]
 		// 	.iter()
@@ -705,6 +732,7 @@ enum Command {
 	DebugPrintInt(String),
 	IfElse {
 		var_name: String,
+		consume: bool, // TODO, really this should be determined by the compiler instead of the programmer
 		if_block: Block,
 		else_block: Option<Block>,
 	},

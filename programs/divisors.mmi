@@ -45,6 +45,8 @@ def divisible
 
 def print_num
   int[1] num
+  int[1] const_100
+  int[1] const_10
 {
   int[1] hc
   int[1] tc
@@ -52,9 +54,6 @@ def print_num
   // will only print single byte positive numbers, nothing more than 999 (limited by 255 though)
   // this function is also not ideal and hacked together to make it work so don't judge
   int[1] zero_char 48
-  
-  int[1] const_ten 10
-  int[1] const_hundred 100
 
   int[1] hundreds -1
   int[1] tens -1
@@ -72,7 +71,7 @@ def print_num
 
     add hundreds 1
 
-    copy radix const_hundred
+    copy radix const_100
     loop radix
     {
       if ones_copy
@@ -95,7 +94,7 @@ def print_num
 
     add tens 1
 
-    copy radix const_ten
+    copy radix const_10
     loop radix
     {
       if ones_copy
@@ -109,6 +108,7 @@ def print_num
     }
   }
 
+  // make a copy of the variables before we add ascii 0
   copy hc hundreds
   copy tc tens
 
@@ -123,16 +123,14 @@ def print_num
 
   // maybe need some strings
 
-  if hc
+  if hc consume
   {
-    clear hc
     clear tc
     output hundreds
     output tens
   }
-  if tc
+  if tc consume
   {
-    clear tc
     output tens
   }
   output ones
@@ -140,16 +138,25 @@ def print_num
   clear hundreds
   clear tens
   clear ones
-
-  clear const_hundred
-  clear const_ten
 }
 
 // main
-int[1] const_space 32
-int[1] const_newline 10
+// dodgy multiplication to initialise variables quicker, TODO: make an algorithm for this?
+int[1] n10 10
+loop n10
+{
+  add n_iter 10
+  add const_100 10
+  add const_10 1
+  add const_space 3
+}
+add const_space 2
 
-int[1] n_iter 100
+int[1] n_iter // 100
+int[1] const_100 // 100
+int[1] const_10 // 10
+int[1] const_space // 32
+
 int[1] n
 loop n_iter
 {
@@ -164,19 +171,18 @@ loop n_iter
     add i 1
 
     call divisible divisible_result n i
-    if divisible_result
+    if divisible_result consume
     {
     }
     else
     {
       // n % i == 0
-      call print_num i
+      call print_num i const_100 const_10
       output const_space
     }
-    clear divisible_result
   }
   clear i
 
-  output const_newline
+  output const_10
   // important! // TODO: add some sugar for variable consumption?
 }
