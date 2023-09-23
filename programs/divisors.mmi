@@ -122,6 +122,7 @@ def print_num
   }
 
   // maybe need some strings
+  // TODO: implement stacks
 
   if hc consume
   {
@@ -134,10 +135,10 @@ def print_num
     output tens
   }
   output ones
+  clear ones
 
   clear hundreds
   clear tens
-  clear ones
 }
 
 // main
