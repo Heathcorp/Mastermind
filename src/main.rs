@@ -1,9 +1,12 @@
 mod brainfuck;
-mod construction;
-mod mastermind;
+mod compiler;
+mod parser;
+mod tokeniser;
 
 use brainfuck::BVM;
-use mastermind::MastermindCompiler;
+use compiler::MastermindCompiler;
+use parser::MastermindParser;
+use tokeniser::MastermindTokeniser;
 
 use std::io::{stdin, stdout, Cursor};
 
@@ -29,19 +32,25 @@ fn main() {
 
 	let args = Arguments::parse();
 
-	let program = if args.file.is_some() {
-		std::fs::read_to_string(args.file.unwrap()).unwrap()
-	} else if args.program.is_some() {
-		args.program.unwrap()
-	} else {
-		String::new()
+	let program = match args.file {
+		Some(file) => std::fs::read_to_string(file).unwrap(),
+		None => args.program.unwrap(),
 	};
 
 	let bf_program = match args.compile {
 		true => {
-			// run the compiler on the provided file
-			let mut mfc = MastermindCompiler::new();
-			mfc.compile(program)
+			// compile the provided file
+
+			// TODO: tokenise properly so we don't need to worry about lines
+			let tokeniser = MastermindTokeniser;
+			let tokenised_lines = tokeniser.tokenise(&program);
+			// parse tokens into syntax tree
+			let mut parser = MastermindParser;
+			let parsed_program = parser.parse(tokenised_lines);
+			// compile syntax tree into brainfuck
+			let mut compiler = MastermindCompiler::new();
+			compiler.compile(parsed_program);
+			compiler.to_string()
 		}
 		false => program,
 	};

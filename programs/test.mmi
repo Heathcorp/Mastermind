@@ -1,25 +1,20 @@
-int[1] a -27
+int[1] val1 5
+int[1] val2 9
+int[1] val3 64
+int[1] val4 45
+int[1] val5 3
+int[1] val6 90
+int[1] val7 -17
 
-int[1] var_if 1
-int[1] var_else 2
-int[1] var2 9
+// #goto val7
+// #debug
+
+push val1
+push val2
+push val4
 
 #debug
 
-while var2
-{
-  sub var2 3
-  add a 9
-  if a
-  {
-    #goto var_if
-    #debug
-  }
-  else
-  {
-    #goto var_else
-    #debug
-  }
-  #debug
-}
+pop val1
 
+#debug

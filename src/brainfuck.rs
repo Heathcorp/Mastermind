@@ -1,4 +1,4 @@
-use std::{cmp, fmt, io::Read, io::Write, num::Wrapping};
+use std::{fmt, io::Read, io::Write, num::Wrapping};
 
 struct Tape {
 	positive_array: Vec<Wrapping<u8>>,
@@ -160,12 +160,12 @@ impl BVM {
 				}
 				',' => {
 					let mut buf = [0; 1];
-					input.read_exact(&mut buf);
+					let _ = input.read_exact(&mut buf);
 					self.tape.set_current_cell(Wrapping(buf[0]));
 				}
 				'.' => {
 					let buf = [self.tape.get_current_cell().0];
-					output.write(&buf);
+					let _ = output.write(&buf);
 				}
 				'>' => {
 					self.tape.move_head_position(1);
