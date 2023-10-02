@@ -1,10 +1,12 @@
 mod brainfuck;
 mod compiler;
+mod optimiser;
 mod parser;
 mod tokeniser;
 
 use brainfuck::BVM;
 use compiler::MastermindCompiler;
+use optimiser::BrainfuckOptimiser;
 use parser::MastermindParser;
 use tokeniser::MastermindTokeniser;
 
@@ -50,7 +52,9 @@ fn main() {
 			// compile syntax tree into brainfuck
 			let mut compiler = MastermindCompiler::new();
 			compiler.compile(parsed_program);
-			compiler.to_string()
+
+			BrainfuckOptimiser::optimise(compiler.program)
+			// compiler.to_string()
 		}
 		false => program,
 	};

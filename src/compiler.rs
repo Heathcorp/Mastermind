@@ -53,6 +53,7 @@ impl MastermindCompiler {
 		}
 	}
 
+	#[allow(dead_code)]
 	pub fn to_string(&self) -> String {
 		self.program.iter().collect()
 	}
@@ -318,9 +319,9 @@ impl MastermindCompiler {
 									.iter()
 									.rev()
 									.enumerate()
-									.find(|(i, allocated)| !**allocated)
+									.find(|(_i, allocated)| !**allocated)
 								{
-									Some((last_allocated, allocated)) => {
+									Some((last_allocated, _allocated)) => {
 										if last_allocated == (self.allocation_array.len() - 1) {
 											self.allocation_array.push(true);
 										} else {
