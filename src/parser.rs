@@ -203,24 +203,46 @@ impl MastermindParser {
 						else_block,
 					});
 				}
-				LineType::VariableDeclaration => {
+				LineType::IntegerDeclaration => {
 					let var_name = String::from(line_words[1]);
-					parsed_block.variables.push(Variable {
-						name: var_name.clone(),
-						argument: false,
-					});
+					let mut imm: i8 = 0;
 					if line_words.len() > 2 {
-						// initialisation immediate value
-						let imm: i32 = line_words[2].parse().unwrap();
-						parsed_block
-							.commands
-							.push(Command::AddImmediate { var_name, imm });
+						// initialise immediate value
+						imm = line_words[2].parse().unwrap();
+						parsed_block.commands.push(Command::AddImmediate {
+							var_name: var_name.clone(),
+							imm,
+						});
 					}
+					parsed_block.variables.push(Variable {
+						name: var_name,
+						argument: false,
+						var_type: VariableType::ByteInteger,
+						initial: imm,
+					});
+				}
+				LineType::BooleanDeclaration => {
+					let var_name = String::from(line_words[1]);
+					let mut imm: i8 = 0;
+					if line_words.len() > 2 {
+						// initialise immediate value
+						imm = line_words[2].parse().unwrap();
+						parsed_block.commands.push(Command::AddImmediate {
+							var_name: var_name.clone(),
+							imm,
+						});
+					}
+					parsed_block.variables.push(Variable {
+						name: var_name,
+						var_type: VariableType::Boolean,
+						argument: false,
+						initial: imm,
+					});
 				}
 				LineType::AddOperation => {
 					// surely I can use references to point to the actual variable object
 					let var_name = String::from(line_words[1]);
-					let imm: i32 = line_words[2].parse().unwrap();
+					let imm: i8 = line_words[2].parse().unwrap();
 
 					parsed_block
 						.commands
@@ -228,7 +250,7 @@ impl MastermindParser {
 				}
 				LineType::SubOperation => {
 					let var_name = String::from(line_words[1]);
-					let imm: i32 = -line_words[2].parse::<i32>().unwrap();
+					let imm: i8 = -line_words[2].parse::<i8>().unwrap();
 
 					parsed_block
 						.commands
@@ -335,16 +357,24 @@ pub struct Function {
 }
 
 #[derive(Debug, Clone)]
+pub enum VariableType {
+	ByteInteger,
+	Boolean,
+}
+
+#[derive(Debug, Clone)]
 pub struct Variable {
 	pub name: String,
 	pub argument: bool,
+	pub var_type: VariableType,
+	pub initial: i8,
 }
 
 #[derive(Debug, Clone)]
 pub enum Command {
 	AddImmediate {
 		var_name: String,
-		imm: i32,
+		imm: i8,
 	},
 	CopyVariable {
 		target_name: String,

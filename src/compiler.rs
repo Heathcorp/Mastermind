@@ -115,7 +115,7 @@ impl MastermindCompiler {
 		self.move_to_pos(target_pos);
 	}
 
-	pub fn add_to_current_cell(&mut self, imm: i32) {
+	pub fn add_to_current_cell(&mut self, imm: i8) {
 		if imm == 0 {
 			return;
 		};
@@ -303,6 +303,7 @@ impl MastermindCompiler {
 					}
 				}
 				Command::ClearVariable { var_name } => {
+					// TODO: make optimisation for booleans within their top scope as they don't need brackets
 					self.move_to_var(&var_name);
 					self.open_loop();
 					self.add_to_current_cell(-1);

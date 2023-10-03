@@ -69,6 +69,6 @@ fn main() {
 			bvm.run(&mut stdin(), &mut stdout());
 		}
 	} else {
-		println!("{bf_program}");
+		print!("{bf_program}");
 	}
 }

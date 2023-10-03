@@ -10,7 +10,7 @@ def divisible
 {
   // iteratively subtract divisor from dividend
   // if the result goes below zero, break out of the main loop once the subtraction is finished
-  int[1] iterating 1
+  bool iterating 1
   copy result dividend
   while iterating
   {
@@ -37,6 +37,7 @@ def divisible
     }
     else
     {
+      // dodgy optimisation
       clear iterating
     }
   }
@@ -48,12 +49,19 @@ def print_num
   int[1] const_100
   int[1] const_10
 {
+  int[1] _eight 8
+  loop _eight
+  {
+    add zero_char 6
+  }
+
+  int[1] zero_char // 48
+
   int[1] hc
   int[1] tc
   // variable layout could be optimised, TODO: allocate sequentially rather than hoisting
   // will only print single byte positive numbers, nothing more than 999 (limited by 255 though)
   // this function is also not ideal and hacked together to make it work so don't judge
-  int[1] zero_char 48
 
   int[1] hundreds -1
   int[1] tens -1
@@ -151,12 +159,11 @@ loop n10
   add const_10 1
   add const_space 3
 }
-add const_space 2
 
 int[1] n_iter // 100
 int[1] const_100 // 100
 int[1] const_10 // 10
-int[1] const_space // 32
+int[1] const_space 2 // 32
 
 int[1] n
 loop n_iter

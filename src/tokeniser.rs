@@ -25,7 +25,8 @@ impl MastermindTokeniser {
 		match word {
 			"def" => LineType::FunctionDefinition,
 			// TODO: change this?
-			"int[1]" => LineType::VariableDeclaration,
+			"int[1]" => LineType::IntegerDeclaration,
+			"bool" => LineType::BooleanDeclaration,
 			"start" | "{" => LineType::BlockStart,
 			"end" | "}" => LineType::BlockEnd,
 			"loop" => LineType::ConsumeLoopDefinition,
@@ -65,7 +66,8 @@ pub enum LineType {
 	None,
 	FunctionDefinition,
 	FunctionCall,
-	VariableDeclaration,
+	IntegerDeclaration,
+	BooleanDeclaration,
 	ConsumeLoopDefinition,
 	WhileLoopDefinition,
 	IfDefinition,
