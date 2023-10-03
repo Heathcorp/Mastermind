@@ -266,6 +266,15 @@ impl MastermindParser {
 				LineType::ClearOperation => {
 					parsed_block.commands.push(Command::ClearVariable {
 						var_name: String::from(line_words[1]),
+						// super bodged, TODO: refactor everything to be more like an actual language
+						is_boolean: parsed_block
+							.variables
+							.iter()
+							.find(|var_obj| {
+								var_obj.name == line_words[1]
+									&& var_obj.var_type == VariableType::Boolean
+							})
+							.is_some(),
 					});
 				}
 				LineType::FunctionCall => {
@@ -356,7 +365,7 @@ pub struct Function {
 	pub block: Block,
 }
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, PartialEq)]
 pub enum VariableType {
 	ByteInteger,
 	Boolean,
@@ -382,6 +391,7 @@ pub enum Command {
 	},
 	ClearVariable {
 		var_name: String,
+		is_boolean: bool,
 	},
 	PushStack {
 		var_name: String,

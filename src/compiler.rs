@@ -302,12 +302,22 @@ impl MastermindCompiler {
 						}
 					}
 				}
-				Command::ClearVariable { var_name } => {
+				Command::ClearVariable {
+					var_name,
+					is_boolean,
+				} => {
 					// TODO: make optimisation for booleans within their top scope as they don't need brackets
 					self.move_to_var(&var_name);
-					self.open_loop();
+					// pretty poor and won't work correctly at the moment if more than one clear happens or if the boolean starts as false
+					// TODO: refactor a lot of things before trying to make this work
+					let boolean_optimisation = self.check_var_scope(&var_name) && is_boolean; // TODO: wire up variable type
+					if !boolean_optimisation {
+						self.open_loop();
+					}
 					self.add_to_current_cell(-1);
-					self.close_loop();
+					if !boolean_optimisation {
+						self.close_loop();
+					}
 				}
 				Command::PushStack { var_name } => {
 					// this whole construction is a bit messy
