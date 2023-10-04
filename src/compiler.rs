@@ -233,8 +233,6 @@ impl MastermindCompiler {
 	}
 
 	pub fn compile(&mut self, block: Block) {
-		self.open_scope(None);
-
 		// let start_len = self.program.len();
 		// the real meat and potatoes
 
@@ -449,7 +447,9 @@ impl MastermindCompiler {
 					self.move_to_var(&var_name);
 					self.open_loop();
 					// do what you want to do in the loop
+					self.open_scope(None);
 					self.compile(loop_block);
+					self.close_scope();
 					// decrement the variable
 					self.move_to_var(&var_name);
 					self.add_to_current_cell(-1);
@@ -465,7 +465,9 @@ impl MastermindCompiler {
 					self.open_loop();
 
 					// do what you want to do in the loop
+					self.open_scope(None);
 					self.compile(loop_block);
+					self.close_scope();
 
 					self.move_to_var(&var_name);
 					self.close_loop();
@@ -612,7 +614,7 @@ impl MastermindCompiler {
 			}
 		}
 
-		self.close_scope();
+		// self.close_scope();
 		///////
 		// let s: String = self.program[start_len..self.program.len()]
 		// 	.iter()
