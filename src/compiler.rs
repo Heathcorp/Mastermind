@@ -1,6 +1,6 @@
-use std::collections::HashMap;
+use std::collections::{HashMap, HashSet};
 
-use crate::parser::{Block, Command};
+use crate::parser::{Block, Command, VariableType};
 
 #[derive(Debug)]
 pub struct MastermindCompiler {
@@ -24,7 +24,7 @@ pub struct MastermindCompiler {
 #[derive(Debug)]
 pub struct VariableScope {
 	variable_aliases: HashMap<String, String>,
-	variable_map: HashMap<String, i32>,
+	variable_map: HashMap<String, (i32, VariableType)>,
 }
 
 impl VariableScope {
@@ -104,7 +104,7 @@ impl MastermindCompiler {
 		self.variable_scopes.last_mut().unwrap()
 	}
 
-	pub fn get_var_pos(&mut self, var_name: &str) -> i32 {
+	pub fn get_var_pos(&mut self, var_name: &str) -> (i32, VariableType) {
 		// iterate in reverse through the variables to check the latest scopes first
 		let (var_scope, alias_name) = self.get_var_scope(var_name);
 		var_scope.variable_map.get(alias_name).unwrap().clone()
@@ -112,7 +112,7 @@ impl MastermindCompiler {
 
 	pub fn move_to_var(&mut self, var_name: &str) {
 		let target_pos = self.get_var_pos(var_name);
-		self.move_to_pos(target_pos);
+		self.move_to_pos(target_pos.0);
 	}
 
 	pub fn add_to_current_cell(&mut self, imm: i8) {
@@ -130,31 +130,32 @@ impl MastermindCompiler {
 	}
 
 	// find free variable spaces and add to hashmap, you need to free this variable
-	pub fn allocate_var(&mut self, var_name: &str) {
+	pub fn allocate_var(&mut self, var_name: &str, var_type: VariableType) {
 		let cell = self.allocate_cell();
 		self.get_current_scope()
 			.variable_map
-			.insert(String::from(var_name), cell);
+			.insert(String::from(var_name), (cell, var_type));
 	}
 
 	// move a variable without moving any contents, just change the underlying cell that a variable points at, EXPERIMENTAL
 	// new_cell needs to already be allocated
 	pub fn change_var_cell(&mut self, var_name: &str, new_cell: i32) -> i32 {
 		let (var_scope, alias_name) = self.get_var_scope(var_name);
-		let old_cell = var_scope
+		let old_var_details = var_scope.variable_map.get(alias_name).unwrap().clone();
+		var_scope
 			.variable_map
-			.insert(String::from(alias_name), new_cell)
+			.insert(String::from(alias_name), (new_cell, old_var_details.1))
 			.unwrap();
 
 		// basically a pop operation, return the old cell so that it can be restored later
-		return old_cell;
+		return old_var_details.0;
 	}
 
 	pub fn free_var(&mut self, var_name: &str) {
 		// could probably be simplified
 		let (scope, var_alias) = self.get_var_scope(var_name);
 
-		let cell = *scope.variable_map.get(var_alias).unwrap();
+		let cell = scope.variable_map.get(var_alias).unwrap().0;
 		scope.variable_map.remove(var_alias);
 
 		self.free_cell(cell);
@@ -236,16 +237,18 @@ impl MastermindCompiler {
 		// let start_len = self.program.len();
 		// the real meat and potatoes
 
-		// start a new variable name scope
-
-		for var in block.variables.iter() {
-			if !var.argument {
-				self.allocate_var(var.name.as_str());
-			}
-		}
+		let mut scope_vars = HashSet::new();
 
 		for cmd in block.commands.clone() {
 			match cmd {
+				Command::DeclareVariable { name, var_type } => {
+					self.allocate_var(&name, var_type);
+					scope_vars.insert(name);
+				}
+				Command::FreeVariable { var_name } => {
+					self.free_var(&var_name);
+					scope_vars.remove(&var_name);
+				}
 				Command::AddImmediate { var_name, imm } => {
 					self.move_to_var(&var_name);
 					self.add_to_current_cell(imm);
@@ -253,12 +256,16 @@ impl MastermindCompiler {
 				Command::CopyVariable {
 					target_name,
 					source_name,
+					consume,
 				} => {
 					// because bf is fucked, the quickest way to copy consumes the original variable
 					// so we have to copy it twice, then copy one of them back to the original variable
 
 					// if the variable is in its top level scope then it's okay to move the variable
-					let temp_cell = self.allocate_cell();
+					let temp_cell = match !consume {
+						true => Some(self.allocate_cell()),
+						false => None,
+					};
 
 					self.move_to_var(&source_name);
 					self.open_loop();
@@ -267,43 +274,46 @@ impl MastermindCompiler {
 					// increment the target variables
 					self.move_to_var(&target_name);
 					self.add_to_current_cell(1);
-					self.move_to_pos(temp_cell);
-					self.add_to_current_cell(1);
+
+					if let Some(temp_cell) = temp_cell {
+						self.move_to_pos(temp_cell);
+						self.add_to_current_cell(1);
+					}
 
 					self.move_to_var(&source_name);
 					self.close_loop();
 
-					match self.check_var_scope(&source_name) {
-						true => {
-							// variable is defined in this scope so copying and moving is not a problem
-							// simply move the source variable to point to the temporary cell
-							let old_var_cell = self.change_var_cell(&source_name, temp_cell);
-							// free up the old variable's spot for something else
-							// this won't be very helpful currently as variables are allocated before commands, TODO: change this
-							self.free_cell(old_var_cell);
-						}
-						false => {
-							// variable is not within this scope so we need to satisfy the loop balance
-							// copy back the temp cell
-							self.move_to_pos(temp_cell);
-							self.open_loop();
-							self.add_to_current_cell(-1);
+					if let Some(temp_cell) = temp_cell {
+						match self.check_var_scope(&source_name) {
+							true => {
+								// variable is defined in this scope so copying and moving is not a problem
+								// simply move the source variable to point to the temporary cell
+								let old_var_cell = self.change_var_cell(&source_name, temp_cell);
+								// free up the old variable's spot for something else
+								// this won't be very helpful currently as variables are allocated before commands, TODO: change this
+								self.free_cell(old_var_cell);
+							}
+							false => {
+								// variable is not within this scope so we need to satisfy the loop balance
+								// copy back the temp cell
+								self.move_to_pos(temp_cell);
+								self.open_loop();
+								self.add_to_current_cell(-1);
 
-							self.move_to_var(&source_name);
-							self.add_to_current_cell(1);
+								self.move_to_var(&source_name);
+								self.add_to_current_cell(1);
 
-							self.move_to_pos(temp_cell);
-							self.close_loop();
+								self.move_to_pos(temp_cell);
+								self.close_loop();
 
-							// free the temp memory
-							self.free_cell(temp_cell);
+								// free the temp memory
+								self.free_cell(temp_cell);
+							}
 						}
 					}
 				}
-				Command::ClearVariable {
-					var_name,
-					is_boolean,
-				} => {
+				Command::ClearVariable { var_name } => {
+					let is_boolean = self.get_var_pos(&var_name).1 == VariableType::Boolean;
 					// TODO: make optimisation for booleans within their top scope as they don't need brackets
 					self.move_to_var(&var_name);
 					// pretty poor and won't work correctly at the moment if more than one clear happens or if the boolean starts as false
@@ -438,6 +448,24 @@ impl MastermindCompiler {
 					self.add_symbol('<');
 					self.add_symbol('<');
 					self.add_symbol(']');
+				}
+				Command::StackLoop { var_name, block } => {
+					// // somehow loop through a stack then free it
+					// self.move_to_pos(self.stack_start_pos.unwrap());
+
+					// self.add_symbol('>');
+					// self.add_symbol('>');
+					// self.add_symbol('-');
+					// self.add_symbol('<');
+					// self.add_symbol('<');
+					// self.add_symbol('[');
+					// self.add_symbol('<');
+					// self.add_symbol('<');
+					// self.add_symbol(']');
+
+					panic!("StackLoop unimplemented");
+
+					self.stack_start_pos = None;
 				}
 				Command::ConsumeLoop {
 					var_name,
@@ -583,7 +611,7 @@ impl MastermindCompiler {
 					// basically we need to recursively compile the contained block,
 					// I think this will have to be done in the self
 
-					// prime the self with the variable translations
+					// prime the compiler with the variable translations
 					self.open_scope(Some(&var_translations));
 
 					self.compile(block);
@@ -605,20 +633,12 @@ impl MastermindCompiler {
 					self.move_to_var(&var_name);
 					self.add_symbol('.');
 				}
+				Command::NoOp => (),
 			}
 		}
 
-		for var in block.variables.iter() {
-			if !var.argument {
-				self.free_var(var.name.as_str());
-			}
+		for var in scope_vars.into_iter() {
+			self.free_var(&var);
 		}
-
-		// self.close_scope();
-		///////
-		// let s: String = self.program[start_len..self.program.len()]
-		// 	.iter()
-		// 	.collect();
-		// println!("{block:#?} ::: {s}");
 	}
 }

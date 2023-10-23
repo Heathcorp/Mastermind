@@ -10,7 +10,7 @@ def divisible
 {
   // iteratively subtract divisor from dividend
   // if the result goes below zero, break out of the main loop once the subtraction is finished
-  bool iterating 1
+  int[1] iterating 1
   copy result dividend
   while iterating
   {
@@ -18,29 +18,26 @@ def divisible
     copy d divisor
     loop d
     {
-      // check if result is zero, if so we set iterating to 0
+      // if result is still positive, stay in outer loop
+      sub iterating 1
       if result
       {
+        add iterating 1
       }
-      else
-      {
-        clear iterating
-      }
-
+      
       // typical brainfuck draining addition/subtraction loop
       sub result 1
     }
+    free d
 
+    sub iterating 1
     // check after inner loop as well
     if result
     {
-    }
-    else
-    {
-      // dodgy optimisation
-      clear iterating
+      add iterating 1
     }
   }
+  free iterating
   // result = dividend - divisor * ceil(dividend / divisor)
 }
 
@@ -49,26 +46,11 @@ def print_num
   int[1] const_100
   int[1] const_10
 {
-  int[1] _eight 8
-  loop _eight
-  {
-    add zero_char 6
-  }
-
-  int[1] zero_char // 48
-
-  int[1] hc
-  int[1] tc
-  // variable layout could be optimised, TODO: allocate sequentially rather than hoisting
-  // will only print single byte positive numbers, nothing more than 999 (limited by 255 though)
-  // this function is also not ideal and hacked together to make it work so don't judge
-
-  int[1] hundreds -1
   int[1] tens -1
+  int[1] hundreds -1
   int[1] ones
 
-  int[1] iterating 1
-  int[1] radix
+  bool iterating 1
   int[1] ones_copy
 
   copy ones_copy num
@@ -79,22 +61,23 @@ def print_num
 
     add hundreds 1
 
+    int[1] radix
     copy radix const_100
     loop radix
     {
+      clear iterating
       if ones_copy
       {
+        add iterating 1
         sub ones_copy 1
       }
-      else
-      {
-        clear iterating
-      }
     }
+    free radix
   }
+  free iterating
 
   copy ones_copy ones
-  add iterating 1
+  bool iterating 1
   while iterating
   {
     clear ones
@@ -102,41 +85,57 @@ def print_num
 
     add tens 1
 
+    int[1] radix
     copy radix const_10
     loop radix
     {
+      clear iterating
       if ones_copy
       {
+        add iterating 1
         sub ones_copy 1
       }
-      else
-      {
-        clear iterating
-      }
     }
+    free radix
   }
+  free iterating
+  free ones_copy
 
-  // make a copy of the variables before we add ascii 0
+
+  int[1] tc
+  int[1] hc
   copy hc hundreds
   copy tc tens
 
-  // need some more sugar for this
+  // need some more sugar for multiplication
   // add 48 to each of the cells
-  loop zero_char
+  int[1] _twelve 12
+  loop _twelve
   {
-    add hundreds 1
-    add tens 1
-    add ones 1
+    add hundreds 4
+    add tens 4
+    add ones 4
   }
+  free _twelve
+  // need sugar for draining/copying into multiple variables
+  // imagine instead: 
+  // add hundreds tens ones | 48
+  // or
+  // add hundreds | 8 * 6
 
-  // maybe need some strings
-  // TODO: implement stacks
-
-  if hc consume
+  // if hc consume // this particular consume if could be optimised only because the numbers in this program only go up to 100
+  // {
+  //   output hundreds
+  //   output tens
+  //   clear tc
+  // }
+  // optimisation hack
+  while hc
   {
-    clear tc
+    sub hc 1
     output hundreds
     output tens
+    clear tc
   }
   if tc consume
   {
@@ -144,26 +143,28 @@ def print_num
   }
   output ones
   clear ones
-
   clear hundreds
   clear tens
 }
 
 // main
 // dodgy multiplication to initialise variables quicker, TODO: make an algorithm for this?
+
+
+int[1] const_space 2 // 32
+int[1] const_100 // 100
+int[1] n_iter // 100
+int[1] const_10 // 10
+
 int[1] n10 10
 loop n10
 {
+  add const_10 1
   add n_iter 10
   add const_100 10
-  add const_10 1
   add const_space 3
 }
-
-int[1] n_iter // 100
-int[1] const_100 // 100
-int[1] const_10 // 10
-int[1] const_space 2 // 32
+free n10
 
 int[1] n
 loop n_iter

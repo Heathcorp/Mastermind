@@ -49,6 +49,7 @@ fn main() {
 			// parse tokens into syntax tree
 			let mut parser = MastermindParser;
 			let parsed_program = parser.parse(tokenised_lines);
+			// println!("{parsed_program:#?}");
 			// compile syntax tree into brainfuck
 			let mut compiler = MastermindCompiler::new();
 			compiler.compile(parsed_program);

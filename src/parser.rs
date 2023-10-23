@@ -25,7 +25,7 @@ impl MastermindParser {
 		let mut inner_functions: Vec<Function> = Vec::new();
 
 		let mut parsed_block = Block {
-			variables: Vec::new(),
+			arguments: Vec::new(),
 			commands: Vec::new(),
 		};
 
@@ -59,7 +59,17 @@ impl MastermindParser {
 					let range = &line_pairs[args_start_line..=end_line];
 					let mut function_block = self.parse_block(range, outer_functions);
 					for i in 0..(block_start_line - args_start_line) {
-						function_block.variables[i].argument = true;
+						// first n lines from the parsed block should be arguments (declare variable commands)
+						if let Command::DeclareVariable { name, var_type } =
+							&function_block.commands[i]
+						{
+							function_block.arguments.push(Argument {
+								name: name.clone(),
+								var_type: var_type.clone(),
+							});
+							// remove the command so we don't redeclare the variable
+							function_block.commands[i] = Command::NoOp;
+						};
 					}
 					inner_functions.push(Function {
 						name: String::from(line_words[1]),
@@ -99,7 +109,9 @@ impl MastermindParser {
 						};
 					}
 				}
-				LineType::ConsumeLoopDefinition | LineType::WhileLoopDefinition => {
+				LineType::ConsumeLoopDefinition
+				| LineType::WhileLoopDefinition
+				| LineType::StackLoopDefinition => {
 					// find the start block
 					while line_pairs[i].0 != LineType::BlockStart {
 						i += 1;
@@ -123,19 +135,20 @@ impl MastermindParser {
 					let block = self.parse_block(range, &combined_functions);
 					let var_name = String::from(line_words[1]);
 
-					match line_type {
+					if let Some(cmd) = match line_type {
 						LineType::ConsumeLoopDefinition => {
-							parsed_block
-								.commands
-								.push(Command::ConsumeLoop { var_name, block });
+							Some(Command::ConsumeLoop { var_name, block })
 						}
 						LineType::WhileLoopDefinition => {
-							parsed_block
-								.commands
-								.push(Command::WhileLoop { var_name, block });
+							Some(Command::WhileLoop { var_name, block })
 						}
-						_ => (),
-					};
+						LineType::StackLoopDefinition => {
+							Some(Command::StackLoop { var_name, block })
+						}
+						_ => None,
+					} {
+						parsed_block.commands.push(cmd);
+					}
 				}
 				LineType::IfDefinition => {
 					let var_name = String::from(line_words[1]);
@@ -205,6 +218,10 @@ impl MastermindParser {
 				}
 				LineType::IntegerDeclaration => {
 					let var_name = String::from(line_words[1]);
+					parsed_block.commands.push(Command::DeclareVariable {
+						name: var_name.clone(),
+						var_type: VariableType::ByteInteger,
+					});
 					let mut imm: i8 = 0;
 					if line_words.len() > 2 {
 						// initialise immediate value
@@ -214,15 +231,19 @@ impl MastermindParser {
 							imm,
 						});
 					}
-					parsed_block.variables.push(Variable {
-						name: var_name,
-						argument: false,
-						var_type: VariableType::ByteInteger,
-						initial: imm,
-					});
+					// parsed_block.variables.push(Variable {
+					// 	name: var_name,
+					// 	argument: false,
+					// 	var_type: VariableType::ByteInteger,
+					// 	// initial: imm,
+					// });
 				}
 				LineType::BooleanDeclaration => {
 					let var_name = String::from(line_words[1]);
+					parsed_block.commands.push(Command::DeclareVariable {
+						name: var_name.clone(),
+						var_type: VariableType::Boolean,
+					});
 					let mut imm: i8 = 0;
 					if line_words.len() > 2 {
 						// initialise immediate value
@@ -232,12 +253,18 @@ impl MastermindParser {
 							imm,
 						});
 					}
-					parsed_block.variables.push(Variable {
-						name: var_name,
-						var_type: VariableType::Boolean,
-						argument: false,
-						initial: imm,
-					});
+					// parsed_block.variables.push(Variable {
+					// 	name: var_name,
+					// 	var_type: VariableType::Boolean,
+					// 	argument: false,
+					// 	// initial: imm,
+					// });
+				}
+				LineType::VariableFreedom => {
+					let var_name = String::from(line_words[1]);
+					parsed_block
+						.commands
+						.push(Command::FreeVariable { var_name });
 				}
 				LineType::AddOperation => {
 					// surely I can use references to point to the actual variable object
@@ -261,20 +288,28 @@ impl MastermindParser {
 					parsed_block.commands.push(Command::CopyVariable {
 						target_name: String::from(line_words[1]),
 						source_name: String::from(line_words[2]),
+						consume: false,
+					});
+				}
+				LineType::DrainOperation => {
+					parsed_block.commands.push(Command::CopyVariable {
+						target_name: String::from(line_words[1]),
+						source_name: String::from(line_words[2]),
+						consume: true,
 					});
 				}
 				LineType::ClearOperation => {
 					parsed_block.commands.push(Command::ClearVariable {
 						var_name: String::from(line_words[1]),
 						// super bodged, TODO: refactor everything to be more like an actual language
-						is_boolean: parsed_block
-							.variables
-							.iter()
-							.find(|var_obj| {
-								var_obj.name == line_words[1]
-									&& var_obj.var_type == VariableType::Boolean
-							})
-							.is_some(),
+						// is_boolean: parsed_block
+						// 	.variables
+						// 	.iter()
+						// 	.find(|var_obj| {
+						// 		var_obj.name == line_words[1]
+						// 			&& var_obj.var_type == VariableType::Boolean
+						// 	})
+						// 	.is_some(),
 					});
 				}
 				LineType::FunctionCall => {
@@ -289,12 +324,9 @@ impl MastermindParser {
 						.clone();
 					let function_arg_names: Vec<String> = function_instance
 						.block
-						.variables
+						.arguments
 						.iter()
-						.filter_map(|var| match var.argument {
-							true => Some(var.name.clone()),
-							false => None,
-						})
+						.map(|var| var.name.clone())
 						.collect();
 
 					// get the variables being called as arguments
@@ -303,6 +335,8 @@ impl MastermindParser {
 						var_translations
 							.insert(function_arg_names[i].clone(), String::from(*outer_var_name));
 					}
+
+					// println!("{var_translations:#?}");
 
 					// stick the commands and variables into the block, final step
 
@@ -355,7 +389,7 @@ impl MastermindParser {
 
 #[derive(Debug, Clone)]
 pub struct Block {
-	pub variables: Vec<Variable>,
+	pub arguments: Vec<Argument>,
 	pub commands: Vec<Command>,
 }
 
@@ -372,15 +406,23 @@ pub enum VariableType {
 }
 
 #[derive(Debug, Clone)]
-pub struct Variable {
+pub struct Argument {
 	pub name: String,
-	pub argument: bool,
+	// pub argument: bool,
 	pub var_type: VariableType,
-	pub initial: i8,
+	// pub initial: i8,
 }
 
 #[derive(Debug, Clone)]
 pub enum Command {
+	DeclareVariable {
+		name: String,
+		var_type: VariableType,
+		// initial: i8,
+	},
+	FreeVariable {
+		var_name: String,
+	},
 	AddImmediate {
 		var_name: String,
 		imm: i8,
@@ -388,16 +430,21 @@ pub enum Command {
 	CopyVariable {
 		target_name: String,
 		source_name: String,
+		consume: bool,
 	},
 	ClearVariable {
 		var_name: String,
-		is_boolean: bool,
+		// is_boolean: bool,
 	},
 	PushStack {
 		var_name: String,
 	},
 	PopStack {
 		var_name: String,
+	},
+	StackLoop {
+		var_name: String,
+		block: Block,
 	},
 	ConsumeLoop {
 		var_name: String,
@@ -407,6 +454,7 @@ pub enum Command {
 		var_name: String,
 		block: Block,
 	},
+
 	ScopedBlock {
 		var_translations: HashMap<String, String>,
 		block: Block,
@@ -423,4 +471,5 @@ pub enum Command {
 		if_block: Block,
 		else_block: Option<Block>,
 	},
+	NoOp, // this shouldn't be needed but I'm lazy
 }
