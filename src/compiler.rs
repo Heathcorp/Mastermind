@@ -24,7 +24,7 @@ pub struct MastermindCompiler {
 #[derive(Debug)]
 pub struct VariableScope {
 	variable_aliases: HashMap<String, String>,
-	variable_map: HashMap<String, (i32, VariableType)>,
+	variable_map: HashMap<String, CompilerVariable>,
 }
 
 impl VariableScope {
@@ -58,7 +58,7 @@ impl MastermindCompiler {
 		self.program.iter().collect()
 	}
 
-	pub fn move_to_pos(&mut self, target_pos: i32) {
+	pub fn move_to_cell(&mut self, target_pos: i32) {
 		let forward = target_pos > self.tape_offset_pos;
 		let character = match forward {
 			true => '>',
@@ -104,18 +104,13 @@ impl MastermindCompiler {
 		self.variable_scopes.last_mut().unwrap()
 	}
 
-	pub fn get_var_pos(&mut self, var_name: &str) -> (i32, VariableType) {
+	pub fn get_var(&mut self, var_name: &str) -> CompilerVariable {
 		// iterate in reverse through the variables to check the latest scopes first
 		let (var_scope, alias_name) = self.get_var_scope(var_name);
-		var_scope.variable_map.get(alias_name).unwrap().clone()
+		(*var_scope.variable_map.get(alias_name).unwrap()).clone()
 	}
 
-	pub fn move_to_var(&mut self, var_name: &str) {
-		let target_pos = self.get_var_pos(var_name);
-		self.move_to_pos(target_pos.0);
-	}
-
-	pub fn add_to_current_cell(&mut self, imm: i8) {
+	fn add_to_current_cell(&mut self, imm: i8) {
 		if imm == 0 {
 			return;
 		};
@@ -129,41 +124,249 @@ impl MastermindCompiler {
 		}
 	}
 
+	fn add_to_var(&mut self, var: CompilerVariable, imm: i8) {
+		match var {
+			CompilerVariable::Boolean {
+				var_name: _,
+				cell,
+				known_cell_value: _,
+			}
+			| CompilerVariable::Integer8 {
+				var_name: _,
+				cell,
+				known_cell_value: _,
+			} => {
+				self.move_to_cell(cell);
+				self.add_to_current_cell(imm);
+			}
+			CompilerVariable::Integer16 {
+				var_name,
+				cell1,
+				cell2,
+			} => {
+				panic!("16bit integer addition unimplemented");
+			}
+			CompilerVariable::Integer24 {
+				var_name,
+				cell1,
+				cell2,
+				cell3,
+			} => {
+				panic!("24bit integer addition unimplemented");
+			}
+		}
+	}
+
+	// while(a) a--
+	// if a is known at compile time:
+	// a = a - a
+	// whichever is more efficient
+	fn _clear_cell(&mut self, cell: i32, known_value: Option<i8>) {
+		self.move_to_cell(cell);
+
+		// checking if abs(a) is 3 or less as clearing a cell with [-] is only 3 characters
+		if known_value.is_some() && (known_value.unwrap().abs() <= 3) {
+			self.add_to_current_cell(-known_value.unwrap());
+		} else {
+			self.open_loop();
+			self.add_to_current_cell(-1);
+			self.close_loop();
+		}
+	}
+
+	// a, b, c = d; d = 0
+	fn _drain_cell_into_multiple(&mut self, src_cell: i32, dest_cells: Vec<i32>) {
+		self.move_to_cell(src_cell);
+		self.open_loop();
+
+		dest_cells.into_iter().for_each(|dest_cell| {
+			self.move_to_cell(dest_cell);
+			self.add_to_current_cell(1);
+		});
+
+		self.move_to_cell(src_cell);
+		self.add_to_current_cell(-1);
+		self.close_loop();
+	}
+
+	// a = b; b = 0
+	fn _drain_cell(&mut self, src_cell: i32, dest_cell: i32) {
+		self._drain_cell_into_multiple(src_cell, vec![dest_cell]);
+	}
+
+	// a, b, c = d; e used
+	fn _copy_cell_into_multiple_with_existing_cell(
+		&mut self,
+		src_cell: i32,
+		dest_cells: Vec<i32>,
+		temp_cell: i32,
+	) {
+		let mut new_dest_cells = dest_cells.clone();
+		new_dest_cells.push(temp_cell);
+		self._drain_cell_into_multiple(src_cell, new_dest_cells);
+
+		self._drain_cell(temp_cell, src_cell);
+	}
+
+	// a = b; c used
+	fn _copy_cell_with_existing_cell(&mut self, src_cell: i32, dest_cell: i32, temp_cell: i32) {
+		self._copy_cell_into_multiple_with_existing_cell(src_cell, vec![dest_cell], temp_cell);
+	}
+
+	// a, b, c = d
+	fn _copy_cell_into_multiple(&mut self, src_cell: i32, dest_cells: Vec<i32>) {
+		let temp_cell = self.allocate_cell();
+		self._copy_cell_into_multiple_with_existing_cell(src_cell, dest_cells, temp_cell);
+		self.free_cell(temp_cell);
+	}
+
+	// a = b
+	fn _copy_cell(&mut self, src_cell: i32, dest_cell: i32) {
+		self._copy_cell_into_multiple(src_cell, vec![dest_cell]);
+	}
+
 	// find free variable spaces and add to hashmap, you need to free this variable
-	pub fn allocate_var(&mut self, var_name: &str, var_type: VariableType) {
-		let cell = self.allocate_cell();
-		self.get_current_scope()
-			.variable_map
-			.insert(String::from(var_name), (cell, var_type));
+	pub fn allocate_var(&mut self, var_name: &String, var_type: VariableType) {
+		let pair: (String, CompilerVariable) = match var_type {
+			VariableType::Boolean => (
+				var_name.clone(),
+				CompilerVariable::Boolean {
+					var_name: var_name.clone(),
+					cell: self.allocate_cell(),
+					known_cell_value: None, // theoretically when we allocate we know the cell is 0, TODO
+				},
+			),
+			VariableType::Integer8 => (
+				var_name.clone(),
+				CompilerVariable::Integer8 {
+					var_name: var_name.clone(),
+					cell: self.allocate_cell(),
+					known_cell_value: None,
+				},
+			),
+			VariableType::Integer16 => (
+				var_name.clone(),
+				CompilerVariable::Integer16 {
+					var_name: var_name.clone(),
+					cell1: self.allocate_cell(),
+					cell2: self.allocate_cell(),
+				},
+			),
+			VariableType::Integer24 => (
+				var_name.clone(),
+				CompilerVariable::Integer24 {
+					var_name: var_name.clone(),
+					cell1: self.allocate_cell(),
+					cell2: self.allocate_cell(),
+					cell3: self.allocate_cell(),
+				},
+			),
+		};
+		self.get_current_scope().variable_map.insert(pair.0, pair.1);
 	}
 
 	// move a variable without moving any contents, just change the underlying cell that a variable points at, EXPERIMENTAL
 	// new_cell needs to already be allocated
-	pub fn change_var_cell(&mut self, var_name: &str, new_cell: i32) -> i32 {
+	fn change_var_cell(&mut self, var_name: &str, new_cell: i32) -> i32 {
 		let (var_scope, alias_name) = self.get_var_scope(var_name);
-		let old_var_details = var_scope.variable_map.get(alias_name).unwrap().clone();
+		let old_var_details = var_scope.variable_map.remove(alias_name).unwrap();
+		let (old_cell, new_var_details) = match old_var_details {
+			CompilerVariable::Boolean {
+				var_name: _,
+				cell: old_cell,
+				known_cell_value,
+			} => (
+				old_cell,
+				CompilerVariable::Boolean {
+					var_name: String::from(alias_name),
+					cell: new_cell,
+					known_cell_value,
+				},
+			),
+
+			CompilerVariable::Integer8 {
+				var_name: _,
+				cell: old_cell,
+				known_cell_value,
+			} => (
+				old_cell,
+				CompilerVariable::Integer8 {
+					var_name: String::from(alias_name),
+					cell: new_cell,
+					known_cell_value,
+				},
+			),
+
+			CompilerVariable::Integer16 {
+				var_name: _,
+				cell1: _,
+				cell2: _,
+			}
+			| CompilerVariable::Integer24 {
+				var_name: _,
+				cell1: _,
+				cell2: _,
+				cell3: _,
+			} => {
+				panic!("16bit and 24bit integer cell change unimplemented");
+			}
+		};
+
 		var_scope
 			.variable_map
-			.insert(String::from(alias_name), (new_cell, old_var_details.1))
-			.unwrap();
+			.insert(String::from(alias_name), new_var_details);
 
 		// basically a pop operation, return the old cell so that it can be restored later
-		return old_var_details.0;
+		return old_cell;
 	}
 
-	pub fn free_var(&mut self, var_name: &str) {
+	fn free_var(&mut self, var_name: &str) {
 		// could probably be simplified
 		let (scope, var_alias) = self.get_var_scope(var_name);
 
-		let cell = scope.variable_map.get(var_alias).unwrap().0;
-		scope.variable_map.remove(var_alias);
+		let var_details = scope.variable_map.remove(var_alias).unwrap();
 
-		self.free_cell(cell);
+		match var_details {
+			CompilerVariable::Boolean {
+				var_name,
+				cell,
+				known_cell_value,
+			}
+			| CompilerVariable::Integer8 {
+				var_name,
+				cell,
+				known_cell_value,
+			} => {
+				// TODO: known cell value stuff
+				// if known_cell_value.is_none() || (known_cell_value.unwrap() != 0) {
+				// 	panic!("Attempted to free variable \"{var_name}\" that has an unknown value or is non-zero");
+				// }
+				self.free_cell(cell);
+			}
+			CompilerVariable::Integer16 {
+				var_name,
+				cell1,
+				cell2,
+			} => {
+				self.free_cell(cell1);
+				self.free_cell(cell2);
+			}
+			CompilerVariable::Integer24 {
+				var_name,
+				cell1,
+				cell2,
+				cell3,
+			} => {
+				self.free_cell(cell1);
+				self.free_cell(cell2);
+				self.free_cell(cell3);
+			}
+		}
 	}
 
 	// find free cell and return the offset position (pointer basically)
 	// if you do not free this it will stay and clog up future allocations
-	pub fn allocate_cell(&mut self) -> i32 {
+	fn allocate_cell(&mut self) -> i32 {
 		// let mut pos = self.tape_offset_pos;
 		let mut pos = 0;
 		loop {
@@ -190,20 +393,20 @@ impl MastermindCompiler {
 		}
 	}
 
-	pub fn free_cell(&mut self, cell_pos: i32) {
+	fn free_cell(&mut self, cell_pos: i32) {
 		let i: usize = cell_pos // + self.allocation_array_zero_offset)
 			.try_into()
 			.unwrap();
 		self.allocation_array[i] = false;
 	}
 
-	pub fn open_loop(&mut self) {
+	fn open_loop(&mut self) {
 		self.program.push('[');
 		self.loop_balance_stack.push(0);
 		self.loop_depth += 1;
 	}
 
-	pub fn close_loop(&mut self) {
+	fn close_loop(&mut self) {
 		self.program.push(']');
 		self.loop_depth -= 1;
 
@@ -212,7 +415,7 @@ impl MastermindCompiler {
 		}
 	}
 
-	pub fn open_scope(&mut self, translations: Option<&HashMap<String, String>>) {
+	fn open_scope(&mut self, translations: Option<&HashMap<String, String>>) {
 		self.variable_scopes.push(VariableScope::new());
 
 		if let Some(translations) = translations {
@@ -223,13 +426,13 @@ impl MastermindCompiler {
 		}
 	}
 
-	pub fn close_scope(&mut self) {
+	fn close_scope(&mut self) {
 		// if you do not free all variables then they will be deleted but not deallocated (not cool)
 		// it will not error out though, not sure if that's a good thing
 		self.variable_scopes.pop();
 	}
 
-	pub fn add_symbol(&mut self, symbol: char) {
+	fn add_symbol(&mut self, symbol: char) {
 		self.program.push(symbol);
 	}
 
@@ -250,81 +453,122 @@ impl MastermindCompiler {
 					scope_vars.remove(&var_name);
 				}
 				Command::AddImmediate { var_name, imm } => {
-					self.move_to_var(&var_name);
-					self.add_to_current_cell(imm);
+					let var_details = self.get_var(&var_name);
+					self.add_to_var(var_details, imm);
 				}
 				Command::CopyVariable {
 					target_name,
 					source_name,
-					consume,
 				} => {
 					// because bf is fucked, the quickest way to copy consumes the original variable
 					// so we have to copy it twice, then copy one of them back to the original variable
 
-					// if the variable is in its top level scope then it's okay to move the variable
-					let temp_cell = match !consume {
-						true => Some(self.allocate_cell()),
-						false => None,
-					};
+					// if the variable is in its top level scope then it's okay to move the variable instead
+					let source_ref = self.get_var(&source_name);
+					let target_ref = self.get_var(&target_name);
 
-					self.move_to_var(&source_name);
-					self.open_loop();
-					// decrement the source variable
-					self.add_to_current_cell(-1);
-					// increment the target variables
-					self.move_to_var(&target_name);
-					self.add_to_current_cell(1);
-
-					if let Some(temp_cell) = temp_cell {
-						self.move_to_pos(temp_cell);
-						self.add_to_current_cell(1);
+					match (source_ref, target_ref) {
+						(
+							CompilerVariable::Integer8 {
+								var_name: _,
+								cell: source_cell,
+								known_cell_value: _,
+							}
+							| CompilerVariable::Boolean {
+								var_name: _,
+								cell: source_cell,
+								known_cell_value: _,
+							}
+							| CompilerVariable::Integer16 {
+								var_name: _,
+								cell1: source_cell,
+								cell2: _,
+							}
+							| CompilerVariable::Integer24 {
+								var_name: _,
+								cell1: source_cell,
+								cell2: _,
+								cell3: _,
+							},
+							CompilerVariable::Integer8 {
+								var_name: _,
+								cell: target_cell,
+								known_cell_value: _,
+							}
+							| CompilerVariable::Boolean {
+								var_name: _,
+								cell: target_cell,
+								known_cell_value: _,
+							},
+						) => {
+							// simple copy as any more significant binary digits would overflow instantly
+							self._copy_cell(source_cell, target_cell);
+						}
+						_ => {
+							panic!("Copy operation unimplemented for 16bit, 24bit");
+						}
 					}
-
-					self.move_to_var(&source_name);
-					self.close_loop();
-
-					if let Some(temp_cell) = temp_cell {
-						match self.check_var_scope(&source_name) {
-							true => {
-								// variable is defined in this scope so copying and moving is not a problem
-								// simply move the source variable to point to the temporary cell
-								let old_var_cell = self.change_var_cell(&source_name, temp_cell);
-								// free up the old variable's spot for something else
-								// this won't be very helpful currently as variables are allocated before commands, TODO: change this
-								self.free_cell(old_var_cell);
-							}
-							false => {
-								// variable is not within this scope so we need to satisfy the loop balance
-								// copy back the temp cell
-								self.move_to_pos(temp_cell);
-								self.open_loop();
-								self.add_to_current_cell(-1);
-
-								self.move_to_var(&source_name);
-								self.add_to_current_cell(1);
-
-								self.move_to_pos(temp_cell);
-								self.close_loop();
-
-								// free the temp memory
-								self.free_cell(temp_cell);
-							}
+				}
+				Command::DrainVariable {
+					target_name,
+					source_name,
+				} => {
+					let source_ref = self.get_var(&source_name);
+					let target_ref = self.get_var(&target_name);
+					match (source_ref, target_ref) {
+						(
+							CompilerVariable::Integer8 {
+								var_name: _,
+								cell: source_cell,
+								known_cell_value: _,
+							},
+							CompilerVariable::Integer8 {
+								var_name: _,
+								cell: target_cell,
+								known_cell_value: _,
+							},
+						) => {
+							self._drain_cell(source_cell, target_cell);
+						}
+						_ => {
+							panic!("Drain operation unimplemented into 16bit, 24bit");
 						}
 					}
 				}
 				Command::ClearVariable { var_name } => {
-					let is_boolean = self.get_var_pos(&var_name).1 == VariableType::Boolean;
-					// TODO: make optimisation for booleans within their top scope as they don't need brackets
-					self.move_to_var(&var_name);
-					// pretty poor and won't work correctly at the moment if more than one clear happens or if the boolean starts as false
-					// TODO: refactor a lot of things before trying to make this work
-					let boolean_optimisation = self.check_var_scope(&var_name) && is_boolean; // TODO: wire up variable type
-					if !boolean_optimisation {
-						self.open_loop();
-					}
-					self.add_to_current_cell(-1);
-					if !boolean_optimisation {
-						self.close_loop();
+					let var_ref = self.get_var(&var_name);
+					match var_ref {
+						CompilerVariable::Boolean {
+							var_name: _,
+							cell,
+							known_cell_value,
+						}
+						| CompilerVariable::Integer8 {
+							var_name: _,
+							cell,
+							known_cell_value,
+						} => {
+							// TODO: make optimisation for booleans within their top scope as they don't need brackets
+							self._clear_cell(cell, known_cell_value);
+						}
+						CompilerVariable::Integer16 {
+							var_name: _,
+							cell1,
+							cell2,
+						} => {
+							self._clear_cell(cell1, None);
+							self._clear_cell(cell2, None);
+						}
+						CompilerVariable::Integer24 {
+							var_name: _,
+							cell1,
+							cell2,
+							cell3,
+						} => {
+							self._clear_cell(cell1, None);
+							self._clear_cell(cell2, None);
+							self._clear_cell(cell3, None);
+						}
 					}
 				}
 				Command::PushStack { var_name } => {
@@ -359,56 +603,103 @@ impl MastermindCompiler {
 						),
 					);
 
-					self.move_to_var(&var_name);
-					self.add_symbol('['); // open a loop without the balance checker
+					let var_ref = self.get_var(&var_name);
 
-					// move to the stack base cell (null byte)
-					self.move_to_pos(self.stack_start_pos.unwrap());
-					// pure brainfuck from here:
-					// base cell of stack is null to find it easily, so move to the right one
-					self.add_symbol('>');
-					self.add_symbol('>');
-					// move to the right until we get to the null cell
-					self.add_symbol('[');
-					// each stack element is two cells, cell two is a boolean indicating if cell one has data
-					self.add_symbol('>');
-					self.add_symbol('>');
-					self.add_symbol(']');
+					if let CompilerVariable::Boolean {
+						var_name: _,
+						cell: var_cell,
+						known_cell_value: _,
+					}
+					| CompilerVariable::Integer8 {
+						var_name: _,
+						cell: var_cell,
+						known_cell_value: _,
+					} = var_ref
+					{
+						self.move_to_cell(var_cell);
+						self.add_symbol('['); // open a loop without the balance checker
 
-					// move from the boolean to the value cell
-					self.add_symbol('<');
-					// increment
-					self.add_symbol('+');
-					// now find the start of the stack again
-					self.add_symbol('<');
-					self.add_symbol('[');
-					self.add_symbol('<');
-					self.add_symbol('<');
-					self.add_symbol(']');
+						// move to the stack base cell (null byte)
+						self.move_to_cell(self.stack_start_pos.unwrap());
+						// pure brainfuck from here:
+						// base cell of stack is null to find it easily, so move to the right one
+						self.add_symbol('>');
+						self.add_symbol('>');
+						// move to the right until we get to the null cell
+						self.add_symbol('[');
+						// each stack element is two cells, cell two is a boolean indicating if cell one has data
+						self.add_symbol('>');
+						self.add_symbol('>');
+						self.add_symbol(']');
 
-					// close loop
-					self.move_to_var(&var_name);
-					self.add_to_current_cell(-1);
-					self.add_symbol(']');
+						// move from the boolean to the value cell
+						self.add_symbol('<');
+						// increment
+						self.add_symbol('+');
+						// now find the start of the stack again
+						self.add_symbol('<');
+						self.add_symbol('[');
+						self.add_symbol('<');
+						self.add_symbol('<');
+						self.add_symbol(']');
 
-					// now set the stack top boolean to true, I wonder if this can be optimised?
-					self.move_to_pos(self.stack_start_pos.unwrap());
-					self.add_symbol('>');
-					self.add_symbol('>');
-					self.add_symbol('[');
-					self.add_symbol('>');
-					self.add_symbol('>');
-					self.add_symbol(']');
-					self.add_symbol('+');
-					self.add_symbol('<');
-					self.add_symbol('<');
-					self.add_symbol('[');
-					self.add_symbol('<');
-					self.add_symbol('<');
-					self.add_symbol(']');
+						// close loop
+						self.move_to_cell(var_cell);
+						self.add_to_current_cell(-1);
+						self.add_symbol(']');
+
+						// now set the stack top boolean to true, I wonder if this can be optimised?
+						self.move_to_cell(self.stack_start_pos.unwrap());
+						self.add_symbol('>');
+						self.add_symbol('>');
+						self.add_symbol('[');
+						self.add_symbol('>');
+						self.add_symbol('>');
+						self.add_symbol(']');
+						self.add_symbol('+');
+						self.add_symbol('<');
+						self.add_symbol('<');
+						self.add_symbol('[');
+						self.add_symbol('<');
+						self.add_symbol('<');
+						self.add_symbol(']');
+						// should not move anywhere
+						self.move_to_cell(self.stack_start_pos.unwrap());
+					} else {
+						panic!("Stack push operation not implemented for 16bit or 24bit variables");
+					}
 				}
 				Command::PopStack { var_name } => {
-					self.move_to_pos(self.stack_start_pos.unwrap());
+					let var_ref = self.get_var(&var_name);
+
+					let cell =
+						match var_ref {
+							CompilerVariable::Boolean {
+								var_name: _,
+								cell,
+								known_cell_value: _,
+							}
+							| CompilerVariable::Integer8 {
+								var_name: _,
+								cell,
+								known_cell_value: _,
+							} => cell,
+							CompilerVariable::Integer16 {
+								var_name: _,
+								cell1: _,
+								cell2: _,
+							}
+							| CompilerVariable::Integer24 {
+								var_name: _,
+								cell1: _,
+								cell2: _,
+								cell3: _,
+							} => {
+								panic!("Stack pop operation not implemented for 16bit or 24bit variables");
+							}
+						};
+
+					self.move_to_cell(self.stack_start_pos.unwrap());
 					self.add_symbol('>');
 					self.add_symbol('>');
 					self.add_symbol('[');
@@ -425,9 +716,9 @@ impl MastermindCompiler {
 					self.add_symbol('<');
 					self.add_symbol('<');
 					self.add_symbol(']');
-					self.move_to_var(&var_name);
+					self.move_to_cell(cell);
 					self.add_to_current_cell(1);
-					self.move_to_pos(self.stack_start_pos.unwrap());
+					self.move_to_cell(self.stack_start_pos.unwrap());
 					self.add_symbol('>');
 					self.add_symbol('>');
 					self.add_symbol('[');
@@ -448,6 +739,8 @@ impl MastermindCompiler {
 					self.add_symbol('<');
 					self.add_symbol('<');
 					self.add_symbol(']');
+					// this should not move anywhere but I left this here for clarity
+					self.move_to_cell(self.stack_start_pos.unwrap());
 				}
 				Command::StackLoop { var_name, block } => {
 					// // somehow loop through a stack then free it
@@ -471,34 +764,89 @@ impl MastermindCompiler {
 					var_name,
 					block: loop_block,
 				} => {
-					// to start the loop move to the variable you want to consume
-					self.move_to_var(&var_name);
-					self.open_loop();
-					// do what you want to do in the loop
-					self.open_scope(None);
-					self.compile(loop_block);
-					self.close_scope();
-					// decrement the variable
-					self.move_to_var(&var_name);
-					self.add_to_current_cell(-1);
+					let var_ref = self.get_var(&var_name);
 
-					self.close_loop();
+					match var_ref {
+						CompilerVariable::Boolean {
+							var_name: _,
+							cell,
+							known_cell_value: _,
+						}
+						| CompilerVariable::Integer8 {
+							var_name: _,
+							cell,
+							known_cell_value: _,
+						} => {
+							// to start the loop move to the variable you want to consume
+							self.move_to_cell(cell);
+							self.open_loop();
+							// do what you want to do in the loop
+							self.open_scope(None);
+							self.compile(loop_block);
+							self.close_scope();
+							// decrement the variable
+							self.move_to_cell(cell);
+							self.add_to_current_cell(-1);
+
+							self.close_loop();
+						}
+						CompilerVariable::Integer16 {
+							var_name: _,
+							cell1: _,
+							cell2: _,
+						}
+						| CompilerVariable::Integer24 {
+							var_name: _,
+							cell1: _,
+							cell2: _,
+							cell3: _,
+						} => {
+							panic!("Consume loop unimplemented for 16bit and 24bit integers");
+						}
+					}
 				}
 				Command::WhileLoop {
 					var_name,
 					block: loop_block,
 				} => {
-					// to start the loop move to the variable you want to consume
-					self.move_to_var(&var_name);
-					self.open_loop();
+					let var_ref = self.get_var(&var_name);
 
-					// do what you want to do in the loop
-					self.open_scope(None);
-					self.compile(loop_block);
-					self.close_scope();
+					match var_ref {
+						CompilerVariable::Boolean {
+							var_name: _,
+							cell,
+							known_cell_value: _,
+						}
+						| CompilerVariable::Integer8 {
+							var_name: _,
+							cell,
+							known_cell_value: _,
+						} => {
+							// to start the loop move to the variable you want to consume
+							self.move_to_cell(cell);
+							self.open_loop();
+							// do what you want to do in the loop
+							self.open_scope(None);
+							self.compile(loop_block);
+							self.close_scope();
 
-					self.move_to_var(&var_name);
-					self.close_loop();
+							self.move_to_cell(cell);
+							self.close_loop();
+						}
+						CompilerVariable::Integer16 {
+							var_name: _,
+							cell1: _,
+							cell2: _,
+						}
+						| CompilerVariable::Integer24 {
+							var_name: _,
+							cell1: _,
+							cell2: _,
+							cell3: _,
+						} => {
+							panic!("While loop unimplemented for 16bit and 24bit integers");
+						}
+					}
 				}
 				Command::IfElse {
 					var_name,
@@ -506,102 +854,101 @@ impl MastermindCompiler {
 					if_block,
 					else_block,
 				} => {
+					let var_ref = self.get_var(&var_name);
+					let var_cell = match var_ref {
+						CompilerVariable::Boolean {
+							var_name: _,
+							cell,
+							known_cell_value: _,
+						}
+						| CompilerVariable::Integer8 {
+							var_name: _,
+							cell,
+							known_cell_value: _,
+						} => cell,
+						CompilerVariable::Integer16 {
+							var_name: _,
+							cell1: _,
+							cell2: _,
+						}
+						| CompilerVariable::Integer24 {
+							var_name: _,
+							cell1: _,
+							cell2: _,
+							cell3: _,
+						} => {
+							panic!("If-else statements unimplemented for 16bit and 24bit integers");
+						}
+					};
+
 					let temp_move_cell = match consume {
 						false => Some(self.allocate_cell()),
 						true => None,
 					};
 					let else_condition_cell = match else_block {
 						Some(_) => {
-							let cell = self.allocate_cell();
-							self.move_to_pos(cell);
+							let else_condition_cell = self.allocate_cell();
+							self.move_to_cell(else_condition_cell);
 							self.add_to_current_cell(1);
-							Some(cell)
+							Some(else_condition_cell)
 						}
 						None => None,
 					};
 
 					// if block
-					self.move_to_var(&var_name);
+					self.move_to_cell(var_cell);
 					self.open_loop();
 
-					match temp_move_cell {
-						Some(cell) => {
-							// move if condition to temp cell
-							self.open_loop();
-							self.add_to_current_cell(-1);
-							self.move_to_pos(cell);
-							self.add_to_current_cell(1);
-							self.move_to_var(&var_name);
-							self.close_loop();
-						}
-						None => {
-							// consume the if variable instead
-							// TODO: check if it is a boolean and just decrement instead
-							self.open_loop();
-							self.add_to_current_cell(-1);
-							self.close_loop();
-						}
+					if let Some(temp_move_cell) = temp_move_cell {
+						// move if condition to temp cell
+						self._drain_cell(var_cell, temp_move_cell);
+					} else {
+						// consume the if variable instead
+						self._clear_cell(var_cell, None); // TODO: known values
 					}
 
 					// reassign the variable to the temporary cell so that if statement inner can use the variable
 					let old_var_cell = match temp_move_cell {
-						Some(cell) => Some(self.change_var_cell(&var_name, cell)),
+						Some(temp_move_cell) => {
+							Some(self.change_var_cell(&var_name, temp_move_cell))
+						}
 						None => None,
 					};
 
-					match else_condition_cell {
-						Some(cell) => {
-							// remove the else condition so that it does not run
-							self.move_to_pos(cell);
-							self.add_to_current_cell(-1);
-						}
-						None => (),
-					};
+					if let Some(else_condition_cell) = else_condition_cell {
+						// remove the else condition so that it does not run
+						self.move_to_cell(else_condition_cell);
+						self.add_to_current_cell(-1);
+					}
 
 					self.compile(if_block);
 
-					match old_var_cell {
-						Some(cell) => {
-							// move to the original variable position to close the loop
-							self.move_to_pos(cell);
-							self.close_loop();
+					// move to the original variable position to close the loop
+					self.move_to_cell(var_cell);
+					self.close_loop();
 
-							// now copy back the variable from the temp cell
-							self.move_to_var(&var_name);
-							self.open_loop();
-							self.add_to_current_cell(-1);
-							self.move_to_pos(cell);
-							self.add_to_current_cell(1);
-							self.move_to_var(&var_name);
-							self.close_loop();
+					if let Some(old_var_cell) = old_var_cell {
+						// now copy back the variable from the temp cell
+						self._drain_cell(temp_move_cell.unwrap(), old_var_cell);
 
-							// reassign the variable again (undo from before)
-							self.change_var_cell(&var_name, cell);
-							self.free_cell(temp_move_cell.unwrap());
-						}
-						None => {
-							// just move to the variable
-							self.move_to_var(&var_name);
-							self.close_loop();
-						}
+						// reassign the variable again (undo from before)
+						self.change_var_cell(&var_name, old_var_cell);
+						self.free_cell(temp_move_cell.unwrap());
 					}
 
-					match else_condition_cell {
-						Some(cell) => {
-							// else block
-							self.move_to_pos(cell);
-							self.open_loop();
-							// clear else condition variable
-							self.add_to_current_cell(-1);
+					if let Some(else_condition_cell) = else_condition_cell {
+						// else block
+						self.move_to_cell(else_condition_cell);
+						self.open_loop();
+						// clear else condition variable
+						self.add_to_current_cell(-1);
 
-							self.compile(else_block.unwrap());
+						self.compile(else_block.unwrap());
 
-							self.move_to_pos(cell);
-							self.close_loop();
-							self.free_cell(cell);
-						}
-						None => (),
-					};
+						self.move_to_cell(else_condition_cell);
+						self.close_loop();
+						self.free_cell(else_condition_cell);
+					}
 				}
 				Command::ScopedBlock {
 					var_translations,
@@ -623,14 +970,112 @@ impl MastermindCompiler {
 					self.add_symbol('#');
 				}
 				Command::DebugGoto(var_name) => {
-					self.move_to_var(&var_name);
+					let var_ref = self.get_var(&var_name);
+
+					match var_ref {
+						CompilerVariable::Boolean {
+							var_name: _,
+							cell,
+							known_cell_value: _,
+						}
+						| CompilerVariable::Integer8 {
+							var_name: _,
+							cell,
+							known_cell_value: _,
+						} => {
+							self.move_to_cell(cell);
+						}
+						CompilerVariable::Integer16 {
+							var_name: _,
+							cell1: _,
+							cell2: _,
+						}
+						| CompilerVariable::Integer24 {
+							var_name: _,
+							cell1: _,
+							cell2: _,
+							cell3: _,
+						} => {
+							panic!("Debug-goto unimplemented for 16bit and 24bit integers");
+						}
+					}
 				}
 				Command::DebugPrintInt(var_name) => {
-					self.move_to_var(&var_name);
-					self.add_symbol('@');
+					let var_ref = self.get_var(&var_name);
+					match var_ref {
+						CompilerVariable::Boolean {
+							var_name: _,
+							cell,
+							known_cell_value: _,
+						}
+						| CompilerVariable::Integer8 {
+							var_name: _,
+							cell,
+							known_cell_value: _,
+						} => {
+							self.move_to_cell(cell);
+							self.add_symbol('@');
+						}
+						CompilerVariable::Integer16 {
+							var_name: _,
+							cell1: _,
+							cell2: _,
+						}
+						| CompilerVariable::Integer24 {
+							var_name: _,
+							cell1: _,
+							cell2: _,
+							cell3: _,
+						} => {
+							panic!("Debug print unimplemented for 16bit and 24bit integers");
+						}
+					}
 				}
-				Command::OutputByte { var_name } => {
-					self.move_to_var(&var_name);
+				Command::OutputByte {
+					var_name,
+					byte_index,
+				} => {
+					let var_ref = self.get_var(&var_name);
+					let mut byte_refs = Vec::new();
+					match var_ref {
+						CompilerVariable::Boolean {
+							var_name: _,
+							cell,
+							known_cell_value: _,
+						}
+						| CompilerVariable::Integer8 {
+							var_name: _,
+							cell,
+							known_cell_value: _,
+						} => {
+							byte_refs.push(cell);
+						}
+						CompilerVariable::Integer16 {
+							var_name: _,
+							cell1,
+							cell2,
+						} => {
+							byte_refs.push(cell1);
+							byte_refs.push(cell2);
+						}
+						CompilerVariable::Integer24 {
+							var_name: _,
+							cell1,
+							cell2,
+							cell3,
+						} => {
+							byte_refs.push(cell1);
+							byte_refs.push(cell2);
+							byte_refs.push(cell3);
+						}
+					}
+
+					let i = byte_index.unwrap_or(0);
+					if i >= byte_refs.len() {
+						panic!("Variable \"{var_name}\" has {} bytes, attempted to output byte index {i}", byte_refs.len());
+					}
+
+					self.move_to_cell(byte_refs[i]);
 					self.add_symbol('.');
 				}
 				Command::NoOp => (),
@@ -641,4 +1086,29 @@ impl MastermindCompiler {
 			self.free_var(&var);
 		}
 	}
+}
+
+#[derive(Debug, Clone)]
+enum CompilerVariable {
+	Boolean {
+		var_name: String,
+		cell: i32,
+		known_cell_value: Option<i8>,
+	}, // could do some initial value stuff here for optimisations
+	Integer8 {
+		var_name: String,
+		cell: i32,
+		known_cell_value: Option<i8>,
+	},
+	Integer16 {
+		var_name: String,
+		cell1: i32,
+		cell2: i32,
+	},
+	Integer24 {
+		var_name: String,
+		cell1: i32,
+		cell2: i32,
+		cell3: i32,
+	},
 }

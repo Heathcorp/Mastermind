@@ -220,7 +220,7 @@ impl MastermindParser {
 					let var_name = String::from(line_words[1]);
 					parsed_block.commands.push(Command::DeclareVariable {
 						name: var_name.clone(),
-						var_type: VariableType::ByteInteger,
+						var_type: VariableType::Integer8,
 					});
 					let mut imm: i8 = 0;
 					if line_words.len() > 2 {
@@ -288,14 +288,12 @@ impl MastermindParser {
 					parsed_block.commands.push(Command::CopyVariable {
 						target_name: String::from(line_words[1]),
 						source_name: String::from(line_words[2]),
-						consume: false,
 					});
 				}
 				LineType::DrainOperation => {
-					parsed_block.commands.push(Command::CopyVariable {
+					parsed_block.commands.push(Command::DrainVariable {
 						target_name: String::from(line_words[1]),
 						source_name: String::from(line_words[2]),
-						consume: true,
 					});
 				}
 				LineType::ClearOperation => {
@@ -346,8 +344,29 @@ impl MastermindParser {
 					});
 				}
 				LineType::OutputOperation => {
+					let byte_index: Option<usize>;
+					let var_name: String;
+
+					if let Some((prefix, suffix)) = line_words[1].split_once('[') {
+						byte_index = Some(
+							suffix
+								.split_once(']')
+								.unwrap()
+								.0
+								.parse::<usize>()
+								.ok()
+								.unwrap(), // specifically unwrapping here because I want this to panic here not later
+						);
+
+						var_name = String::from(prefix);
+					} else {
+						byte_index = None;
+						var_name = String::from(line_words[1]);
+					};
+
 					parsed_block.commands.push(Command::OutputByte {
-						var_name: String::from(line_words[1]),
+						var_name,
+						byte_index,
 					});
 				}
 				LineType::PushOperation => {
@@ -401,8 +420,10 @@ pub struct Function {
 
 #[derive(Debug, Clone, PartialEq)]
 pub enum VariableType {
-	ByteInteger,
 	Boolean,
+	Integer8,
+	Integer16,
+	Integer24,
 }
 
 #[derive(Debug, Clone)]
@@ -430,7 +451,10 @@ pub enum Command {
 	CopyVariable {
 		target_name: String,
 		source_name: String,
-		consume: bool,
+	},
+	DrainVariable {
+		target_name: String,
+		source_name: String,
 	},
 	ClearVariable {
 		var_name: String,
@@ -461,6 +485,7 @@ pub enum Command {
 	},
 	OutputByte {
 		var_name: String,
+		byte_index: Option<usize>,
 	},
 	DebugTape,
 	DebugGoto(String),

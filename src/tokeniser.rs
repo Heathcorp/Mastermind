@@ -26,6 +26,8 @@ impl MastermindTokeniser {
 			"def" => LineType::FunctionDefinition,
 			// TODO: change this?
 			"int[1]" => LineType::IntegerDeclaration,
+			"int[2]" => LineType::IntegerDeclaration,
+			"int[3]" => LineType::IntegerDeclaration,
 			"free" => LineType::VariableFreedom,
 			"bool" => LineType::BooleanDeclaration,
 			"start" | "{" => LineType::BlockStart,
