@@ -28,6 +28,8 @@ struct Arguments {
 	compile: bool,
 	#[arg(short, long, default_value_t = false)]
 	run: bool,
+	#[arg(short, long, default_value_t = false)]
+	optimise: bool,
 }
 
 fn main() {
@@ -55,8 +57,11 @@ fn main() {
 			let mut compiler = MastermindCompiler::new();
 			compiler.compile(parsed_program);
 
-			// BrainfuckOptimiser::optimise(compiler.program)
-			compiler.to_string()
+			// optimise if the -o flag is set
+			match args.optimise {
+				true => BrainfuckOptimiser::optimise(compiler.program),
+				false => compiler.to_string(),
+			}
 		}
 		false => program,
 	};
