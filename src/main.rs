@@ -16,19 +16,43 @@ use std::io::{stdin, stdout, Cursor};
 use clap::Parser;
 
 #[derive(Parser, Default, Debug)]
-#[command(author = "Heathcorp", version = "0.1", about = "Brainfuck interpreter and compiler", long_about = None)]
+#[command(author = "Heathcorp", version = "0.1", about = "Mastermind: the Brainfuck interpreter and compilation tool", long_about = None)]
 struct Arguments {
-	#[arg(short, long)]
+	#[arg(short, long, help = "provide a file to read a program from")]
 	file: Option<String>,
-	#[arg(short, long)]
+
+	#[arg(short, long, help = "provide a program via command line arguments")]
 	program: Option<String>,
-	#[arg(short, long)]
+
+	#[arg(
+		short,
+		long,
+		help = "provide input to the Brainfuck VM if running, stdin will be used if not provided"
+	)]
 	input: Option<String>,
-	#[arg(short, long, default_value_t = false)]
+
+	#[arg(
+		short,
+		long,
+		default_value_t = false,
+		help = "compile the provided program to Brainfuck"
+	)]
 	compile: bool,
-	#[arg(short, long, default_value_t = false)]
+
+	#[arg(
+		short,
+		long,
+		default_value_t = false,
+		help = "run the compiled or provided Brainfuck code"
+	)]
 	run: bool,
-	#[arg(short, long, default_value_t = false)]
+
+	#[arg(
+		short,
+		long,
+		default_value_t = false,
+		help = "turn on generated code optimisations"
+	)]
 	optimise: bool,
 }
 
