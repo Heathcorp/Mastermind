@@ -223,13 +223,13 @@ impl BVM {
 }
 
 #[cfg(test)]
-mod tests {
+pub mod tests {
 	// TODO: add unit tests for Tape
 	use super::*;
 
 	use std::io::Cursor;
 
-	fn run_program(program: String, input: String) -> String {
+	pub fn run_program(program: String, input: String) -> String {
 		let mut bvm = BVM::new(program.chars().collect());
 
 		let input_bytes: Vec<u8> = input.bytes().collect();

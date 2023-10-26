@@ -1,20 +1,22 @@
-int[1] val1 5
-int[1] val2 9
-int[1] val3 64
-int[1] val4 45
-int[1] val5 3
-int[1] val6 90
-int[1] val7 -17
-
-// #goto val7
-// #debug
-
-push val1
-push val2
-push val4
-
+int[1] h 8
+int[1] e 5
+int[1] l 12
+int[1] o 15
+// comment!
+int[1] a_char 96
+loop a_char
+{
+  add h 1
+  add e 1
+  add l 1
+  add o 1
+}
+free a_char
 #debug
-
-pop val1
-
-#debug
+output h
+output e
+output l
+output l
+output o
+int[1] ten 10
+output ten

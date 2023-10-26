@@ -2,6 +2,7 @@ mod brainfuck;
 mod compiler;
 mod optimiser;
 mod parser;
+mod tests;
 mod tokeniser;
 
 use brainfuck::BVM;
@@ -54,8 +55,8 @@ fn main() {
 			let mut compiler = MastermindCompiler::new();
 			compiler.compile(parsed_program);
 
-			BrainfuckOptimiser::optimise(compiler.program)
-			// compiler.to_string()
+			// BrainfuckOptimiser::optimise(compiler.program)
+			compiler.to_string()
 		}
 		false => program,
 	};
