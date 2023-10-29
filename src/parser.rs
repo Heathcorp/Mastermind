@@ -260,6 +260,9 @@ impl MastermindParser {
 					// 	// initial: imm,
 					// });
 				}
+				LineType::VariableValueAssertion => {
+					// TODO
+				}
 				LineType::VariableFreedom => {
 					let var_name = String::from(line_words[1]);
 					parsed_block
@@ -443,6 +446,10 @@ pub enum Command {
 	},
 	FreeVariable {
 		var_name: String,
+	},
+	AssertVariableValue {
+		var_name: String,
+		imm: i32,
 	},
 	AddImmediate {
 		var_name: String,
