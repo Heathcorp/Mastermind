@@ -9,11 +9,7 @@ The reason I say "compile" instead of "transpile" is because, in my mental model
 This is my first Rust project so feedback is appreciated, except if you want to argue about my use of hard tabs.
 I've also never written a compiler before and deliberately tried not to read any literature before attempting this, so it may seem fairly primitive.
 
-### Future Ideas
-
-- Optimisations: optimise for speed and efficiency, or for minimal output size (golf mode), could have an automated tool that detects stretches of code that are equivalent to each other.
-
-### Requirements for v1 release
+### TODO
 
 1. Multi-byte integers
 2. Automatic consumption and freeing of variables when leaving scope
@@ -21,3 +17,5 @@ I've also never written a compiler before and deliberately tried not to read any
 4. Maybe to get 2 and 3 implement a "with" construction so it's clear when a variable is in scope
 5. Whitespace-agnostic syntax
 6. Get somebody else to playtest and fix any issues that arise
+7. In order to achieve 1 and 5 create an include and simple macro system, and implement some common functions in mastermind
+8. A simple web interface, learn how to create crates and import this into a seperate repo
