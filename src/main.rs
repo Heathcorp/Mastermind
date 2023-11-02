@@ -1,15 +1,18 @@
-mod brainfuck;
-mod compiler;
-mod optimiser;
-mod parser;
-mod tests;
-mod tokeniser;
+// Stages: (rust format has jumbled these)
+mod brainfuck; // 6. Run
+mod builder; // 4. Build (and pre-optimise)
+mod compiler; // 3. Compile
+mod optimiser; // 5. Post-Optimise
+mod parser; // 2. Parse
+mod tokeniser; // 1. Tokenise
+
+// mod tests;
 
 use brainfuck::BVM;
-use compiler::MastermindCompiler;
-use optimiser::BrainfuckOptimiser;
-use parser::MastermindParser;
-use tokeniser::MastermindTokeniser;
+// use compiler::MastermindCompiler;
+// use optimiser::optimise;
+use parser::parse;
+use tokeniser::{tokenise, Token};
 
 use std::io::{stdin, stdout, Cursor};
 
@@ -70,22 +73,25 @@ fn main() {
 		true => {
 			// compile the provided file
 
-			// TODO: tokenise properly so we don't need to worry about lines
-			let tokeniser = MastermindTokeniser;
-			let tokenised_lines = tokeniser.tokenise(&program);
+			let tokenised: Vec<Token> = tokenise(&program);
+			println!("{tokenised:#?}");
 			// parse tokens into syntax tree
-			let mut parser = MastermindParser;
-			let parsed_program = parser.parse(tokenised_lines);
-			// println!("{parsed_program:#?}");
+			let parsed_program = parse(&tokenised);
+			println!("{parsed_program:#?}");
 			// compile syntax tree into brainfuck
-			let mut compiler = MastermindCompiler::new();
-			compiler.compile(parsed_program);
 
-			// optimise if the -o flag is set
-			match args.optimise {
-				true => BrainfuckOptimiser::optimise(compiler.program),
-				false => compiler.to_string(),
-			}
+			// TODO: 2 stage compilation step, first stage compiles syntax tree into low-level instructions
+			// 	second stage actually writes out the low-level instructions into brainfuck
+
+			// let mut compiler = MastermindCompiler::new();
+			// compiler.compile(parsed_program);
+
+			// // // optimise if the -o flag is set
+			// match args.optimise {
+			// 	true => optimise(compiler.program),
+			// 	false => compiler.to_string(),
+			// }
+			program
 		}
 		false => program,
 	};

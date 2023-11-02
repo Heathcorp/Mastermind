@@ -1,0 +1,25 @@
+// The Fibonacci numbers are a numerical sequence in which 
+// each number is the sum of the two preceding numbers: 0, 1, 1, 2, 3, 5, 8, 13…
+// Print the first 31 Fibonacci numbers from F0 = 0 to F30 = 832040 (inclusive), each on a separate line. 
+
+// we will start by making 24bit integers but I reckon it would actually be better to store 6 decimal digits
+// TODO: do it with decimal digits it would 100% be quicker
+
+int[1] iter 30
+int[1] ten 10
+
+int[3] num_a
+int[3] num_b 1
+
+loop iter
+{
+  #print num_a
+  output ten
+
+  // a,b = a+b,a
+  int[3] tmp
+  copy tmp num_a
+  drain num_a num_b
+  drain num_b tmp
+  free tmp
+}

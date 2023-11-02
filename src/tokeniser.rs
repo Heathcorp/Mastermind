@@ -1,97 +1,183 @@
-pub struct MastermindTokeniser;
+use regex::Regex;
 
-impl MastermindTokeniser {
-	pub fn tokenise<'a>(&'a self, source: &'a str) -> Vec<LinePair> {
-		// TODO: make this an actual tokeniser and not filtering and trimming lines like this
-		let lines: Vec<&str> = source.lines().collect();
+pub fn tokenise(source: &String) -> Vec<Token> {
+	let stripped = source
+		.lines()
+		.map(strip_line)
+		.collect::<Vec<String>>()
+		.join(" ");
 
-		// step one strip and get the type of each line for ease of processing
-		let line_pairs: Vec<LinePair> = lines
-			.into_iter()
-			.map(|line| {
-				let trimmed = Self::strip_line(line);
-				(Self::get_line_type(trimmed), trimmed)
-			})
-			.filter(|pair| pair.0 != LineType::None)
-			.collect();
+	println!("{stripped}");
 
-		line_pairs
-	}
+	let mappings = [
+		(" ", Token::None),
+		(";", Token::ClauseDelimiter),
+		("output", Token::Output),
+		("#debug", Token::Debug),
+		("let", Token::Let),
+		("=", Token::Equals),
+		("assert", Token::Assert),
+		("while", Token::While),
+		("drain", Token::Drain),
+		("into", Token::Into),
+		("clear", Token::Clear),
+		("loop", Token::Loop),
+		("else", Token::Else),
+		("copy", Token::Copy),
+		("call", Token::Call),
+		// ("bool", Token::Bool),
+		("free", Token::Free),
+		("else", Token::Else),
+		// ("push", Token::Push),
+		// ("deal", Token::Deal),
+		("def", Token::Def),
+		// ("int", Token::Int),
+		// ("add", Token::Add),
+		// ("sub", Token::Sub),
+		// ("pop", Token::Pop),
+		("if", Token::If),
+		("{", Token::OpenBrace),
+		("}", Token::ClosingBrace),
+		("[", Token::OpenSquareBracket),
+		("]", Token::ClosingSquareBracket),
+		// ("(", Token::OpenParenthesis),
+		// (")", Token::ClosingParenthesis),
+		("-", Token::Minus),
+		("+", Token::Plus),
+	];
 
-	fn get_line_type(line: &str) -> LineType {
-		let mut split = line.split_whitespace();
-		let word = split.next().unwrap_or(line);
+	let mut tokens: Vec<Token> = Vec::new();
 
-		match word {
-			"def" => LineType::FunctionDefinition,
-			// TODO: change this?
-			"int[1]" => LineType::IntegerDeclaration,
-			"int[2]" => LineType::IntegerDeclaration,
-			"int[3]" => LineType::IntegerDeclaration,
-			"assert" => LineType::VariableValueAssertion,
-			"free" => LineType::VariableFreedom,
-			"bool" => LineType::BooleanDeclaration,
-			"start" | "{" => LineType::BlockStart,
-			"end" | "}" => LineType::BlockEnd,
-			"loop" => LineType::ConsumeLoopDefinition,
-			"while" => LineType::WhileLoopDefinition,
-			"if" => LineType::IfDefinition,
-			"else" => LineType::ElseDefinition,
-			"add" => LineType::AddOperation,
-			"sub" => LineType::SubOperation,
-			"copy" => LineType::CopyOperation,
-			"drain" => LineType::DrainOperation,
-			"clear" => LineType::ClearOperation,
-			"push" => LineType::PushOperation,
-			"pop" => LineType::PopOperation,
-			"deal" => LineType::StackLoopDefinition,
-			"call" => LineType::FunctionCall,
-			"output" => LineType::OutputOperation,
-			"#debug" => LineType::Debug,
-			"#goto" => LineType::Debug,
-			"#print" => LineType::Debug,
-			_ => LineType::None,
+	let mut chr_idx = 0usize;
+	while chr_idx < stripped.len() {
+		let remaining = &stripped[chr_idx..];
+
+		let mut found = false;
+		for (text, token) in mappings.iter() {
+			if remaining.starts_with(*text) {
+				tokens.push(token.clone());
+				chr_idx += (*text).len();
+				found = true;
+				break;
+			}
+		}
+		if !found {
+			// check for numbers and variables
+			let num_re = Regex::new("^[0-9]+").unwrap();
+			let txt_re = Regex::new(r"^[a-zA-Z_]\w*").unwrap();
+			if let Some(num_capture) = num_re.captures(remaining) {
+				let substring = String::from(&num_capture[0]);
+				chr_idx += substring.len();
+				tokens.push(Token::Number(substring));
+			} else if let Some(txt_capture) = txt_re.captures(remaining) {
+				let substring = String::from(&txt_capture[0]);
+				chr_idx += substring.len();
+				tokens.push(Token::Name(substring));
+			} else {
+				panic!("Unknown token found while tokenising program: \"{remaining}\"");
+			}
 		}
 	}
 
-	fn strip_line(line: &str) -> &str {
-		let mut stripped = line;
-		// remove comments
-		let split = line.split_once("//");
-		if split.is_some() {
-			stripped = split.unwrap().0;
-		}
-
-		// remove whitespace
-		stripped.trim()
-	}
+	tokens
+		.into_iter()
+		.filter(|t| match t {
+			Token::None => false,
+			_ => true,
+		})
+		.collect()
 }
 
-#[derive(Debug, PartialEq, Clone)]
-pub enum LineType {
+fn strip_line(line: &str) -> String {
+	let mut stripped = line;
+	// remove comments
+	let split = line.split_once("//");
+	if split.is_some() {
+		stripped = split.unwrap().0;
+	}
+
+	// remove excess whitespace
+	stripped
+		.trim()
+		.split_whitespace()
+		.collect::<Vec<&str>>()
+		.join(" ")
+}
+
+#[derive(Debug, Clone, PartialEq)]
+pub enum Token {
 	None,
-	FunctionDefinition,
-	FunctionCall,
-	IntegerDeclaration,
-	BooleanDeclaration,
-	VariableValueAssertion,
-	VariableFreedom,
-	ConsumeLoopDefinition,
-	WhileLoopDefinition,
-	IfDefinition,
-	ElseDefinition,
-	BlockStart,
-	BlockEnd,
-	AddOperation,
-	SubOperation,
-	CopyOperation,
-	DrainOperation,
-	ClearOperation,
-	PushOperation,
-	PopOperation,
-	StackLoopDefinition,
-	OutputOperation,
+	ClauseDelimiter,
+	Def,
+	Call,
+	// Int,
+	// Bool,
+	Let,
+	Equals,
+	Assert,
+	Free,
+	Loop,
+	While,
+	// Deal,
+	If,
+	Else,
+	OpenBrace,
+	ClosingBrace,
+	OpenSquareBracket,
+	ClosingSquareBracket,
+	// OpenParenthesis,
+	// ClosingParenthesis,
+	Add,
+	Sub,
+	Copy,
+	Drain,
+	Into,
+	Clear,
+	// Push,
+	// Pop,
+	Output,
 	Debug,
+	Name(String),
+	Number(String),
+	Minus,
+	Plus,
 }
 
-pub type LinePair<'a> = (LineType, &'a str);
+#[cfg(test)]
+mod tests {
+	use super::*;
+
+	#[test]
+	fn dummy() {
+		let program = String::from(
+			"
+let h[3] = 6;
+int[1] e 5;
+int[1] l 12;
+int[1] o 15;
+// comment!
+int[1] a_char 96;
+loop a_char
+{
+	add h 1;
+	add e 1;
+	add l 1;
+	add o 1;
+};
+free a_char;
+output h;
+output e;
+output l;
+output l;
+output o;
+int[1] ten 10;
+output ten;
+",
+		);
+		let tokens = tokenise(&program);
+		println!("{tokens:#?}");
+		// let input = String::from("");
+		// let desired_output = String::from("");
+		assert_eq!("hello", "hello");
+	}
+}
