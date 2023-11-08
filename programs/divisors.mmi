@@ -1,5 +1,12 @@
 let i;
-let n = 100;
+let n = 255;
 drain n into i {
-  
+  print_num(i);
+};
+
+def print_num(num[7]) {
+  output num;
+
+  let nl=10;
+  output nl;
 };

@@ -10,19 +10,40 @@ pub fn parse(tokens: &[Token]) -> Vec<Clause> {
 	// basic steps:
 	// chew off tokens from the front, recursively parse blocks of tokens
 	// TODO: down the track with expressions we will need another function to parse those
-	let mut commands: Vec<Clause> = Vec::new();
+	let mut clauses: Vec<Clause> = Vec::new();
 	let mut i = 0usize;
-	while let Some(clause) = get_clause_tokens(&tokens[i..]) {
-		commands.push(match (&clause[0], &clause[1]) {
-			(Token::Let, Token::Name(_)) => parse_let_clause(clause),
-			_ => {
-				panic!("Clause type not implemented: {clause:#?}");
-			}
-		});
-		i += clause.len();
+	while let Some(clause_tokens) = get_clause_tokens(&tokens[i..]) {
+		clauses.push(
+			match (
+				&clause_tokens[0],
+				&clause_tokens[1],
+				if tokens.len() > 2 {
+					&clause_tokens[2]
+				} else {
+					&Token::None
+				},
+			) {
+				(Token::Let, _, _) => parse_let_clause(clause_tokens),
+				(Token::Drain, _, _) => parse_drain_copy_clause(clause_tokens, true),
+				(Token::Copy, _, _) => parse_drain_copy_clause(clause_tokens, false),
+				(Token::Output, _, _) => parse_output_clause(clause_tokens),
+				(Token::Name(_), Token::OpenParenthesis, _) => {
+					parse_function_call_clause(clause_tokens)
+				}
+				(Token::Def, _, _) => parse_function_definition_clause(clause_tokens),
+				(Token::Name(_), Token::Plus | Token::Minus, Token::Equals) => {
+					parse_add_clause(clause_tokens)
+				}
+
+				_ => {
+					panic!("Clause type not implemented: {clause_tokens:#?}");
+				}
+			},
+		);
+		i += clause_tokens.len();
 	}
 
-	commands
+	clauses
 }
 
 fn parse_let_clause(clause: &[Token]) -> Clause {
@@ -40,10 +61,7 @@ fn parse_let_clause(clause: &[Token]) -> Clause {
 	}
 	let mut arr_len: Option<usize> = None;
 	if let Token::OpenSquareBracket = clause[i] {
-		let subscript = get_braced_tokens(
-			&clause[i..],
-			(Token::OpenSquareBracket, Token::ClosingSquareBracket),
-		);
+		let subscript = get_braced_tokens(&clause[i..], SQUARE_BRACKETS);
 		let len_expr = parse_expression(subscript);
 		if let Expression::Constant(constant) = len_expr {
 			arr_len = Some(constant.try_into().unwrap());
@@ -60,15 +78,224 @@ fn parse_let_clause(clause: &[Token]) -> Clause {
 		Clause::DefineVariable {
 			name: name.clone(),
 			arr_len,
-			value: expr,
+			initial_value: Some(expr),
 		}
 	} else if let Token::ClauseDelimiter = &clause[i] {
-		Clause::DeclareVariable {
+		Clause::DefineVariable {
 			name: name.clone(),
 			arr_len,
+			initial_value: None,
 		}
 	} else {
 		panic!("Invalid token at end of let clause: {clause:#?}");
+	}
+}
+
+fn parse_add_clause(clause: &[Token]) -> Clause {
+	let mut i = 0usize;
+	let Token::Name(name) = &clause[i] else {
+		panic!("Expected name at start of add clause: {clause:#?}");
+	};
+	i += 1;
+	let positive = match &clause[i] {
+		Token::Plus => true,
+		Token::Minus => false,
+		_ => {
+			panic!("Unexpected second token in add clause: {clause:#?}");
+		}
+	};
+	let mut expr = parse_expression(&clause[i..(clause.len() - 1)]);
+	match (&mut expr, positive) {
+		(Expression::Constant(n), false) => {
+			*n = -*n;
+		}
+		_ => (),
+	}
+	Clause::AddToVariable {
+		var_name: name.clone(),
+		value: expr,
+	}
+}
+
+fn parse_drain_copy_clause(clause: &[Token], is_draining: bool) -> Clause {
+	// drain g {i += 1;};
+	// drain g into j;
+	// copy foo into bar {g += 2; etc;};
+
+	let source_name: String;
+	let mut target_names = Vec::new();
+	let mut block = Vec::new();
+	let mut i = 1;
+	if let Token::Name(identifier) = &clause[i] {
+		source_name = identifier.clone();
+		i += 1;
+	} else {
+		panic!("Invalid identifier name in second position of drain clause: {clause:#?}");
+	}
+
+	if let Token::Into = &clause[i] {
+		// simple drain/copy move operations
+		i += 1;
+
+		loop {
+			match &clause[i] {
+				Token::Name(identifier) => {
+					target_names.push(identifier.clone());
+					i += 1;
+				}
+				Token::OpenBrace | Token::ClauseDelimiter => {
+					break;
+				}
+				_ => {
+					panic!("Unexpected token in drain clause: {clause:#?}");
+				}
+			}
+		}
+	}
+
+	if let Token::OpenBrace = &clause[i] {
+		// code block to execute at each loop iteration
+		let braced_tokens = get_braced_tokens(&clause[i..], BRACES);
+		// recursion
+		block.extend(parse(braced_tokens));
+		i += 2 + braced_tokens.len();
+	}
+
+	if let Token::ClauseDelimiter = &clause[i] {
+		Clause::CopyLoop {
+			source_name,
+			target_names,
+			block,
+			is_draining,
+		}
+	} else {
+		panic!("Invalid token at end of copy/drain clause: {clause:#?}");
+	}
+}
+
+fn parse_output_clause(clause: &[Token]) -> Clause {
+	let mut i = 1usize;
+	let var_name: String;
+	if let Token::Name(identifier) = &clause[i] {
+		// TODO: implement expressions here
+		var_name = identifier.clone();
+		i += 1;
+	} else {
+		panic!("Unexpected token in output clause: {clause:#?}");
+	}
+
+	if let Token::OpenSquareBracket = &clause[i] {
+		let subscript = get_braced_tokens(&clause[i..], SQUARE_BRACKETS);
+		i += 2 + subscript.len();
+		let Expression::Constant(i) = parse_expression(subscript);
+		Clause::OutputByte {
+			var_name,
+			arr_index: Some(i.try_into().unwrap()),
+		}
+	} else if let Token::ClauseDelimiter = &clause[i] {
+		Clause::OutputByte {
+			var_name,
+			arr_index: None,
+		}
+	} else {
+		panic!("Invalid token at end of output clause: {clause:#?}");
+	}
+}
+fn parse_function_definition_clause(clause: &[Token]) -> Clause {
+	let mut i = 1usize;
+	// function name
+	let Token::Name(name) = &clause[i] else {
+		panic!("Expected function name after in function definition clause: {clause:#?}");
+	};
+	let mut args = Vec::new();
+	i += 1;
+	let Token::OpenParenthesis = &clause[i] else {
+		panic!("Expected open parenthesis in function definition clause: {clause:#?}");
+	};
+	let arg_tokens = get_braced_tokens(&clause[i..], PARENTHESES);
+	let mut j = 0usize;
+	// parse function argument names
+	while let Token::Name(arg_name) = &arg_tokens[j] {
+		let mut arr_len: Option<usize> = None;
+		j += 1;
+
+		if j >= arg_tokens.len() {
+			args.push((arg_name.clone(), arr_len));
+			break;
+		} else if let Token::OpenSquareBracket = &arg_tokens[j] {
+			// the argument is an array/multi-byte value
+			let subscript = get_braced_tokens(&arg_tokens[j..], SQUARE_BRACKETS);
+			let Expression::Constant(num_len) = parse_expression(subscript) else {
+				panic!("Expected a constant array length specifier in argument definition: {arg_tokens:#?}");
+			};
+			arr_len = Some(num_len.try_into().unwrap());
+			j += 2 + subscript.len();
+		}
+
+		args.push((arg_name.clone(), arr_len));
+
+		if j >= arg_tokens.len() {
+			break;
+		} else if let Token::Comma = &arg_tokens[j] {
+			j += 1;
+		} else {
+			panic!("Unexpected token in function definition arguments: {arg_tokens:#?}");
+		}
+	}
+
+	i += 2 + arg_tokens.len();
+
+	// recursively parse the inner block
+	let Token::OpenBrace = &clause[i] else {
+		panic!("Expected execution block in function definition: {clause:#?}");
+	};
+
+	let block_tokens = get_braced_tokens(&clause[i..], BRACES);
+	let parsed_block = parse(block_tokens);
+
+	Clause::DefineFunction {
+		name: name.clone(),
+		arguments: args,
+		block: parsed_block,
+	}
+}
+
+fn parse_function_call_clause(clause: &[Token]) -> Clause {
+	let mut i = 0usize;
+	// Okay I didn't know this rust syntax, could have used it all over the place
+	let Token::Name(name) = &clause[i] else {
+		panic!("Expected function identifier at start of function call clause: {clause:#?}");
+	};
+	let mut args = Vec::new();
+	i += 1;
+
+	let Token::OpenParenthesis = &clause[i] else {
+		panic!("Expected open parenthesis in function call clause: {clause:#?}");
+	};
+	let arg_tokens = get_braced_tokens(&clause[i..], PARENTHESES);
+
+	let mut j = 0usize;
+	while let Token::Name(arg_name) = &arg_tokens[j] {
+		args.push(arg_name.clone());
+		j += 1;
+		if j >= arg_tokens.len() {
+			break;
+		} else if let Token::Comma = &arg_tokens[j] {
+			j += 1;
+		} else {
+			panic!("Unexpected token in function call arguments: {arg_tokens:#?}");
+		}
+	}
+
+	i += 2 + arg_tokens.len();
+
+	let Token::ClauseDelimiter = &clause[i] else {
+		panic!("Expected clause delimiter at end of function call clause: {clause:#?}");
+	};
+
+	Clause::CallFunction {
+		function_name: name.clone(),
+		argument_names: args,
 	}
 }
 
@@ -81,7 +308,8 @@ fn get_clause_tokens(tokens: &[Token]) -> Option<&[Token]> {
 		while i < tokens.len() {
 			match tokens[i] {
 				Token::OpenBrace => {
-					i += get_block(&tokens[i..]).unwrap().len();
+					let braced_block = get_braced_tokens(&tokens[i..], BRACES);
+					i += 2 + braced_block.len();
 				}
 				Token::ClauseDelimiter => {
 					i += 1;
@@ -97,30 +325,11 @@ fn get_clause_tokens(tokens: &[Token]) -> Option<&[Token]> {
 	}
 }
 
-// given a list of tokens starting with {, find the range bounded by the corresponding closing }
-fn get_block(tokens: &[Token]) -> Option<&[Token]> {
-	if tokens.len() == 0 {
-		None
-	} else if let Token::OpenBrace = tokens[0] {
-		let mut i = 1usize;
-		let mut depth = 0;
-		while depth != 0 && i < tokens.len() {
-			depth += match tokens[i] {
-				Token::OpenBrace => 1,
-				Token::ClosingBrace => -1,
-				_ => 0,
-			};
-
-			i += 1;
-		}
-
-		Some(&tokens[..i])
-	} else {
-		None
-	}
-}
-
-// find matching square brackets
+const SQUARE_BRACKETS: (Token, Token) = (Token::OpenSquareBracket, Token::ClosingSquareBracket);
+const BRACES: (Token, Token) = (Token::OpenBrace, Token::ClosingBrace);
+const PARENTHESES: (Token, Token) = (Token::OpenParenthesis, Token::ClosingParenthesis);
+// this should be a generic function but rust doesn't support enum variants as type arguments yet
+// find tokens bounded by matching brackets
 fn get_braced_tokens(tokens: &[Token], braces: (Token, Token)) -> &[Token] {
 	let _braces = (mem::discriminant(&braces.0), mem::discriminant(&braces.1));
 	// find corresponding bracket, the depth check is unnecessary but whatever
@@ -139,14 +348,14 @@ fn get_braced_tokens(tokens: &[Token], braces: (Token, Token)) -> &[Token] {
 		i
 	};
 
-	if len >= 3 {
+	if len >= 2 {
 		if _braces.0 == mem::discriminant(&tokens[0])
 			&& _braces.1 == mem::discriminant(&tokens[len - 1])
 		{
 			return &tokens[1..(len - 1)];
 		}
 	}
-	panic!("Invalid subscript tokens: {tokens:#?}");
+	panic!("Invalid braced tokens: {tokens:#?}");
 }
 
 fn parse_expression(tokens: &[Token]) -> Expression {
@@ -198,13 +407,34 @@ pub enum Expression {
 
 #[derive(Debug)]
 pub enum Clause {
-	DeclareVariable {
-		name: String,
-		arr_len: Option<usize>,
-	},
 	DefineVariable {
 		name: String,
 		arr_len: Option<usize>,
+		initial_value: Option<Expression>,
+	},
+	AddToVariable {
+		var_name: String,
 		value: Expression,
+	},
+	// TODO
+	SetVariable {},
+	CopyLoop {
+		source_name: String,
+		target_names: Vec<String>,
+		block: Vec<Clause>,
+		is_draining: bool,
+	},
+	OutputByte {
+		var_name: String,
+		arr_index: Option<usize>,
+	},
+	DefineFunction {
+		name: String,
+		arguments: Vec<(String, Option<usize>)>,
+		block: Vec<Clause>,
+	},
+	CallFunction {
+		function_name: String,
+		argument_names: Vec<String>,
 	},
 }
