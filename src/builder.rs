@@ -8,5 +8,3 @@
 pub fn build(instructions: Vec<Instruction>) -> String {
 	String::new()
 }
-
-pub enum Instruction {}

@@ -511,12 +511,13 @@ fn parse_expression(tokens: &[Token]) -> Expression {
 }
 
 // TODO: do we need crazy recursive expressions?
+// TODO: yes, but no multiplication or division
 #[derive(Debug)]
 pub enum Expression {
 	Constant(i32),
 	// + means true sign, - means false sign
 	// Variable{sign: bool, name: String},
-	// ContstantsArray(Vec<i32>),
+	// ConstantsArray(Vec<i32>),
 }
 
 #[derive(Debug)]

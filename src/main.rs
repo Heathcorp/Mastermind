@@ -9,8 +9,8 @@ mod tokeniser; // 1. Tokenise
 // mod tests;
 
 use brainfuck::BVM;
-// use compiler::MastermindCompiler;
-// use optimiser::optimise;
+use compiler::compile;
+use optimiser::optimise;
 use parser::parse;
 use tokeniser::{tokenise, Token};
 
@@ -76,15 +76,15 @@ fn main() {
 			let tokenised: Vec<Token> = tokenise(&program);
 			println!("{tokenised:#?}");
 			// parse tokens into syntax tree
-			let parsed_program = parse(&tokenised);
-			println!("{parsed_program:#?}");
+			let parsed = parse(&tokenised);
+			println!("{parsed:#?}");
 			// compile syntax tree into brainfuck
 
 			// TODO: 2 stage compilation step, first stage compiles syntax tree into low-level instructions
 			// 	second stage actually writes out the low-level instructions into brainfuck
 
-			// let mut compiler = MastermindCompiler::new();
-			// compiler.compile(parsed_program);
+			let compiled = compile(&parsed);
+			println!("{compiled:#?}");
 
 			// // // optimise if the -o flag is set
 			// match args.optimise {
