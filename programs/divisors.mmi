@@ -1,12 +1,24 @@
 let i;
 let n = 255;
+let j;
 drain n into i {
   print_num(i);
-};
-
-def print_num(num[7]) {
-  output num;
-
+  let ws = 32;
+  output ws;
+  print_num(j);
   let nl=10;
   output nl;
+  j += -2;
+  j -= -4;
+  j += 0;
+};
+
+def print_num(num) {
+  let g = 5;
+  if g {
+
+  } else {
+    g = 12;
+  }
+  output num;
 };
