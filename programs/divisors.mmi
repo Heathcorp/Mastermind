@@ -15,8 +15,8 @@ drain n into i {
 
 def print_num(num) {
   let g = 5;
-  if g {
-
+  if not g {
+    g = 3;
   } else {
     g = 12;
   }

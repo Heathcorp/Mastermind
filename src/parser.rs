@@ -26,16 +26,42 @@ pub fn parse(tokens: &[Token]) -> Vec<Clause> {
 				(Token::Let, _, _) => parse_let_clause(clause),
 				(Token::Drain, _, _) => parse_drain_copy_clause(clause, true),
 				(Token::Copy, _, _) => parse_drain_copy_clause(clause, false),
+				(Token::While, _, _) => parse_while_clause(clause),
 				(Token::Output, _, _) => parse_output_clause(clause),
 				(Token::Name(_), Token::OpenParenthesis, _) => parse_function_call_clause(clause),
 				(Token::Def, _, _) => parse_function_definition_clause(clause),
 				(Token::Name(_), Token::Plus | Token::Minus, Token::Equals) => {
 					parse_add_clause(clause)
 				}
+				(Token::Plus, Token::Plus, _) | (Token::Minus, Token::Minus, _) => {
+					parse_increment_clause(clause)
+				}
 				(Token::Name(_), Token::Equals, _) => parse_set_clause(clause),
 				(Token::If, _, _) => parse_if_else_clause(clause),
-				_ => {
-					panic!("Clause type not implemented: {clause:#?}");
+				// the None token usually represents whitespace, it should be filtered out before reaching this function
+				// Wrote out all of these possibilities so that the compiler will tell me when I haven't implemented a token
+				(
+					Token::None
+					| Token::ClauseDelimiter
+					| Token::Else
+					| Token::Not
+					| Token::OpenBrace
+					| Token::ClosingBrace
+					| Token::OpenSquareBracket
+					| Token::ClosingSquareBracket
+					| Token::OpenParenthesis
+					| Token::ClosingParenthesis
+					| Token::Comma
+					| Token::Plus
+					| Token::Minus
+					| Token::Into
+					| Token::Number(_)
+					| Token::Name(_)
+					| Token::Equals,
+					_,
+					_,
+				) => {
+					panic!("Invalid clause: {clause:#?}");
 				}
 			},
 		);
@@ -95,6 +121,25 @@ fn parse_add_clause(clause: &[Token]) -> Clause {
 		_ => (),
 	}
 	Clause::AddToVariable { var, value: expr }
+}
+
+fn parse_increment_clause(clause: &[Token]) -> Clause {
+	let (var, len) = parse_var_details(&clause[2..]);
+
+	match (&clause[0], &clause[1]) {
+		(Token::Plus, Token::Plus) => Clause::AddToVariable {
+			var,
+			value: Expression::Constant(1),
+		},
+		(Token::Minus, Token::Minus) => Clause::AddToVariable {
+			var,
+			value: Expression::Constant(-1),
+		},
+		_ => {
+			panic!("Invalid pattern in increment clause: {clause:#?}");
+		}
+	}
+	// assumed that the final token is a semicolon
 }
 
 fn parse_set_clause(clause: &[Token]) -> Clause {
@@ -163,6 +208,28 @@ fn parse_drain_copy_clause(clause: &[Token], is_draining: bool) -> Clause {
 		}
 	} else {
 		panic!("Invalid token at end of copy/drain clause: {clause:#?}");
+	}
+}
+
+fn parse_while_clause(clause: &[Token]) -> Clause {
+	// TODO: make this able to accept expressions
+	let mut i = 1usize;
+	let (var, len) = parse_var_details(&clause[i..]);
+	i += len;
+	// loop {
+	// 	if let Token::OpenBrace = &clause[i] {
+	// 		break;
+	// 	};
+	// 	i += 1;
+	// }
+
+	// let expr = parse_expression(&clause[1..i]);
+	let block_tokens = get_braced_tokens(&clause[i..], BRACES);
+	i += 2 + block_tokens.len();
+
+	Clause::WhileLoop {
+		var,
+		block: parse(block_tokens),
 	}
 }
 
@@ -313,7 +380,7 @@ fn parse_function_call_clause(clause: &[Token]) -> Clause {
 	}
 }
 
-fn parse_var_details(tokens: &[Token]) -> (VariableDetails, usize) {
+fn parse_var_details(tokens: &[Token]) -> (VariableSpec, usize) {
 	let mut i = 0usize;
 	let Token::Name(var_name) = &tokens[i] else {
 		panic!("Expected identifier at start of variable identifier: {tokens:#?}");
@@ -336,7 +403,7 @@ fn parse_var_details(tokens: &[Token]) -> (VariableDetails, usize) {
 	};
 
 	(
-		VariableDetails {
+		VariableSpec {
 			name: var_name.clone(),
 			arr_num,
 		},
@@ -403,7 +470,9 @@ fn get_braced_tokens(tokens: &[Token], braces: (Token, Token)) -> &[Token] {
 	panic!("Invalid braced tokens: {tokens:#?}");
 }
 
+// Okay so apparently I did try to use iterators here, but didn't continue that convention for the rest of the code
 fn parse_expression(tokens: &[Token]) -> Expression {
+	// TODO: make this more sophisticated
 	// currently only signed constants are supported
 	let mut t = tokens.iter();
 
@@ -453,44 +522,48 @@ pub enum Expression {
 #[derive(Debug)]
 pub enum Clause {
 	DefineVariable {
-		var: VariableDetails,
+		var: VariableSpec,
 		initial_value: Option<Expression>,
 	},
 	AddToVariable {
-		var: VariableDetails,
+		var: VariableSpec,
 		value: Expression,
 	},
 	SetVariable {
-		var: VariableDetails,
+		var: VariableSpec,
 		value: Expression,
 	},
 	CopyLoop {
-		source: VariableDetails,
-		targets: Vec<VariableDetails>,
+		source: VariableSpec,
+		targets: Vec<VariableSpec>,
 		block: Vec<Clause>,
 		is_draining: bool,
 	},
+	WhileLoop {
+		var: VariableSpec,
+		block: Vec<Clause>,
+	},
 	OutputByte {
-		var: VariableDetails,
+		var: VariableSpec,
 	},
 	DefineFunction {
 		name: String,
-		arguments: Vec<VariableDetails>,
+		arguments: Vec<VariableSpec>,
 		block: Vec<Clause>,
 	},
 	CallFunction {
 		function_name: String,
-		arguments: Vec<VariableDetails>,
+		arguments: Vec<VariableSpec>,
 	},
 	IfStatement {
-		var: VariableDetails,
+		var: VariableSpec,
 		if_block: Vec<Clause>,
 		else_block: Vec<Clause>,
 	},
 }
 
 #[derive(Debug)]
-pub struct VariableDetails {
+pub struct VariableSpec {
 	name: String,
 	arr_num: Option<usize>,
 }
