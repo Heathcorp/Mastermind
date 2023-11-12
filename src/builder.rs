@@ -5,6 +5,8 @@
 // this algorithm is responsible for actually allocating physical tape cells as opposed to the parser
 // can introduce optimisations here with some kind of allocation timeline sorting algorithm (hard leetcode style problem)
 
+use crate::compiler::Instruction;
+
 pub fn build(instructions: Vec<Instruction>) -> String {
 	String::new()
 }

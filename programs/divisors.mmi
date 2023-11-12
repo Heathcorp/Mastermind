@@ -1,6 +1,9 @@
 let i;
 let n = 255;
 let j;
+
+n += j + i - (4 + 78 - 3);
+
 drain n into i {
   print_num(i);
   let ws = 32;

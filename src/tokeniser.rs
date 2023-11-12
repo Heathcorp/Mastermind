@@ -70,7 +70,7 @@ pub fn tokenise(source: &String) -> Vec<Token> {
 			if let Some(num_capture) = num_re.captures(remaining) {
 				let substring = String::from(&num_capture[0]);
 				chr_idx += substring.len();
-				tokens.push(Token::Number(substring));
+				tokens.push(Token::Digits(substring));
 			} else if let Some(txt_capture) = txt_re.captures(remaining) {
 				let substring = String::from(&txt_capture[0]);
 				chr_idx += substring.len();
@@ -135,7 +135,7 @@ pub enum Token {
 	// Deal,
 	// Debug,
 	Name(String),
-	Number(String),
+	Digits(String),
 	Minus,
 	Plus,
 	Equals,
