@@ -2,7 +2,7 @@ let i;
 let n = 255;
 let j;
 
-n += j + i - (4 + 78 - 3);
+n += j + i - (4 - i + 78 - 3);
 
 drain n into i {
   print_num(i);
@@ -22,6 +22,6 @@ def print_num(num) {
     g = 3;
   } else {
     g = 12;
-  }
+  };
   output num;
 };

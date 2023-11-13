@@ -639,8 +639,8 @@ pub enum Clause {
 	},
 }
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Hash, PartialEq, Eq)]
 pub struct VariableSpec {
-	name: String,
-	arr_num: Option<usize>,
+	pub name: String,
+	pub arr_num: Option<usize>,
 }

@@ -18,6 +18,8 @@ use std::io::{stdin, stdout, Cursor};
 
 use clap::Parser;
 
+use crate::compiler::Scope;
+
 #[derive(Parser, Default, Debug)]
 #[command(author = "Heathcorp", version = "0.1", about = "Mastermind: the Brainfuck interpreter and compilation tool", long_about = None)]
 struct Arguments {
@@ -83,7 +85,7 @@ fn main() {
 			// TODO: 2 stage compilation step, first stage compiles syntax tree into low-level instructions
 			// 	second stage actually writes out the low-level instructions into brainfuck
 
-			let compiled = compile(&parsed);
+			let compiled = compile(&parsed, vec![Scope::new()]);
 			println!("{compiled:#?}");
 
 			// // // optimise if the -o flag is set
