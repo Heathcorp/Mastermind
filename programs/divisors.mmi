@@ -1,11 +1,11 @@
-let i;
+let i[3] = [3, 6, 7];
 let n = 255;
 let j;
 
-n += j + i - (4 - i + 78 - 3);
+// n += j + i - (4 - i + 78 - 3);
 
-drain n into i {
-  print_num(i);
+while n {
+  print_num(i[0]);
   let ws = 32;
   output ws;
   print_num(j);
@@ -14,14 +14,15 @@ drain n into i {
   j += -2;
   j -= -4;
   j += 0;
+  n -= 1;
 };
 
 def print_num(num) {
   let g = 5;
-  if not g {
-    g = 3;
-  } else {
-    g = 12;
-  };
+  //if not g {
+  //  g = 3;
+  //} else {
+  //  g = 12;
+  //};
   output num;
 };

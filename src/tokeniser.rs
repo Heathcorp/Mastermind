@@ -65,8 +65,10 @@ pub fn tokenise(source: &String) -> Vec<Token> {
 		}
 		if !found {
 			// check for numbers and variables
-			let num_re = Regex::new("^[0-9]+").unwrap();
+			let num_re = Regex::new(r"^[0-9]+").unwrap();
 			let txt_re = Regex::new(r"^[a-zA-Z_]\w*").unwrap();
+			let str_re = Regex::new("^\".*\"").unwrap();
+			let chr_re = Regex::new("^'.'").unwrap();
 			if let Some(num_capture) = num_re.captures(remaining) {
 				let substring = String::from(&num_capture[0]);
 				chr_idx += substring.len();
@@ -75,6 +77,23 @@ pub fn tokenise(source: &String) -> Vec<Token> {
 				let substring = String::from(&txt_capture[0]);
 				chr_idx += substring.len();
 				tokens.push(Token::Name(substring));
+			} else if let Some(str_capture) = str_re.captures(remaining) {
+				let mut substring = String::from(&str_capture[0]);
+				// not the most efficient way, this simply removes the quote characters
+				// could refactor this
+				substring.pop();
+				substring.remove(0);
+				chr_idx += substring.len();
+				tokens.push(Token::String(substring));
+			} else if let Some(chr_capture) = chr_re.captures(remaining) {
+				let mut substring = String::from(&chr_capture[0]);
+				// see above
+				substring.pop();
+				substring.remove(0);
+				// might need to change this for escaped characters (TODO)
+				assert_eq!(substring.len(), 1);
+				chr_idx += substring.len();
+				tokens.push(Token::Character(substring.chars().next().unwrap()));
 			} else {
 				panic!("Unknown token found while tokenising program: \"{remaining}\"");
 			}
@@ -136,6 +155,8 @@ pub enum Token {
 	// Debug,
 	Name(String),
 	Digits(String),
+	String(String),
+	Character(char),
 	Minus,
 	Plus,
 	Equals,

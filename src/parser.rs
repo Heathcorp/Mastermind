@@ -57,6 +57,8 @@ pub fn parse(tokens: &[Token]) -> Vec<Clause> {
 					| Token::Into
 					| Token::Digits(_)
 					| Token::Name(_)
+					| Token::String(_)
+					| Token::Character(_)
 					| Token::Equals,
 					_,
 					_,
@@ -478,6 +480,26 @@ fn get_braced_tokens(tokens: &[Token], braces: (Token, Token)) -> &[Token] {
 // TODO: support post/pre increment in expressions
 fn parse_expression(tokens: &[Token]) -> Expression {
 	let mut i = 0usize;
+
+	if let Token::String(s) = &tokens[i] {
+		i += 1;
+		assert_eq!(i, tokens.len());
+		return Expression::StringLiteral(s.clone());
+	}
+
+	if let Token::OpenSquareBracket = &tokens[i] {
+		let braced_tokens = get_braced_tokens(&tokens[i..], SQUARE_BRACKETS);
+		i += 2 + braced_tokens.len();
+		assert_eq!(i, tokens.len());
+		// parse the array
+		return Expression::ArrayLiteral(
+			braced_tokens
+				.split(|t| if let Token::Comma = t { true } else { false })
+				.map(parse_expression)
+				.collect(),
+		);
+	}
+
 	let mut current_sign = Some(Sign::Positive); // by default the first summand is positive
 	let mut summands = Vec::new();
 	while i < tokens.len() {
@@ -506,6 +528,26 @@ fn parse_expression(tokens: &[Token]) -> Expression {
 					Sign::Negative => summands.push(Expression::SumExpression {
 						sign: Sign::Negative,
 						summands: vec![Expression::NaturalNumber(parsed_int)],
+					}),
+				}
+				current_sign = None;
+			}
+			(Some(sign), Token::Character(chr)) => {
+				// TODO: escaped characters?
+				if !chr.is_ascii() {
+					panic!("Character tokens must be single-byte: {chr}");
+				};
+
+				let mut buf = [0u8];
+				chr.encode_utf8(&mut buf);
+				let chr_int: usize = buf[0].try_into().unwrap();
+
+				i += 1;
+				match sign {
+					Sign::Positive => summands.push(Expression::NaturalNumber(chr_int)),
+					Sign::Negative => summands.push(Expression::SumExpression {
+						sign: Sign::Negative,
+						summands: vec![Expression::NaturalNumber(chr_int)],
 					}),
 				}
 				current_sign = None;
@@ -588,6 +630,8 @@ pub enum Expression {
 	},
 	NaturalNumber(usize),
 	VariableReference(VariableSpec),
+	ArrayLiteral(Vec<Expression>),
+	StringLiteral(String),
 }
 
 #[derive(Debug, Clone)]
