@@ -453,6 +453,7 @@ const BRACES: (Token, Token) = (Token::OpenBrace, Token::ClosingBrace);
 const PARENTHESES: (Token, Token) = (Token::OpenParenthesis, Token::ClosingParenthesis);
 // this should be a generic function but rust doesn't support enum variants as type arguments yet
 // find tokens bounded by matching brackets
+// TODO: make an impl for &[Token] and put all these functions in it
 fn get_braced_tokens(tokens: &[Token], braces: (Token, Token)) -> &[Token] {
 	let _braces = (mem::discriminant(&braces.0), mem::discriminant(&braces.1));
 	// find corresponding bracket, the depth check is unnecessary but whatever

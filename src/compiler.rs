@@ -62,6 +62,29 @@ pub fn compile(clauses: &[Clause], scopes: Vec<Scope>) -> Vec<Instruction> {
 				// place the variable spec in the hashmap given the memory offset
 				scope.allocate_variable(var.clone());
 
+				// create instructions to allocate cells
+				// TODO: obviously needs refactoring when we refactor the scopes stuff
+				{
+					let mut scopes = scopes.clone();
+					scopes.push(scope.clone());
+					if let Some(len) = var.arr_num {
+						for i in 0..len {
+							let mem = get_variable_mem(
+								&scopes,
+								VariableSpec {
+									name: var.name.clone(),
+									arr_num: Some(i),
+								},
+							);
+							instructions.push(Instruction::AllocateCell(mem));
+						}
+					} else {
+						let mem = get_variable_mem(&scopes, var.clone());
+						instructions.push(Instruction::AllocateCell(mem));
+					}
+				}
+
+				// initialise variable values
 				if let Some(expr) = &initial_value {
 					match (&var.arr_num, expr) {
 						(
@@ -140,6 +163,9 @@ pub fn compile(clauses: &[Clause], scopes: Vec<Scope>) -> Vec<Instruction> {
 					let loop_instructions = compile(&block, scopes);
 					instructions.extend(loop_instructions);
 				}
+
+				// close the loop
+				instructions.push(Instruction::CloseLoop);
 			}
 			Clause::CopyLoop {
 				source,
@@ -196,7 +222,29 @@ pub fn compile(clauses: &[Clause], scopes: Vec<Scope>) -> Vec<Instruction> {
 
 	// TODO: check if current scope has any leftover memory allocations and free them
 	// TODO: check known values and clear them selectively
-	todo!();
+	// create instructions to allocate cells
+	// TODO: obviously needs refactoring when we refactor the scopes stuff
+	// This code sucks, duplicated from definevariable
+	// all we need is a recursive scope structure but not till later because this has dragged on too long anyway
+	for var in scope.variable_map.keys() {
+		let mut scopes = scopes.clone();
+		scopes.push(scope.clone());
+		if let Some(len) = var.arr_num {
+			for i in 0..len {
+				let mem = get_variable_mem(
+					&scopes,
+					VariableSpec {
+						name: var.name.clone(),
+						arr_num: Some(i),
+					},
+				);
+				instructions.push(Instruction::FreeCell(mem));
+			}
+		} else {
+			let mem = get_variable_mem(&scopes, var.clone());
+			instructions.push(Instruction::FreeCell(mem));
+		}
+	}
 
 	instructions
 }
@@ -232,9 +280,7 @@ fn get_variable_mem(scopes: &[Scope], var: VariableSpec) -> usize {
 			// these comments are wrong I think, this whole allocation stack algorithm is kinda screwed?
 			return scopes[..(scopes.len() - 1)]
 				.iter()
-				.fold(mem.clone(), |sum, s| {
-					sum + s.allocation_stack.iter().filter(|b| **b).count()
-				});
+				.fold(mem.clone(), |sum, s| sum + s.allocation_stack.len());
 		} else if let Some((
 			VariableSpec {
 				name: _,
@@ -286,7 +332,7 @@ fn get_variable_mem(scopes: &[Scope], var: VariableSpec) -> usize {
 	panic!("Variable not found: {var:#?}");
 }
 
-// cloning is probably very inefficient but this is a compiler so eh
+// TODO: make this a recursive structure with an impl for all the important memory things, currently this sucks
 #[derive(Clone)]
 pub struct Scope {
 	// stack of memory/cells that have been allocated (peekable stack)
@@ -350,32 +396,26 @@ impl Scope {
 		mem
 	}
 
-	fn free_variable(&mut self, var: VariableSpec) {
+	fn free_variable(&mut self, var_name: &String) {
 		// get the stored variable size from the sizes map
-		let len = self.variable_sizes.remove(&var.name).unwrap();
-
-		if var.arr_num.is_some() {
-			panic!("Must free entire multi-byte variable, not just one cell: {var:#?}");
-			// Why not? TODO
-		};
+		let len = self.variable_sizes.remove(var_name).unwrap();
 
 		if let Some(len) = len {
 			for i in 0..len {
 				self.free_variable_cell(VariableSpec {
-					name: var.name.clone(),
+					name: var_name.clone(),
 					arr_num: Some(i),
 				});
 			}
 		} else {
 			self.free_variable_cell(VariableSpec {
-				name: var.name.clone(),
+				name: var_name.clone(),
 				arr_num: None,
 			});
 		}
-		self.variable_sizes.insert(var.name, var.arr_num);
 	}
 
-	// should never be called by the compiler, unless we change things
+	// should never be called directly by the compiler, unless we change things
 	// TODO: refactor, is this really needed?
 	fn free_variable_cell(&mut self, var: VariableSpec) {
 		let mem = self.variable_map.remove(&var).unwrap();
