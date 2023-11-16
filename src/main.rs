@@ -85,7 +85,7 @@ fn main() {
 			// TODO: 2 stage compilation step, first stage compiles syntax tree into low-level instructions
 			// 	second stage actually writes out the low-level instructions into brainfuck
 
-			let compiled = compile(&parsed, vec![Scope::new()]);
+			let compiled = compile(&parsed, vec![]);
 			println!("{compiled:#?}");
 
 			// // // optimise if the -o flag is set

@@ -1,6 +1,7 @@
 use std::{
 	collections::HashMap,
 	mem::{self, discriminant, Discriminant},
+	num::Wrapping,
 };
 
 use crate::tokeniser::Token;
@@ -82,12 +83,16 @@ fn parse_let_clause(clause: &[Token]) -> Clause {
 	let mut i = 1;
 	// this kind of logic could probably be done with iterators, (TODO for future refactors)
 	let (var, len) = parse_var_details(&clause[i..]);
+	assert!(
+		var.arr_num.unwrap_or(1) > 0,
+		"Multi-byte variable cannot be zero-length: {var:#?}"
+	);
 	i += len;
 
 	if let Token::Equals = &clause[i] {
 		i += 1;
 		let remaining = &clause[i..(clause.len() - 1)];
-		let expr = parse_expression(remaining);
+		let expr = Expression::parse(remaining);
 		Clause::DefineVariable {
 			var,
 			initial_value: Some(expr),
@@ -115,7 +120,7 @@ fn parse_add_clause(clause: &[Token]) -> Clause {
 		}
 	};
 	i += 2; // assume the equals sign is there because it was checked by the main loop
-	let raw_expr = parse_expression(&clause[i..(clause.len() - 1)]);
+	let raw_expr = Expression::parse(&clause[i..(clause.len() - 1)]);
 	let expr = match positive {
 		true => raw_expr,
 		false => Expression::SumExpression {
@@ -159,7 +164,7 @@ fn parse_set_clause(clause: &[Token]) -> Clause {
 	};
 	i += 1;
 
-	let expr = parse_expression(&clause[i..(clause.len() - 1)]);
+	let expr = Expression::parse(&clause[i..(clause.len() - 1)]);
 
 	Clause::SetVariable { var, value: expr }
 }
@@ -396,7 +401,7 @@ fn parse_var_details(tokens: &[Token]) -> (VariableSpec, usize) {
 	let arr_num = if i < tokens.len() {
 		if let Token::OpenSquareBracket = &tokens[i] {
 			let subscript = get_braced_tokens(&tokens[i..], SQUARE_BRACKETS);
-			let Expression::NaturalNumber(num_len) = parse_expression(subscript) else {
+			let Expression::NaturalNumber(num_len) = Expression::parse(subscript) else {
 				panic!("Expected a constant array length specifier in variable identifier: {tokens:#?}");
 			};
 			i += 2 + subscript.len();
@@ -476,152 +481,206 @@ fn get_braced_tokens(tokens: &[Token], braces: (Token, Token)) -> &[Token] {
 	panic!("Invalid braced tokens: {tokens:#?}");
 }
 
-// Iterators?
-// TODO: support post/pre increment in expressions
-fn parse_expression(tokens: &[Token]) -> Expression {
-	let mut i = 0usize;
+impl Expression {
+	// Iterators?
+	// TODO: support post/pre increment in expressions
+	fn parse(tokens: &[Token]) -> Expression {
+		let mut i = 0usize;
 
-	if let Token::String(s) = &tokens[i] {
-		i += 1;
-		assert_eq!(i, tokens.len());
-		return Expression::StringLiteral(s.clone());
-	}
+		if let Token::String(s) = &tokens[i] {
+			i += 1;
+			assert_eq!(i, tokens.len());
+			return Expression::StringLiteral(s.clone());
+		}
 
-	if let Token::OpenSquareBracket = &tokens[i] {
-		let braced_tokens = get_braced_tokens(&tokens[i..], SQUARE_BRACKETS);
-		i += 2 + braced_tokens.len();
-		assert_eq!(i, tokens.len());
-		// parse the array
-		return Expression::ArrayLiteral(
-			braced_tokens
-				.split(|t| if let Token::Comma = t { true } else { false })
-				.map(parse_expression)
-				.collect(),
-		);
-	}
+		if let Token::OpenSquareBracket = &tokens[i] {
+			let braced_tokens = get_braced_tokens(&tokens[i..], SQUARE_BRACKETS);
+			i += 2 + braced_tokens.len();
+			assert_eq!(i, tokens.len());
+			// parse the array
+			return Expression::ArrayLiteral(
+				braced_tokens
+					.split(|t| if let Token::Comma = t { true } else { false })
+					.map(Self::parse)
+					.collect(),
+			);
+		}
 
-	let mut current_sign = Some(Sign::Positive); // by default the first summand is positive
-	let mut summands = Vec::new();
-	while i < tokens.len() {
-		match (current_sign, &tokens[i]) {
-			(None, Token::Plus) => {
-				current_sign = Some(Sign::Positive);
-				i += 1;
-			}
-			(None, Token::Minus) => {
-				current_sign = Some(Sign::Negative);
-				i += 1;
-			}
-			(Some(Sign::Positive), Token::Minus) => {
-				current_sign = Some(Sign::Negative);
-				i += 1;
-			}
-			(Some(Sign::Negative), Token::Minus) => {
-				current_sign = Some(Sign::Positive);
-				i += 1;
-			}
-			(Some(sign), Token::Digits(literal)) => {
-				let parsed_int: usize = literal.parse().unwrap();
-				i += 1;
-				match sign {
-					Sign::Positive => summands.push(Expression::NaturalNumber(parsed_int)),
-					Sign::Negative => summands.push(Expression::SumExpression {
-						sign: Sign::Negative,
-						summands: vec![Expression::NaturalNumber(parsed_int)],
-					}),
+		let mut current_sign = Some(Sign::Positive); // by default the first summand is positive
+		let mut summands = Vec::new();
+		while i < tokens.len() {
+			match (current_sign, &tokens[i]) {
+				(None, Token::Plus) => {
+					current_sign = Some(Sign::Positive);
+					i += 1;
 				}
-				current_sign = None;
-			}
-			(Some(sign), Token::Character(chr)) => {
-				// TODO: escaped characters?
-				if !chr.is_ascii() {
-					panic!("Character tokens must be single-byte: {chr}");
-				};
-
-				let mut buf = [0u8];
-				chr.encode_utf8(&mut buf);
-				let chr_int: usize = buf[0].try_into().unwrap();
-
-				i += 1;
-				match sign {
-					Sign::Positive => summands.push(Expression::NaturalNumber(chr_int)),
-					Sign::Negative => summands.push(Expression::SumExpression {
-						sign: Sign::Negative,
-						summands: vec![Expression::NaturalNumber(chr_int)],
-					}),
+				(None, Token::Minus) => {
+					current_sign = Some(Sign::Negative);
+					i += 1;
 				}
-				current_sign = None;
-			}
-			(Some(sign), Token::Name(name)) => {
-				let (var, len) = parse_var_details(&tokens[i..]);
-				i += len;
-				match sign {
-					Sign::Positive => summands.push(Expression::VariableReference(var)),
-					Sign::Negative => summands.push(Expression::SumExpression {
-						sign: Sign::Negative,
-						summands: vec![Expression::VariableReference(var)],
-					}),
+				(Some(Sign::Positive), Token::Minus) => {
+					current_sign = Some(Sign::Negative);
+					i += 1;
 				}
-				current_sign = None;
-			}
-			(Some(sign), Token::OpenParenthesis) => {
-				let braced_tokens = get_braced_tokens(&tokens[i..], PARENTHESES);
-				i += 2 + braced_tokens.len();
-				let braced_expr = parse_expression(braced_tokens);
-				// probably inefficent but everything needs to be flattened at some point anyway so won't matter
-				// TODO: make expression structure more efficient (don't use vectors every time there is a negative)
-				summands.push(match (sign, braced_expr.clone()) {
-					(
-						Sign::Negative,
-						Expression::NaturalNumber(_) | Expression::VariableReference(_),
-					) => Expression::SumExpression {
-						sign: Sign::Negative,
-						summands: vec![braced_expr],
-					},
-					(
-						Sign::Negative,
-						Expression::SumExpression {
+				(Some(Sign::Negative), Token::Minus) => {
+					current_sign = Some(Sign::Positive);
+					i += 1;
+				}
+				(Some(sign), Token::Digits(literal)) => {
+					let parsed_int: usize = literal.parse().unwrap();
+					i += 1;
+					match sign {
+						Sign::Positive => summands.push(Expression::NaturalNumber(parsed_int)),
+						Sign::Negative => summands.push(Expression::SumExpression {
 							sign: Sign::Negative,
-							summands,
+							summands: vec![Expression::NaturalNumber(parsed_int)],
+						}),
+					}
+					current_sign = None;
+				}
+				(Some(sign), Token::Character(chr)) => {
+					// TODO: escaped characters?
+					if !chr.is_ascii() {
+						panic!("Character tokens must be single-byte: {chr}");
+					};
+
+					let mut buf = [0u8];
+					chr.encode_utf8(&mut buf);
+					let chr_int: usize = buf[0].try_into().unwrap();
+
+					i += 1;
+					match sign {
+						Sign::Positive => summands.push(Expression::NaturalNumber(chr_int)),
+						Sign::Negative => summands.push(Expression::SumExpression {
+							sign: Sign::Negative,
+							summands: vec![Expression::NaturalNumber(chr_int)],
+						}),
+					}
+					current_sign = None;
+				}
+				(Some(sign), Token::Name(name)) => {
+					let (var, len) = parse_var_details(&tokens[i..]);
+					i += len;
+					match sign {
+						Sign::Positive => summands.push(Expression::VariableReference(var)),
+						Sign::Negative => summands.push(Expression::SumExpression {
+							sign: Sign::Negative,
+							summands: vec![Expression::VariableReference(var)],
+						}),
+					}
+					current_sign = None;
+				}
+				(Some(sign), Token::OpenParenthesis) => {
+					let braced_tokens = get_braced_tokens(&tokens[i..], PARENTHESES);
+					i += 2 + braced_tokens.len();
+					let braced_expr = Self::parse(braced_tokens);
+					// probably inefficent but everything needs to be flattened at some point anyway so won't matter
+					// TODO: make expression structure more efficient (don't use vectors every time there is a negative)
+					summands.push(match (sign, braced_expr.clone()) {
+						(
+							Sign::Negative,
+							Expression::NaturalNumber(_) | Expression::VariableReference(_),
+						) => Expression::SumExpression {
+							sign: Sign::Negative,
+							summands: vec![braced_expr],
 						},
-					) => Expression::SumExpression {
-						sign: Sign::Positive,
-						summands,
-					},
-					(
-						Sign::Negative,
-						Expression::SumExpression {
+						(
+							Sign::Negative,
+							Expression::SumExpression {
+								sign: Sign::Negative,
+								summands,
+							},
+						) => Expression::SumExpression {
 							sign: Sign::Positive,
 							summands,
 						},
-					) => Expression::SumExpression {
-						sign: Sign::Negative,
-						summands,
-					},
-					_ => braced_expr,
-				});
-				current_sign = None;
+						(
+							Sign::Negative,
+							Expression::SumExpression {
+								sign: Sign::Positive,
+								summands,
+							},
+						) => Expression::SumExpression {
+							sign: Sign::Negative,
+							summands,
+						},
+						_ => braced_expr,
+					});
+					current_sign = None;
+				}
+				_ => {
+					panic!("Unexpected token found in expression: {tokens:#?}");
+				}
 			}
+		}
+
+		match summands.len() {
+			1 => summands.into_iter().next().unwrap(),
+			1.. => Expression::SumExpression {
+				sign: Sign::Positive,
+				summands,
+			},
 			_ => {
-				panic!("Unexpected token found in expression: {tokens:#?}");
+				panic!("Expected value in expression: {tokens:#?}");
 			}
 		}
 	}
 
-	match summands.len() {
-		1 => summands.into_iter().next().unwrap(),
-		1.. => Expression::SumExpression {
-			sign: Sign::Positive,
-			summands,
-		},
-		_ => {
-			panic!("Expected value in expression: {tokens:#?}");
+	// not sure if this is the compiler's concern or if it should be the parser
+	// (constant to add, variables to add, variables to subtract)
+	// currently multiplication is not supported so order of operations and flattening is very trivial
+	// If we add multiplication in future it will likely be constant multiplication only, so no variable on variable multiplication
+	pub fn flatten(self) -> (u8, Vec<VariableSpec>, Vec<VariableSpec>) {
+		let expr = self;
+		let mut imm_sum = Wrapping(0u8);
+		let mut additions = Vec::new();
+		let mut subtractions = Vec::new();
+
+		match expr {
+			Expression::SumExpression { sign, summands } => {
+				let flattened = summands
+					.into_iter()
+					.map(|expr| expr.flatten())
+					.reduce(|acc, (imm, adds, subs)| {
+						(
+							(Wrapping(acc.0) + Wrapping(imm)).0,
+							[acc.1, adds].concat(),
+							[acc.2, subs].concat(),
+						)
+					})
+					.unwrap_or((0, vec![], vec![]));
+
+				match sign {
+					Sign::Positive => {
+						imm_sum += flattened.0;
+						additions.extend(flattened.1);
+						subtractions.extend(flattened.2);
+					}
+					Sign::Negative => {
+						imm_sum -= flattened.0;
+						subtractions.extend(flattened.1);
+						additions.extend(flattened.2);
+					}
+				};
+			}
+			Expression::NaturalNumber(number) => {
+				let number: u8 = number.try_into().unwrap();
+				imm_sum = Wrapping(number);
+			}
+			Expression::VariableReference(var) => {
+				additions.push(var);
+			}
+			Expression::ArrayLiteral(_) | Expression::StringLiteral(_) => {
+				panic!("Unable to flatten arrays or string expressions: {expr:#?}");
+			}
 		}
+
+		(imm_sum.0, additions, subtractions)
 	}
 }
 
 // TODO: do we need crazy recursive expressions?
-// TODO: yes, but no multiplication or division
+// yes, but no variable * variable multiplication or division
 #[derive(Debug, Clone)]
 pub enum Expression {
 	SumExpression {

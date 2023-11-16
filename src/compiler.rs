@@ -9,6 +9,8 @@ use crate::parser::{Clause, Expression, Sign, VariableSpec};
 // memory stuff is all WIP and some comments may be incorrect
 
 // probably the meat and potatoes of this rewrite
+// need to rethink how this recursion works, write down and go back to first functional principles
+// TODO: here is the answer, redesign scope variable to be a singly-linked list, high priority for refactor
 pub fn compile(clauses: &[Clause], scopes: Vec<Scope>) -> Vec<Instruction> {
 	let mut scope = Scope::new();
 	let mut instructions = Vec::new();
@@ -44,9 +46,9 @@ pub fn compile(clauses: &[Clause], scopes: Vec<Scope>) -> Vec<Instruction> {
 				// so many clones
 				let mut scopes = scopes.clone();
 				scopes.push(scope.clone());
-				let mem: MemoryPointer = get_variable_mem(&scopes, var);
+				let mem: usize = get_variable_mem(&scopes, var);
 				// flatten expression to a list of additions or subtractions
-				let (imm, adds, subs) = flatten_expression(value);
+				let (imm, adds, subs) = value.flatten();
 				// add the immediate numbers
 				instructions.push(Instruction::AddToCell(mem, imm));
 
@@ -77,7 +79,7 @@ pub fn compile(clauses: &[Clause], scopes: Vec<Scope>) -> Vec<Instruction> {
 							scopes.push(scope.clone());
 							let mem = get_variable_mem(&scopes, var);
 
-							let (imm, adds, subs) = flatten_expression(expr.clone());
+							let (imm, adds, subs) = expr.clone().flatten();
 							instructions.push(Instruction::AddToCell(mem, imm));
 							if (adds.len() + subs.len()) > 0 {
 								todo!();
@@ -99,14 +101,14 @@ pub fn compile(clauses: &[Clause], scopes: Vec<Scope>) -> Vec<Instruction> {
 									},
 								);
 
-								let (imm, adds, subs) = flatten_expression(expr.clone());
+								let (imm, adds, subs) = expr.clone().flatten();
 								instructions.push(Instruction::AddToCell(mem, imm));
 								if (adds.len() + subs.len()) > 0 {
 									todo!();
 								}
 							}
 						}
-						(Some(len), Expression::StringLiteral(str)) => {}
+						(Some(len), Expression::StringLiteral(str)) => todo!(),
 						_ => {
 							panic!(
 								"Invalid initial value for variable: {var:#?} = {initial_value:#?}"
@@ -119,7 +121,7 @@ pub fn compile(clauses: &[Clause], scopes: Vec<Scope>) -> Vec<Instruction> {
 			Clause::OutputByte { var } => {
 				let mut scopes = scopes.clone();
 				scopes.push(scope.clone());
-				let mem: MemoryPointer = get_variable_mem(&scopes, var);
+				let mem: usize = get_variable_mem(&scopes, var);
 				instructions.push(Instruction::OutputCell(mem));
 			}
 			Clause::WhileLoop { var, block } => {
@@ -155,7 +157,14 @@ pub fn compile(clauses: &[Clause], scopes: Vec<Scope>) -> Vec<Instruction> {
 				arguments,
 			} => {
 				// create variable translations and recursively compile the inner variable block
-				let function_definition = scope.functions_map.get(&function_name).unwrap_or(
+				// TODO: make this its own function
+				// also heavily memory inefficient because cloning scope with function definitions
+
+				let function_definition = {
+					let mut scopes = scopes.clone();
+					scopes.push(scope.clone());
+
+					// horribly inefficient, please refactor at some point
 					scopes
 						.iter()
 						.rev()
@@ -163,16 +172,21 @@ pub fn compile(clauses: &[Clause], scopes: Vec<Scope>) -> Vec<Instruction> {
 						.unwrap()
 						.functions_map
 						.get(&function_name)
-						.unwrap(),
-				);
-				let mut scopes = scopes.clone();
-				let mut cur_scope = scope.clone();
+						.unwrap()
+						.clone()
+				};
 
-				cur_scope.translations_map.extend(
-					zip(function_definition.arguments.iter(), arguments)
-						.map(|(arg_def, arg)| (arg_def.name.clone(), arg.name)),
-				);
-				scopes.push(cur_scope);
+				// prepare scopes to recurse with, put current scope as well as argument translations
+				let mut scopes = scopes.clone();
+				scopes.push(scope.clone());
+				let mut new_scope = Scope::new();
+				new_scope.translations_map.extend(zip(
+					function_definition.arguments.clone().into_iter(),
+					arguments,
+				));
+				scopes.push(new_scope);
+
+				// recurse
 				let loop_instructions = compile(&function_definition.block, scopes);
 				instructions.extend(loop_instructions);
 			}
@@ -180,7 +194,9 @@ pub fn compile(clauses: &[Clause], scopes: Vec<Scope>) -> Vec<Instruction> {
 		}
 	}
 
-	// TODO: check if current scope has any leftover memory allocations
+	// TODO: check if current scope has any leftover memory allocations and free them
+	// TODO: check known values and clear them selectively
+	todo!();
 
 	instructions
 }
@@ -188,93 +204,80 @@ pub fn compile(clauses: &[Clause], scopes: Vec<Scope>) -> Vec<Instruction> {
 // this is subject to change
 #[derive(Debug)]
 pub enum Instruction {
-	AllocateCell,
-	FreeCell(MemoryPointer), // the number indicates which cell in the allocation stack should be freed (cell 0, is the top of the stack, 1 is the second element, etc)
-	OpenLoop(MemoryPointer), // same with other numbers here, they indicate the cell in the allocation stack to use in the instruction
+	AllocateCell(usize), // most of the below comments are wrong, usize is a unique id of an allocated cell
+	FreeCell(usize), // the number indicates which cell in the allocation stack should be freed (cell 0, is the top of the stack, 1 is the second element, etc)
+	OpenLoop(usize), // same with other numbers here, they indicate the cell in the allocation stack to use in the instruction
 	CloseLoop,
-	AddToCell(MemoryPointer, u8),
-	OutputCell(MemoryPointer),
+	AddToCell(usize, u8),
+	OutputCell(usize),
 	// TODO: contiguous cells for quick iterations?
 	// AllocateContiguousCells(usize),
 	// FreeContiguousCells(usize), // number indicates
-}
-
-// not sure if this is the compiler's concern or if it should be the parser
-// (constant to add, variables to add, variables to subtract)
-// currently multiplication is not supported so order of operations and flattening is very trivial
-// If we add multiplication in future it will likely be constant multiplication only, so no variable on variable multiplication
-fn flatten_expression(expr: Expression) -> (u8, Vec<VariableSpec>, Vec<VariableSpec>) {
-	let mut imm_sum = Wrapping(0u8);
-	let mut additions = Vec::new();
-	let mut subtractions = Vec::new();
-
-	match expr {
-		Expression::SumExpression { sign, summands } => {
-			let flattened = summands
-				.into_iter()
-				.map(flatten_expression)
-				.reduce(|acc, (imm, adds, subs)| {
-					(
-						(Wrapping(acc.0) + Wrapping(imm)).0,
-						[acc.1, adds].concat(),
-						[acc.2, subs].concat(),
-					)
-				})
-				.unwrap_or((0, vec![], vec![]));
-
-			match sign {
-				Sign::Positive => {
-					imm_sum += flattened.0;
-					additions.extend(flattened.1);
-					subtractions.extend(flattened.2);
-				}
-				Sign::Negative => {
-					imm_sum -= flattened.0;
-					subtractions.extend(flattened.1);
-					additions.extend(flattened.2);
-				}
-			};
-		}
-		Expression::NaturalNumber(number) => {
-			let number: u8 = number.try_into().unwrap();
-			imm_sum = Wrapping(number);
-		}
-		Expression::VariableReference(var) => {
-			additions.push(var);
-		}
-		Expression::ArrayLiteral(_) | Expression::StringLiteral(_) => {
-			panic!("Unable to flatten arrays or string expressions: {expr:#?}");
-		}
-	}
-
-	(imm_sum.0, additions, subtractions)
 }
 
 // TOOD: Vec<Scope> impl?
 // not sure if should be an impl of Scopes type
 // takes in the current compiler scope and a variable/arr reference
 // returns the allocation stack offset for that variable
-fn get_variable_mem(scopes: &[Scope], var: VariableSpec) -> MemoryPointer {
+fn get_variable_mem(scopes: &[Scope], var: VariableSpec) -> usize {
 	if let Some(scope) = scopes.last() {
+		println!("{:#?}", scope.variable_sizes);
+		println!("{:#?}", scope.variable_map);
+		// for some reason we don't have any variable allocations in the top scope from within b()
 		if let Some(mem) = scope.variable_map.get(&var) {
 			// this scope has the variable allocated
 			// offset this based on the total of all prior stacks, TODO: maybe redesign this? idk
 			// not sure about this, it might work out
 			// TODO: fix this, this is currently broken because it doesn't properly take into account memory frees and booleans and stuff because the map doesn't change every time a cell is freed but the stack does, hmm
+			// these comments are wrong I think, this whole allocation stack algorithm is kinda screwed?
 			return scopes[..(scopes.len() - 1)]
 				.iter()
 				.fold(mem.clone(), |sum, s| {
 					sum + s.allocation_stack.iter().filter(|b| **b).count()
 				});
-		} else if let Some(alias) = scope.translations_map.get(&var.name) {
+		} else if let Some((
+			VariableSpec {
+				name: _,
+				arr_num: arg_len,
+			},
+			VariableSpec {
+				name: alias_name,
+				arr_num: alias_index,
+			},
+		)) = scope
+			.translations_map
+			.iter()
+			.find(|(VariableSpec { name, arr_num: _ }, _)| name.eq(&var.name))
+		{
+			// TODO: variable spec shit, recursion with f(a[2]) type stuff
+			// if var.arr_num = None, we good
+			// if var.arr_num = Some, I don't think we need to worry about it unless the argument is arr_num = None? I think that should panic (def f(e){output e[2];};)
+			// if alias_arr_num = None, we even more good?
+			// if alias_arr_num = Some, we still good, unless the argument is arr_num = Some, because that would mean we would need 2d arrays? panic
+
 			// need to translate to an alias and call recursively, could do this iterately as well but whatever (tail recursion)
-			return get_variable_mem(
-				&scopes,
-				VariableSpec {
-					name: alias.clone(),
-					arr_num: var.arr_num,
-				},
-			);
+			return get_variable_mem(&scopes, {
+				// match should return a VariableSpec
+				match (&var.arr_num, alias_index, arg_len) {
+					(None, alias_index, None) => VariableSpec {
+						name: alias_name.clone(),
+						arr_num: alias_index.clone(),
+					},
+					// alias is same length array as argument definition, basically just change the name to the alias
+					// TODO: error check here for incorrect indices? Actually probably should be error checked elsewhere? Maybe a function for the variable translations which handles this
+					(Some(index), None, Some(_)) => VariableSpec {
+						name: alias_name.clone(),
+						arr_num: Some(*index),
+					},
+					// trying to get the full length object, we just want to return one cell
+					(None, _, Some(_)) | (Some(_), _, None) | (Some(_), Some(_), Some(_)) => {
+						panic!(
+							"Invalid variable translation: {} => {alias_name}[{alias_index:#?}]",
+							var.name
+						);
+					}
+				}
+			});
 		} else {
 			return get_variable_mem(&scopes[0..(scopes.len() - 1)], var);
 		}
@@ -291,9 +294,10 @@ pub struct Scope {
 	// array length of each variable (not sure if this is needed, probably not the best way of doing it either)
 	variable_sizes: HashMap<String, Option<usize>>,
 	// mappings for variable names to places on above stack
-	variable_map: HashMap<VariableSpec, MemoryPointer>,
+	variable_map: HashMap<VariableSpec, usize>,
 	// used for function arguments, translates an outer scope variable to an inner one, assumed they are the same array length if multi-cell
-	translations_map: HashMap<String, String>,
+	// originally this was just string to string, but we need to be able to map a single-bit variable to a cell of an outer array variable
+	translations_map: Vec<(VariableSpec, VariableSpec)>,
 
 	// functions accessible by any code within or in the current scope
 	functions_map: HashMap<String, Function>,
@@ -305,7 +309,6 @@ struct Function {
 	block: Vec<Clause>,
 }
 // represents a position in a stack relative to the head/top
-type MemoryPointer = usize;
 
 impl Scope {
 	pub fn new() -> Scope {
@@ -313,7 +316,7 @@ impl Scope {
 			allocation_stack: Vec::new(),
 			variable_sizes: HashMap::new(),
 			variable_map: HashMap::new(),
-			translations_map: HashMap::new(),
+			translations_map: Vec::new(),
 			functions_map: HashMap::new(),
 		}
 	}
@@ -341,7 +344,7 @@ impl Scope {
 		self.variable_map.insert(var, mem);
 	}
 
-	fn allocate_memory_cell(&mut self) -> MemoryPointer {
+	fn allocate_memory_cell(&mut self) -> usize {
 		let mem = self.allocation_stack.len();
 		self.allocation_stack.push(true);
 		mem
@@ -379,7 +382,7 @@ impl Scope {
 		self.free_memory_cell(mem);
 	}
 
-	fn free_memory_cell(&mut self, mem: MemoryPointer) {
+	fn free_memory_cell(&mut self, mem: usize) {
 		self.allocation_stack[mem] = false;
 	}
 }
