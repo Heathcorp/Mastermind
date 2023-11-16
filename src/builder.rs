@@ -37,8 +37,8 @@ pub fn build(instructions: Vec<Instruction>) -> String {
 					panic!("Attempted to open loop at cell id {id} which could not be found");
 				};
 
-				ops.move_to_cell(head_pos, *cell);
-				ops.add_opcode(Opcode::OpenLoop);
+				ops.move_to_cell(&mut head_pos, *cell);
+				ops.push(Opcode::OpenLoop);
 				loop_stack.push(*cell);
 			}
 			Instruction::CloseLoop => {
@@ -46,24 +46,24 @@ pub fn build(instructions: Vec<Instruction>) -> String {
 					panic!("Attempted to close un-opened loop");
 				};
 
-				ops.move_to_cell(head_pos, cell);
-				ops.add_opcode(Opcode::CloseLoop);
+				ops.move_to_cell(&mut head_pos, cell);
+				ops.push(Opcode::CloseLoop);
 			}
 			Instruction::AddToCell(id, imm) => {
 				let Some(cell) = alloc_map.get(&id) else {
 					panic!("Attempted to add to cell id {id} which could not be found");
 				};
 
-				ops.move_to_cell(head_pos, *cell);
+				ops.move_to_cell(&mut head_pos, *cell);
 
 				let imm = imm as i8;
 				if imm > 0 {
 					for i in 0..imm {
-						ops.add_opcode(Opcode::Add);
+						ops.push(Opcode::Add);
 					}
 				} else if imm < 0 {
 					for i in 0..-imm {
-						ops.add_opcode(Opcode::Subtract);
+						ops.push(Opcode::Subtract);
 					}
 				}
 			}
@@ -72,8 +72,8 @@ pub fn build(instructions: Vec<Instruction>) -> String {
 					panic!("Attempted to output cell id {id} which could not be found");
 				};
 
-				ops.move_to_cell(head_pos, *cell);
-				ops.add_opcode(Opcode::Output);
+				ops.move_to_cell(&mut head_pos, *cell);
+				ops.push(Opcode::Output);
 			}
 		}
 	}
@@ -122,8 +122,8 @@ impl AllocationArray for Vec<bool> {
 pub enum Opcode {
 	Add,
 	Subtract,
-	MoveRight,
-	MoveLeft,
+	Right,
+	Left,
 	OpenLoop,
 	CloseLoop,
 	Output,
@@ -135,8 +135,8 @@ impl Display for Opcode {
 		f.write_str(match self {
 			Opcode::Add => "+",
 			Opcode::Subtract => "-",
-			Opcode::MoveRight => ">",
-			Opcode::MoveLeft => "<",
+			Opcode::Right => ">",
+			Opcode::Left => "<",
 			Opcode::OpenLoop => "[",
 			Opcode::CloseLoop => "]",
 			Opcode::Output => ".",
@@ -146,16 +146,21 @@ impl Display for Opcode {
 }
 
 trait BrainfuckProgram {
-	fn move_to_cell(&mut self, head_pos: usize, cell: usize);
-	fn add_opcode(&mut self, opcode: Opcode);
+	fn move_to_cell(&mut self, head_pos: &mut usize, cell: usize);
 }
 
 impl BrainfuckProgram for Vec<Opcode> {
-	fn move_to_cell(&mut self, head_pos: usize, cell: usize) {
-		todo!()
-	}
-
-	fn add_opcode(&mut self, opcode: Opcode) {
-		todo!()
+	fn move_to_cell(&mut self, head_pos: &mut usize, cell: usize) {
+		if *head_pos < cell {
+			for _ in *head_pos..cell {
+				self.push(Opcode::Right);
+			}
+		} else if cell < *head_pos {
+			// theoretically equivalent to cell..head_pos?
+			for _ in ((cell + 1)..=(*head_pos)).rev() {
+				self.push(Opcode::Left);
+			}
+		}
+		*head_pos = cell;
 	}
 }
