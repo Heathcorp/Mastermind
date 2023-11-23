@@ -1,67 +1,49 @@
 let arr[3] = [0, 4, 65];
-let i[3] = [3, 6, 7];
-let n = 255;
-let j;
-
-// n += j + i - (4 - i + 78 - 3);
+let n = 4;
 
 while n {
-  print_num(i[0]);
-  let ws = 32;
-  output ws;
-  print_num(j);
-  let nl=10;
-  output nl;
-  j += -2;
-  j -= -4;
-  j += 0;
+  print_num(arr[0]);
   n -= 1;
 };
 
 def print_num(num) {
-  let g = 5;
-  //if not g {
-  //  g = 3;
-  //} else {
-  //  g = 12;
-  //};
+  while num {
+  while num {
   output num;
-};
-
-
-def a(A[3]){
-  def b(B) {
-    output B;
+  glow(num);
   };
-
-  b(A[0]);
-  // { B: A[0] }
-  b(A[1]);
-  // { B: A[1] }
+  };
 };
 
-a(arr);
-// { A: arr }
-// or maybe { A[0]: arr[0], A[1]: arr[1], A[2]: arr[2]}
+def glow(num) {
+  while num {
+    while arr[0] {
+    while arr[1] {
+    while arr[2] {
+    while arr[2] {
+    while arr[1] {
+    while arr[0] {
 
-
-let aa = 1;
-let bb = 2;
-let cc = 3;
-let dd = 4;
-let ee = 5;
-let ff = 6;
-
-while ff {
-  let gg = 7;
-  let hh = 8;
-
-  ff -= 1;
+  output num;
+    };
+    };
+    };
+    };
+    };
+    };
+  };
 };
 
-while ee {
-  let gg = 7;
-  let hh = 8;
 
-  ee -= 1;
-};
+// def a(A[3]){
+//   def b(B) {
+//     output B;
+//   };
+
+//   b(A[0]);
+//   // { B: A[0] }
+//   b(A[1]);
+//   // { B: A[1] }
+// };
+
+// a(arr);

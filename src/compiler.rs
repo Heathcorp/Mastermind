@@ -155,14 +155,10 @@ pub fn compile(clauses: &[Clause], scopes: Vec<Scope>) -> Vec<Instruction> {
 				instructions.push(Instruction::OpenLoop(mem));
 
 				// recursively compile instructions
-				{
-					// TODO: when recursively compiling, check which things changed based on a return info value
-					// TODO: make a function or something for this common pattern
-					let mut scopes = scopes.clone();
-					scopes.push(scope.clone());
-					let loop_instructions = compile(&block, scopes);
-					instructions.extend(loop_instructions);
-				}
+				// TODO: when recursively compiling, check which things changed based on a return info value
+				// TODO: make a function or something for this common pattern
+				let loop_instructions = compile(&block, scopes);
+				instructions.extend(loop_instructions);
 
 				// close the loop
 				instructions.push(Instruction::CloseLoop);
@@ -186,25 +182,21 @@ pub fn compile(clauses: &[Clause], scopes: Vec<Scope>) -> Vec<Instruction> {
 				// TODO: make this its own function
 				// also heavily memory inefficient because cloning scope with function definitions
 
-				let function_definition = {
-					let mut scopes = scopes.clone();
-					scopes.push(scope.clone());
-
-					// horribly inefficient, please refactor at some point
-					scopes
-						.iter()
-						.rev()
-						.find(|scope| scope.functions_map.contains_key(&function_name))
-						.unwrap()
-						.functions_map
-						.get(&function_name)
-						.unwrap()
-						.clone()
-				};
-
 				// prepare scopes to recurse with, put current scope as well as argument translations
 				let mut scopes = scopes.clone();
 				scopes.push(scope.clone());
+
+				// horribly inefficient, please refactor at some point
+				let function_definition = scopes
+					.iter()
+					.rev()
+					.find(|scope| scope.functions_map.contains_key(&function_name))
+					.unwrap()
+					.functions_map
+					.get(&function_name)
+					.unwrap()
+					.clone();
+
 				let mut new_scope = Scope::new();
 				new_scope.translations_map.extend(zip(
 					function_definition.arguments.clone().into_iter(),
@@ -226,22 +218,28 @@ pub fn compile(clauses: &[Clause], scopes: Vec<Scope>) -> Vec<Instruction> {
 	// TODO: obviously needs refactoring when we refactor the scopes stuff
 	// This code sucks, duplicated from definevariable
 	// all we need is a recursive scope structure but not till later because this has dragged on too long anyway
-	for var in scope.variable_map.keys() {
+	for (var_name, arr_len) in &scope.variable_sizes {
 		let mut scopes = scopes.clone();
 		scopes.push(scope.clone());
-		if let Some(len) = var.arr_num {
-			for i in 0..len {
+		if let Some(len) = arr_len {
+			for i in 0..*len {
 				let mem = get_variable_mem(
 					&scopes,
 					VariableSpec {
-						name: var.name.clone(),
+						name: var_name.clone(),
 						arr_num: Some(i),
 					},
 				);
 				instructions.push(Instruction::FreeCell(mem));
 			}
 		} else {
-			let mem = get_variable_mem(&scopes, var.clone());
+			let mem = get_variable_mem(
+				&scopes,
+				VariableSpec {
+					name: var_name.clone(),
+					arr_num: None,
+				},
+			);
 			instructions.push(Instruction::FreeCell(mem));
 		}
 	}
@@ -269,8 +267,6 @@ pub enum Instruction {
 // returns the allocation stack offset for that variable
 fn get_variable_mem(scopes: &[Scope], var: VariableSpec) -> usize {
 	if let Some(scope) = scopes.last() {
-		println!("{:#?}", scope.variable_sizes);
-		println!("{:#?}", scope.variable_map);
 		// for some reason we don't have any variable allocations in the top scope from within b()
 		if let Some(mem) = scope.variable_map.get(&var) {
 			// this scope has the variable allocated
@@ -278,9 +274,10 @@ fn get_variable_mem(scopes: &[Scope], var: VariableSpec) -> usize {
 			// not sure about this, it might work out
 			// TODO: fix this, this is currently broken because it doesn't properly take into account memory frees and booleans and stuff because the map doesn't change every time a cell is freed but the stack does, hmm
 			// these comments are wrong I think, this whole allocation stack algorithm is kinda screwed?
+
 			return scopes[..(scopes.len() - 1)]
 				.iter()
-				.fold(mem.clone(), |sum, s| sum + s.allocation_stack.len());
+				.fold(*mem, |sum, s| sum + s.allocations);
 		} else if let Some((
 			VariableSpec {
 				name: _,
@@ -302,7 +299,7 @@ fn get_variable_mem(scopes: &[Scope], var: VariableSpec) -> usize {
 			// if alias_arr_num = Some, we still good, unless the argument is arr_num = Some, because that would mean we would need 2d arrays? panic
 
 			// need to translate to an alias and call recursively, could do this iterately as well but whatever (tail recursion)
-			return get_variable_mem(&scopes, {
+			return get_variable_mem(&scopes[..(scopes.len() - 1)], {
 				// match should return a VariableSpec
 				match (&var.arr_num, alias_index, arg_len) {
 					(None, alias_index, None) => VariableSpec {
@@ -333,10 +330,10 @@ fn get_variable_mem(scopes: &[Scope], var: VariableSpec) -> usize {
 }
 
 // TODO: make this a recursive structure with an impl for all the important memory things, currently this sucks
-#[derive(Clone)]
+#[derive(Clone, Debug)]
 pub struct Scope {
 	// stack of memory/cells that have been allocated (peekable stack)
-	allocation_stack: Vec<bool>,
+	allocations: usize,
 	// array length of each variable (not sure if this is needed, probably not the best way of doing it either)
 	variable_sizes: HashMap<String, Option<usize>>,
 	// mappings for variable names to places on above stack
@@ -349,7 +346,7 @@ pub struct Scope {
 	functions_map: HashMap<String, Function>,
 }
 
-#[derive(Clone)] // probably shouldn't be cloning here but whatever
+#[derive(Clone, Debug)] // probably shouldn't be cloning here but whatever
 struct Function {
 	arguments: Vec<VariableSpec>,
 	block: Vec<Clause>,
@@ -359,7 +356,7 @@ struct Function {
 impl Scope {
 	pub fn new() -> Scope {
 		Scope {
-			allocation_stack: Vec::new(),
+			allocations: 0,
 			variable_sizes: HashMap::new(),
 			variable_map: HashMap::new(),
 			translations_map: Vec::new(),
@@ -391,38 +388,7 @@ impl Scope {
 	}
 
 	fn allocate_memory_cell(&mut self) -> usize {
-		let mem = self.allocation_stack.len();
-		self.allocation_stack.push(true);
-		mem
-	}
-
-	fn free_variable(&mut self, var_name: &String) {
-		// get the stored variable size from the sizes map
-		let len = self.variable_sizes.remove(var_name).unwrap();
-
-		if let Some(len) = len {
-			for i in 0..len {
-				self.free_variable_cell(VariableSpec {
-					name: var_name.clone(),
-					arr_num: Some(i),
-				});
-			}
-		} else {
-			self.free_variable_cell(VariableSpec {
-				name: var_name.clone(),
-				arr_num: None,
-			});
-		}
-	}
-
-	// should never be called directly by the compiler, unless we change things
-	// TODO: refactor, is this really needed?
-	fn free_variable_cell(&mut self, var: VariableSpec) {
-		let mem = self.variable_map.remove(&var).unwrap();
-		self.free_memory_cell(mem);
-	}
-
-	fn free_memory_cell(&mut self, mem: usize) {
-		self.allocation_stack[mem] = false;
+		self.allocations += 1;
+		self.allocations - 1
 	}
 }
