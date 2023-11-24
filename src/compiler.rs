@@ -168,7 +168,30 @@ pub fn compile(clauses: &[Clause], scopes: Vec<Scope>) -> Vec<Instruction> {
 				targets,
 				block,
 				is_draining,
-			} => todo!(),
+			} => match is_draining {
+				true => {
+					// again this stuff needs to be fixed
+					let mut scopes = scopes.clone();
+					scopes.push(scope.clone());
+
+					let source_mem = get_variable_mem(&scopes, source);
+
+					instructions.push(Instruction::OpenLoop(source_mem));
+
+					// recurse
+					let loop_instructions = compile(&block, scopes.clone());
+					instructions.extend(loop_instructions);
+
+					// copy into each target and decrement the source
+					for target in targets {
+						let mem = get_variable_mem(&scopes, target);
+						instructions.push(Instruction::AddToCell(mem, 1));
+					}
+					instructions.push(Instruction::AddToCell(source_mem, -1i8 as u8)); // 255
+					instructions.push(Instruction::CloseLoop);
+				}
+				false => todo!("Copying loop unimplemented"),
+			},
 			Clause::IfStatement {
 				var,
 				if_block,

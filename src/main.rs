@@ -93,11 +93,10 @@ fn main() {
 			println!("{bf_program}");
 
 			// // // optimise if the -o flag is set
-			// match args.optimise {
-			// 	true => optimise(compiler.program),
-			// 	false => compiler.to_string(),
-			// }
-			program
+			match args.optimise {
+				true => optimise(bf_program.chars().into_iter().collect()),
+				false => bf_program,
+			}
 		}
 		false => program,
 	};

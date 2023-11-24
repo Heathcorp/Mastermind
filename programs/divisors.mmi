@@ -1,49 +1,7 @@
-let arr[3] = [0, 4, 65];
-let n = 4;
-
-while n {
-  print_num(arr[0]);
-  n -= 1;
+let N = 100;
+let i = 0;
+let j = 2;
+drain N into i j {
+  output i;
+  output j;
 };
-
-def print_num(num) {
-  while num {
-  while num {
-  output num;
-  glow(num);
-  };
-  };
-};
-
-def glow(num) {
-  while num {
-    while arr[0] {
-    while arr[1] {
-    while arr[2] {
-    while arr[2] {
-    while arr[1] {
-    while arr[0] {
-
-  output num;
-    };
-    };
-    };
-    };
-    };
-    };
-  };
-};
-
-
-// def a(A[3]){
-//   def b(B) {
-//     output B;
-//   };
-
-//   b(A[0]);
-//   // { B: A[0] }
-//   b(A[1]);
-//   // { B: A[1] }
-// };
-
-// a(arr);
