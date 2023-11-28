@@ -23,7 +23,11 @@ pub fn build(instructions: Vec<Instruction>) -> String {
 			// however they will absolutely not be very efficient
 			Instruction::AllocateCell(id) => {
 				let cell = alloc_tape.allocate();
-				alloc_map.insert(id, cell);
+				let old = alloc_map.insert(id, cell);
+
+				let None = old else {
+					panic!("Attempted to reallocate cell id {id}");
+				};
 			}
 			Instruction::FreeCell(id) => {
 				let Some(cell) = alloc_map.remove(&id) else {
@@ -66,6 +70,16 @@ pub fn build(instructions: Vec<Instruction>) -> String {
 						ops.push(Opcode::Subtract);
 					}
 				}
+			}
+			Instruction::ClearCell(id) => {
+				let Some(cell) = alloc_map.get(&id) else {
+					panic!("Attempted to clear cell id {id} which could not be found");
+				};
+
+				ops.move_to_cell(&mut head_pos, *cell);
+				ops.push(Opcode::OpenLoop);
+				ops.push(Opcode::Subtract);
+				ops.push(Opcode::CloseLoop);
 			}
 			Instruction::OutputCell(id) => {
 				let Some(cell) = alloc_map.get(&id) else {

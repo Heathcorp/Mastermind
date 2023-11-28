@@ -43,6 +43,8 @@ pub fn tokenise(source: &String) -> Vec<Token> {
 		("]", Token::ClosingSquareBracket),
 		("(", Token::OpenParenthesis),
 		(")", Token::ClosingParenthesis),
+		("true", Token::True),
+		("false", Token::False),
 		(",", Token::Comma),
 		("-", Token::Minus),
 		("+", Token::Plus),
@@ -81,18 +83,18 @@ pub fn tokenise(source: &String) -> Vec<Token> {
 				let mut substring = String::from(&str_capture[0]);
 				// not the most efficient way, this simply removes the quote characters
 				// could refactor this
+				chr_idx += substring.len();
 				substring.pop();
 				substring.remove(0);
-				chr_idx += substring.len();
 				tokens.push(Token::String(substring));
 			} else if let Some(chr_capture) = chr_re.captures(remaining) {
 				let mut substring = String::from(&chr_capture[0]);
 				// see above
+				chr_idx += substring.len();
 				substring.pop();
 				substring.remove(0);
 				// might need to change this for escaped characters (TODO)
-				assert_eq!(substring.len(), 1);
-				chr_idx += substring.len();
+				assert_eq!(substring.len(), 1, "Character literals must be length 1");
 				tokens.push(Token::Character(substring.chars().next().unwrap()));
 			} else {
 				panic!("Unknown token found while tokenising program: \"{remaining}\"");
@@ -157,6 +159,8 @@ pub enum Token {
 	Digits(String),
 	String(String),
 	Character(char),
+	True,
+	False,
 	Minus,
 	Plus,
 	Equals,

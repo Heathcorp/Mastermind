@@ -47,17 +47,10 @@ pub fn compile(clauses: &[Clause], scopes: Vec<Scope>) -> Vec<Instruction> {
 				let mut scopes = scopes.clone();
 				scopes.push(scope.clone());
 				let mem: usize = get_variable_mem(&scopes, var);
-				// flatten expression to a list of additions or subtractions
-				let (imm, adds, subs) = value.flatten();
-				// add the immediate numbers
-				instructions.push(Instruction::AddToCell(mem, imm));
 
-				// and the variables
-				if (adds.len() + subs.len()) > 0 {
-					todo!();
-				}
+				instructions.push(Instruction::AddToCell(mem, value));
 			}
-			Clause::DefineVariable { var, initial_value } => {
+			Clause::DeclareVariable(var) => {
 				// allocate a memory cell on the allocation stack
 				// place the variable spec in the hashmap given the memory offset
 				scope.allocate_variable(var.clone());
@@ -67,6 +60,7 @@ pub fn compile(clauses: &[Clause], scopes: Vec<Scope>) -> Vec<Instruction> {
 				{
 					let mut scopes = scopes.clone();
 					scopes.push(scope.clone());
+
 					if let Some(len) = var.arr_num {
 						for i in 0..len {
 							let mem = get_variable_mem(
@@ -83,70 +77,34 @@ pub fn compile(clauses: &[Clause], scopes: Vec<Scope>) -> Vec<Instruction> {
 						instructions.push(Instruction::AllocateCell(mem));
 					}
 				}
-
-				// initialise variable values
-				if let Some(expr) = &initial_value {
-					match (&var.arr_num, expr) {
-						(
-							None,
-							Expression::NaturalNumber(_)
-							| Expression::VariableReference(_)
-							| Expression::SumExpression {
-								sign: _,
-								summands: _,
-							},
-						) => {
-							// TODO: make a function for this, common pattern
-
-							let mut scopes = scopes.clone();
-							scopes.push(scope.clone());
-							let mem = get_variable_mem(&scopes, var);
-
-							let (imm, adds, subs) = expr.clone().flatten();
-							instructions.push(Instruction::AddToCell(mem, imm));
-							if (adds.len() + subs.len()) > 0 {
-								todo!();
-							}
-						}
-						(Some(len), Expression::ArrayLiteral(expr_arr)) => {
-							// again need to figure out a good way of doing this
-							let mut scopes = scopes.clone();
-							scopes.push(scope.clone());
-
-							assert_eq!(*len, expr_arr.len(), "Array literal should be same length as variable: {var:#?} = {initial_value:#?}");
-
-							for (i, expr) in expr_arr.iter().enumerate() {
-								let mem = get_variable_mem(
-									&scopes,
-									VariableSpec {
-										name: var.name.clone(),
-										arr_num: Some(i),
-									},
-								);
-
-								let (imm, adds, subs) = expr.clone().flatten();
-								instructions.push(Instruction::AddToCell(mem, imm));
-								if (adds.len() + subs.len()) > 0 {
-									todo!();
-								}
-							}
-						}
-						(Some(len), Expression::StringLiteral(str)) => todo!(),
-						_ => {
-							panic!(
-								"Invalid initial value for variable: {var:#?} = {initial_value:#?}"
-							);
-						}
-					}
-				}
 			}
-			Clause::SetVariable { var, value } => todo!(),
-			Clause::OutputByte { var } => {
+			Clause::ClearVariable(var) => {
 				let mut scopes = scopes.clone();
 				scopes.push(scope.clone());
 				let mem: usize = get_variable_mem(&scopes, var);
-				instructions.push(Instruction::OutputCell(mem));
+
+				instructions.push(Instruction::ClearCell(mem));
 			}
+			Clause::OutputByte { value } => match value {
+				Expression::VariableReference(var) => {
+					let mut scopes = scopes.clone();
+					scopes.push(scope.clone());
+					let mem: usize = get_variable_mem(&scopes, var);
+					instructions.push(Instruction::OutputCell(mem));
+				}
+				Expression::NaturalNumber(num) => {
+					let val: u8 = (num % 256).try_into().unwrap();
+					// allocate a temporary cell for the byte being output
+					let mem = scope.allocate_unnamed_mem(&scopes);
+					instructions.push(Instruction::AllocateCell(mem));
+					instructions.push(Instruction::AddToCell(mem, val));
+					instructions.push(Instruction::OutputCell(mem));
+					instructions.push(Instruction::ClearCell(mem));
+					instructions.push(Instruction::FreeCell(mem));
+				}
+				Expression::SumExpression { sign, summands } => todo!(),
+				Expression::ArrayLiteral(_) | Expression::StringLiteral(_) => todo!(),
+			},
 			Clause::WhileLoop { var, block } => {
 				// open loop on variable
 				let mut scopes = scopes.clone();
@@ -162,6 +120,34 @@ pub fn compile(clauses: &[Clause], scopes: Vec<Scope>) -> Vec<Instruction> {
 
 				// close the loop
 				instructions.push(Instruction::CloseLoop);
+			}
+			Clause::CopyVariable {
+				target,
+				source,
+				constant,
+			} => {
+				// allocate a temporary cell
+				let temp_mem = scope.allocate_unnamed_mem(&scopes);
+				instructions.push(Instruction::AllocateCell(temp_mem));
+				// again this stuff needs to be fixed, this comment has probably been copied as much as this code has
+				let mut scopes = scopes.clone();
+				scopes.push(scope.clone());
+
+				let source_mem = get_variable_mem(&scopes, source);
+				let target_mem = get_variable_mem(&scopes, target);
+
+				// copy source to target and temp
+				instructions.push(Instruction::OpenLoop(source_mem));
+				instructions.push(Instruction::AddToCell(target_mem, constant as u8));
+				instructions.push(Instruction::AddToCell(temp_mem, constant as u8));
+				instructions.push(Instruction::AddToCell(source_mem, -1i8 as u8));
+				instructions.push(Instruction::CloseLoop);
+				// copy back from temp
+				instructions.push(Instruction::OpenLoop(temp_mem));
+				instructions.push(Instruction::AddToCell(source_mem, 1));
+				instructions.push(Instruction::AddToCell(temp_mem, -1i8 as u8));
+				instructions.push(Instruction::CloseLoop);
+				instructions.push(Instruction::FreeCell(temp_mem));
 			}
 			Clause::CopyLoop {
 				source,
@@ -190,13 +176,125 @@ pub fn compile(clauses: &[Clause], scopes: Vec<Scope>) -> Vec<Instruction> {
 					instructions.push(Instruction::AddToCell(source_mem, -1i8 as u8)); // 255
 					instructions.push(Instruction::CloseLoop);
 				}
-				false => todo!("Copying loop unimplemented"),
+				false => {
+					// allocate a temporary cell
+					let temp_mem = scope.allocate_unnamed_mem(&scopes);
+					instructions.push(Instruction::AllocateCell(temp_mem));
+
+					// again this stuff needs to be fixed
+					let mut scopes = scopes.clone();
+					scopes.push(scope.clone());
+
+					let source_mem = get_variable_mem(&scopes, source);
+
+					instructions.push(Instruction::OpenLoop(source_mem));
+
+					// recurse
+					let loop_instructions = compile(&block, scopes.clone());
+					instructions.extend(loop_instructions);
+
+					// copy into each target and decrement the source
+					for target in targets {
+						let mem = get_variable_mem(&scopes, target);
+						instructions.push(Instruction::AddToCell(mem, 1));
+					}
+					instructions.push(Instruction::AddToCell(temp_mem, 1));
+					instructions.push(Instruction::AddToCell(source_mem, -1i8 as u8)); // 255
+					instructions.push(Instruction::CloseLoop);
+
+					// copy back the temp cell
+					instructions.push(Instruction::OpenLoop(temp_mem));
+					instructions.push(Instruction::AddToCell(temp_mem, -1i8 as u8));
+					instructions.push(Instruction::AddToCell(source_mem, 1));
+					instructions.push(Instruction::CloseLoop);
+
+					instructions.push(Instruction::FreeCell(temp_mem));
+				}
 			},
 			Clause::IfStatement {
 				var,
 				if_block,
 				else_block,
-			} => todo!(),
+			} => {
+				if if_block.is_none() && else_block.is_none() {
+					panic!("Expected block in if/else statement");
+				};
+
+				let mut scopes = scopes.clone();
+				scopes.push(scope.clone());
+				let mut new_scope = Scope::new();
+
+				let temp_var_mem = new_scope.allocate_unnamed_mem(&scopes);
+				instructions.push(Instruction::AllocateCell(temp_var_mem));
+				let else_condition_mem = match else_block {
+					Some(_) => {
+						let else_mem = new_scope.allocate_unnamed_mem(&scopes);
+						instructions.push(Instruction::AllocateCell(else_mem));
+						instructions.push(Instruction::AddToCell(else_mem, 1));
+						Some(else_mem)
+					}
+					None => None,
+				};
+
+				let original_var_mem = get_variable_mem(&scopes, var.clone());
+
+				instructions.push(Instruction::OpenLoop(original_var_mem));
+
+				// move the variable to the temporary cell
+				instructions.push(Instruction::OpenLoop(original_var_mem));
+				instructions.push(Instruction::AddToCell(temp_var_mem, 1));
+				instructions.push(Instruction::AddToCell(original_var_mem, -1i8 as u8));
+				instructions.push(Instruction::CloseLoop);
+
+				// change scope var pointer
+				// disgusting, to fix a bug with massive memory jumps, need a more mature scope impl to do this for us
+				new_scope.variable_map.insert(
+					var.clone(),
+					temp_var_mem - scopes.iter().fold(0, |a, s| a + s.allocations),
+				);
+				// free the original cell temporarily as it isn't being used
+				instructions.push(Instruction::FreeCell(original_var_mem));
+
+				// set the else condition cell
+				if let Some(mem) = else_condition_mem {
+					instructions.push(Instruction::AddToCell(mem, -1i8 as u8));
+				}
+
+				// recursively compile if block
+				if let Some(block) = if_block {
+					// disgusting code, seriously needs refactor
+					let mut scopes = scopes.clone();
+					scopes.push(new_scope.clone());
+					instructions.extend(compile(&block, scopes));
+				};
+
+				// reallocate the temporarily freed variable cell
+				instructions.push(Instruction::AllocateCell(original_var_mem));
+				// move the temporary cell contents back to the variable cell
+				instructions.push(Instruction::OpenLoop(temp_var_mem));
+				instructions.push(Instruction::AddToCell(original_var_mem, 1));
+				instructions.push(Instruction::AddToCell(temp_var_mem, -1i8 as u8));
+				instructions.push(Instruction::CloseLoop);
+				new_scope.variable_map.remove(&var);
+
+				instructions.push(Instruction::FreeCell(temp_var_mem));
+
+				// close if block
+				instructions.push(Instruction::CloseLoop);
+
+				// else block:
+				if let Some(else_mem) = else_condition_mem {
+					instructions.push(Instruction::OpenLoop(else_mem));
+					instructions.push(Instruction::AddToCell(else_mem, -1i8 as u8));
+
+					// recursively compile else block
+					let block = else_block.unwrap();
+					instructions.extend(compile(&block, scopes));
+
+					instructions.push(Instruction::CloseLoop);
+					instructions.push(Instruction::FreeCell(else_mem));
+				}
+			}
 			Clause::CallFunction {
 				function_name,
 				arguments,
@@ -214,7 +312,10 @@ pub fn compile(clauses: &[Clause], scopes: Vec<Scope>) -> Vec<Instruction> {
 					.iter()
 					.rev()
 					.find(|scope| scope.functions_map.contains_key(&function_name))
-					.unwrap()
+					.expect(&format!(
+						"No function with name \"{}\" found",
+						function_name
+					))
 					.functions_map
 					.get(&function_name)
 					.unwrap()
@@ -278,6 +379,7 @@ pub enum Instruction {
 	OpenLoop(usize), // same with other numbers here, they indicate the cell in the allocation stack to use in the instruction
 	CloseLoop,
 	AddToCell(usize, u8),
+	ClearCell(usize), // not sure if this should be here, seems common enough that it should be
 	OutputCell(usize),
 	// TODO: contiguous cells for quick iterations?
 	// AllocateContiguousCells(usize),
@@ -406,12 +508,20 @@ impl Scope {
 
 	// not sure if this is even needed tbh, (TODO: refactor?)
 	fn allocate_variable_cell(&mut self, var: VariableSpec) {
-		let mem = self.allocate_memory_cell();
+		let mem = self.push_memory_cell();
 		self.variable_map.insert(var, mem);
 	}
 
-	fn allocate_memory_cell(&mut self) -> usize {
+	fn push_memory_cell(&mut self) -> usize {
 		self.allocations += 1;
 		self.allocations - 1
+	}
+
+	// TOOD: Vec<Scope> impl? REFACtOR!
+	fn allocate_unnamed_mem(&mut self, scopes: &[Scope]) -> usize {
+		let current_scope_relative = self.push_memory_cell();
+		scopes
+			.iter()
+			.fold(current_scope_relative, |sum, s| sum + s.allocations)
 	}
 }

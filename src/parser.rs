@@ -14,73 +14,92 @@ pub fn parse(tokens: &[Token]) -> Vec<Clause> {
 	let mut clauses: Vec<Clause> = Vec::new();
 	let mut i = 0usize;
 	while let Some(clause) = get_clause_tokens(&tokens[i..]) {
-		clauses.push(
-			match (
-				&clause[0],
-				&clause[1],
-				if tokens.len() > 2 {
-					&clause[2]
-				} else {
-					&Token::None
-				},
-			) {
-				(Token::Let, _, _) => parse_let_clause(clause),
-				(Token::Drain, _, _) => parse_drain_copy_clause(clause, true),
-				(Token::Copy, _, _) => parse_drain_copy_clause(clause, false),
-				(Token::While, _, _) => parse_while_clause(clause),
-				(Token::Output, _, _) => parse_output_clause(clause),
-				(Token::Name(_), Token::OpenParenthesis, _) => parse_function_call_clause(clause),
-				(Token::Def, _, _) => parse_function_definition_clause(clause),
-				(Token::Name(_), Token::Plus | Token::Minus, Token::Equals) => {
-					parse_add_clause(clause)
-				}
-				(Token::Plus, Token::Plus, _) | (Token::Minus, Token::Minus, _) => {
-					parse_increment_clause(clause)
-				}
-				(Token::Name(_), Token::Equals, _) => parse_set_clause(clause),
-				(Token::If, _, _) => parse_if_else_clause(clause),
-				// the None token usually represents whitespace, it should be filtered out before reaching this function
-				// Wrote out all of these possibilities so that the compiler will tell me when I haven't implemented a token
-				(
-					Token::None
-					| Token::ClauseDelimiter
-					| Token::Else
-					| Token::Not
-					| Token::OpenBrace
-					| Token::ClosingBrace
-					| Token::OpenSquareBracket
-					| Token::ClosingSquareBracket
-					| Token::OpenParenthesis
-					| Token::ClosingParenthesis
-					| Token::Comma
-					| Token::Plus
-					| Token::Minus
-					| Token::Into
-					| Token::Digits(_)
-					| Token::Name(_)
-					| Token::String(_)
-					| Token::Character(_)
-					| Token::Equals,
-					_,
-					_,
-				) => {
-					panic!("Invalid clause: {clause:#?}");
-				}
+		match (
+			&clause[0],
+			&clause[1],
+			if tokens.len() > 2 {
+				&clause[2]
+			} else {
+				&Token::None
 			},
-		);
+		) {
+			(Token::Let, _, _) => {
+				clauses.extend(parse_let_clause(clause));
+			}
+			(Token::Plus, Token::Plus, _) | (Token::Minus, Token::Minus, _) => {
+				clauses.push(parse_increment_clause(clause));
+			}
+			(Token::Name(_), Token::Equals, _) => {
+				clauses.extend(parse_set_clause(clause));
+			}
+			(Token::Drain, _, _) => {
+				clauses.push(parse_drain_copy_clause(clause, true));
+			}
+			(Token::Copy, _, _) => {
+				clauses.push(parse_drain_copy_clause(clause, false));
+			}
+			(Token::While, _, _) => {
+				clauses.push(parse_while_clause(clause));
+			}
+			(Token::Output, _, _) => {
+				clauses.push(parse_output_clause(clause));
+			}
+			(Token::Name(_), Token::OpenParenthesis, _) => {
+				clauses.push(parse_function_call_clause(clause));
+			}
+			(Token::Def, _, _) => {
+				clauses.push(parse_function_definition_clause(clause));
+			}
+			(Token::Name(_), Token::Plus | Token::Minus, Token::Equals) => {
+				clauses.extend(parse_add_clause(clause));
+			}
+			(Token::If, _, _) => {
+				clauses.push(parse_if_else_clause(clause));
+			}
+			// the None token usually represents whitespace, it should be filtered out before reaching this function
+			// Wrote out all of these possibilities so that the compiler will tell me when I haven't implemented a token
+			(
+				Token::None
+				| Token::ClauseDelimiter
+				| Token::Else
+				| Token::Not
+				| Token::OpenBrace
+				| Token::ClosingBrace
+				| Token::OpenSquareBracket
+				| Token::ClosingSquareBracket
+				| Token::OpenParenthesis
+				| Token::ClosingParenthesis
+				| Token::Comma
+				| Token::Plus
+				| Token::Minus
+				| Token::Into
+				| Token::Digits(_)
+				| Token::Name(_)
+				| Token::String(_)
+				| Token::Character(_)
+				| Token::True
+				| Token::False
+				| Token::Equals,
+				_,
+				_,
+			) => {
+				panic!("Invalid clause: {clause:#?}");
+			}
+		};
 		i += clause.len();
 	}
 
 	clauses
 }
 
-fn parse_let_clause(clause: &[Token]) -> Clause {
+fn parse_let_clause(clause: &[Token]) -> Vec<Clause> {
+	let mut clauses = Vec::new();
 	// let foo = 9;
 	// let arr[2] = ??;
 	// let g;
 	// let why[9];
 	let name: &String;
-	let mut i = 1;
+	let mut i = 1usize;
 	// this kind of logic could probably be done with iterators, (TODO for future refactors)
 	let (var, len) = parse_var_details(&clause[i..]);
 	assert!(
@@ -89,25 +108,57 @@ fn parse_let_clause(clause: &[Token]) -> Clause {
 	);
 	i += len;
 
+	clauses.push(Clause::DeclareVariable(var.clone()));
+
 	if let Token::Equals = &clause[i] {
 		i += 1;
 		let remaining = &clause[i..(clause.len() - 1)];
 		let expr = Expression::parse(remaining);
-		Clause::DefineVariable {
-			var,
-			initial_value: Some(expr),
+		let (imm, adds, subs) = expr.flatten();
+
+		clauses.push(Clause::AddToVariable {
+			var: var.clone(),
+			value: imm,
+		});
+
+		let mut adds_set = HashMap::new();
+		for var in adds {
+			let n = adds_set.remove(&var).unwrap_or(0);
+			adds_set.insert(var, n + 1);
 		}
-	} else if let Token::ClauseDelimiter = &clause[i] {
-		Clause::DefineVariable {
-			var,
-			initial_value: None,
+		clauses.extend(
+			adds_set
+				.into_iter()
+				.map(|(source, num)| Clause::CopyVariable {
+					target: var.clone(),
+					source,
+					constant: num,
+				}),
+		);
+
+		let mut subs_set = HashMap::new();
+		for var in subs {
+			let n = subs_set.remove(&var).unwrap_or(0);
+			subs_set.insert(var, n + 1);
 		}
-	} else {
+		clauses.extend(
+			subs_set
+				.into_iter()
+				.map(|(source, num)| Clause::CopyVariable {
+					target: var.clone(),
+					source,
+					constant: -num,
+				}),
+		);
+	} else if i < (clause.len() - 1) {
 		panic!("Invalid token at end of let clause: {clause:#?}");
 	}
+
+	clauses
 }
 
-fn parse_add_clause(clause: &[Token]) -> Clause {
+fn parse_add_clause(clause: &[Token]) -> Vec<Clause> {
+	let mut clauses = Vec::new();
 	let mut i = 0usize;
 	let (var, len) = parse_var_details(&clause[i..]);
 	i += len;
@@ -128,23 +179,56 @@ fn parse_add_clause(clause: &[Token]) -> Clause {
 			summands: vec![raw_expr],
 		},
 	};
-	Clause::AddToVariable { var, value: expr }
+
+	let (imm, adds, subs) = expr.flatten();
+
+	clauses.push(Clause::AddToVariable {
+		var: var.clone(),
+		value: imm,
+	});
+
+	// duplicate code, TODO: refactor
+	let mut adds_set = HashMap::new();
+	for var in adds {
+		let n = adds_set.remove(&var).unwrap_or(0);
+		adds_set.insert(var, n + 1);
+	}
+	clauses.extend(
+		adds_set
+			.into_iter()
+			.map(|(source, num)| Clause::CopyVariable {
+				target: var.clone(),
+				source,
+				constant: num,
+			}),
+	);
+
+	let mut subs_set = HashMap::new();
+	for var in subs {
+		let n = subs_set.remove(&var).unwrap_or(0);
+		subs_set.insert(var, n + 1);
+	}
+	clauses.extend(
+		subs_set
+			.into_iter()
+			.map(|(source, num)| Clause::CopyVariable {
+				target: var.clone(),
+				source,
+				constant: -num,
+			}),
+	);
+
+	clauses
 }
 
 fn parse_increment_clause(clause: &[Token]) -> Clause {
 	let (var, len) = parse_var_details(&clause[2..]);
 
 	match (&clause[0], &clause[1]) {
-		(Token::Plus, Token::Plus) => Clause::AddToVariable {
-			var,
-			value: Expression::NaturalNumber(1),
-		},
+		(Token::Plus, Token::Plus) => Clause::AddToVariable { var, value: 1 },
 		(Token::Minus, Token::Minus) => Clause::AddToVariable {
 			var,
-			value: Expression::SumExpression {
-				sign: Sign::Negative,
-				summands: vec![Expression::NaturalNumber(1)],
-			},
+			value: -1i8 as u8,
 		},
 		_ => {
 			panic!("Invalid pattern in increment clause: {clause:#?}");
@@ -153,7 +237,9 @@ fn parse_increment_clause(clause: &[Token]) -> Clause {
 	// assumed that the final token is a semicolon
 }
 
-fn parse_set_clause(clause: &[Token]) -> Clause {
+fn parse_set_clause(clause: &[Token]) -> Vec<Clause> {
+	// TODO: what do we do about arrays and strings?
+	let mut clauses = Vec::new();
 	let mut i = 0usize;
 	let (var, len) = parse_var_details(&clause[i..]);
 	i += len;
@@ -165,8 +251,47 @@ fn parse_set_clause(clause: &[Token]) -> Clause {
 	i += 1;
 
 	let expr = Expression::parse(&clause[i..(clause.len() - 1)]);
+	let (imm, adds, subs) = expr.flatten();
 
-	Clause::SetVariable { var, value: expr }
+	clauses.push(Clause::ClearVariable(var.clone()));
+
+	clauses.push(Clause::AddToVariable {
+		var: var.clone(),
+		value: imm,
+	});
+
+	// duplicate code, TODO: refactor
+	let mut adds_set = HashMap::new();
+	for var in adds {
+		let n = adds_set.remove(&var).unwrap_or(0);
+		adds_set.insert(var, n + 1);
+	}
+	clauses.extend(
+		adds_set
+			.into_iter()
+			.map(|(source, num)| Clause::CopyVariable {
+				target: var.clone(),
+				source,
+				constant: num,
+			}),
+	);
+
+	let mut subs_set = HashMap::new();
+	for var in subs {
+		let n = subs_set.remove(&var).unwrap_or(0);
+		subs_set.insert(var, n + 1);
+	}
+	clauses.extend(
+		subs_set
+			.into_iter()
+			.map(|(source, num)| Clause::CopyVariable {
+				target: var.clone(),
+				source,
+				constant: -num,
+			}),
+	);
+
+	clauses
 }
 
 fn parse_drain_copy_clause(clause: &[Token], is_draining: bool) -> Clause {
@@ -276,32 +401,32 @@ fn parse_if_else_clause(clause: &[Token]) -> Clause {
 		None
 	};
 
-	let empty = Vec::new();
-
 	match (not, block_one, block_two) {
 		(false, block_one, block_two) => Clause::IfStatement {
 			var,
-			if_block: block_one,
-			else_block: block_two.unwrap_or(empty),
+			if_block: Some(block_one),
+			else_block: block_two,
 		},
 		(true, block_one, block_two) => Clause::IfStatement {
 			var,
-			if_block: block_two.unwrap_or(empty),
-			else_block: block_one,
+			if_block: block_two,
+			else_block: Some(block_one),
 		},
 	}
 }
 
 fn parse_output_clause(clause: &[Token]) -> Clause {
 	let mut i = 1usize;
-	let (var, len) = parse_var_details(&clause[i..]);
-	i += len;
+
+	let expr_tokens = &clause[i..(clause.len() - 1)];
+	let expr = Expression::parse(expr_tokens);
+	i += expr_tokens.len();
 
 	let Token::ClauseDelimiter = &clause[i] else {
 		panic!("Invalid token at end of output clause: {clause:#?}");
 	};
 
-	Clause::OutputByte { var }
+	Clause::OutputByte { value: expr }
 }
 fn parse_function_definition_clause(clause: &[Token]) -> Clause {
 	let mut i = 1usize;
@@ -492,6 +617,26 @@ impl Expression {
 			i += 1;
 			assert_eq!(i, tokens.len());
 			return Expression::StringLiteral(s.clone());
+		}
+
+		if let Token::Character(c) = &tokens[i] {
+			i += 1;
+			assert_eq!(i, tokens.len());
+			// convert character to a natural number, not sure if we need a character specific expression type
+			// apparently we can just cast?
+			return Expression::NaturalNumber(*c as usize);
+		}
+
+		if let Token::False = &tokens[i] {
+			i += 1;
+			assert_eq!(i, tokens.len());
+			return Expression::NaturalNumber(0);
+		}
+
+		if let Token::True = &tokens[i] {
+			i += 1;
+			assert_eq!(i, tokens.len());
+			return Expression::NaturalNumber(1);
 		}
 
 		if let Token::OpenSquareBracket = &tokens[i] {
@@ -702,17 +847,16 @@ pub enum Sign {
 
 #[derive(Debug, Clone)]
 pub enum Clause {
-	DefineVariable {
-		var: VariableSpec,
-		initial_value: Option<Expression>,
-	},
+	DeclareVariable(VariableSpec),
 	AddToVariable {
 		var: VariableSpec,
-		value: Expression,
+		value: u8,
 	},
-	SetVariable {
-		var: VariableSpec,
-		value: Expression,
+	ClearVariable(VariableSpec),
+	CopyVariable {
+		target: VariableSpec,
+		source: VariableSpec,
+		constant: i8,
 	},
 	CopyLoop {
 		source: VariableSpec,
@@ -725,7 +869,7 @@ pub enum Clause {
 		block: Vec<Clause>,
 	},
 	OutputByte {
-		var: VariableSpec,
+		value: Expression,
 	},
 	DefineFunction {
 		name: String,
@@ -738,8 +882,8 @@ pub enum Clause {
 	},
 	IfStatement {
 		var: VariableSpec,
-		if_block: Vec<Clause>,
-		else_block: Vec<Clause>,
+		if_block: Option<Vec<Clause>>,
+		else_block: Option<Vec<Clause>>,
 	},
 }
 
