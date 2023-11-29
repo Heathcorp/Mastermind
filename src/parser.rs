@@ -1,5 +1,6 @@
 use std::{
 	collections::HashMap,
+	fmt::Display,
 	mem::{self, discriminant, Discriminant},
 	num::Wrapping,
 };
@@ -891,4 +892,13 @@ pub enum Clause {
 pub struct VariableSpec {
 	pub name: String,
 	pub arr_num: Option<usize>,
+}
+
+impl Display for VariableSpec {
+	fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+		match self.arr_num {
+			None => f.write_str(&self.name),
+			Some(idx) => f.write_str(&format!("{}[{}]", self.name, idx)),
+		}
+	}
 }

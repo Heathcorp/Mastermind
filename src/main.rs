@@ -86,7 +86,7 @@ fn main() {
 			// TODO: 2 stage compilation step, first stage compiles syntax tree into low-level instructions
 			// 	second stage actually writes out the low-level instructions into brainfuck
 
-			let instructions = compile(&clauses, vec![]);
+			let instructions = compile(&clauses, None);
 			println!("{instructions:#?}");
 
 			let bf_program = build(instructions);
