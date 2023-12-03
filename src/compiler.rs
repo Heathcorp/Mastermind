@@ -55,16 +55,15 @@ pub fn compile(clauses: &[Clause], outer_scope: Option<&Scope>) -> Vec<Instructi
 				// place the variable spec in the hashmap given the memory offset
 				scope.allocate_variable(var.clone());
 
-				let mut var = VariableSpec {
-					name: var.name.clone(),
-					arr_num: None,
-				};
-
 				// create instructions to allocate cells
 				if let Some(len) = var.arr_num {
+					let mut var_copy = VariableSpec {
+						name: var.name.clone(),
+						arr_num: None,
+					};
 					for i in 0..len {
-						var.arr_num = Some(i);
-						let mem = scope.get_variable_mem(&var).unwrap();
+						var_copy.arr_num = Some(i);
+						let mem = scope.get_variable_mem(&var_copy).unwrap();
 						instructions.push(Instruction::AllocateCell(mem));
 					}
 				} else {
@@ -127,7 +126,7 @@ pub fn compile(clauses: &[Clause], outer_scope: Option<&Scope>) -> Vec<Instructi
 				// copy source to target and temp
 				instructions.push(Instruction::OpenLoop(source_mem));
 				instructions.push(Instruction::AddToCell(target_mem, constant as u8));
-				instructions.push(Instruction::AddToCell(temp_mem, constant as u8));
+				instructions.push(Instruction::AddToCell(temp_mem, 1));
 				instructions.push(Instruction::AddToCell(source_mem, -1i8 as u8));
 				instructions.push(Instruction::CloseLoop);
 				// copy back from temp
@@ -241,6 +240,9 @@ pub fn compile(clauses: &[Clause], outer_scope: Option<&Scope>) -> Vec<Instructi
 					instructions.extend(compile(&block, Some(&new_scope)));
 				};
 
+				// close if block
+				instructions.push(Instruction::CloseLoop);
+
 				// reallocate the temporarily freed variable cell
 				instructions.push(Instruction::AllocateCell(original_var_mem));
 				// move the temporary cell contents back to the variable cell
@@ -251,9 +253,6 @@ pub fn compile(clauses: &[Clause], outer_scope: Option<&Scope>) -> Vec<Instructi
 				new_scope.revert_reassignment(&var);
 
 				instructions.push(Instruction::FreeCell(temp_var_mem));
-
-				// close if block
-				instructions.push(Instruction::CloseLoop);
 
 				// else block:
 				if let Some(else_mem) = else_condition_mem {
@@ -319,7 +318,7 @@ pub fn compile(clauses: &[Clause], outer_scope: Option<&Scope>) -> Vec<Instructi
 				);
 
 				// recurse
-				let loop_instructions = compile(&function_definition.block, Some(&scope));
+				let loop_instructions = compile(&function_definition.block, Some(&new_scope));
 				instructions.extend(loop_instructions);
 			}
 			_ => (),

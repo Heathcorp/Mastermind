@@ -1,84 +1,35 @@
 let N = 99;
-let i = 1;
+let number = 1;
 
-drain N into i {
-
-  output 'A';
-  output 10;
-
-  let n = i;
-
-  let j;
-
-  output 'B';
-  output 10;
-
-  drain n into j {
-
-    output 'C';
-    output 10;
-
+drain N into number {
+  let num_copy = number - 1;
+  let divisor = 1;
+  drain num_copy into divisor {
     let result;
-    divisible(result, i, j);
-
-    output 'D';
-    output 10;
+    divisible(result, number, divisor);
 
     if result {
-      output 'E';
-      output 10;
+      print(divisor);
+      output ' ';
     };
     result = 0;
-
-    output 'F';
-    output 10;
-
   };
   j = 0;
-  output 'G';
-  output 10;
 };
 
 def divisible(result, dividend, divisor) {
-
-  output 'H';
-  output 10;
-
   // result = 0 if dividend % divisor = 0
   let b = dividend;
 
   let radix;
   let iterating = true;
 
-  output 'I';
-  output 10;
-
   while iterating {
 
-    output 'J';
-    output 10;
-    
     radix = divisor;
-
-    output 'K';
-    output 10;
-
     drain radix {
-
-      output 'L';
-      output 10;
-
-      if b {
-
-        output 'M';
-        output 10;
-
-        --b;
-      } else {
-
-        output 'N';
-        output 10;
-
+      --b;
+      if not b {
         iterating = false;
       };
     };
@@ -88,4 +39,10 @@ def divisible(result, dividend, divisor) {
   if not radix {
     result = true;
   };
+};
+
+def print(num) {
+  let hundreds;
+  let const_100 = 100;
+  
 };

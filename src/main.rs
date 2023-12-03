@@ -6,7 +6,7 @@ mod optimiser; // 5. Post-Optimise
 mod parser; // 2. Parse
 mod tokeniser; // 1. Tokenise
 
-// mod tests;
+mod tests;
 
 use brainfuck::BVM;
 use builder::build;

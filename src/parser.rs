@@ -57,6 +57,19 @@ pub fn parse(tokens: &[Token]) -> Vec<Clause> {
 			(Token::If, _, _) => {
 				clauses.push(parse_if_else_clause(clause));
 			}
+			(Token::Name(_), Token::OpenSquareBracket, _) => {
+				let (_, len) = parse_var_details(clause);
+				let remaining = &clause[len..];
+				match (&remaining[0], &remaining[1]) {
+					(Token::Equals, _) => {
+						clauses.extend(parse_set_clause(clause));
+					}
+					(Token::Plus | Token::Minus, Token::Equals) => {
+						clauses.extend(parse_add_clause(clause));
+					}
+					_ => panic!("Invalid clause: {clause:#?}"),
+				}
+			}
 			// the None token usually represents whitespace, it should be filtered out before reaching this function
 			// Wrote out all of these possibilities so that the compiler will tell me when I haven't implemented a token
 			(
@@ -400,6 +413,10 @@ fn parse_if_else_clause(clause: &[Token]) -> Clause {
 		Some(parse(block_tokens))
 	} else {
 		None
+	};
+
+	let Token::ClauseDelimiter = &clause[i] else {
+		panic!("Expected end of clause in if/else statement. {clause:#?}");
 	};
 
 	match (not, block_one, block_two) {
