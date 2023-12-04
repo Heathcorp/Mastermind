@@ -3,21 +3,27 @@
 pub mod tests {
 	use crate::{
 		brainfuck::tests::run_program,
-		builder::build,
-		compiler::compile,
+		builder::Builder,
+		compiler::Compiler,
 		parser::parse,
 		tokeniser::{tokenise, Token},
+		MastermindConfig,
 	};
 
 	fn compile_and_run(program: String, input: String) -> String {
+		let config = MastermindConfig {
+			optimiseGeneratedCode: false,
+			optimiseVariableUsage: false,
+			optimiseMemoryAllocation: false,
+		};
 		// compile mastermind
 		let tokens: Vec<Token> = tokenise(&program);
 		println!("{tokens:#?}");
 		let clauses = parse(&tokens);
 		println!("{clauses:#?}");
-		let instructions = compile(&clauses, None);
+		let instructions = Compiler { config: &config }.compile(&clauses, None);
 		println!("{instructions:#?}");
-		let bf_program = build(instructions);
+		let bf_program = Builder { config: &config }.build(instructions);
 		println!("{bf_program}");
 		// run generated brainfuck with input
 		run_program(bf_program, input)

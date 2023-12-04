@@ -7,96 +7,102 @@
 
 use std::{collections::HashMap, fmt::Display};
 
-use crate::compiler::Instruction;
+use crate::{compiler::Instruction, MastermindConfig};
 
-pub fn build(instructions: Vec<Instruction>) -> String {
-	let mut alloc_tape = Vec::new();
-	let mut alloc_map = HashMap::new();
+pub struct Builder<'a> {
+	pub config: &'a MastermindConfig,
+}
 
-	let mut loop_stack = Vec::new();
-	let mut head_pos = 0;
-	let mut ops = Vec::new();
+impl Builder<'_> {
+	pub fn build(&self, instructions: Vec<Instruction>) -> String {
+		let mut alloc_tape = Vec::new();
+		let mut alloc_map = HashMap::new();
 
-	for instruction in instructions {
-		match instruction {
-			// the ids (indices really) given by the compiler are guaranteed to be unique (at the time of writing)
-			// however they will absolutely not be very efficient
-			Instruction::AllocateCell(id) => {
-				let cell = alloc_tape.allocate();
-				let old = alloc_map.insert(id, cell);
+		let mut loop_stack = Vec::new();
+		let mut head_pos = 0;
+		let mut ops = Vec::new();
 
-				let None = old else {
-					panic!("Attempted to reallocate cell id {id}");
-				};
-			}
-			Instruction::FreeCell(id) => {
-				let Some(cell) = alloc_map.remove(&id) else {
-					panic!("Attempted to free cell id {id} which could not be found");
-				};
+		for instruction in instructions {
+			match instruction {
+				// the ids (indices really) given by the compiler are guaranteed to be unique (at the time of writing)
+				// however they will absolutely not be very efficient
+				Instruction::AllocateCell(id) => {
+					let cell = alloc_tape.allocate();
+					let old = alloc_map.insert(id, cell);
 
-				alloc_tape.free(cell);
-			}
-			Instruction::OpenLoop(id) => {
-				let Some(cell) = alloc_map.get(&id) else {
-					panic!("Attempted to open loop at cell id {id} which could not be found");
-				};
+					let None = old else {
+						panic!("Attempted to reallocate cell id {id}");
+					};
+				}
+				Instruction::FreeCell(id) => {
+					let Some(cell) = alloc_map.remove(&id) else {
+						panic!("Attempted to free cell id {id} which could not be found");
+					};
 
-				ops.move_to_cell(&mut head_pos, *cell);
-				ops.push(Opcode::OpenLoop);
-				loop_stack.push(*cell);
-			}
-			Instruction::CloseLoop => {
-				let Some(cell) = loop_stack.pop() else {
-					panic!("Attempted to close un-opened loop");
-				};
+					alloc_tape.free(cell);
+				}
+				Instruction::OpenLoop(id) => {
+					let Some(cell) = alloc_map.get(&id) else {
+						panic!("Attempted to open loop at cell id {id} which could not be found");
+					};
 
-				ops.move_to_cell(&mut head_pos, cell);
-				ops.push(Opcode::CloseLoop);
-			}
-			Instruction::AddToCell(id, imm) => {
-				let Some(cell) = alloc_map.get(&id) else {
-					panic!("Attempted to add to cell id {id} which could not be found");
-				};
+					ops.move_to_cell(&mut head_pos, *cell);
+					ops.push(Opcode::OpenLoop);
+					loop_stack.push(*cell);
+				}
+				Instruction::CloseLoop => {
+					let Some(cell) = loop_stack.pop() else {
+						panic!("Attempted to close un-opened loop");
+					};
 
-				ops.move_to_cell(&mut head_pos, *cell);
+					ops.move_to_cell(&mut head_pos, cell);
+					ops.push(Opcode::CloseLoop);
+				}
+				Instruction::AddToCell(id, imm) => {
+					let Some(cell) = alloc_map.get(&id) else {
+						panic!("Attempted to add to cell id {id} which could not be found");
+					};
 
-				let imm = imm as i8;
-				if imm > 0 {
-					for i in 0..imm {
-						ops.push(Opcode::Add);
-					}
-				} else if imm < 0 {
-					for i in 0..-imm {
-						ops.push(Opcode::Subtract);
+					ops.move_to_cell(&mut head_pos, *cell);
+
+					let imm = imm as i8;
+					if imm > 0 {
+						for i in 0..imm {
+							ops.push(Opcode::Add);
+						}
+					} else if imm < 0 {
+						for i in 0..-imm {
+							ops.push(Opcode::Subtract);
+						}
 					}
 				}
-			}
-			Instruction::ClearCell(id) => {
-				let Some(cell) = alloc_map.get(&id) else {
-					panic!("Attempted to clear cell id {id} which could not be found");
-				};
+				Instruction::ClearCell(id) => {
+					let Some(cell) = alloc_map.get(&id) else {
+						panic!("Attempted to clear cell id {id} which could not be found");
+					};
 
-				ops.move_to_cell(&mut head_pos, *cell);
-				ops.push(Opcode::OpenLoop);
-				ops.push(Opcode::Subtract);
-				ops.push(Opcode::CloseLoop);
-			}
-			Instruction::OutputCell(id) => {
-				let Some(cell) = alloc_map.get(&id) else {
-					panic!("Attempted to output cell id {id} which could not be found");
-				};
+					ops.move_to_cell(&mut head_pos, *cell);
+					ops.push(Opcode::OpenLoop);
+					ops.push(Opcode::Subtract);
+					ops.push(Opcode::CloseLoop);
+				}
+				Instruction::OutputCell(id) => {
+					let Some(cell) = alloc_map.get(&id) else {
+						panic!("Attempted to output cell id {id} which could not be found");
+					};
 
-				ops.move_to_cell(&mut head_pos, *cell);
-				ops.push(Opcode::Output);
+					ops.move_to_cell(&mut head_pos, *cell);
+					ops.push(Opcode::Output);
+				}
 			}
 		}
+
+		let mut output = String::new();
+		ops.into_iter()
+			.for_each(|opcode| output.push_str(&opcode.to_string()));
+
+		output
 	}
-
-	let mut output = String::new();
-	ops.into_iter()
-		.for_each(|opcode| output.push_str(&opcode.to_string()));
-
-	output
 }
 
 trait AllocationArray {

@@ -9,8 +9,8 @@ mod tokeniser; // 1. Tokenise
 mod tests;
 
 use brainfuck::BVM;
-use builder::build;
-use compiler::compile;
+use builder::Builder;
+use compiler::Compiler;
 use optimiser::optimise;
 use parser::parse;
 use tokeniser::{tokenise, Token};
@@ -18,8 +18,6 @@ use tokeniser::{tokenise, Token};
 use std::io::{stdin, stdout, Cursor};
 
 use clap::Parser;
-
-use crate::compiler::Scope;
 
 #[derive(Parser, Default, Debug)]
 #[command(author = "Heathcorp", version = "0.1", about = "Mastermind: the Brainfuck interpreter and compilation tool", long_about = None)]
@@ -56,16 +54,27 @@ struct Arguments {
 	#[arg(
 		short,
 		long,
-		default_value_t = false,
-		help = "turn on generated code optimisations"
+		default_value_t = 0,
+		help = "specify the level of optimisation"
 	)]
-	optimise: bool,
+	optimise: usize,
 }
 
+pub struct MastermindConfig {
+	optimiseGeneratedCode: bool,
+	optimiseVariableUsage: bool,
+	optimiseMemoryAllocation: bool,
+}
 fn main() {
 	std::env::set_var("RUST_BACKTRACE", "1");
 
 	let args = Arguments::parse();
+
+	let config = MastermindConfig {
+		optimiseGeneratedCode: args.optimise >= 1,
+		optimiseVariableUsage: args.optimise >= 2,
+		optimiseMemoryAllocation: args.optimise >= 3,
+	};
 
 	let program = match args.file {
 		Some(file) => std::fs::read_to_string(file).unwrap(),
@@ -84,12 +93,13 @@ fn main() {
 			// TODO: 2 stage compilation step, first stage compiles syntax tree into low-level instructions
 			// 	second stage actually writes out the low-level instructions into brainfuck
 
-			let instructions = compile(&clauses, None);
+			let compiler = Compiler { config: &config };
+			let instructions = compiler.compile(&clauses, None);
 
-			let bf_program = build(instructions);
+			let builder = Builder { config: &config };
+			let bf_program = builder.build(instructions);
 
-			// // // optimise if the -o flag is set
-			match args.optimise {
+			match args.optimise >= 1 {
 				true => optimise(bf_program.chars().into_iter().collect()),
 				false => bf_program,
 			}
