@@ -331,6 +331,7 @@ pub fn compile(clauses: &[Clause], outer_scope: Option<&Scope>) -> Vec<Instructi
 	let mem_offset = scope.allocation_offset();
 	for (_, mem_rel) in &scope.variable_memory_cells {
 		let mem = mem_rel + mem_offset;
+		instructions.push(Instruction::ClearCell(mem));
 		instructions.push(Instruction::FreeCell(mem));
 	}
 

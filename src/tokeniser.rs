@@ -7,8 +7,6 @@ pub fn tokenise(source: &String) -> Vec<Token> {
 		.collect::<Vec<String>>()
 		.join(" ");
 
-	println!("{stripped}");
-
 	let mappings = [
 		(" ", Token::None),
 		(";", Token::ClauseDelimiter),

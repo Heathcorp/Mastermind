@@ -13,11 +13,8 @@ drain N into number {
       print(divisor);
       output ' ';
     };
-    result = 0;
   };
   output 10;
-
-  divisor = 0;
 };
 
 def divisible(result, dividend, divisor) {
@@ -37,12 +34,10 @@ def divisible(result, dividend, divisor) {
       };
     };
   };
-  radix = 0;
   // if there is no remainder then we are divisible
   if not b {
     result = true;
   };
-  b = 0;
 };
 
 def print(num) {
@@ -95,9 +90,6 @@ def print(num) {
     drain tens into chars[1];
     output chars[1];
   };
-  chars[0] = 0;
-  chars[1] = 0;
   drain ones into chars[2];
   output chars[2];
-  chars[2] = 0;
 };
