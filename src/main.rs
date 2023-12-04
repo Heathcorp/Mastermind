@@ -77,20 +77,16 @@ fn main() {
 			// compile the provided file
 
 			let tokens: Vec<Token> = tokenise(&program);
-			println!("{tokens:#?}");
 			// parse tokens into syntax tree
 			let clauses = parse(&tokens);
-			println!("{clauses:#?}");
 			// compile syntax tree into brainfuck
 
 			// TODO: 2 stage compilation step, first stage compiles syntax tree into low-level instructions
 			// 	second stage actually writes out the low-level instructions into brainfuck
 
 			let instructions = compile(&clauses, None);
-			println!("{instructions:#?}");
 
 			let bf_program = build(instructions);
-			println!("{bf_program}");
 
 			// // // optimise if the -o flag is set
 			match args.optimise {

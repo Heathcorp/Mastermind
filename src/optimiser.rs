@@ -210,4 +210,11 @@ mod tests {
 		let o: String = optimise(v.chars().collect());
 		assert_eq!(o, "+++++++++>>+++++++>---->>>++<<<<[>++<]");
 	}
+
+	#[test]
+	fn program_equivalence_test_2() {
+		let v = String::from(">><.");
+		let o: String = optimise(v.chars().collect());
+		assert_eq!(o, ">.");
+	}
 }
