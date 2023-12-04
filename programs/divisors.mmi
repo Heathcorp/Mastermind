@@ -1,9 +1,10 @@
-let N = 99;
+let N = 100;
 let number = 1;
 
 drain N into number {
-  let num_copy = number - 1;
+  let num_copy = number;
   let divisor = 1;
+
   drain num_copy into divisor {
     let result;
     divisible(result, number, divisor);
@@ -14,7 +15,9 @@ drain N into number {
     };
     result = 0;
   };
-  j = 0;
+  output 10;
+
+  divisor = 0;
 };
 
 def divisible(result, dividend, divisor) {
@@ -34,15 +37,67 @@ def divisible(result, dividend, divisor) {
       };
     };
   };
-  b = 0;
+  radix = 0;
   // if there is no remainder then we are divisible
-  if not radix {
+  if not b {
     result = true;
   };
+  b = 0;
 };
 
 def print(num) {
-  let hundreds;
-  let const_100 = 100;
-  
+  let ones = num;
+  let hundreds = -1;
+
+  let iterating0 = true;
+  while iterating0 {
+    hundreds += 1;
+    let const_100 = 100;
+    drain const_100 {
+      if not ones {
+        iterating0 = false;
+      };
+      ones -= 1;
+    };
+    if not iterating0 {
+      ones += 100;
+    };
+  };
+
+  let tens = -1;
+
+  let iterating1 = true;
+  while iterating1 {
+    tens += 1;
+    let const_10 = 10;
+    drain const_10 {
+      if not ones {
+        iterating1 = false;
+      };
+      ones -= 1;
+    };
+    if not iterating1 {
+      ones += 10;
+    };
+  };
+
+  let chars[3];
+  let zero = '0';
+  drain zero into chars[0] chars[1] chars[2];
+
+  if hundreds {
+    drain hundreds into chars[0];
+    output chars[0];
+    drain tens into chars[1];
+    output chars[1];
+  };
+  if tens {
+    drain tens into chars[1];
+    output chars[1];
+  };
+  chars[0] = 0;
+  chars[1] = 0;
+  drain ones into chars[2];
+  output chars[2];
+  chars[2] = 0;
 };
