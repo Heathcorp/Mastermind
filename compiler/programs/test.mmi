@@ -1,0 +1,21 @@
+let f = 3;
+f = 0;
+
+if f {
+  output 'P';
+  output '/';
+} else {
+  output '[';
+  output '4';
+};
+
+let g = 7;
+g -= 2;
+g += 3;
+while g {
+  g -= 2;
+  output 'G';
+};
+
+output 'H';
+output 10;
