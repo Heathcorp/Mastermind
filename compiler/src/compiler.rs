@@ -1,6 +1,6 @@
 // compile syntax tree into low-level instructions
 
-use std::{collections::HashMap, iter::zip, num::Wrapping};
+use std::{collections::HashMap, iter::zip};
 
 use crate::{
 	builder::CellId,
@@ -94,7 +94,10 @@ impl Compiler<'_> {
 						instructions.push(Instruction::ClearCell(mem));
 						instructions.push(Instruction::FreeCell(mem));
 					}
-					Expression::SumExpression { sign, summands } => todo!(),
+					Expression::SumExpression {
+						sign: _,
+						summands: _,
+					} => todo!(),
 					Expression::ArrayLiteral(_) | Expression::StringLiteral(_) => todo!(),
 				},
 				Clause::WhileLoop { var, block } => {
@@ -359,7 +362,7 @@ pub enum Instruction {
 	CloseLoop(CellId), // pass in the cell id, this originally wasn't there but may be useful later on
 	AddToCell(CellId, u8),
 	ClearCell(CellId), // not sure if this should be here, seems common enough that it should be
-	AssertCellValue(CellId, u8), // again not sure if this is the correct place but whatever, or if this is even needed?
+	// AssertCellValue(CellId, u8), // again not sure if this is the correct place but whatever, or if this is even needed?
 	OutputCell(CellId),
 	// TODO: contiguous cells for quick iterations?
 	// AllocateContiguousCells(usize),

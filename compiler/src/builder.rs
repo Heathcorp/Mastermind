@@ -59,7 +59,9 @@ impl Builder<'_> {
 					};
 				}
 				Instruction::FreeCell(id) => {
-					let Some((cell, alloc_loop_depth, known_value)) = alloc_map.remove(&id) else {
+					// TODO: do I need to check alloc loop depth here? Or are cells never freed in an inner scope?
+					// think about this in regards to reusing cell space when a cell isn't being used
+					let Some((cell, _alloc_loop_depth, known_value)) = alloc_map.remove(&id) else {
 						panic!("Attempted to free cell id {id} which could not be found");
 					};
 
@@ -96,13 +98,13 @@ impl Builder<'_> {
 					}
 				}
 				Instruction::CloseLoop(id) => {
-					let Some((cell, alloc_loop_depth, known_value)) = alloc_map.get_mut(&id) else {
+					let Some((cell, _, known_value)) = alloc_map.get_mut(&id) else {
 						panic!("Attempted to close loop at cell id {id} which could not be found");
 					};
-					let Some(stackCell) = loop_stack.pop() else {
+					let Some(stack_cell) = loop_stack.pop() else {
 						panic!("Attempted to close un-opened loop");
 					};
-					assert!(*cell == stackCell, "Attempted to close a loop unbalanced");
+					assert!(*cell == stack_cell, "Attempted to close a loop unbalanced");
 
 					current_loop_depth -= 1;
 
@@ -110,6 +112,7 @@ impl Builder<'_> {
 					ops.push(Opcode::CloseLoop);
 
 					// if a loop finishes on a cell then it is guaranteed to be 0 based on brainfuck itself
+					// TODO: is this an issue if in a nested loop?
 					*known_value = Some(0);
 				}
 				Instruction::AddToCell(id, imm) => {
@@ -119,13 +122,13 @@ impl Builder<'_> {
 
 					ops.move_to_cell(&mut head_pos, *cell);
 
-					let iImm = imm as i8;
-					if iImm > 0 {
-						for i in 0..iImm {
+					let i_imm = imm as i8;
+					if i_imm > 0 {
+						for _ in 0..i_imm {
 							ops.push(Opcode::Add);
 						}
-					} else if iImm < 0 {
-						for i in 0..-iImm {
+					} else if i_imm < 0 {
+						for _ in 0..-i_imm {
 							ops.push(Opcode::Subtract);
 						}
 					}
@@ -138,7 +141,7 @@ impl Builder<'_> {
 						}
 					}
 				}
-				Instruction::AssertCellValue(id, value) => {}
+				// Instruction::AssertCellValue(id, value) => {}
 				Instruction::ClearCell(id) => {
 					let Some((cell, alloc_loop_depth, known_value)) = alloc_map.get_mut(&id) else {
 						panic!("Attempted to clear cell id {id} which could not be found");

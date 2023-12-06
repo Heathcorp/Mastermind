@@ -63,22 +63,28 @@ struct Arguments {
 pub struct MastermindConfig {
 	optimise_generated_code: bool,
 	optimise_cell_clearing: bool,
-	optimise_unreachable_loops: bool,
 	optimise_variable_usage: bool,
 	optimise_memory_allocation: bool,
+	optimise_unreachable_loops: bool,
+}
+
+impl MastermindConfig {
+	pub fn new(optimise_bitmask: usize) -> MastermindConfig {
+		MastermindConfig {
+			optimise_generated_code: (optimise_bitmask & 0b00000001) > 0,
+			optimise_cell_clearing: (optimise_bitmask & 0b00000010) > 0,
+			optimise_variable_usage: (optimise_bitmask & 0b00000100) > 0,
+			optimise_memory_allocation: (optimise_bitmask & 0b00001000) > 0,
+			optimise_unreachable_loops: (optimise_bitmask & 0b00010000) > 0,
+		}
+	}
 }
 fn main() {
 	std::env::set_var("RUST_BACKTRACE", "1");
 
 	let args = Arguments::parse();
 
-	let config = MastermindConfig {
-		optimise_generated_code: (args.optimise & 0b00000001) > 0,
-		optimise_cell_clearing: (args.optimise & 0b00000010) > 0,
-		optimise_variable_usage: (args.optimise & 0b00000100) > 0,
-		optimise_memory_allocation: (args.optimise & 0b00001000) > 0,
-		optimise_unreachable_loops: (args.optimise & 0b00010000) > 0,
-	};
+	let config = MastermindConfig::new(args.optimise);
 
 	let program = match args.file {
 		Some(file) => std::fs::read_to_string(file).unwrap(),

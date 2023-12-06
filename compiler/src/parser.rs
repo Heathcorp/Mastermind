@@ -1,9 +1,4 @@
-use std::{
-	collections::HashMap,
-	fmt::Display,
-	mem::{self, discriminant, Discriminant},
-	num::Wrapping,
-};
+use std::{collections::HashMap, fmt::Display, mem::discriminant, num::Wrapping};
 
 use crate::tokeniser::Token;
 
@@ -112,7 +107,6 @@ fn parse_let_clause(clause: &[Token]) -> Vec<Clause> {
 	// let arr[2] = ??;
 	// let g;
 	// let why[9];
-	let name: &String;
 	let mut i = 1usize;
 	// this kind of logic could probably be done with iterators, (TODO for future refactors)
 	let (var, len) = parse_var_details(&clause[i..]);
@@ -236,7 +230,7 @@ fn parse_add_clause(clause: &[Token]) -> Vec<Clause> {
 }
 
 fn parse_increment_clause(clause: &[Token]) -> Clause {
-	let (var, len) = parse_var_details(&clause[2..]);
+	let (var, _) = parse_var_details(&clause[2..]);
 
 	match (&clause[0], &clause[1]) {
 		(Token::Plus, Token::Plus) => Clause::AddToVariable { var, value: 1 },
@@ -326,7 +320,7 @@ fn parse_drain_copy_clause(clause: &[Token], is_draining: bool) -> Clause {
 
 		loop {
 			match &clause[i] {
-				Token::Name(identifier) => {
+				Token::Name(_) => {
 					let (var, len) = parse_var_details(&clause[i..]);
 					i += len;
 					targets.push(var);
@@ -375,7 +369,7 @@ fn parse_while_clause(clause: &[Token]) -> Clause {
 
 	// let expr = parse_expression(&clause[1..i]);
 	let block_tokens = get_braced_tokens(&clause[i..], BRACES);
-	i += 2 + block_tokens.len();
+	// i += 2 + block_tokens.len();
 
 	Clause::WhileLoop {
 		var,
@@ -598,13 +592,13 @@ const PARENTHESES: (Token, Token) = (Token::OpenParenthesis, Token::ClosingParen
 // find tokens bounded by matching brackets
 // TODO: make an impl for &[Token] and put all these functions in it
 fn get_braced_tokens(tokens: &[Token], braces: (Token, Token)) -> &[Token] {
-	let _braces = (mem::discriminant(&braces.0), mem::discriminant(&braces.1));
+	let _braces = (discriminant(&braces.0), discriminant(&braces.1));
 	// find corresponding bracket, the depth check is unnecessary but whatever
 	let len = {
 		let mut i = 1usize;
 		let mut depth = 1;
 		while i < tokens.len() && depth > 0 {
-			let g = mem::discriminant(&tokens[i]);
+			let g = discriminant(&tokens[i]);
 			if g == _braces.0 {
 				depth += 1;
 			} else if g == _braces.1 {
@@ -616,9 +610,7 @@ fn get_braced_tokens(tokens: &[Token], braces: (Token, Token)) -> &[Token] {
 	};
 
 	if len >= 2 {
-		if _braces.0 == mem::discriminant(&tokens[0])
-			&& _braces.1 == mem::discriminant(&tokens[len - 1])
-		{
+		if _braces.0 == discriminant(&tokens[0]) && _braces.1 == discriminant(&tokens[len - 1]) {
 			return &tokens[1..(len - 1)];
 		}
 	}
@@ -722,7 +714,7 @@ impl Expression {
 					}
 					current_sign = None;
 				}
-				(Some(sign), Token::Name(name)) => {
+				(Some(sign), Token::Name(_)) => {
 					let (var, len) = parse_var_details(&tokens[i..]);
 					i += len;
 					match sign {
