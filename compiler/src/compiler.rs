@@ -1,8 +1,9 @@
 // compile syntax tree into low-level instructions
 
-use std::{collections::HashMap, iter::zip};
+use std::{collections::HashMap, iter::zip, num::Wrapping};
 
 use crate::{
+	builder::CellId,
 	parser::{Clause, Expression, VariableSpec},
 	MastermindConfig,
 };
@@ -108,7 +109,7 @@ impl Compiler<'_> {
 					instructions.extend(loop_instructions);
 
 					// close the loop
-					instructions.push(Instruction::CloseLoop);
+					instructions.push(Instruction::CloseLoop(mem));
 				}
 				Clause::CopyVariable {
 					target,
@@ -131,12 +132,12 @@ impl Compiler<'_> {
 					instructions.push(Instruction::AddToCell(target_mem, constant as u8));
 					instructions.push(Instruction::AddToCell(temp_mem, 1));
 					instructions.push(Instruction::AddToCell(source_mem, -1i8 as u8));
-					instructions.push(Instruction::CloseLoop);
+					instructions.push(Instruction::CloseLoop(source_mem));
 					// copy back from temp
 					instructions.push(Instruction::OpenLoop(temp_mem));
 					instructions.push(Instruction::AddToCell(source_mem, 1));
 					instructions.push(Instruction::AddToCell(temp_mem, -1i8 as u8));
-					instructions.push(Instruction::CloseLoop);
+					instructions.push(Instruction::CloseLoop(temp_mem));
 					instructions.push(Instruction::FreeCell(temp_mem));
 				}
 				Clause::CopyLoop {
@@ -161,7 +162,8 @@ impl Compiler<'_> {
 							instructions.push(Instruction::AddToCell(mem, 1));
 						}
 						instructions.push(Instruction::AddToCell(source_mem, -1i8 as u8)); // 255
-						instructions.push(Instruction::CloseLoop);
+						instructions.push(Instruction::CloseLoop(source_mem));
+						// instructions.push(Instruction::AssertCellValue(source_mem, 0)); // builder already knows the cell is value 0 because it ended a loop on its cell
 					}
 					false => {
 						// allocate a temporary cell
@@ -184,13 +186,13 @@ impl Compiler<'_> {
 						}
 						instructions.push(Instruction::AddToCell(temp_mem, 1));
 						instructions.push(Instruction::AddToCell(source_mem, -1i8 as u8)); // 255
-						instructions.push(Instruction::CloseLoop);
+						instructions.push(Instruction::CloseLoop(source_mem));
 
 						// copy back the temp cell
 						instructions.push(Instruction::OpenLoop(temp_mem));
 						instructions.push(Instruction::AddToCell(temp_mem, -1i8 as u8));
 						instructions.push(Instruction::AddToCell(source_mem, 1));
-						instructions.push(Instruction::CloseLoop);
+						instructions.push(Instruction::CloseLoop(temp_mem));
 
 						instructions.push(Instruction::FreeCell(temp_mem));
 					}
@@ -225,12 +227,14 @@ impl Compiler<'_> {
 					instructions.push(Instruction::OpenLoop(original_var_mem));
 					instructions.push(Instruction::AddToCell(temp_var_mem, 1));
 					instructions.push(Instruction::AddToCell(original_var_mem, -1i8 as u8));
-					instructions.push(Instruction::CloseLoop);
+					instructions.push(Instruction::CloseLoop(original_var_mem));
 
 					// change scope var pointer
 					new_scope.reassign_variable_mem(var.clone(), temp_var_mem);
+
+					// TODO: think about this?
 					// free the original cell temporarily as it isn't being used
-					instructions.push(Instruction::FreeCell(original_var_mem));
+					// instructions.push(Instruction::FreeCell(original_var_mem));
 
 					// set the else condition cell
 					if let Some(mem) = else_condition_mem {
@@ -244,15 +248,17 @@ impl Compiler<'_> {
 					};
 
 					// close if block
-					instructions.push(Instruction::CloseLoop);
+					instructions.push(Instruction::CloseLoop(original_var_mem));
 
+					// TODO: think about this?
 					// reallocate the temporarily freed variable cell
-					instructions.push(Instruction::AllocateCell(original_var_mem));
+					// instructions.push(Instruction::AllocateCell(original_var_mem));
+
 					// move the temporary cell contents back to the variable cell
 					instructions.push(Instruction::OpenLoop(temp_var_mem));
 					instructions.push(Instruction::AddToCell(original_var_mem, 1));
 					instructions.push(Instruction::AddToCell(temp_var_mem, -1i8 as u8));
-					instructions.push(Instruction::CloseLoop);
+					instructions.push(Instruction::CloseLoop(temp_var_mem));
 					new_scope.revert_reassignment(&var);
 
 					instructions.push(Instruction::FreeCell(temp_var_mem));
@@ -266,7 +272,7 @@ impl Compiler<'_> {
 						let block = else_block.unwrap();
 						instructions.extend(self.compile(&block, Some(&new_scope)));
 
-						instructions.push(Instruction::CloseLoop);
+						instructions.push(Instruction::CloseLoop(else_mem));
 						instructions.push(Instruction::FreeCell(else_mem));
 					}
 				}
@@ -347,13 +353,14 @@ impl Compiler<'_> {
 // this is subject to change
 #[derive(Debug)]
 pub enum Instruction {
-	AllocateCell(usize), // most of the below comments are wrong, usize is a unique id of an allocated cell
-	FreeCell(usize), // the number indicates which cell in the allocation stack should be freed (cell 0, is the top of the stack, 1 is the second element, etc)
-	OpenLoop(usize), // same with other numbers here, they indicate the cell in the allocation stack to use in the instruction
-	CloseLoop,
-	AddToCell(usize, u8),
-	ClearCell(usize), // not sure if this should be here, seems common enough that it should be
-	OutputCell(usize),
+	AllocateCell(CellId), // most of the below comments are wrong, usize is a unique id of an allocated cell
+	FreeCell(CellId), // the number indicates which cell in the allocation stack should be freed (cell 0, is the top of the stack, 1 is the second element, etc)
+	OpenLoop(CellId), // same with other numbers here, they indicate the cell in the allocation stack to use in the instruction
+	CloseLoop(CellId), // pass in the cell id, this originally wasn't there but may be useful later on
+	AddToCell(CellId, u8),
+	ClearCell(CellId), // not sure if this should be here, seems common enough that it should be
+	AssertCellValue(CellId, u8), // again not sure if this is the correct place but whatever, or if this is even needed?
+	OutputCell(CellId),
 	// TODO: contiguous cells for quick iterations?
 	// AllocateContiguousCells(usize),
 	// FreeContiguousCells(usize), // number indicates
@@ -364,7 +371,7 @@ pub enum Instruction {
 pub struct Scope<'a> {
 	outer_scope: Option<&'a Scope<'a>>,
 
-	// stack of memory/cells that have been allocated (peekable stack)
+	// number of memory cells that have been allocated?
 	allocations: usize,
 	// mappings for variable names to places on above stack
 	variable_memory_cells: HashMap<VariableSpec, usize>,
@@ -441,7 +448,8 @@ impl Scope<'_> {
 	fn push_memory_cell(&mut self) -> usize {
 		// TODO: do we need to track this anywhere for cleanup?
 		self.allocations += 1;
-		self.allocations - 1
+		let mem = self.allocations - 1;
+		mem
 	}
 
 	fn allocate_unnamed_mem(&mut self) -> usize {

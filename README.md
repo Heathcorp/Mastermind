@@ -17,5 +17,6 @@ I've also never written a compiler before and deliberately tried not to read any
 4. Maybe to get 2 and 3 implement a "with" construction so it's clear when a variable is in scope
 5. ~~Whitespace-agnostic syntax~~
 6. Get somebody else to playtest and fix any issues that arise
-7. In order to achieve 1 and 5 create an include and simple macro system, and implement some common functions in mastermind
+7. Simple include system, with example files for "standard library" style code
 8. A simple web interface, learn how to create crates and import this into a seperate repo
+9. In-line brainfuck (in-line assembly) so we can make optimisations for the compiler and use unsafe looping moves (in order to achieve #1)

@@ -5,7 +5,7 @@
 // this algorithm is responsible for actually allocating physical tape cells as opposed to the parser
 // can introduce optimisations here with some kind of allocation timeline sorting algorithm (hard leetcode style problem)
 
-use std::{collections::HashMap, fmt::Display};
+use std::{collections::HashMap, fmt::Display, num::Wrapping};
 
 use crate::{compiler::Instruction, MastermindConfig};
 
@@ -13,81 +13,171 @@ pub struct Builder<'a> {
 	pub config: &'a MastermindConfig,
 }
 
+pub type CellId = usize;
+type LoopDepth = usize;
+type TapeCell = usize;
+type TapeValue = u8;
+
 impl Builder<'_> {
 	pub fn build(&self, instructions: Vec<Instruction>) -> String {
 		let mut alloc_tape = Vec::new();
-		let mut alloc_map = HashMap::new();
+		let mut alloc_map: HashMap<CellId, (TapeCell, LoopDepth, Option<TapeValue>)> =
+			HashMap::new();
 
-		let mut loop_stack = Vec::new();
+		let mut loop_stack: Vec<TapeCell> = Vec::new();
+		let mut current_loop_depth: LoopDepth = 0;
+		let mut skipped_loop_depth: Option<LoopDepth> = None;
 		let mut head_pos = 0;
-		let mut ops = Vec::new();
+		let mut ops: Vec<Opcode> = Vec::new();
 
 		for instruction in instructions {
+			// TODO: skipped loop
+			if let Some(depth) = skipped_loop_depth {
+				match instruction {
+					Instruction::OpenLoop(_) => {
+						current_loop_depth += 1;
+					}
+					Instruction::CloseLoop(_) => {
+						current_loop_depth -= 1;
+						if current_loop_depth == depth {
+							skipped_loop_depth = None;
+						}
+					}
+					_ => (),
+				}
+				continue;
+			}
 			match instruction {
 				// the ids (indices really) given by the compiler are guaranteed to be unique (at the time of writing)
 				// however they will absolutely not be very efficient
 				Instruction::AllocateCell(id) => {
 					let cell = alloc_tape.allocate();
-					let old = alloc_map.insert(id, cell);
+					let old = alloc_map.insert(id, (cell, current_loop_depth, Some(0)));
 
 					let None = old else {
 						panic!("Attempted to reallocate cell id {id}");
 					};
 				}
 				Instruction::FreeCell(id) => {
-					let Some(cell) = alloc_map.remove(&id) else {
+					let Some((cell, alloc_loop_depth, known_value)) = alloc_map.remove(&id) else {
 						panic!("Attempted to free cell id {id} which could not be found");
+					};
+
+					let Some(0) = known_value else {
+						panic!(
+							"Attempted to free cell id {id} which has an unknown or non-zero value"
+						);
 					};
 
 					alloc_tape.free(cell);
 				}
 				Instruction::OpenLoop(id) => {
-					let Some(cell) = alloc_map.get(&id) else {
+					let Some((cell, alloc_loop_depth, known_value)) = alloc_map.get_mut(&id) else {
 						panic!("Attempted to open loop at cell id {id} which could not be found");
 					};
 
-					ops.move_to_cell(&mut head_pos, *cell);
-					ops.push(Opcode::OpenLoop);
-					loop_stack.push(*cell);
+					let mut open = true;
+
+					if let Some(known_value) = known_value {
+						if *alloc_loop_depth == current_loop_depth
+							&& *known_value == 0 && self.config.optimise_unreachable_loops
+						{
+							open = false;
+							skipped_loop_depth = Some(current_loop_depth);
+							current_loop_depth += 1;
+						}
+					}
+
+					if open {
+						ops.move_to_cell(&mut head_pos, *cell);
+						ops.push(Opcode::OpenLoop);
+						loop_stack.push(*cell);
+						current_loop_depth += 1;
+					}
 				}
-				Instruction::CloseLoop => {
-					let Some(cell) = loop_stack.pop() else {
+				Instruction::CloseLoop(id) => {
+					let Some((cell, alloc_loop_depth, known_value)) = alloc_map.get_mut(&id) else {
+						panic!("Attempted to close loop at cell id {id} which could not be found");
+					};
+					let Some(stackCell) = loop_stack.pop() else {
 						panic!("Attempted to close un-opened loop");
 					};
+					assert!(*cell == stackCell, "Attempted to close a loop unbalanced");
 
-					ops.move_to_cell(&mut head_pos, cell);
+					current_loop_depth -= 1;
+
+					ops.move_to_cell(&mut head_pos, *cell);
 					ops.push(Opcode::CloseLoop);
+
+					// if a loop finishes on a cell then it is guaranteed to be 0 based on brainfuck itself
+					*known_value = Some(0);
 				}
 				Instruction::AddToCell(id, imm) => {
-					let Some(cell) = alloc_map.get(&id) else {
+					let Some((cell, alloc_loop_depth, known_value)) = alloc_map.get_mut(&id) else {
 						panic!("Attempted to add to cell id {id} which could not be found");
 					};
 
 					ops.move_to_cell(&mut head_pos, *cell);
 
-					let imm = imm as i8;
-					if imm > 0 {
-						for i in 0..imm {
+					let iImm = imm as i8;
+					if iImm > 0 {
+						for i in 0..iImm {
 							ops.push(Opcode::Add);
 						}
-					} else if imm < 0 {
-						for i in 0..-imm {
+					} else if iImm < 0 {
+						for i in 0..-iImm {
 							ops.push(Opcode::Subtract);
 						}
 					}
+
+					if imm != 0 {
+						if *alloc_loop_depth != current_loop_depth {
+							*known_value = None;
+						} else if let Some(known_value) = known_value {
+							*known_value = (Wrapping(*known_value) + Wrapping(imm)).0;
+						}
+					}
 				}
+				Instruction::AssertCellValue(id, value) => {}
 				Instruction::ClearCell(id) => {
-					let Some(cell) = alloc_map.get(&id) else {
+					let Some((cell, alloc_loop_depth, known_value)) = alloc_map.get_mut(&id) else {
 						panic!("Attempted to clear cell id {id} which could not be found");
 					};
 
 					ops.move_to_cell(&mut head_pos, *cell);
-					ops.push(Opcode::OpenLoop);
-					ops.push(Opcode::Subtract);
-					ops.push(Opcode::CloseLoop);
+
+					let mut clear = true;
+
+					if let Some(known_value) = known_value {
+						if self.config.optimise_cell_clearing
+							&& *alloc_loop_depth == current_loop_depth
+							&& (*known_value as i8).abs() < 4
+						// not sure if this should be 4 or 3, essentially it depends on if we prefer clears or changes [-] vs ++---
+						{
+							let imm = *known_value as i8;
+							if imm > 0 {
+								for _ in 0..imm {
+									ops.push(Opcode::Subtract);
+								}
+							} else if imm < 0 {
+								for _ in 0..-imm {
+									ops.push(Opcode::Add);
+								}
+							}
+							clear = false;
+						}
+					}
+
+					if clear {
+						ops.push(Opcode::OpenLoop);
+						ops.push(Opcode::Subtract);
+						ops.push(Opcode::CloseLoop);
+					}
+
+					*known_value = Some(0);
 				}
 				Instruction::OutputCell(id) => {
-					let Some(cell) = alloc_map.get(&id) else {
+					let Some((cell, _, _)) = alloc_map.get(&id) else {
 						panic!("Attempted to output cell id {id} which could not be found");
 					};
 
@@ -106,12 +196,12 @@ impl Builder<'_> {
 }
 
 trait AllocationArray {
-	fn allocate(&mut self) -> usize;
-	fn free(&mut self, cell: usize);
+	fn allocate(&mut self) -> TapeCell;
+	fn free(&mut self, cell: TapeCell);
 }
 
 impl AllocationArray for Vec<bool> {
-	fn allocate(&mut self) -> usize {
+	fn allocate(&mut self) -> TapeCell {
 		for i in 0..self.len() {
 			if !self[i] {
 				self[i] = true;
@@ -122,7 +212,7 @@ impl AllocationArray for Vec<bool> {
 		return self.len() - 1;
 	}
 
-	fn free(&mut self, cell: usize) {
+	fn free(&mut self, cell: TapeCell) {
 		let (true, true) = (cell < self.len(), self[cell]) else {
 			panic!("No allocated cell {cell} found in allocation array: {self:#?}");
 		};

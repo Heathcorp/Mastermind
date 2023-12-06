@@ -55,15 +55,17 @@ struct Arguments {
 		short,
 		long,
 		default_value_t = 0,
-		help = "specify the level of optimisation"
+		help = "specify the level of optimisation, this is a bitmask value"
 	)]
 	optimise: usize,
 }
 
 pub struct MastermindConfig {
-	optimiseGeneratedCode: bool,
-	optimiseVariableUsage: bool,
-	optimiseMemoryAllocation: bool,
+	optimise_generated_code: bool,
+	optimise_cell_clearing: bool,
+	optimise_unreachable_loops: bool,
+	optimise_variable_usage: bool,
+	optimise_memory_allocation: bool,
 }
 fn main() {
 	std::env::set_var("RUST_BACKTRACE", "1");
@@ -71,9 +73,11 @@ fn main() {
 	let args = Arguments::parse();
 
 	let config = MastermindConfig {
-		optimiseGeneratedCode: args.optimise >= 1,
-		optimiseVariableUsage: args.optimise >= 2,
-		optimiseMemoryAllocation: args.optimise >= 3,
+		optimise_generated_code: (args.optimise & 0b00000001) > 0,
+		optimise_cell_clearing: (args.optimise & 0b00000010) > 0,
+		optimise_variable_usage: (args.optimise & 0b00000100) > 0,
+		optimise_memory_allocation: (args.optimise & 0b00001000) > 0,
+		optimise_unreachable_loops: (args.optimise & 0b00010000) > 0,
 	};
 
 	let program = match args.file {
@@ -99,7 +103,7 @@ fn main() {
 			let builder = Builder { config: &config };
 			let bf_program = builder.build(instructions);
 
-			match args.optimise >= 1 {
+			match config.optimise_generated_code {
 				true => optimise(bf_program.chars().into_iter().collect()),
 				false => bf_program,
 			}
