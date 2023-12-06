@@ -104,7 +104,7 @@ fn main() {
 			// 	second stage actually writes out the low-level instructions into brainfuck
 
 			let compiler = Compiler { config: &config };
-			let instructions = compiler.compile(&clauses, None);
+			let instructions = compiler.compile(&clauses, None).get_instructions();
 
 			let builder = Builder { config: &config };
 			let bf_program = builder.build(instructions);

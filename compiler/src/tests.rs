@@ -24,7 +24,9 @@ pub mod tests {
 		println!("{tokens:#?}");
 		let clauses = parse(&tokens);
 		println!("{clauses:#?}");
-		let instructions = Compiler { config: &config }.compile(&clauses, None);
+		let instructions = Compiler { config: &config }
+			.compile(&clauses, None)
+			.get_instructions();
 		println!("{instructions:#?}");
 		let bf_program = Builder { config: &config }.build(instructions);
 		println!("{bf_program}");
