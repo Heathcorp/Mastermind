@@ -61,13 +61,20 @@ struct Arguments {
 }
 
 pub struct MastermindConfig {
+	// basic pure brainfuck optimisations
 	optimise_generated_code: bool,
+	// track cell value and clear with constant addition if possible
 	optimise_cell_clearing: bool,
+	// track cell value and skip loops which can never be entered
 	optimise_unreachable_loops: bool,
+	// TODO: prune variables that aren't needed? Maybe combine with empty blocks stuff
 	optimise_variable_usage: bool,
-	// recommended to turn these on together
+	// TODO: optimise memory layout to minimise tape head movement
+	// recommended to turn on these next two together
 	optimise_memory_allocation: bool,
 	optimise_constants: bool,
+	// TODO: recursively prune if statements/loops if they do nothing
+	optimise_empty_blocks: bool,
 }
 
 impl MastermindConfig {
@@ -75,10 +82,11 @@ impl MastermindConfig {
 		MastermindConfig {
 			optimise_generated_code: (optimise_bitmask & 0b00000001) > 0,
 			optimise_cell_clearing: (optimise_bitmask & 0b00000010) > 0,
-			optimise_variable_usage: (optimise_bitmask & 0b00000100) > 0,
-			optimise_memory_allocation: (optimise_bitmask & 0b00001000) > 0,
-			optimise_unreachable_loops: (optimise_bitmask & 0b00010000) > 0,
-			optimise_constants: (optimise_bitmask & 0b00100000) > 0,
+			optimise_unreachable_loops: (optimise_bitmask & 0b00000100) > 0,
+			optimise_variable_usage: false,
+			optimise_memory_allocation: false,
+			optimise_constants: false,
+			optimise_empty_blocks: false,
 		}
 	}
 }

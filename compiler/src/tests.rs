@@ -13,11 +13,13 @@ pub mod tests {
 	fn compile_and_run(program: String, input: String) -> String {
 		println!("{program}");
 		let config = MastermindConfig {
-			optimise_generated_code: true,
-			optimise_cell_clearing: true,
-			optimise_variable_usage: true,
-			optimise_memory_allocation: true,
-			optimise_unreachable_loops: true,
+			optimise_generated_code: false,
+			optimise_cell_clearing: false,
+			optimise_variable_usage: false,
+			optimise_memory_allocation: false,
+			optimise_unreachable_loops: false,
+			optimise_constants: false,
+			optimise_empty_blocks: false,
 		};
 		// compile mastermind
 		let tokens: Vec<Token> = tokenise(&program);
