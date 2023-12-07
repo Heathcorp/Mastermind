@@ -63,9 +63,11 @@ struct Arguments {
 pub struct MastermindConfig {
 	optimise_generated_code: bool,
 	optimise_cell_clearing: bool,
-	optimise_variable_usage: bool,
-	optimise_memory_allocation: bool,
 	optimise_unreachable_loops: bool,
+	optimise_variable_usage: bool,
+	// recommended to turn these on together
+	optimise_memory_allocation: bool,
+	optimise_constants: bool,
 }
 
 impl MastermindConfig {
@@ -76,6 +78,7 @@ impl MastermindConfig {
 			optimise_variable_usage: (optimise_bitmask & 0b00000100) > 0,
 			optimise_memory_allocation: (optimise_bitmask & 0b00001000) > 0,
 			optimise_unreachable_loops: (optimise_bitmask & 0b00010000) > 0,
+			optimise_constants: (optimise_bitmask & 0b00100000) > 0,
 		}
 	}
 }

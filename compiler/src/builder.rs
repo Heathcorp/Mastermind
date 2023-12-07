@@ -98,7 +98,7 @@ impl Builder<'_> {
 					}
 				}
 				Instruction::CloseLoop(id) => {
-					let Some((cell, _, known_value)) = alloc_map.get_mut(&id) else {
+					let Some((cell, alloc_loop_depth, known_value)) = alloc_map.get_mut(&id) else {
 						panic!("Attempted to close loop at cell id {id} which could not be found");
 					};
 					let Some(stack_cell) = loop_stack.pop() else {
@@ -113,7 +113,11 @@ impl Builder<'_> {
 
 					// if a loop finishes on a cell then it is guaranteed to be 0 based on brainfuck itself
 					// TODO: is this an issue if in a nested loop?
-					*known_value = Some(0);
+					// I did encounter issues, interesting
+					// experimenting with difference in loop depth
+					if current_loop_depth == *alloc_loop_depth {
+						*known_value = Some(0);
+					}
 				}
 				Instruction::AddToCell(id, imm) => {
 					let Some((cell, alloc_loop_depth, known_value)) = alloc_map.get_mut(&id) else {

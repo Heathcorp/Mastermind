@@ -47,8 +47,8 @@ def print(num) {
   let iterating0 = true;
   while iterating0 {
     hundreds += 1;
-    let const_100 = 100;
-    drain const_100 {
+    let c = 100;
+    drain c {
       if not ones {
         iterating0 = false;
       };
@@ -64,8 +64,8 @@ def print(num) {
   let iterating1 = true;
   while iterating1 {
     tens += 1;
-    let const_10 = 10;
-    drain const_10 {
+    let t = 10;
+    drain t {
       if not ones {
         iterating1 = false;
       };
