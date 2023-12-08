@@ -5,7 +5,8 @@
   "type": "module",
   "scripts": {
     "dev": "vite",
-    "build": "tsc && vite build",
+    "build:wasm": "cd compiler && wasm-pack build --target web",
+    "build": "yarn build:wasm && tsc && vite build",
     "preview": "vite preview"
   },
   "dependencies": {
