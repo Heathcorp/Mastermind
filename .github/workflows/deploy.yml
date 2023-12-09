@@ -17,6 +17,8 @@ jobs:
       - uses: actions/setup-node@v4
         with:
           node-version: 18
+          cache: "yarn"
+          cache-dependency-path: "yarn.lock"
       - uses: jetli/wasm-pack-action@v0.4.0
       - run: cd compiler && wasm-pack build --target web
       - run: yarn build

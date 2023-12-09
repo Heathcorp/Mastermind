@@ -4,8 +4,6 @@ import "./App.css";
 import init, { greet } from "../compiler/pkg/mastermind";
 
 function App() {
-  const [count, setCount] = createSignal(0);
-
   init().then(() => {
     greet("WASM!!!");
   });
