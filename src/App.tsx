@@ -1,4 +1,3 @@
-import { createSignal } from "solid-js";
 import "./App.css";
 
 import init, { greet } from "../compiler/pkg/mastermind";
