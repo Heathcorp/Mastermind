@@ -1,0 +1,23 @@
+.divider {
+  border-left: var(--default-border);
+  border-top: var(--default-border);
+}
+
+.tab {
+  background-color: var(--BG-1);
+  border-right: var(--default-border);
+  border-bottom: var(--default-border);
+
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  gap: 1rem;
+
+  padding-left: 1rem;
+  padding-right: 1rem;
+}
+
+.tab-selected {
+  border-bottom: none;
+  background-color: var(--BG-2);
+}
