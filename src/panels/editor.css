@@ -1,0 +1,10 @@
+.text-button {
+  border-radius: 0.5rem;
+  padding: 0.5rem;
+  font-size: 1rem;
+  cursor: pointer;
+}
+
+.text-button:hover {
+  background-color: rgb(127, 127, 127, 0.5);
+}
