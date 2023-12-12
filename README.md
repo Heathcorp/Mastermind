@@ -19,4 +19,5 @@ I've also never written a compiler before and deliberately tried not to read any
 6. Get somebody else to playtest and fix any issues that arise
 7. Simple include system, with example files for "standard library" style code
 8. A simple web interface, learn how to create crates and import this into a seperate repo
-9. In-line brainfuck (in-line assembly) so we can make optimisations for the compiler and use unsafe looping moves (in order to achieve #1)
+9. In-line brainfuck (in-line assembly) so we can make optimisations for the compiler and use unsafe looping moves (in order to achieve #1). 
+    - Idea: asm(a, b, c[3], d[(contiguous)5, etc (need to make syntax for this]) {#goto(a)+++>[[]--]};
