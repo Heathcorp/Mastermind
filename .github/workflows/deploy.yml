@@ -2,8 +2,10 @@ name: Build and deploy Mastermind Web Compiler
 
 on:
   push:
+    # uncomment when we're ready to deploy
     branches:
-      - main
+      []
+      # - main
 
 jobs:
   build_and_deploy:
