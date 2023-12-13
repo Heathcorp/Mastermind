@@ -1,0 +1,31 @@
+name: Build and deploy Mastermind Web Compiler
+
+on:
+  push:
+    # uncomment when we're ready to deploy
+    branches:
+      []
+      # - main
+
+jobs:
+  build_and_deploy:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v3
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 18
+          cache: "yarn"
+          cache-dependency-path: "yarn.lock"
+      # This rust compilation step should be its own job or something
+      - uses: jetli/wasm-pack-action@v0.4.0
+      - run: cd compiler && wasm-pack build --target web
+      - run: yarn
+      - run: yarn build
+      - uses: FirebaseExtended/action-hosting-deploy@v0
+        with:
+          repoToken: ${{ secrets.GITHUB_TOKEN }}
+          firebaseServiceAccount: ${{ secrets.FIREBASE_SERVICE_ACCOUNT_LOST_PIXELS_PROD }}
+          projectId: lost-pixels-prod
+          target: mastermind
+          channelId: live

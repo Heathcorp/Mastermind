@@ -1,0 +1,4 @@
+.divider {
+  border-left: var(--default-border);
+  border-top: var(--default-border);
+}

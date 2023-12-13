@@ -1,0 +1,69 @@
+#window {
+  position: fixed;
+  top: 0;
+  bottom: 0;
+  right: 0;
+  left: 0;
+
+  display: flex;
+  flex-direction: row;
+  justify-content: flex-start;
+  align-items: stretch;
+}
+
+.panel {
+  flex: 1;
+
+  display: flex;
+  flex-direction: column;
+  align-items: stretch;
+  justify-content: flex-start;
+  overflow: hidden;
+}
+
+.tab-bar {
+  position: relative;
+  height: 3rem;
+  display: flex;
+  flex-direction: row;
+  justify-content: flex-start;
+  align-items: stretch;
+  overflow-x: scroll;
+
+  -ms-overflow-style: none; /* Internet Explorer 10+ */
+  scrollbar-width: none; /* Firefox */
+}
+.tab-bar::-webkit-scrollbar {
+  display: none; /* Safari and Chrome */
+}
+
+.tab-filler {
+  flex: 1;
+  border-bottom: var(--default-border);
+
+  display: flex;
+  align-items: center;
+  padding-left: 0.5rem;
+  padding-right: 0.5rem;
+}
+
+.code-panel {
+  position: relative;
+  flex: 1;
+  background-color: var(--BG-2);
+  padding: 1px;
+  overflow: hidden;
+}
+
+.cm-editor {
+  height: 100%;
+}
+
+.output-panel {
+  flex: 2;
+  background-color: var(--BG-3);
+}
+
+.input-panel {
+  background-color: var(--BG-4);
+}
