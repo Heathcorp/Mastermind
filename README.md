@@ -12,12 +12,11 @@ I've also never written a compiler before and deliberately tried not to read any
 ### TODO
 
 1. Multi-byte integers
-2. Automatic consumption and freeing of variables when leaving scope
+2. ~~Automatic consumption and freeing of variables when leaving scope~~
 3. Some kind of stack or array implementation
-4. Maybe to get 2 and 3 implement a "with" construction so it's clear when a variable is in scope
-5. ~~Whitespace-agnostic syntax~~
-6. Get somebody else to playtest and fix any issues that arise
-7. Simple include system, with example files for "standard library" style code
-8. A simple web interface, learn how to create crates and import this into a seperate repo
-9. In-line brainfuck (in-line assembly) so we can make optimisations for the compiler and use unsafe looping moves (in order to achieve #1). 
-    - Idea: asm(a, b, c[3], d[(contiguous)5, etc (need to make syntax for this]) {#goto(a)+++>[[]--]};
+4. ~~Whitespace-agnostic syntax~~
+5. Get somebody else to playtest and fix any issues that arise
+6. ~~Simple include system~~, with example files for "standard library" style code
+7. A simple web interface, learn how to create crates and import this into a seperate repo
+8. In-line brainfuck (in-line assembly) so we can make optimisations for the compiler and use unsafe looping moves (in order to achieve #1).
+   - Idea: asm(a, b, c[3], d[(contiguous)5, etc (need to make syntax for this]) {#goto(a)+++>[[]--]};

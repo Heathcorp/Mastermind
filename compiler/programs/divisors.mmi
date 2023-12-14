@@ -1,3 +1,5 @@
+#include print.mmi
+
 let N = 100;
 let number = 1;
 
@@ -38,58 +40,4 @@ def divisible(result, dividend, divisor) {
   if not b {
     result = true;
   };
-};
-
-def print(num) {
-  let ones = num;
-  let hundreds = -1;
-
-  let iterating0 = true;
-  while iterating0 {
-    hundreds += 1;
-    let c = 100;
-    drain c {
-      if not ones {
-        iterating0 = false;
-      };
-      ones -= 1;
-    };
-    if not iterating0 {
-      ones += 100;
-    };
-  };
-
-  let tens = -1;
-
-  let iterating1 = true;
-  while iterating1 {
-    tens += 1;
-    let t = 10;
-    drain t {
-      if not ones {
-        iterating1 = false;
-      };
-      ones -= 1;
-    };
-    if not iterating1 {
-      ones += 10;
-    };
-  };
-
-  let chars[3];
-  let zero = '0';
-  drain zero into chars[0] chars[1] chars[2];
-
-  if hundreds {
-    drain hundreds into chars[0];
-    output chars[0];
-    drain tens into chars[1];
-    output chars[1];
-  };
-  if tens {
-    drain tens into chars[1];
-    output chars[1];
-  };
-  drain ones into chars[2];
-  output chars[2];
 };

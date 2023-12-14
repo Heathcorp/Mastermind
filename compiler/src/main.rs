@@ -4,6 +4,7 @@ mod builder; // 4. Build (and pre-optimise)
 mod compiler; // 3. Compile
 mod optimiser; // 5. Post-Optimise
 mod parser; // 2. Parse
+mod preprocessor; // 0. Preprocess includes and macro-type stuff
 mod tokeniser; // 1. Tokenise
 
 mod tests;
@@ -13,6 +14,7 @@ use builder::Builder;
 use compiler::Compiler;
 use optimiser::optimise;
 use parser::parse;
+use preprocessor::preprocess;
 use tokeniser::{tokenise, Token};
 
 use std::io::{stdin, stdout, Cursor};
@@ -97,9 +99,17 @@ fn main() {
 
 	let config = MastermindConfig::new(args.optimise);
 
-	let program = match args.file {
-		Some(file) => std::fs::read_to_string(file).unwrap(),
-		None => args.program.unwrap(),
+	let program;
+	match args.file {
+		Some(file) => {
+			let file_path = std::path::PathBuf::from(file);
+
+			// c-style preprocessor (includes and maybe some simple conditionals to avoid double includes)
+			program = preprocess(file_path);
+		}
+		None => {
+			program = args.program.unwrap();
+		}
 	};
 
 	let bf_program = match args.compile {
