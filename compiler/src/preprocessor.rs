@@ -21,3 +21,5 @@ pub fn preprocess(file_path: PathBuf) -> String {
 		})
 		.fold(String::new(), |acc, e| acc + &e + "\n")
 }
+
+// utility functions split out so that files can be compiled from javascript strings in browser
