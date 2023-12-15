@@ -23,6 +23,8 @@
   padding: 0.5rem;
   font-size: 1rem;
   cursor: pointer;
+
+  transition: background-color 100ms;
 }
 
 .text-button:hover {

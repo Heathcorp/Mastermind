@@ -67,3 +67,34 @@
 .input-panel {
   background-color: var(--BG-4);
 }
+
+.settings-panel {
+  padding: 1rem;
+  gap: 0.5rem;
+}
+
+.row {
+  display: flex;
+  flex-direction: row;
+  align-items: flex-start;
+  justify-content: flex-start;
+
+  gap: 0.5rem;
+}
+
+.button {
+  border-radius: 0.5rem;
+  background-color: var(--BG-4);
+  border: 1px solid var(--BORDER-0);
+  padding: 0.5rem;
+  cursor: pointer;
+  transition: border-color 100ms;
+  user-select: none;
+  font-weight: 500;
+}
+.button:hover {
+  border-color: var(--BORDER-2);
+}
+.button-selected {
+  border-color: var(--BORDER-1);
+}
