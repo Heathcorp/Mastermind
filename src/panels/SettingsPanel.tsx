@@ -3,7 +3,7 @@ import Divider from "../components/Divider";
 import { useAppContext } from "../App";
 
 const SettingsPanel: Component = () => {
-  const { fileStates } = useAppContext()!;
+  const app = useAppContext()!;
 
   return (
     <div class="panel settings-panel">
@@ -11,9 +11,8 @@ const SettingsPanel: Component = () => {
         <div class="row">
           entry file:
           <select>
-            <For each={fileStates()}>
+            <For each={app.fileStates()}>
               {(file) => {
-                console.log(file);
                 return <option value={file.id}>{file.label}</option>;
               }}
             </For>
@@ -29,6 +28,8 @@ const SettingsPanel: Component = () => {
               style={{ padding: "0.5rem" }}
               onClick={() => {
                 console.log("compiling program");
+                const result = app.compile(app.fileStates()[0].id);
+                console.log(result);
               }}
             >
               compile program

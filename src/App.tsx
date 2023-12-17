@@ -7,6 +7,7 @@ import {
 } from "solid-js";
 
 import { EditorState } from "@codemirror/state";
+import { EditorView } from "@codemirror/view";
 import { v4 as uuidv4 } from "uuid";
 
 import "./App.css";
@@ -14,27 +15,70 @@ import Divider from "./components/Divider";
 import EditorPanel from "./panels/EditorPanel";
 import InputPanel from "./panels/InputPanel";
 
-import init, { InitOutput as CompilerObj } from "../compiler/pkg";
+import initWasm, { wasm_compile } from "../compiler/pkg";
 import OutputPanel from "./panels/OutputPanel";
 import SettingsPanel from "./panels/SettingsPanel";
-import { initialState } from "./misc";
+import { defaultExtensions } from "./misc";
+import { makePersisted } from "@solid-primitives/storage";
 
-const CompilerContext = createContext<CompilerObj>();
 const AppContext = createContext<AppContextProps>();
 
 const App: Component = () => {
-  // global wasm compiler object
-  const [compiler, setCompiler] = createSignal<CompilerObj>();
-  init().then(setCompiler);
-
   // global signals and functions and things
-  // TODO: turn this into a resource for reading from local storage I think
-  const [fileStates, setFileStates] = createSignal<FileState[]>([]);
+  // to the program this is just a solidjs signal, all of this extra stuff is just for persistence
+  const [fileStates, setFileStates] = makePersisted(
+    createSignal<FileState[]>([]),
+    {
+      name: "mastermind_editor_files",
+      serialize: (fileStates: FileState[]) =>
+        JSON.stringify(
+          fileStates.map((fileState) => ({
+            id: fileState.id,
+            label: fileState.label,
+            raw_text: fileState.editorState.doc.toString(),
+          }))
+        ),
+      deserialize: (data: string): FileState[] =>
+        (
+          JSON.parse(data) as unknown as {
+            id: string;
+            label: string;
+            raw_text: string;
+          }[]
+        ).map((storedState) => ({
+          id: storedState.id,
+          label: storedState.label,
+          editorState: EditorState.create({
+            doc: storedState.raw_text,
+            extensions: [
+              ...defaultExtensions,
+              EditorView.updateListener.of((e) => {
+                // this basically saves the editor every time it updates, this may be inefficient
+                saveFileState(storedState.id, e.state);
+              }),
+            ],
+          }),
+        })),
+    }
+  );
+
   const createFile = () => {
     const newId = uuidv4();
     setFileStates((prev) => [
       ...prev,
-      { id: newId, label: "untitled", editorState: initialState },
+      {
+        id: newId,
+        label: "untitled",
+        editorState: EditorState.create({
+          extensions: [
+            ...defaultExtensions,
+            EditorView.updateListener.of((e) => {
+              // this basically saves the editor every time it updates, this may be inefficient
+              saveFileState(newId, e.state);
+            }),
+          ],
+        }),
+      },
     ]);
     return newId;
   };
@@ -58,6 +102,17 @@ const App: Component = () => {
     });
   };
 
+  const compile = (entryFileId: string) => {
+    const fileMap = Object.fromEntries(
+      fileStates().map((file) => {
+        return [file.id, file.editorState.doc.toString()];
+      })
+    );
+    const result = wasm_compile(fileMap, entryFileId);
+    return result;
+  };
+  initWasm();
+
   return (
     <AppContext.Provider
       value={{
@@ -66,30 +121,25 @@ const App: Component = () => {
         deleteFile,
         saveFileState,
         setFileLabel,
+        compile,
       }}
     >
-      <CompilerContext.Provider value={compiler()}>
-        <div id="window">
-          <EditorPanel />
+      <div id="window">
+        <EditorPanel />
+        <Divider />
+        <div class="panel">
+          <SettingsPanel />
           <Divider />
-          <div class="panel">
-            <SettingsPanel />
-            <Divider />
-            <OutputPanel outputText={"output text lines"} />
-            <Divider />
-            <InputPanel />
-          </div>
+          <OutputPanel outputText={"output text lines"} />
+          <Divider />
+          <InputPanel />
         </div>
-      </CompilerContext.Provider>
+      </div>
     </AppContext.Provider>
   );
 };
 
 export default App;
-
-export function useCompiler() {
-  return useContext<CompilerObj | undefined>(CompilerContext);
-}
 
 export function useAppContext() {
   return useContext<AppContextProps | undefined>(AppContext);
@@ -101,6 +151,7 @@ interface AppContextProps {
   deleteFile: (id: string) => void;
   saveFileState: (id: string, state: EditorState) => void;
   setFileLabel: (id: string, label: string) => void;
+  compile: (entryFileId: string) => string;
 }
 
 interface FileState {
