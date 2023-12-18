@@ -17,7 +17,7 @@ import InputPanel from "./panels/InputPanel";
 
 import initWasm, { wasm_compile } from "../compiler/pkg";
 import OutputPanel from "./panels/OutputPanel";
-import SettingsPanel from "./panels/SettingsPanel";
+import SettingsPanel, { MastermindConfig } from "./panels/SettingsPanel";
 import { defaultExtensions } from "./misc";
 import { makePersisted } from "@solid-primitives/storage";
 
@@ -68,7 +68,7 @@ const App: Component = () => {
       ...prev,
       {
         id: newId,
-        label: "untitled",
+        label: `untitled_${prev.length}`,
         editorState: EditorState.create({
           extensions: [
             ...defaultExtensions,
@@ -87,10 +87,10 @@ const App: Component = () => {
   };
   const saveFileState = (id: string, state: EditorState) => {
     setFileStates((prev) => {
-      const fileStateIndex = prev.findIndex((f) => f.id === id);
-      if (fileStateIndex === -1) return prev;
-      const fileState = prev.splice(fileStateIndex, 1)[0];
-      return [...prev, { ...fileState, editorState: state }];
+      const fileState = prev.find((f) => f.id === id);
+      if (!fileState) return prev;
+      fileState.editorState = state;
+      return [...prev];
     });
   };
   const setFileLabel = (id: string, label: string) => {
@@ -102,16 +102,20 @@ const App: Component = () => {
     });
   };
 
-  const compile = (entryFileId: string) => {
+  const compile = (entryFileId: string, optimisations: MastermindConfig) => {
+    let entryFileName: string = fileStates()[0].label;
     const fileMap = Object.fromEntries(
       fileStates().map((file) => {
-        return [file.id, file.editorState.doc.toString()];
+        if (file.id === entryFileId) entryFileName = file.label;
+        return [file.label, file.editorState.doc.toString()];
       })
     );
-    const result = wasm_compile(fileMap, entryFileId);
+    const result = wasm_compile(fileMap, entryFileName, optimisations);
     return result;
   };
   initWasm();
+
+  const [output, setOutput] = createSignal<string>();
 
   return (
     <AppContext.Provider
@@ -122,6 +126,7 @@ const App: Component = () => {
         saveFileState,
         setFileLabel,
         compile,
+        setOutput,
       }}
     >
       <div id="window">
@@ -130,7 +135,7 @@ const App: Component = () => {
         <div class="panel">
           <SettingsPanel />
           <Divider />
-          <OutputPanel outputText={"output text lines"} />
+          <OutputPanel outputText={output() ?? ""} />
           <Divider />
           <InputPanel />
         </div>
@@ -151,7 +156,8 @@ interface AppContextProps {
   deleteFile: (id: string) => void;
   saveFileState: (id: string, state: EditorState) => void;
   setFileLabel: (id: string, label: string) => void;
-  compile: (entryFileId: string) => string;
+  compile: (entryFileId: string, optimisations: MastermindConfig) => string;
+  setOutput: (output?: string) => void;
 }
 
 interface FileState {

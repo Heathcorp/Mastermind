@@ -68,11 +68,6 @@
   background-color: var(--BG-4);
 }
 
-.settings-panel {
-  padding: 1rem;
-  gap: 0.5rem;
-}
-
 .row {
   display: flex;
   flex-direction: row;
