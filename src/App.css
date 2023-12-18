@@ -51,7 +51,6 @@
   position: relative;
   flex: 1;
   background-color: var(--BG-2);
-  padding: 1px;
   overflow: hidden;
 }
 
@@ -60,8 +59,10 @@
 }
 
 .output-panel {
+  position: relative;
   flex: 2;
   background-color: var(--BG-3);
+  overflow: hidden;
 }
 
 .input-panel {

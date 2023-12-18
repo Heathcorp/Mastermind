@@ -10,7 +10,6 @@ import {
   keymap,
   EditorView,
 } from "@codemirror/view";
-export { EditorView } from "@codemirror/view";
 import {
   foldGutter,
   indentOnInput,
