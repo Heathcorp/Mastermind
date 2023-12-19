@@ -1,0 +1,79 @@
+#include print.mmi
+
+let N = 100;
+let number = 1;
+
+drain N into number {
+  output 'T';
+  output 'h';
+  output 'e';
+  output ' ';
+  output 'f';
+  output 'a';
+  output 'c';
+  output 't';
+  output 'o';
+  output 'r';
+  output 's';
+  output ' ';
+  output 'o';
+  output 'f';
+  output ' ';
+  print(number);
+  output ' ';
+  output 'a';
+  output 'r';
+  output 'e';
+  output ' ';
+  output '1';
+  
+  let nt_equal_to_one = number - 1;
+  if nt_equal_to_one {
+
+    let num_copy = number - 2;
+    let divisor = 2;
+    drain num_copy into divisor {
+      let result;
+      divisible(result, number, divisor);
+
+      if result {
+        output ',';
+        output ' ';
+        print(divisor);
+      };
+    };
+
+    output ' ';
+    output 'a';
+    output 'n';
+    output 'd';
+    output ' ';
+
+    print(number);
+  };
+
+  output 10;
+};
+
+def divisible(result, dividend, divisor) {
+  // result = 0 if dividend % divisor = 0
+  let b = dividend;
+
+  let radix;
+  let iterating = true;
+
+  while iterating {
+
+    radix = divisor;
+    drain radix {
+      --b;
+      if not b {
+        iterating = false;
+      };
+    };
+  };
+  // if there is no remainder then we are divisible
+  if not b {
+    result = true;
+  };
+};

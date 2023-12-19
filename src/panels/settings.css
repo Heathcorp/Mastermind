@@ -1,0 +1,16 @@
+.settings-panel {
+  flex: unset;
+  flex-direction: row;
+  padding: 1rem;
+  gap: 0.5rem;
+}
+
+.settings-container {
+  display: flex;
+  flex-direction: column;
+  flex-wrap: wrap;
+}
+
+.settings-heading {
+  font-weight: 600;
+}

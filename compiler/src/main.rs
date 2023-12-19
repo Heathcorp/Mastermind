@@ -7,11 +7,13 @@ mod parser; // 2. Parse
 mod preprocessor; // 0. Preprocess includes and macro-type stuff
 mod tokeniser; // 1. Tokenise
 
+mod misc;
 mod tests;
 
 use brainfuck::BVM;
 use builder::Builder;
 use compiler::Compiler;
+use misc::MastermindConfig;
 use optimiser::optimise;
 use parser::parse;
 use preprocessor::preprocess;
@@ -62,36 +64,6 @@ struct Arguments {
 	optimise: usize,
 }
 
-pub struct MastermindConfig {
-	// basic pure brainfuck optimisations
-	optimise_generated_code: bool,
-	// track cell value and clear with constant addition if possible
-	optimise_cell_clearing: bool,
-	// track cell value and skip loops which can never be entered
-	optimise_unreachable_loops: bool,
-	// TODO: prune variables that aren't needed? Maybe combine with empty blocks stuff
-	optimise_variable_usage: bool,
-	// TODO: optimise memory layout to minimise tape head movement
-	// recommended to turn on these next two together
-	optimise_memory_allocation: bool,
-	optimise_constants: bool,
-	// TODO: recursively prune if statements/loops if they do nothing
-	optimise_empty_blocks: bool,
-}
-
-impl MastermindConfig {
-	pub fn new(optimise_bitmask: usize) -> MastermindConfig {
-		MastermindConfig {
-			optimise_generated_code: (optimise_bitmask & 0b00000001) > 0,
-			optimise_cell_clearing: (optimise_bitmask & 0b00000010) > 0,
-			optimise_unreachable_loops: (optimise_bitmask & 0b00000100) > 0,
-			optimise_variable_usage: false,
-			optimise_memory_allocation: false,
-			optimise_constants: false,
-			optimise_empty_blocks: false,
-		}
-	}
-}
 fn main() {
 	std::env::set_var("RUST_BACKTRACE", "1");
 
