@@ -16,7 +16,7 @@ use parser::parse;
 use preprocessor::preprocess_from_memory;
 use tokeniser::tokenise;
 
-use std::collections::HashMap;
+use std::{collections::HashMap, io::Cursor};
 
 use wasm_bindgen::{prelude::wasm_bindgen, JsValue};
 
@@ -43,4 +43,15 @@ pub fn wasm_compile(file_contents: JsValue, entry_file_name: String, config: JsV
 		true => optimise(bf_code.chars().collect()),
 		false => bf_code,
 	}
+}
+
+#[wasm_bindgen]
+pub fn wasm_run_bf(code: String) -> String {
+	let mut bf = BVM::new(code.chars().collect());
+
+	let mut output = Cursor::new(Vec::new());
+	let mut input = Cursor::new(vec![]);
+	bf.run(&mut input, &mut output);
+
+	unsafe { String::from_utf8_unchecked(output.into_inner()) }
 }

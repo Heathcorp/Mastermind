@@ -15,7 +15,7 @@ import Divider from "./components/Divider";
 import EditorPanel from "./panels/EditorPanel";
 import InputPanel from "./panels/InputPanel";
 
-import initWasm, { wasm_compile } from "../compiler/pkg";
+import initWasm, { wasm_compile, wasm_run_bf } from "../compiler/pkg";
 import OutputPanel from "./panels/OutputPanel";
 import SettingsPanel, { MastermindConfig } from "./panels/SettingsPanel";
 import { defaultExtensions } from "./misc";
@@ -102,6 +102,7 @@ const App: Component = () => {
     });
   };
 
+  const [compiledCode, setCompiledCode] = createSignal<string>();
   const compile = (entryFileId: string, optimisations: MastermindConfig) => {
     let entryFileName: string = fileStates()[0].label;
     const fileMap = Object.fromEntries(
@@ -111,6 +112,12 @@ const App: Component = () => {
       })
     );
     const result = wasm_compile(fileMap, entryFileName, optimisations);
+    setCompiledCode(result);
+    return result;
+  };
+  // TODO: add input stuff
+  const runCode = (code: string) => {
+    const result = wasm_run_bf(code);
     return result;
   };
   initWasm();
@@ -127,6 +134,8 @@ const App: Component = () => {
         setFileLabel,
         compile,
         setOutput,
+        runCode,
+        compiledCode,
       }}
     >
       <div id="window">
@@ -158,6 +167,8 @@ interface AppContextProps {
   setFileLabel: (id: string, label: string) => void;
   compile: (entryFileId: string, optimisations: MastermindConfig) => string;
   setOutput: (output?: string) => void;
+  runCode: (code: string) => string;
+  compiledCode: Accessor<string | undefined>;
 }
 
 interface FileState {

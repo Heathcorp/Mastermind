@@ -29,6 +29,22 @@ const SettingsPanel: Component = () => {
     })
   );
 
+  const onRun = () => {
+    const code = app.compiledCode();
+    if (!code) return;
+    const result = app.runCode(code);
+    app.setOutput(result);
+  };
+
+  const onCompile = () => {
+    const entryFileId = entryFile();
+    const result =
+      (!!entryFileId && app.compile(entryFileId, enabledOptimisations())) ||
+      undefined;
+    console.log(result);
+    app.setOutput(result);
+  };
+
   return (
     <div class="panel settings-panel">
       <div class="row settings-container">
@@ -51,25 +67,18 @@ const SettingsPanel: Component = () => {
             <div
               class="text-button"
               style={{ padding: "0.5rem" }}
-              onClick={() => {
-                const entryFileId = entryFile();
-                const result =
-                  (!!entryFileId &&
-                    app.compile(entryFileId, enabledOptimisations())) ||
-                  undefined;
-                console.log(result);
-                app.setOutput(result);
-              }}
+              onClick={onCompile}
             >
               compile program
             </div>
             <Divider />
             <div
-              class="text-button"
-              style={{ padding: "0.5rem" }}
-              onClick={() => {
-                console.log("running code");
+              classList={{
+                "text-button": true,
+                "text-button-disabled": !app.compiledCode(),
               }}
+              style={{ padding: "0.5rem" }}
+              onClick={onRun}
             >
               run code
             </div>
@@ -78,7 +87,8 @@ const SettingsPanel: Component = () => {
           <div
             style={{ "text-align": "center", padding: "0.5rem" }}
             onClick={() => {
-              console.log("compiling and running");
+              onCompile();
+              onRun();
             }}
           >
             compile & run
