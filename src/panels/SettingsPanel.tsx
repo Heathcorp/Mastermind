@@ -8,7 +8,6 @@ import "./settings.css";
 const SettingsPanel: Component = () => {
   const app = useAppContext()!;
 
-  const [entryFile, setEntryFile] = makePersisted(createSignal<string>());
   const [enabledOptimisations, setEnabledOptimisations] = makePersisted(
     createSignal<MastermindConfig>({
       optimise_cell_clearing: false,
@@ -22,9 +21,9 @@ const SettingsPanel: Component = () => {
   );
 
   createEffect(
-    on([app.fileStates, entryFile], () => {
-      if (app.fileStates().length && !entryFile()) {
-        setEntryFile(app.fileStates()[0].id);
+    on([app.fileStates, app.entryFile], () => {
+      if (app.fileStates().length && !app.entryFile()) {
+        app.setEntryFile(app.fileStates()[0].id);
       }
     })
   );
@@ -37,7 +36,7 @@ const SettingsPanel: Component = () => {
   };
 
   const onCompile = () => {
-    const entryFileId = entryFile();
+    const entryFileId = app.entryFile();
     const result =
       (!!entryFileId && app.compile(entryFileId, enabledOptimisations())) ||
       undefined;
@@ -51,8 +50,8 @@ const SettingsPanel: Component = () => {
         <div class="row">
           entry file:
           <select
-            value={entryFile()}
-            onChange={(e) => setEntryFile(e.target.value)}
+            value={app.entryFile()}
+            onChange={(e) => app.setEntryFile(e.target.value)}
           >
             <For each={app.fileStates()}>
               {(file) => {

@@ -4,16 +4,22 @@ import {
   createContext,
   useContext,
   Accessor,
+  Setter,
+  createEffect,
+  on,
 } from "solid-js";
 
 import { EditorState } from "@codemirror/state";
 import { EditorView } from "@codemirror/view";
 import { v4 as uuidv4 } from "uuid";
 
+import divisorsExample from "./assets/divisors_example.mmi?raw";
+import printExample from "./assets/print.mmi?raw";
+
 import "./App.css";
 import Divider from "./components/Divider";
 import EditorPanel from "./panels/EditorPanel";
-import InputPanel from "./panels/InputPanel";
+// import InputPanel from "./panels/InputPanel";
 
 import initWasm, { wasm_compile, wasm_run_bf } from "../compiler/pkg";
 import OutputPanel from "./panels/OutputPanel";
@@ -26,8 +32,13 @@ const AppContext = createContext<AppContextProps>();
 const App: Component = () => {
   // global signals and functions and things
   // to the program this is just a solidjs signal, all of this extra stuff is just for persistence
+  const [entryFile, setEntryFile] = makePersisted(createSignal<string>());
   const [fileStates, setFileStates] = makePersisted(
-    createSignal<FileState[]>([]),
+    createSignal<FileState[]>(
+      (() => {
+        return [];
+      })()
+    ),
     {
       name: "mastermind_editor_files",
       serialize: (fileStates: FileState[]) =>
@@ -35,21 +46,21 @@ const App: Component = () => {
           fileStates.map((fileState) => ({
             id: fileState.id,
             label: fileState.label,
-            raw_text: fileState.editorState.doc.toString(),
+            rawText: fileState.editorState.doc.toString(),
           }))
         ),
-      deserialize: (data: string): FileState[] =>
-        (
-          JSON.parse(data) as unknown as {
-            id: string;
-            label: string;
-            raw_text: string;
-          }[]
-        ).map((storedState) => ({
+      deserialize: (data: string): FileState[] => {
+        let rawParsed: {
+          id: string;
+          label: string;
+          rawText: string;
+        }[] = JSON.parse(data);
+
+        return rawParsed.map((storedState) => ({
           id: storedState.id,
           label: storedState.label,
           editorState: EditorState.create({
-            doc: storedState.raw_text,
+            doc: storedState.rawText,
             extensions: [
               ...defaultExtensions,
               EditorView.updateListener.of((e) => {
@@ -58,8 +69,43 @@ const App: Component = () => {
               }),
             ],
           }),
-        })),
+        }));
+      },
     }
+  );
+
+  createEffect(
+    on([fileStates], () => {
+      if (!fileStates().length) {
+        // there are no files, initialise to the example files (divisors of 1 to 100)
+        const newId = uuidv4();
+        setFileStates(
+          [
+            {
+              id: newId,
+              label: "divisors_example.mmi",
+              rawText: divisorsExample,
+            },
+            { id: uuidv4(), label: "print.mmi", rawText: printExample },
+          ].map((rawState) => ({
+            // This could probably be common function, duplicate code of above deserialization and file creation functions (TODO: refactor)
+            id: rawState.id,
+            label: rawState.label,
+            editorState: EditorState.create({
+              doc: rawState.rawText,
+              extensions: [
+                ...defaultExtensions,
+                EditorView.updateListener.of((e) => {
+                  // this basically saves the editor every time it updates, this may be inefficient
+                  saveFileState(rawState.id, e.state);
+                }),
+              ],
+            }),
+          }))
+        );
+        setEntryFile(newId);
+      }
+    })
   );
 
   const createFile = () => {
@@ -128,6 +174,8 @@ const App: Component = () => {
     <AppContext.Provider
       value={{
         fileStates,
+        entryFile,
+        setEntryFile,
         createFile,
         deleteFile,
         saveFileState,
@@ -145,8 +193,8 @@ const App: Component = () => {
           <SettingsPanel />
           <Divider />
           <OutputPanel outputText={output() ?? ""} />
-          <Divider />
-          <InputPanel />
+          {/* <Divider />
+          <InputPanel /> */}
         </div>
       </div>
     </AppContext.Provider>
@@ -161,6 +209,8 @@ export function useAppContext() {
 
 interface AppContextProps {
   fileStates: Accessor<FileState[]>;
+  entryFile: Accessor<string | undefined>;
+  setEntryFile: Setter<string | undefined>;
   createFile: () => string;
   deleteFile: (id: string) => void;
   saveFileState: (id: string, state: EditorState) => void;

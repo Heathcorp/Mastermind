@@ -3,7 +3,6 @@ import { Component, createSignal, For, createEffect, on, Show } from "solid-js";
 import "./editor.css";
 
 import { EditorView } from "@codemirror/view";
-import { defaultExtensions } from "../misc";
 
 import { AiOutlineDelete, AiOutlineEdit, AiOutlinePlus } from "solid-icons/ai";
 import { useAppContext } from "../App";
@@ -17,16 +16,12 @@ const EditorPanel: Component = () => {
   createEffect(
     on([app.fileStates, editingFile], () => {
       // default behaviours for when files are deleted
-      if (app.fileStates().length) {
-        if (
-          !editingFile() ||
-          !app.fileStates().find((f) => f.id === editingFile())
-        )
-          setEditingFile(app.fileStates()[0].id);
-      } else {
-        // if for some reason we don't have a document (the site just started), create one
-        const newId = app.createFile();
-        setEditingFile(newId);
+      if (!app.fileStates().length) return;
+      if (
+        !editingFile() ||
+        !app.fileStates().find((f) => f.id === editingFile())
+      ) {
+        setEditingFile(app.fileStates()[0].id);
       }
     })
   );
