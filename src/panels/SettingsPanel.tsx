@@ -4,6 +4,7 @@ import { useAppContext } from "../App";
 import { makePersisted } from "@solid-primitives/storage";
 
 import "./settings.css";
+import { AiFillGithub } from "solid-icons/ai";
 
 const SettingsPanel: Component = () => {
   const app = useAppContext()!;
@@ -45,97 +46,115 @@ const SettingsPanel: Component = () => {
   };
 
   return (
-    <div class="panel settings-panel">
-      <div class="row settings-container">
-        <div class="row">
-          entry file:
-          <select
-            value={app.entryFile()}
-            onChange={(e) => app.setEntryFile(e.target.value)}
-          >
-            <For each={app.fileStates()}>
-              {(file) => {
-                return <option value={file.id}>{file.label}</option>;
-              }}
-            </For>
-          </select>
-        </div>
-        {/* button with 3 options (compile, run, or both) */}
-        <div class="button" style={{ padding: 0 }}>
-          <div class="row" style={{ gap: 0, "align-items": "stretch" }}>
-            <div
-              class="text-button"
-              style={{ padding: "0.5rem" }}
-              onClick={onCompile}
+    <div class="panel" style={{ "flex-direction": "row" }}>
+      <div class="panel settings-panel">
+        <div class="row settings-container">
+          <div class="row">
+            entry file:
+            <select
+              value={app.entryFile()}
+              onChange={(e) => app.setEntryFile(e.target.value)}
             >
-              compile program
+              <For each={app.fileStates()}>
+                {(file) => {
+                  return <option value={file.id}>{file.label}</option>;
+                }}
+              </For>
+            </select>
+          </div>
+          {/* button with 3 options (compile, run, or both) */}
+          <div class="button" style={{ padding: 0 }}>
+            <div class="row" style={{ gap: 0, "align-items": "stretch" }}>
+              <div
+                class="text-button"
+                style={{ padding: "0.5rem" }}
+                onClick={onCompile}
+              >
+                compile program
+              </div>
+              <Divider />
+              <div
+                classList={{
+                  "text-button": true,
+                  "text-button-disabled": !app.compiledCode(),
+                }}
+                style={{ padding: "0.5rem" }}
+                onClick={onRun}
+              >
+                run code
+              </div>
             </div>
             <Divider />
             <div
-              classList={{
-                "text-button": true,
-                "text-button-disabled": !app.compiledCode(),
+              style={{ "text-align": "center", padding: "0.5rem" }}
+              onClick={() => {
+                onCompile();
+                onRun();
               }}
-              style={{ padding: "0.5rem" }}
-              onClick={onRun}
             >
-              run code
+              compile & run
             </div>
           </div>
-          <Divider />
-          <div
-            style={{ "text-align": "center", padding: "0.5rem" }}
-            onClick={() => {
-              onCompile();
-              onRun();
+        </div>
+        <Divider />
+        <div class="row settings-container">
+          <span>
+            <span class="settings-heading">Optimisations:</span>
+            <span
+              class="text-button"
+              onClick={() =>
+                setEnabledOptimisations((prev) => {
+                  const entries = Object.entries(prev);
+                  const b = entries.some(([, v]) => !v);
+                  return Object.fromEntries(
+                    entries.map(([k]) => [k, b])
+                  ) as unknown as MastermindConfig;
+                  // trust me on this one typescript
+                })
+              }
+            >
+              (toggle all)
+            </span>
+          </span>
+          <form
+            onChange={(e) => {
+              const target = e.target as HTMLInputElement;
+              setEnabledOptimisations((prev) => ({
+                ...prev,
+                [target.name]: !!target.checked,
+              }));
             }}
           >
-            compile & run
-          </div>
+            <For each={Object.entries(enabledOptimisations())}>
+              {([key, enabled]: [string, boolean]) => (
+                <label
+                  for={key}
+                  class="row"
+                  style={{ "align-items": "flex-end" }}
+                >
+                  <input
+                    type="checkbox"
+                    checked={enabled}
+                    name={key}
+                    id={key}
+                  />
+                  {configLabels[key as keyof MastermindConfig]}
+                </label>
+              )}
+            </For>
+          </form>
         </div>
       </div>
-      <Divider />
-      <div class="row settings-container">
-        <span>
-          <span class="settings-heading">Optimisations:</span>
-          <span
-            class="text-button"
-            onClick={() =>
-              setEnabledOptimisations((prev) => {
-                const entries = Object.entries(prev);
-                const b = entries.some(([, v]) => !v);
-                return Object.fromEntries(
-                  entries.map(([k]) => [k, b])
-                ) as unknown as MastermindConfig;
-                // trust me on this one typescript
-              })
-            }
-          >
-            (toggle all)
-          </span>
-        </span>
-        <form
-          onChange={(e) => {
-            const target = e.target as HTMLInputElement;
-            setEnabledOptimisations((prev) => ({
-              ...prev,
-              [target.name]: !!target.checked,
-            }));
-          }}
+      {/* <Divider /> */}
+      {/* social media links, currently only github */}
+      <div class="socials">
+        <a
+          class="socials-icon text-button"
+          href="https://github.com/Heathcorp/Mastermind"
+          target="_blank"
         >
-          <For each={Object.entries(enabledOptimisations())}>
-            {([key, enabled]: [string, boolean]) => (
-              <label
-                for={key}
-                class="row"
-                style={{ "align-items": "flex-end" }}
-              >
-                <input type="checkbox" checked={enabled} name={key} id={key} />
-                {configLabels[key as keyof MastermindConfig]}
-              </label>
-            )}
-          </For>
-        </form>
+          <AiFillGithub />
+        </a>
       </div>
     </div>
   );

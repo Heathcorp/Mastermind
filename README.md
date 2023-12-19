@@ -17,6 +17,13 @@ I've also never written a compiler before and deliberately tried not to read any
 4. ~~Whitespace-agnostic syntax~~
 5. Get somebody else to playtest and fix any issues that arise
 6. ~~Simple include system~~, with example files for "standard library" style code
-7. A simple web interface, learn how to create crates and import this into a seperate repo
+7. ~~A simple web interface~~
 8. In-line brainfuck (in-line assembly) so we can make optimisations for the compiler and use unsafe looping moves (in order to achieve #1).
    - Idea: asm(a, b, c[3], d[(contiguous)5, etc (need to make syntax for this]) {#goto(a)+++>[[]--]};
+
+### Web-interface TODO:
+
+1. Button to copy compiled code
+2. Live I/O or running program
+3. More robust non-blocking compiler calls. Currently if the "run_code" function hangs, the whole webpage is frozen. Maybe look into web workers for this.
+4. Test out error handling
