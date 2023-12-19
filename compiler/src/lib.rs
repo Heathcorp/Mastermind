@@ -1,3 +1,5 @@
+// allowing dead code because we have two different compile targets (wasm and command-line)
+#![allow(dead_code)]
 mod brainfuck;
 mod builder;
 mod compiler;

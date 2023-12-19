@@ -8,7 +8,6 @@ import {
   crosshairCursor,
   highlightActiveLine,
   keymap,
-  EditorView,
 } from "@codemirror/view";
 import {
   foldGutter,
