@@ -97,7 +97,24 @@ const SettingsPanel: Component = () => {
       </div>
       <Divider />
       <div class="row settings-container">
-        <span class="settings-heading">Optimisations:</span>
+        <span>
+          <span class="settings-heading">Optimisations:</span>
+          <span
+            class="text-button"
+            onClick={() =>
+              setEnabledOptimisations((prev) => {
+                const entries = Object.entries(prev);
+                const b = entries.some(([, v]) => !v);
+                return Object.fromEntries(
+                  entries.map(([k]) => [k, b])
+                ) as unknown as MastermindConfig;
+                // trust me on this one typescript
+              })
+            }
+          >
+            (toggle all)
+          </span>
+        </span>
         <form
           onChange={(e) => {
             const target = e.target as HTMLInputElement;
