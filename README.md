@@ -24,12 +24,14 @@ I've also never written a compiler before and deliberately tried not to read any
 
 1. More robust github actions workflows
 1. Button to copy compiled code
+2. Compiled code size indicator
 1. Live I/O for running program
 1. More robust non-blocking compiler calls. Currently if the "run_code" function hangs, the whole webpage is frozen. Maybe look into web workers for this.
 1. Playtest and fix common errors
 
 ### Playtest feedback:
 
-1. Frozen browser
-2. Semicolons after curly-braces
+1. Frozen browser on blocking wasm calls
+2. Semicolons after curly-braces is annoying
 3. Maybe make functions clearer that they are more like macros
+4. Tabs not working in editor
