@@ -21,21 +21,17 @@ I've also never written a compiler before and deliberately tried not to read any
 6. Some kind of stack or array implementation
 7. Multi-byte integers
 8. n-length strings?
+3. Maybe make functions clearer that they are more like macros?
 
 ### Web-interface TODO:
 
+1. Make tab button work in editor
 1. More robust github actions workflows
 1. Button to copy compiled code
 2. Compiled code size indicator
 1. Live I/O for running program
 1. More robust non-blocking compiler calls. Currently if the "run_code" function hangs, the whole webpage is frozen. Maybe look into web workers for this.
-1. Playtest and fix common errors
-2. Set of loadable example (stdlib) files
+2. Reorderable file tabs
+3. Set of loadable example (stdlib) files
 
-### Playtest feedback:
-
-1. Frozen browser on blocking wasm calls
-2. Semicolons after curly-braces is annoying
-3. Maybe make functions clearer that they are more like macros
-4. Tabs not working in editor
-5. Documentation
+5. Documentation?
