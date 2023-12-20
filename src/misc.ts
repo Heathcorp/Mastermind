@@ -17,7 +17,12 @@ import {
   bracketMatching,
   foldKeymap,
 } from "@codemirror/language";
-import { history, defaultKeymap, historyKeymap } from "@codemirror/commands";
+import {
+  history,
+  defaultKeymap,
+  historyKeymap,
+  indentWithTab,
+} from "@codemirror/commands";
 import { highlightSelectionMatches, searchKeymap } from "@codemirror/search";
 import {
   closeBrackets,
@@ -59,5 +64,8 @@ export const defaultExtensions = [
     ...foldKeymap,
     ...completionKeymap,
     ...lintKeymap,
+    // TODO: add a warning to let users escape the editor by pressing the esc key
+    //  remember codemirror docos
+    indentWithTab,
   ]),
 ];
