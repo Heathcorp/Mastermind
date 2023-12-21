@@ -1,16 +1,22 @@
-import { Component, createSignal, For, createEffect, on, Show } from "solid-js";
+import { Component, createSignal, For, createEffect, on } from "solid-js";
 
 import "./editor.css";
 
 import { EditorView } from "@codemirror/view";
+import { AiOutlinePlus } from "solid-icons/ai";
+import {
+  DragDropProvider,
+  DragDropSensors,
+  createDroppable,
+  useDragDropContext,
+} from "@thisbeyond/solid-dnd";
 
-import { AiOutlineDelete, AiOutlineEdit, AiOutlinePlus } from "solid-icons/ai";
 import { useAppContext } from "../App";
+import Tab from "../components/Tab";
 
 const EditorPanel: Component = () => {
   const app = useAppContext()!;
 
-  const [editingLabel, setEditingLabel] = createSignal<string | null>(null);
   const [editingFile, setEditingFile] = createSignal<string>();
 
   createEffect(
@@ -21,7 +27,7 @@ const EditorPanel: Component = () => {
         !editingFile() ||
         !app.fileStates().find((f) => f.id === editingFile())
       ) {
-        setEditingFile(app.fileStates()[0].id);
+        setEditingFile(app.fileStates()[0]?.id);
       }
     })
   );
@@ -62,67 +68,36 @@ const EditorPanel: Component = () => {
   return (
     <div class="panel">
       <div class="tab-bar">
-        <For each={app.fileStates()}>
-          {(tab) => (
-            <div
-              classList={{
-                ["tab"]: true,
-                ["tab-selected"]: tab.id === editingFile(),
-              }}
-              onClick={() => setEditingFile(tab.id)}
-            >
-              {tab.id === editingLabel() ? (
-                <form
-                  onSubmit={(e) => {
-                    e.preventDefault();
-                    // TODO: refactor this, maybe find a form library? At least make this a reusable component
-                    app.setFileLabel(
-                      tab.id,
-                      (
-                        e.target.children as HTMLCollection & {
-                          label: HTMLInputElement;
-                        }
-                      ).label.value
-                    );
-
-                    setEditingLabel(null);
-                  }}
-                >
-                  <input name="label" value={tab.label} />
-                </form>
-              ) : (
-                <>
-                  <AiOutlineEdit
-                    class="text-button"
-                    onClick={() => setEditingLabel(tab.id)}
-                  />
-                  {tab.label}
-                  <Show when={app.fileStates().length > 1}>
-                    <AiOutlineDelete
-                      class="text-button"
-                      style={{ "margin-left": "0.5rem" }}
-                      onClick={() =>
-                        window.confirm(
-                          "Are you sure you want to delete this file? This cannot be undone."
-                        ) && app.deleteFile(tab.id)
-                      }
-                    />
-                  </Show>
-                </>
+        {/* tab rearranging logic for filestates in global file array */}
+        <DragDropProvider
+          onDragEnd={({ draggable, droppable }) =>
+            droppable &&
+            app.reorderFiles(
+              draggable.id as string,
+              droppable.id === TAB_END_ID ? null : (droppable.id as string)
+            )
+          }
+        >
+          <DragDropSensors>
+            <For each={app.fileStates()}>
+              {(fileState) => (
+                <Tab
+                  fileId={fileState.id}
+                  fileLabel={fileState.label}
+                  fileActive={fileState.id === editingFile()}
+                  onSelect={() => setEditingFile(fileState.id)}
+                />
               )}
-            </div>
-          )}
-        </For>
-        <div class="tab-filler">
-          <AiOutlinePlus
-            class="text-button"
-            onClick={() => {
-              const newId = app.createFile();
-              setEditingFile(newId);
-              // setEditingLabel(newFile.id);
-            }}
-          />
-        </div>
+            </For>
+            <TabFiller
+              onAdd={() => {
+                const newId = app.createFile();
+                setEditingFile(newId);
+                // setEditingLabel(newFile.id);
+              }}
+            />
+          </DragDropSensors>
+        </DragDropProvider>
       </div>
       <div class="code-panel" ref={editorRef} />
     </div>
@@ -130,3 +105,24 @@ const EditorPanel: Component = () => {
 };
 
 export default EditorPanel;
+
+const TAB_END_ID = "end";
+const TabFiller: Component<{ onAdd: () => void }> = (props) => {
+  // for dragging a file to the end of the list
+  // had to make this its own component because of dragDrop context issues
+  const droppableRef = createDroppable(TAB_END_ID);
+  const [isUnderDrag, setIsUnderDrag] = createSignal(false);
+  const [, { onDragOver, onDragEnd }] = useDragDropContext()!;
+
+  onDragOver(({ droppable }) => setIsUnderDrag(droppable?.id === TAB_END_ID));
+  onDragEnd(() => setIsUnderDrag(false));
+
+  return (
+    <div
+      ref={droppableRef}
+      classList={{ "tab-filler": true, "tab-insert-marker": isUnderDrag() }}
+    >
+      <AiOutlinePlus class="text-button" onClick={props.onAdd} />
+    </div>
+  );
+};

@@ -24,7 +24,7 @@ const SettingsPanel: Component = () => {
   createEffect(
     on([app.fileStates, app.entryFile], () => {
       if (app.fileStates().length && !app.entryFile()) {
-        app.setEntryFile(app.fileStates()[0].id);
+        app.setEntryFile(app.fileStates()[0]?.id);
       }
     })
   );

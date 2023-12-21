@@ -1,3 +1,32 @@
+.tab-bar {
+  position: relative;
+  height: 3rem;
+  display: flex;
+  flex-direction: row;
+  justify-content: flex-start;
+  align-items: stretch;
+  overflow-x: scroll;
+
+  -ms-overflow-style: none; /* Internet Explorer 10+ */
+  scrollbar-width: none; /* Firefox */
+
+  /* draggability things */
+  /* z-index: 1; */
+}
+.tab-bar::-webkit-scrollbar {
+  display: none; /* Safari and Chrome */
+}
+
+.tab-filler {
+  flex: 1;
+  border-bottom: var(--default-border);
+
+  display: flex;
+  align-items: center;
+  padding-left: 0.5rem;
+  padding-right: 0.5rem;
+}
+
 .tab {
   background-color: var(--BG-1);
   border-right: var(--default-border);
@@ -12,11 +41,22 @@
   white-space: nowrap;
 
   cursor: pointer;
+  user-select: none;
 }
 
 .tab-selected {
   border-bottom: none;
   background-color: var(--BG-2);
+}
+
+.tab:active {
+  /* border: var(--default-border); */
+  border: none;
+  cursor: grabbing;
+}
+
+.tab-insert-marker {
+  border-left: 2px solid var(--BORDER-2);
 }
 
 .text-button {

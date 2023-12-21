@@ -143,20 +143,38 @@ const App: Component = () => {
     setFileStates((prev) => {
       const fileStateIndex = prev.findIndex((f) => f.id === id);
       if (fileStateIndex === -1) return prev;
-      const fileState = prev.splice(fileStateIndex, 1)[0];
+      const fileState = prev.splice(fileStateIndex, 1)[0]!;
       return [...prev, { ...fileState, label }];
+    });
+  };
+  const reorderFiles = (from: string, to: string | null) => {
+    if (from === to) return;
+    setFileStates((prev) => {
+      const newArray = [...prev];
+      const fromIndex = newArray.findIndex((f) => f.id === from);
+      if (fromIndex === -1) return prev;
+      const removedFile = newArray.splice(fromIndex, 1)[0]!;
+      // if to id is null then just push it to the end (bit of a hack but better than a magic string id for the tab filler div?)
+      const toIndex =
+        to === null ? newArray.length : newArray.findIndex((f) => f.id === to);
+      if (toIndex === -1) return prev;
+      // insert file into correct position
+      newArray.splice(toIndex, 0, removedFile);
+
+      return newArray;
     });
   };
 
   const [compiledCode, setCompiledCode] = createSignal<string>();
   const compile = (entryFileId: string, optimisations: MastermindConfig) => {
-    let entryFileName: string = fileStates()[0].label;
+    let entryFileName: string | undefined;
     const fileMap = Object.fromEntries(
       fileStates().map((file) => {
         if (file.id === entryFileId) entryFileName = file.label;
         return [file.label, file.editorState.doc.toString()];
       })
     );
+    if (!entryFileName) return;
     const result = wasm_compile(fileMap, entryFileName, optimisations);
     setCompiledCode(result);
     return result;
@@ -184,6 +202,7 @@ const App: Component = () => {
         setOutput,
         runCode,
         compiledCode,
+        reorderFiles,
       }}
     >
       <div id="window">
@@ -215,10 +234,14 @@ interface AppContextProps {
   deleteFile: (id: string) => void;
   saveFileState: (id: string, state: EditorState) => void;
   setFileLabel: (id: string, label: string) => void;
-  compile: (entryFileId: string, optimisations: MastermindConfig) => string;
+  compile: (
+    entryFileId: string,
+    optimisations: MastermindConfig
+  ) => string | undefined;
   setOutput: (output?: string) => void;
   runCode: (code: string) => string;
   compiledCode: Accessor<string | undefined>;
+  reorderFiles: (from: string, to: string | null) => void;
 }
 
 interface FileState {
