@@ -28,8 +28,8 @@ I've also never written a compiler before and deliberately tried not to read any
 
 1. ~~Make tab button work in editor~~
 2. ~~Reorderable file tabs~~
-3. Button to copy compiled code
-4. Compiled code size indicator
+3. ~~Button to copy compiled code~~
+4. ~~Compiled code size indicator~~
 5. More robust github actions workflows
 6. Pass panic messages from compiler into output panel
 7. Live I/O for running program

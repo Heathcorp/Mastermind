@@ -2,10 +2,10 @@ import { Component, For, createEffect, createSignal, on } from "solid-js";
 import Divider from "../components/Divider";
 import { useAppContext } from "../App";
 import { makePersisted } from "@solid-primitives/storage";
+import { AiFillGithub } from "solid-icons/ai";
+import { FiCopy } from "solid-icons/fi";
 
 import "./settings.css";
-import { AiFillGithub } from "solid-icons/ai";
-
 const SettingsPanel: Component = () => {
   const app = useAppContext()!;
 
@@ -49,6 +49,7 @@ const SettingsPanel: Component = () => {
     <div class="panel" style={{ "flex-direction": "row" }}>
       <div class="panel settings-panel">
         <div class="row settings-container">
+          {/* entry file selection */}
           <div class="row">
             entry file:
             <select
@@ -94,6 +95,29 @@ const SettingsPanel: Component = () => {
             >
               compile & run
             </div>
+          </div>
+          {/* misc options and markers */}
+          <div
+            class="row button"
+            classList={{
+              row: true,
+              button: true,
+              disabled: !app.compiledCode(),
+            }}
+            style={{ cursor: "copy", "align-items": "center" }}
+            onClick={() => {
+              const code = app.compiledCode();
+              if (!code) return;
+              window.navigator.clipboard
+                .writeText(code)
+                .then(() =>
+                  window.alert("Compiled Brainfuck copied to clipboard!")
+                );
+            }}
+          >
+            <FiCopy />
+            compiled code
+            {app.compiledCode() && ` (${app.compiledCode()?.length} bytes)`}
           </div>
         </div>
         <Divider />

@@ -62,9 +62,13 @@
   user-select: none;
   font-weight: 500;
 }
-.button:hover {
+.button:hover:not(.disabled) {
   border-color: var(--BORDER-2);
 }
 .button-selected {
   border-color: var(--BORDER-1);
+}
+
+.disabled {
+  opacity: 0.5;
 }
