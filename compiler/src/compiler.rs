@@ -506,8 +506,25 @@ impl Scope<'_> {
 	}
 
 	fn get_variable_mem(&self, var: &VariableSpec) -> Option<usize> {
-		if let Some(mem) = self.variable_memory_cells.get(var) {
-			Some(mem + self.allocation_offset())
+		if let Some(var_len) = self.variable_sizes.get(&var.name) {
+			// check for variable size index out of range errors
+			match (var_len, var.arr_num) {
+				(Some(len), Some(idx)) => assert!(
+					idx < *len,
+					"Variable index {var} out of range of defined length {len}"
+				),
+				(Some(_), None) => {
+					panic!("Cannot access multi-byte variable {var} without an index")
+				}
+				(None, Some(_)) => panic!(
+					"Cannot access single-byte variable {} with an index",
+					var.name
+				),
+				(None, None) => (),
+			};
+			if let Some(mem) = self.variable_memory_cells.get(var) {
+				return Some(mem + self.allocation_offset());
+			}
 		} else if let Some(outer_scope) = self.outer_scope {
 			if let Some(alias) =
 				self.variable_aliases
@@ -539,13 +556,13 @@ impl Scope<'_> {
 							}
 						}
 					}) {
-				outer_scope.get_variable_mem(&alias)
+				return outer_scope.get_variable_mem(&alias);
 			} else {
-				outer_scope.get_variable_mem(var)
+				return outer_scope.get_variable_mem(var);
 			}
-		} else {
-			None
 		}
+
+		panic!("No variable {var} found in current scope.");
 	}
 
 	fn get_variable_size(&self, var_name: &str) -> Option<usize> {

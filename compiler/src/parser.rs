@@ -12,12 +12,8 @@ pub fn parse(tokens: &[Token]) -> Vec<Clause> {
 	while let Some(clause) = get_clause_tokens(&tokens[i..]) {
 		match (
 			&clause[0],
-			&clause[1],
-			if tokens.len() > 2 {
-				&clause[2]
-			} else {
-				&Token::None
-			},
+			&clause.get(1).unwrap_or(&Token::None),
+			&clause.get(2).unwrap_or(&Token::None),
 		) {
 			(Token::Let, _, _) => {
 				clauses.extend(parse_let_clause(clause));
@@ -65,11 +61,12 @@ pub fn parse(tokens: &[Token]) -> Vec<Clause> {
 					_ => panic!("Invalid clause: {clause:#?}"),
 				}
 			}
+			// empty clause
+			(Token::ClauseDelimiter, _, _) => (),
 			// the None token usually represents whitespace, it should be filtered out before reaching this function
 			// Wrote out all of these possibilities so that the compiler will tell me when I haven't implemented a token
 			(
 				Token::None
-				| Token::ClauseDelimiter
 				| Token::Else
 				| Token::Not
 				| Token::OpenBrace
@@ -122,42 +119,63 @@ fn parse_let_clause(clause: &[Token]) -> Vec<Clause> {
 		i += 1;
 		let remaining = &clause[i..(clause.len() - 1)];
 		let expr = Expression::parse(remaining);
-		let (imm, adds, subs) = expr.flatten();
-
-		clauses.push(Clause::AddToVariable {
-			var: var.clone(),
-			value: imm,
-		});
-
-		let mut adds_set = HashMap::new();
-		for var in adds {
-			let n = adds_set.remove(&var).unwrap_or(0);
-			adds_set.insert(var, n + 1);
+		match (&var, expr) {
+			(
+				VariableSpec {
+					name: var_name,
+					arr_num: Some(var_len),
+				},
+				Expression::ArrayLiteral(expr_list),
+			) => {
+				assert_eq!(
+					*var_len,
+					expr_list.len(),
+					"Multi-byte variable and initialiser array differ in length: {clause:#?}"
+				);
+				for (i, expr) in expr_list.into_iter().enumerate() {
+					let target_var = VariableSpec {
+						name: var_name.clone(),
+						arr_num: Some(i),
+					};
+					clauses.extend(parse_expr_adds(expr, target_var))
+				}
+			}
+			(
+				VariableSpec {
+					name: var_name,
+					arr_num: Some(l),
+				},
+				Expression::StringLiteral(s),
+			) => {
+				let imm_vals: Vec<u8> = s.bytes().collect();
+				assert_eq!(
+					*l,
+					imm_vals.len(),
+					"String initialiser length ({}) must be equal to variable length {l}",
+					imm_vals.len()
+				);
+				for (i, imm) in imm_vals.into_iter().enumerate() {
+					let target_var = VariableSpec {
+						name: var_name.clone(),
+						arr_num: Some(i),
+					};
+					clauses.push(Clause::AddToVariable {
+						var: target_var,
+						value: imm,
+					});
+				}
+			}
+			(
+				VariableSpec {
+					name: _,
+					arr_num: None,
+				},
+				expr,
+			) => {
+				clauses.extend(parse_expr_adds(expr, var));
+			}
+			_ => panic!("Invalid let expression given variable length: {clause:#?}"),
 		}
-		clauses.extend(
-			adds_set
-				.into_iter()
-				.map(|(source, num)| Clause::CopyVariable {
-					target: var.clone(),
-					source,
-					constant: num,
-				}),
-		);
-
-		let mut subs_set = HashMap::new();
-		for var in subs {
-			let n = subs_set.remove(&var).unwrap_or(0);
-			subs_set.insert(var, n + 1);
-		}
-		clauses.extend(
-			subs_set
-				.into_iter()
-				.map(|(source, num)| Clause::CopyVariable {
-					target: var.clone(),
-					source,
-					constant: -num,
-				}),
-		);
 	} else if i < (clause.len() - 1) {
 		panic!("Invalid token at end of let clause: {clause:#?}");
 	}
@@ -302,6 +320,48 @@ fn parse_set_clause(clause: &[Token]) -> Vec<Clause> {
 	clauses
 }
 
+fn parse_expr_adds(expr: Expression, target: VariableSpec) -> Vec<Clause> {
+	let mut clauses = Vec::new();
+	let (imm, adds, subs) = expr.flatten();
+
+	clauses.push(Clause::AddToVariable {
+		var: target.clone(),
+		value: imm,
+	});
+
+	let mut adds_set = HashMap::new();
+	for var in adds {
+		let n = adds_set.remove(&var).unwrap_or(0);
+		adds_set.insert(var, n + 1);
+	}
+	clauses.extend(
+		adds_set
+			.into_iter()
+			.map(|(source, num)| Clause::CopyVariable {
+				target: target.clone(),
+				source,
+				constant: num,
+			}),
+	);
+
+	let mut subs_set = HashMap::new();
+	for var in subs {
+		let n = subs_set.remove(&var).unwrap_or(0);
+		subs_set.insert(var, n + 1);
+	}
+	clauses.extend(
+		subs_set
+			.into_iter()
+			.map(|(source, num)| Clause::CopyVariable {
+				target: target.clone(),
+				source,
+				constant: -num,
+			}),
+	);
+
+	clauses
+}
+
 fn parse_drain_copy_clause(clause: &[Token], is_draining: bool) -> Clause {
 	// drain g {i += 1;};
 	// drain g into j;
@@ -343,15 +403,11 @@ fn parse_drain_copy_clause(clause: &[Token], is_draining: bool) -> Clause {
 		i += 2 + braced_tokens.len();
 	}
 
-	if let Token::ClauseDelimiter = &clause[i] {
-		Clause::CopyLoop {
-			source,
-			targets,
-			block,
-			is_draining,
-		}
-	} else {
-		panic!("Invalid token at end of copy/drain clause: {clause:#?}");
+	Clause::CopyLoop {
+		source,
+		targets,
+		block,
+		is_draining,
 	}
 }
 
@@ -407,10 +463,6 @@ fn parse_if_else_clause(clause: &[Token]) -> Clause {
 		Some(parse(block_tokens))
 	} else {
 		None
-	};
-
-	let Token::ClauseDelimiter = &clause[i] else {
-		panic!("Expected end of clause in if/else statement. {clause:#?}");
 	};
 
 	match (not, block_one, block_two) {
@@ -561,7 +613,7 @@ fn parse_var_details(tokens: &[Token]) -> (VariableSpec, usize) {
 
 // get a clause, typically a line, bounded by ;
 fn get_clause_tokens(tokens: &[Token]) -> Option<&[Token]> {
-	if tokens.len() == 0 {
+	if tokens.len() < 2 {
 		None
 	} else {
 		let mut i = 0usize;
@@ -570,6 +622,10 @@ fn get_clause_tokens(tokens: &[Token]) -> Option<&[Token]> {
 				Token::OpenBrace => {
 					let braced_block = get_braced_tokens(&tokens[i..], BRACES);
 					i += 2 + braced_block.len();
+					// handle blocks marking the end of clauses, if/else being the exception
+					let Token::Else = tokens[i] else {
+						return Some(&tokens[..i]);
+					};
 				}
 				Token::ClauseDelimiter => {
 					i += 1;
@@ -581,7 +637,7 @@ fn get_clause_tokens(tokens: &[Token]) -> Option<&[Token]> {
 			}
 		}
 
-		panic!("Found no clause delimiter at end of input");
+		panic!("No clause could be found in: {tokens:#?}");
 	}
 }
 
@@ -625,7 +681,11 @@ impl Expression {
 
 		if let Token::String(s) = &tokens[i] {
 			i += 1;
-			assert_eq!(i, tokens.len());
+			assert_eq!(
+				i,
+				tokens.len(),
+				"Malformed string literal expression {tokens:#?}"
+			);
 			return Expression::StringLiteral(s.clone());
 		}
 

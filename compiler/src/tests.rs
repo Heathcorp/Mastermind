@@ -37,7 +37,7 @@ pub mod tests {
 		run_program(bf_program, input)
 	}
 
-	#[test]
+	// #[test]
 	fn dummy_test() {
 		let program = String::from("");
 		let input = String::from("");
@@ -90,6 +90,30 @@ output 10;
 	}
 
 	#[test]
+	fn hello_3() {
+		let program = String::from(
+			r#";
+output  'h'  ;;;
+// comment
+let EEL[5] =    "ello\n";
+output EEL[0];
+output EEL[1];
+output EEL[2];
+output EEL[3];
+output EEL[4];
+output '\n';
+output 0;
+output 70;
+			"#,
+		);
+		let input = String::from("");
+		let desired_output = String::from("hello\n\n\0F");
+		let output = compile_and_run(program, input);
+		println!("{output}");
+		assert_eq!(desired_output, output)
+	}
+
+	#[test]
 	fn loops_1() {
 		let program = String::from(
 			"
@@ -111,6 +135,32 @@ drain a {
 		);
 		let input = String::from("");
 		let desired_output = String::from("0AB\n1ABB\n2ABBB\n3ABBBB\n4ABBBBB\n5ABBBBBB\n6ABBBBBBB\n7ABBBBBBBB\n8ABBBBBBBBB\n9ABBBBBBBBBB\n");
+		assert_eq!(desired_output, compile_and_run(program, input))
+	}
+
+	#[test]
+	fn loops_2() {
+		let program = String::from(
+			"
+let a = 4;
+let b[6] = [65, 65, 65, 65, 65, 1];
+copy a into b[0] b[1] b[4] b[5] {
+	copy b[5] into b[2];
+	
+	output b[0];
+	output b[1];
+	output b[2];
+	output b[3];
+	output b[4];
+	output 10;
+}a+='a';output a;
+
+let g = 5;
+drain g into a {output a;}
+      ",
+		);
+		let input = String::from("");
+		let desired_output = String::from("AABAA\nBBDAB\nCCGAC\nDDKAD\neefghi");
 		assert_eq!(desired_output, compile_and_run(program, input))
 	}
 
@@ -165,7 +215,7 @@ let a = 6;
 let b;
 drain a {
 	output n;++n;
-
+;;;;;;
 	output 'A';
 
 	let c;
@@ -202,21 +252,21 @@ def func_0(grape) {
 	let n = grape + 1;
 	output n;
 	n = 0;
-};
+};;
 
 def func_1(grape) {
 	let n = grape + 2;
 	output n;
 	n = 0;
-};
+}
 
 output global_var;
 func_0(global_var);
 output global_var;
 
-global_var += 1;
+global_var += 1;;;
 output global_var;
-func_1(global_var);
+;;func_1(global_var);
 output global_var;
 
 output 10;

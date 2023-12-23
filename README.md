@@ -11,11 +11,12 @@ I've also never written a compiler before and deliberately tried not to read any
 
 ### Compiler TODO:
 
-1. Remove need for semicolons after curly braces
+1. ~~Remove need for semicolons after curly braces~~
 1. Make multi-byte variables contiguous
-1. Add string literals for multi-byte variables
+1. ~~Add string literals for multi-byte variables~~
 1. Make output clause work with multi-byte variables by reference and strings/arrays by expression
 1. Keep track of source code line for better panic messages
+1. ~~Fix issue with variable/function names that start with keywords~~
 1. ~~Simple include system~~, with example files for "standard library" style code
 1. In-line brainfuck (in-line assembly) so we can make optimisations for the compiler and use unsafe looping moves.
    - Idea: asm(a, b, c[3], d[(contiguous)5, etc (need to make syntax for this)]) {#goto(a)+++>[[]--]};
