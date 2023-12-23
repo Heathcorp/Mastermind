@@ -78,6 +78,10 @@ impl Compiler<'_> {
 					let mem = scope.get_variable_mem(&var).unwrap();
 					scope.push_instruction(Instruction::ClearCell(mem));
 				}
+				Clause::InputByte { var } => {
+					let mem = scope.get_variable_mem(&var).unwrap();
+					scope.push_instruction(Instruction::InputToCell(mem));
+				}
 				Clause::OutputByte { value } => match value {
 					Expression::VariableReference(var) => {
 						let mem = scope.get_variable_mem(&var).unwrap();
@@ -343,7 +347,11 @@ impl Compiler<'_> {
 					// maybe function call compiling should be its own function?
 					scope.instructions.extend(new_scope.get_instructions());
 				}
-				_ => (),
+				Clause::DefineFunction {
+					name: _,
+					arguments: _,
+					block: _,
+				} => (),
 			}
 		}
 
@@ -369,6 +377,7 @@ pub enum Instruction {
 	OpenLoop(CellId), // same with other numbers here, they indicate the cell in the allocation stack to use in the instruction
 	CloseLoop(CellId), // pass in the cell id, this originally wasn't there but may be useful later on
 	AddToCell(CellId, u8),
+	InputToCell(CellId),
 	ClearCell(CellId), // not sure if this should be here, seems common enough that it should be
 	// AssertCellValue(CellId, u8), // again not sure if this is the correct place but whatever, or if this is even needed?
 	OutputCell(CellId),

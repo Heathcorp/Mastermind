@@ -11,6 +11,7 @@ I've also never written a compiler before and deliberately tried not to read any
 
 ### Compiler TODO:
 
+1. ~~Add input command~~
 1. ~~Remove need for semicolons after curly braces~~
 1. Make multi-byte variables contiguous
 1. ~~Add string literals for multi-byte variables~~

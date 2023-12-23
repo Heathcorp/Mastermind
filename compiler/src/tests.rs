@@ -382,4 +382,48 @@ def func_2(think[4], green) {
 		println!("{output}");
 		assert_eq!(desired_output, output)
 	}
+
+	#[test]
+	fn input_1() {
+		let program = String::from(
+			"
+let b;
+input b;
+++b;
+output b;
+",
+		);
+		let input = String::from("A");
+		let desired_output = String::from("B");
+		let output = compile_and_run(program, input);
+		println!("{output}");
+		assert_eq!(desired_output, output)
+	}
+
+	#[test]
+	fn input_2() {
+		let program = String::from(
+			"
+let b[3];
+input b[0];
+input b[1];
+input b[2];
+output b[0];
+output b[1];
+output b[2];
+b[0]+=3;
+b[1]+=2;
+output '\\n';
+b[2]+=1;
+output b[2];
+output b[1];
+output b[0];
+",
+		);
+		let input = String::from("ABC");
+		let desired_output = String::from("ABC\nDDD");
+		let output = compile_and_run(program, input);
+		println!("{output}");
+		assert_eq!(desired_output, output)
+	}
 }

@@ -145,6 +145,16 @@ impl Builder<'_> {
 						}
 					}
 				}
+				Instruction::InputToCell(id) => {
+					let Some((cell, _, known_value)) = alloc_map.get_mut(&id) else {
+						panic!("Attempted to input to cell id {id} which could not be found");
+					};
+
+					ops.move_to_cell(&mut head_pos, *cell);
+					ops.push(Opcode::Input);
+					// no way to know at compile time what the input to the program will be
+					*known_value = None;
+				}
 				// Instruction::AssertCellValue(id, value) => {}
 				Instruction::ClearCell(id) => {
 					let Some((cell, alloc_loop_depth, known_value)) = alloc_map.get_mut(&id) else {

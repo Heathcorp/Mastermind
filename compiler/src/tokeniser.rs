@@ -13,6 +13,7 @@ pub fn tokenise(source: &String) -> Vec<Token> {
 		(" ", Token::None),
 		(";", Token::ClauseDelimiter),
 		("output", Token::Output),
+		("input", Token::Input),
 		// ("#debug", Token::Debug),
 		("let", Token::Let),
 		("=", Token::Equals),
@@ -155,6 +156,7 @@ fn strip_line(line: &str) -> String {
 pub enum Token {
 	None,
 	Output,
+	Input,
 	Def,
 	Let,
 	// Assert,

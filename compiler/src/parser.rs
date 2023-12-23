@@ -36,6 +36,9 @@ pub fn parse(tokens: &[Token]) -> Vec<Clause> {
 			(Token::Output, _, _) => {
 				clauses.push(parse_output_clause(clause));
 			}
+			(Token::Input, _, _) => {
+				clauses.push(parse_input_clause(clause));
+			}
 			(Token::Name(_), Token::OpenParenthesis, _) => {
 				clauses.push(parse_function_call_clause(clause));
 			}
@@ -400,7 +403,7 @@ fn parse_drain_copy_clause(clause: &[Token], is_draining: bool) -> Clause {
 		let braced_tokens = get_braced_tokens(&clause[i..], BRACES);
 		// recursion
 		block.extend(parse(braced_tokens));
-		i += 2 + braced_tokens.len();
+		// i += 2 + braced_tokens.len();
 	}
 
 	Clause::CopyLoop {
@@ -459,7 +462,7 @@ fn parse_if_else_clause(clause: &[Token]) -> Clause {
 	let block_two = if let Token::Else = &clause[i] {
 		i += 1;
 		let block_tokens = get_braced_tokens(&clause[i..], BRACES);
-		i += 2 + block_tokens.len();
+		// i += 2 + block_tokens.len();
 		Some(parse(block_tokens))
 	} else {
 		None
@@ -492,6 +495,20 @@ fn parse_output_clause(clause: &[Token]) -> Clause {
 
 	Clause::OutputByte { value: expr }
 }
+
+fn parse_input_clause(clause: &[Token]) -> Clause {
+	let mut i = 1usize;
+
+	let (var, len) = parse_var_details(&clause[i..]);
+	i += len;
+
+	let Token::ClauseDelimiter = &clause[i] else {
+		panic!("Invalid token at end of input clause: {clause:#?}");
+	};
+
+	Clause::InputByte { var }
+}
+
 fn parse_function_definition_clause(clause: &[Token]) -> Clause {
 	let mut i = 1usize;
 	// function name
@@ -940,6 +957,9 @@ pub enum Clause {
 	},
 	OutputByte {
 		value: Expression,
+	},
+	InputByte {
+		var: VariableSpec,
 	},
 	DefineFunction {
 		name: String,
