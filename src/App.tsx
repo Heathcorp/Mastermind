@@ -9,6 +9,9 @@ import {
   on,
 } from "solid-js";
 
+// special vite syntax for web workers to be included in the bundle
+import CompilerWorker from "./worker.ts?worker";
+
 import { EditorState } from "@codemirror/state";
 import { EditorView } from "@codemirror/view";
 import { v4 as uuidv4 } from "uuid";
@@ -21,7 +24,6 @@ import Divider from "./components/Divider";
 import EditorPanel from "./panels/EditorPanel";
 // import InputPanel from "./panels/InputPanel";
 
-import initWasm, { wasm_compile, wasm_run_bf } from "../compiler/pkg";
 import OutputPanel from "./panels/OutputPanel";
 import SettingsPanel, { MastermindConfig } from "./panels/SettingsPanel";
 import { defaultExtensions } from "./misc";
@@ -166,25 +168,77 @@ const App: Component = () => {
   };
 
   const [compiledCode, setCompiledCode] = createSignal<string>();
+
+  const compilerWorker = new CompilerWorker();
+
   const compile = (entryFileId: string, optimisations: MastermindConfig) => {
-    let entryFileName: string | undefined;
-    const fileMap = Object.fromEntries(
-      fileStates().map((file) => {
-        if (file.id === entryFileId) entryFileName = file.label;
-        return [file.label, file.editorState.doc.toString()];
-      })
-    );
-    if (!entryFileName) return;
-    const result = wasm_compile(fileMap, entryFileName, optimisations);
-    setCompiledCode(result);
-    return result;
+    return new Promise<string>((resolve, reject) => {
+      let entryFileName: string | undefined;
+      const fileMap = Object.fromEntries(
+        fileStates().map((file) => {
+          if (file.id === entryFileId) entryFileName = file.label;
+          return [file.label, file.editorState.doc.toString()];
+        })
+      );
+      if (!entryFileName) {
+        reject();
+        return;
+      }
+
+      // surely there is a library for this kind of thing, transactionify messages or something, maybe make one?
+      const transaction = uuidv4();
+      const callback = (e: {
+        data: { transaction: string; message: string };
+      }) => {
+        if (transaction === e.data.transaction) {
+          removeCallback();
+          setCompiledCode(e.data.message);
+          resolve(e.data.message);
+        }
+      };
+      compilerWorker.addEventListener("message", callback);
+      const removeCallback = () =>
+        compilerWorker.removeEventListener("message", callback);
+
+      // paranoid me is posting the message after setting up the listener
+      compilerWorker.postMessage({
+        command: "COMPILE",
+        transaction,
+        arguments: {
+          fileMap,
+          entryFileName,
+          optimisations,
+        },
+      });
+
+      // TODO: maybe make a timeout to auto-reject
+      // probably more important for the run code
+    });
   };
-  // TODO: add input stuff
-  const runCode = (code: string) => {
-    const result = wasm_run_bf(code);
-    return result;
+
+  const run = (code: string) => {
+    return new Promise<string>((resolve) => {
+      const transaction = uuidv4();
+      const callback = (e: {
+        data: { transaction: string; message: string };
+      }) => {
+        if (transaction === e.data.transaction) {
+          removeCallback();
+          resolve(e.data.message);
+        }
+      };
+      compilerWorker.addEventListener("message", callback);
+      const removeCallback = () =>
+        compilerWorker.removeEventListener("message", callback);
+
+      // paranoid me is posting the message after setting up the listener
+      compilerWorker.postMessage({
+        command: "RUN",
+        transaction,
+        arguments: { code },
+      });
+    });
   };
-  initWasm();
 
   const [output, setOutput] = createSignal<string>();
 
@@ -198,11 +252,11 @@ const App: Component = () => {
         deleteFile,
         saveFileState,
         setFileLabel,
-        compile,
         setOutput,
-        runCode,
         compiledCode,
         reorderFiles,
+        compile,
+        run,
       }}
     >
       <div id="window">
@@ -234,14 +288,15 @@ interface AppContextProps {
   deleteFile: (id: string) => void;
   saveFileState: (id: string, state: EditorState) => void;
   setFileLabel: (id: string, label: string) => void;
+  setOutput: (output?: string) => void;
+  compiledCode: Accessor<string | undefined>;
+  reorderFiles: (from: string, to: string | null) => void;
+
   compile: (
     entryFileId: string,
     optimisations: MastermindConfig
-  ) => string | undefined;
-  setOutput: (output?: string) => void;
-  runCode: (code: string) => string;
-  compiledCode: Accessor<string | undefined>;
-  reorderFiles: (from: string, to: string | null) => void;
+  ) => Promise<string>;
+  run: (code: string) => Promise<string>;
 }
 
 interface FileState {

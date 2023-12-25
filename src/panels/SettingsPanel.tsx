@@ -32,17 +32,16 @@ const SettingsPanel: Component = () => {
   const onRun = () => {
     const code = app.compiledCode();
     if (!code) return;
-    const result = app.runCode(code);
-    app.setOutput(result);
+    app.run(code).then((result) => app.setOutput(result));
   };
 
   const onCompile = () => {
     const entryFileId = app.entryFile();
-    const result =
-      (!!entryFileId && app.compile(entryFileId, enabledOptimisations())) ||
-      undefined;
-    console.log(result);
-    app.setOutput(result);
+    if (!entryFileId) return;
+    app.compile(entryFileId, enabledOptimisations()).then((result) => {
+      console.log(result);
+      app.setOutput(result);
+    });
   };
 
   return (
