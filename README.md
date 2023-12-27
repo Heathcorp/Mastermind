@@ -16,6 +16,7 @@ I've also never written a compiler before and deliberately tried not to read any
 1. Make multi-byte variables contiguous
 1. ~~Add string literals for multi-byte variables~~
 1. Make output clause work with multi-byte variables by reference and strings/arrays by expression
+1. Convert panics to result types?
 1. Keep track of source code line for better panic messages
 1. ~~Fix issue with variable/function names that start with keywords~~
 1. ~~Simple include system~~, with example files for "standard library" style code
@@ -35,6 +36,6 @@ I've also never written a compiler before and deliberately tried not to read any
 5. More robust github actions workflows
 6. Pass panic messages from compiler into output panel
 7. Live I/O for running program
-8. More robust non-blocking compiler calls. Currently if the "run_code" function hangs, the whole webpage is frozen. Maybe look into web workers for this.
+8. ~~More robust non-blocking compiler calls. Currently if the "run_code" function hangs, the whole webpage is frozen. Maybe look into web workers for this.~~
 9. Set of loadable example (stdlib) files
 10. Documentation?

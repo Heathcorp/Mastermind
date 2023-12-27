@@ -28,8 +28,7 @@ onmessage = ({ data }) => {
         );
         postMessage({ transaction: data.transaction, message: compiledCode });
       } catch (e) {
-        console.log(e);
-        postMessage({ transaction: data.transaction, message: "error!" });
+        postMessage({ transaction: data.transaction, message: e });
       }
       break;
     case "RUN":
