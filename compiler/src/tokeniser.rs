@@ -2,7 +2,9 @@
 
 use regex::Regex;
 
-pub fn tokenise(source: &String) -> Vec<Token> {
+use crate::macros::macros::r_assert;
+
+pub fn tokenise(source: &String) -> Result<Vec<Token>, String> {
 	let stripped = source
 		.lines()
 		.map(strip_line)
@@ -105,7 +107,7 @@ pub fn tokenise(source: &String) -> Vec<Token> {
 				String::new() + "\"" + &chr_literal[1..(chr_literal.len() - 1)] + "\"";
 			let unescaped: String = serde_json::from_str(&escaped_string).unwrap();
 			// might need to change this for escaped characters (TODO)
-			assert_eq!(unescaped.len(), 1, "Character literals must be length 1");
+			r_assert!(unescaped.len() == 1, "Character literals must be length 1");
 			tokens.push(Token::Character(unescaped.chars().next().unwrap()));
 		}
 		/////////
@@ -120,12 +122,13 @@ pub fn tokenise(source: &String) -> Vec<Token> {
 				}
 			}
 		}
-		if !found {
-			panic!("Unknown token found while tokenising program: \"{remaining}\"");
-		}
+		r_assert!(
+			found,
+			"Unknown token found while tokenising program: \"{remaining}\""
+		);
 	}
 
-	tokens
+	Ok(tokens
 		.into_iter()
 		.filter(|t| match t {
 			Token::None => false,
@@ -133,7 +136,7 @@ pub fn tokenise(source: &String) -> Vec<Token> {
 		})
 		// stick a None token on the end to fix some weird parsing errors (seems silly but why not?)
 		.chain([Token::None])
-		.collect()
+		.collect())
 }
 
 fn strip_line(line: &str) -> String {

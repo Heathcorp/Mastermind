@@ -1,67 +1,70 @@
 use std::{collections::HashMap, fmt::Display, mem::discriminant, num::Wrapping};
 
-use crate::tokeniser::Token;
+use crate::{
+	macros::macros::{r_assert, r_panic},
+	tokeniser::Token,
+};
 
 // recursive function to create a tree representation of the program
-pub fn parse(tokens: &[Token]) -> Vec<Clause> {
+pub fn parse(tokens: &[Token]) -> Result<Vec<Clause>, String> {
 	// basic steps:
 	// chew off tokens from the front, recursively parse blocks of tokens
 	// TODO: down the track with expressions we will need another function to parse those
 	let mut clauses: Vec<Clause> = Vec::new();
 	let mut i = 0usize;
-	while let Some(clause) = get_clause_tokens(&tokens[i..]) {
+	while let Some(clause) = get_clause_tokens(&tokens[i..])? {
 		match (
 			&clause[0],
 			&clause.get(1).unwrap_or(&Token::None),
 			&clause.get(2).unwrap_or(&Token::None),
 		) {
 			(Token::Let, _, _) => {
-				clauses.extend(parse_let_clause(clause));
+				clauses.extend(parse_let_clause(clause)?);
 			}
 			(Token::Plus, Token::Plus, _) | (Token::Minus, Token::Minus, _) => {
-				clauses.push(parse_increment_clause(clause));
+				clauses.push(parse_increment_clause(clause)?);
 			}
 			(Token::Name(_), Token::Equals, _) => {
-				clauses.extend(parse_set_clause(clause));
+				clauses.extend(parse_set_clause(clause)?);
 			}
 			(Token::Drain, _, _) => {
-				clauses.push(parse_drain_copy_clause(clause, true));
+				clauses.push(parse_drain_copy_clause(clause, true)?);
 			}
 			(Token::Copy, _, _) => {
-				clauses.push(parse_drain_copy_clause(clause, false));
+				clauses.push(parse_drain_copy_clause(clause, false)?);
 			}
 			(Token::While, _, _) => {
-				clauses.push(parse_while_clause(clause));
+				clauses.push(parse_while_clause(clause)?);
 			}
 			(Token::Output, _, _) => {
-				clauses.push(parse_output_clause(clause));
+				clauses.push(parse_output_clause(clause)?);
 			}
 			(Token::Input, _, _) => {
-				clauses.push(parse_input_clause(clause));
+				clauses.push(parse_input_clause(clause)?);
 			}
 			(Token::Name(_), Token::OpenParenthesis, _) => {
-				clauses.push(parse_function_call_clause(clause));
+				clauses.push(parse_function_call_clause(clause)?);
 			}
 			(Token::Def, _, _) => {
-				clauses.push(parse_function_definition_clause(clause));
+				clauses.push(parse_function_definition_clause(clause)?);
 			}
 			(Token::Name(_), Token::Plus | Token::Minus, Token::Equals) => {
-				clauses.extend(parse_add_clause(clause));
+				clauses.extend(parse_add_clause(clause)?);
 			}
 			(Token::If, _, _) => {
-				clauses.push(parse_if_else_clause(clause));
+				clauses.push(parse_if_else_clause(clause)?);
 			}
 			(Token::Name(_), Token::OpenSquareBracket, _) => {
-				let (_, len) = parse_var_details(clause);
+				let (_, len) = parse_var_details(clause)?;
 				let remaining = &clause[len..];
 				match (&remaining[0], &remaining[1]) {
 					(Token::Equals, _) => {
-						clauses.extend(parse_set_clause(clause));
+						clauses.extend(parse_set_clause(clause)?);
 					}
 					(Token::Plus | Token::Minus, Token::Equals) => {
-						clauses.extend(parse_add_clause(clause));
+						clauses.extend(parse_add_clause(clause)?);
 					}
-					_ => panic!("Invalid clause: {clause:#?}"),
+					_ => r_panic!("Invalid clause: {clause:#?}"),
 				}
 			}
 			// empty clause
@@ -91,17 +94,15 @@ pub fn parse(tokens: &[Token]) -> Vec<Clause> {
 				| Token::Equals,
 				_,
 				_,
-			) => {
-				panic!("Invalid clause: {clause:#?}");
-			}
+			) => r_panic!("Invalid clause: {clause:#?}"),
 		};
 		i += clause.len();
 	}
 
-	clauses
+	Ok(clauses)
 }
 
-fn parse_let_clause(clause: &[Token]) -> Vec<Clause> {
+fn parse_let_clause(clause: &[Token]) -> Result<Vec<Clause>, String> {
 	let mut clauses = Vec::new();
 	// let foo = 9;
 	// let arr[2] = ??;
@@ -109,8 +110,8 @@ fn parse_let_clause(clause: &[Token]) -> Vec<Clause> {
 	// let why[9];
 	let mut i = 1usize;
 	// this kind of logic could probably be done with iterators, (TODO for future refactors)
-	let (var, len) = parse_var_details(&clause[i..]);
-	assert!(
+	let (var, len) = parse_var_details(&clause[i..])?;
+	r_assert!(
 		var.arr_num.unwrap_or(1) > 0,
 		"Multi-byte variable cannot be zero-length: {var:#?}"
 	);
@@ -121,7 +122,7 @@ fn parse_let_clause(clause: &[Token]) -> Vec<Clause> {
 	if let Token::Equals = &clause[i] {
 		i += 1;
 		let remaining = &clause[i..(clause.len() - 1)];
-		let expr = Expression::parse(remaining);
+		let expr = Expression::parse(remaining)?;
 		match (&var, expr) {
 			(
 				VariableSpec {
@@ -130,9 +131,8 @@ fn parse_let_clause(clause: &[Token]) -> Vec<Clause> {
 				},
 				Expression::ArrayLiteral(expr_list),
 			) => {
-				assert_eq!(
-					*var_len,
-					expr_list.len(),
+				r_assert!(
+					*var_len == expr_list.len(),
 					"Multi-byte variable and initialiser array differ in length: {clause:#?}"
 				);
 				for (i, expr) in expr_list.into_iter().enumerate() {
@@ -140,7 +140,7 @@ fn parse_let_clause(clause: &[Token]) -> Vec<Clause> {
 						name: var_name.clone(),
 						arr_num: Some(i),
 					};
-					clauses.extend(parse_expr_adds(expr, target_var));
+					clauses.extend(parse_expr_adds(expr, target_var)?);
 				}
 			}
 			(
@@ -151,9 +151,8 @@ fn parse_let_clause(clause: &[Token]) -> Vec<Clause> {
 				Expression::StringLiteral(s),
 			) => {
 				let imm_vals: Vec<u8> = s.bytes().collect();
-				assert_eq!(
-					*l,
-					imm_vals.len(),
+				r_assert!(
+					*l == imm_vals.len(),
 					"String initialiser length ({}) must be equal to variable length {l}",
 					imm_vals.len()
 				);
@@ -175,32 +174,32 @@ fn parse_let_clause(clause: &[Token]) -> Vec<Clause> {
 				},
 				expr,
 			) => {
-				clauses.extend(parse_expr_adds(expr, var));
+				clauses.extend(parse_expr_adds(expr, var)?);
 			}
-			_ => panic!("Invalid let expression given variable length: {clause:#?}"),
+			_ => r_panic!("Invalid let expression given variable length: {clause:#?}"),
 		}
 	} else if i < (clause.len() - 1) {
-		panic!("Invalid token at end of let clause: {clause:#?}");
+		r_panic!("Invalid token at end of let clause: {clause:#?}");
 	}
 
-	clauses
+	Ok(clauses)
 }
 
-fn parse_add_clause(clause: &[Token]) -> Vec<Clause> {
-	let mut clauses = Vec::new();
+fn parse_add_clause(clause: &[Token]) -> Result<Vec<Clause>, String> {
+	let mut clauses: Vec<Clause> = Vec::new();
 	let mut i = 0usize;
-	let (var, len) = parse_var_details(&clause[i..]);
+	let (var, len) = parse_var_details(&clause[i..])?;
 	i += len;
 
 	let positive = match &clause[i] {
 		Token::Plus => true,
 		Token::Minus => false,
 		_ => {
-			panic!("Unexpected second token in add clause: {clause:#?}");
+			r_panic!("Unexpected second token in add clause: {clause:#?}");
 		}
 	};
 	i += 2; // assume the equals sign is there because it was checked by the main loop
-	let raw_expr = Expression::parse(&clause[i..(clause.len() - 1)]);
+	let raw_expr = Expression::parse(&clause[i..(clause.len() - 1)])?;
 	let expr = match positive {
 		true => raw_expr,
 		false => Expression::SumExpression {
@@ -209,7 +208,7 @@ fn parse_add_clause(clause: &[Token]) -> Vec<Clause> {
 		},
 	};
 
-	let (imm, adds, subs) = expr.flatten();
+	let (imm, adds, subs) = expr.flatten()?;
 
 	clauses.push(Clause::AddToVariable {
 		var: var.clone(),
@@ -247,40 +246,40 @@ fn parse_add_clause(clause: &[Token]) -> Vec<Clause> {
 			}),
 	);
 
-	clauses
+	Ok(clauses)
 }
 
-fn parse_increment_clause(clause: &[Token]) -> Clause {
-	let (var, _) = parse_var_details(&clause[2..]);
+fn parse_increment_clause(clause: &[Token]) -> Result<Clause, String> {
+	let (var, _) = parse_var_details(&clause[2..])?;
 
-	match (&clause[0], &clause[1]) {
+	Ok(match (&clause[0], &clause[1]) {
 		(Token::Plus, Token::Plus) => Clause::AddToVariable { var, value: 1 },
 		(Token::Minus, Token::Minus) => Clause::AddToVariable {
 			var,
 			value: -1i8 as u8,
 		},
 		_ => {
-			panic!("Invalid pattern in increment clause: {clause:#?}");
+			r_panic!("Invalid pattern in increment clause: {clause:#?}");
 		}
-	}
+	})
 	// assumed that the final token is a semicolon
 }
 
-fn parse_set_clause(clause: &[Token]) -> Vec<Clause> {
+fn parse_set_clause(clause: &[Token]) -> Result<Vec<Clause>, String> {
 	// TODO: what do we do about arrays and strings?
-	let mut clauses = Vec::new();
+	let mut clauses: Vec<Clause> = Vec::new();
 	let mut i = 0usize;
-	let (var, len) = parse_var_details(&clause[i..]);
+	let (var, len) = parse_var_details(&clause[i..])?;
 	i += len;
 
 	// definitely could use iterators instead (TODO for refactor)
 	let Token::Equals = &clause[i] else {
-		panic!("Expected equals sign in set clause: {clause:#?}");
+		r_panic!("Expected equals sign in set clause: {clause:#?}");
 	};
 	i += 1;
 
-	let expr = Expression::parse(&clause[i..(clause.len() - 1)]);
-	let (imm, adds, subs) = expr.flatten();
+	let expr = Expression::parse(&clause[i..(clause.len() - 1)])?;
+	let (imm, adds, subs) = expr.flatten()?;
 
 	clauses.push(Clause::ClearVariable(var.clone()));
 
@@ -320,12 +319,12 @@ fn parse_set_clause(clause: &[Token]) -> Vec<Clause> {
 			}),
 	);
 
-	clauses
+	Ok(clauses)
 }
 
-fn parse_expr_adds(expr: Expression, target: VariableSpec) -> Vec<Clause> {
+fn parse_expr_adds(expr: Expression, target: VariableSpec) -> Result<Vec<Clause>, String> {
 	let mut clauses = Vec::new();
-	let (imm, adds, subs) = expr.flatten();
+	let (imm, adds, subs) = expr.flatten()?;
 
 	clauses.push(Clause::AddToVariable {
 		var: target.clone(),
@@ -362,19 +361,19 @@ fn parse_expr_adds(expr: Expression, target: VariableSpec) -> Vec<Clause> {
 			}),
 	);
 
-	clauses
+	Ok(clauses)
 }
 
-fn parse_drain_copy_clause(clause: &[Token], is_draining: bool) -> Clause {
+fn parse_drain_copy_clause(clause: &[Token], is_draining: bool) -> Result<Clause, String> {
 	// drain g {i += 1;};
 	// drain g into j;
 	// copy foo into bar {g += 2; etc;};
 	// TODO: make a tuple-parsing function and use it here instead of a space seperated list of targets
 
 	let mut targets = Vec::new();
-	let mut block = Vec::new();
+	let mut block: Vec<Clause> = Vec::new();
 	let mut i = 1usize;
-	let (source, len) = parse_var_details(&clause[i..]);
+	let (source, len) = parse_var_details(&clause[i..])?;
 	i += len;
 
 	if let Token::Into = &clause[i] {
@@ -384,7 +383,7 @@ fn parse_drain_copy_clause(clause: &[Token], is_draining: bool) -> Clause {
 		loop {
 			match &clause[i] {
 				Token::Name(_) => {
-					let (var, len) = parse_var_details(&clause[i..]);
+					let (var, len) = parse_var_details(&clause[i..])?;
 					i += len;
 					targets.push(var);
 				}
@@ -392,7 +391,7 @@ fn parse_drain_copy_clause(clause: &[Token], is_draining: bool) -> Clause {
 					break;
 				}
 				_ => {
-					panic!("Unexpected token in drain clause: {clause:#?}");
+					r_panic!("Unexpected token in drain clause: {clause:#?}");
 				}
 			}
 		}
@@ -400,24 +399,24 @@ fn parse_drain_copy_clause(clause: &[Token], is_draining: bool) -> Clause {
 
 	if let Token::OpenBrace = &clause[i] {
 		// code block to execute at each loop iteration
-		let braced_tokens = get_braced_tokens(&clause[i..], BRACES);
+		let braced_tokens = get_braced_tokens(&clause[i..], BRACES)?;
 		// recursion
-		block.extend(parse(braced_tokens));
+		block.extend(parse(braced_tokens)?);
 		// i += 2 + braced_tokens.len();
 	}
 
-	Clause::CopyLoop {
+	Ok(Clause::CopyLoop {
 		source,
 		targets,
 		block,
 		is_draining,
-	}
+	})
 }
 
-fn parse_while_clause(clause: &[Token]) -> Clause {
+fn parse_while_clause(clause: &[Token]) -> Result<Clause, String> {
 	// TODO: make this able to accept expressions
 	let mut i = 1usize;
-	let (var, len) = parse_var_details(&clause[i..]);
+	let (var, len) = parse_var_details(&clause[i..])?;
 	i += len;
 	// loop {
 	// 	if let Token::OpenBrace = &clause[i] {
@@ -427,16 +426,16 @@ fn parse_while_clause(clause: &[Token]) -> Clause {
 	// }
 
 	// let expr = parse_expression(&clause[1..i]);
-	let block_tokens = get_braced_tokens(&clause[i..], BRACES);
+	let block_tokens = get_braced_tokens(&clause[i..], BRACES)?;
 	// i += 2 + block_tokens.len();
 
-	Clause::WhileLoop {
+	Ok(Clause::WhileLoop {
 		var,
-		block: parse(block_tokens),
-	}
+		block: parse(block_tokens)?,
+	})
 }
 
-fn parse_if_else_clause(clause: &[Token]) -> Clause {
+fn parse_if_else_clause(clause: &[Token]) -> Result<Clause, String> {
 	// skip first token, assumed to start with if
 	let mut i = 1usize;
 	let mut not = false;
@@ -446,33 +445,29 @@ fn parse_if_else_clause(clause: &[Token]) -> Clause {
 	}
 
 	// TODO: use expressions here instead
-	let (var, len) = parse_var_details(&clause[i..]);
+	let (var, len) = parse_var_details(&clause[i..])?;
 	i += len;
 
 	let Token::OpenBrace = &clause[i] else {
-		panic!("Expected block in if statement: {clause:#?}");
+		r_panic!("Expected block in if statement: {clause:#?}");
 	};
 
-	let block_one = {
-		let block_tokens = get_braced_tokens(&clause[i..], BRACES);
+	let block_one: Vec<Clause> = {
+		let block_tokens = get_braced_tokens(&clause[i..], BRACES)?;
 		i += 2 + block_tokens.len();
-		parse(block_tokens)
+		parse(block_tokens)?
 	};
 
-	let block_two = if i < clause.len() {
-		if let Token::Else = &clause[i] {
-			i += 1;
-			let block_tokens = get_braced_tokens(&clause[i..], BRACES);
-			// i += 2 + block_tokens.len();
-			Some(parse(block_tokens))
-		} else {
-			None
-		}
+	let block_two: Option<Vec<Clause>> = if let Some(Token::Else) = &clause.get(i) {
+		i += 1;
+		let block_tokens = get_braced_tokens(&clause[i..], BRACES)?;
+		// i += 2 + block_tokens.len();
+		Some(parse(block_tokens)?)
 	} else {
 		None
 	};
 
-	match (not, block_one, block_two) {
+	Ok(match (not, block_one, block_two) {
 		(false, block_one, block_two) => Clause::IfStatement {
 			var,
 			if_block: Some(block_one),
@@ -483,52 +478,52 @@ fn parse_if_else_clause(clause: &[Token]) -> Clause {
 			if_block: block_two,
 			else_block: Some(block_one),
 		},
-	}
+	})
 }
 
-fn parse_output_clause(clause: &[Token]) -> Clause {
+fn parse_output_clause(clause: &[Token]) -> Result<Clause, String> {
 	let mut i = 1usize;
 
 	let expr_tokens = &clause[i..(clause.len() - 1)];
-	let expr = Expression::parse(expr_tokens);
+	let expr = Expression::parse(expr_tokens)?;
 	i += expr_tokens.len();
 
 	let Token::ClauseDelimiter = &clause[i] else {
-		panic!("Invalid token at end of output clause: {clause:#?}");
+		r_panic!("Invalid token at end of output clause: {clause:#?}");
 	};
 
-	Clause::OutputByte { value: expr }
+	Ok(Clause::OutputByte { value: expr })
 }
 
-fn parse_input_clause(clause: &[Token]) -> Clause {
+fn parse_input_clause(clause: &[Token]) -> Result<Clause, String> {
 	let mut i = 1usize;
 
-	let (var, len) = parse_var_details(&clause[i..]);
+	let (var, len) = parse_var_details(&clause[i..])?;
 	i += len;
 
 	let Token::ClauseDelimiter = &clause[i] else {
-		panic!("Invalid token at end of input clause: {clause:#?}");
+		r_panic!("Invalid token at end of input clause: {clause:#?}");
 	};
 
-	Clause::InputByte { var }
+	Ok(Clause::InputByte { var })
 }
 
-fn parse_function_definition_clause(clause: &[Token]) -> Clause {
+fn parse_function_definition_clause(clause: &[Token]) -> Result<Clause, String> {
 	let mut i = 1usize;
 	// function name
 	let Token::Name(name) = &clause[i] else {
-		panic!("Expected function name after in function definition clause: {clause:#?}");
+		r_panic!("Expected function name after in function definition clause: {clause:#?}");
 	};
 	let mut args = Vec::new();
 	i += 1;
 	let Token::OpenParenthesis = &clause[i] else {
-		panic!("Expected open parenthesis in function definition clause: {clause:#?}");
+		r_panic!("Expected open parenthesis in function definition clause: {clause:#?}");
 	};
-	let arg_tokens = get_braced_tokens(&clause[i..], PARENTHESES);
+	let arg_tokens = get_braced_tokens(&clause[i..], PARENTHESES)?;
 	let mut j = 0usize;
 	// parse function argument names
 	while let Token::Name(_) = &arg_tokens[j] {
-		let (var, len) = parse_var_details(&arg_tokens[j..]);
+		let (var, len) = parse_var_details(&arg_tokens[j..])?;
 		j += len;
 
 		args.push(var);
@@ -538,7 +533,7 @@ fn parse_function_definition_clause(clause: &[Token]) -> Clause {
 		} else if let Token::Comma = &arg_tokens[j] {
 			j += 1;
 		} else {
-			panic!("Unexpected token in function definition arguments: {arg_tokens:#?}");
+			r_panic!("Unexpected token in function definition arguments: {arg_tokens:#?}");
 		}
 	}
 
@@ -546,36 +541,36 @@ fn parse_function_definition_clause(clause: &[Token]) -> Clause {
 
 	// recursively parse the inner block
 	let Token::OpenBrace = &clause[i] else {
-		panic!("Expected execution block in function definition: {clause:#?}");
+		r_panic!("Expected execution block in function definition: {clause:#?}");
 	};
 
-	let block_tokens = get_braced_tokens(&clause[i..], BRACES);
-	let parsed_block = parse(block_tokens);
+	let block_tokens = get_braced_tokens(&clause[i..], BRACES)?;
+	let parsed_block: Vec<Clause> = parse(block_tokens)?;
 
-	Clause::DefineFunction {
+	Ok(Clause::DefineFunction {
 		name: name.clone(),
 		arguments: args,
 		block: parsed_block,
-	}
+	})
 }
 
-fn parse_function_call_clause(clause: &[Token]) -> Clause {
+fn parse_function_call_clause(clause: &[Token]) -> Result<Clause, String> {
 	let mut i = 0usize;
 	// Okay I didn't know this rust syntax, could have used it all over the place
 	let Token::Name(name) = &clause[i] else {
-		panic!("Expected function identifier at start of function call clause: {clause:#?}");
+		r_panic!("Expected function identifier at start of function call clause: {clause:#?}");
 	};
 	let mut args = Vec::new();
 	i += 1;
 
 	let Token::OpenParenthesis = &clause[i] else {
-		panic!("Expected open parenthesis in function call clause: {clause:#?}");
+		r_panic!("Expected open parenthesis in function call clause: {clause:#?}");
 	};
-	let arg_tokens = get_braced_tokens(&clause[i..], PARENTHESES);
+	let arg_tokens = get_braced_tokens(&clause[i..], PARENTHESES)?;
 
 	let mut j = 0usize;
 	while let Token::Name(_) = &arg_tokens[j] {
-		let (var, len) = parse_var_details(&arg_tokens[j..]);
+		let (var, len) = parse_var_details(&arg_tokens[j..])?;
 		j += len;
 
 		args.push(var);
@@ -585,34 +580,34 @@ fn parse_function_call_clause(clause: &[Token]) -> Clause {
 		} else if let Token::Comma = &arg_tokens[j] {
 			j += 1;
 		} else {
-			panic!("Unexpected token in function call arguments: {arg_tokens:#?}");
+			r_panic!("Unexpected token in function call arguments: {arg_tokens:#?}");
 		}
 	}
 
 	i += 2 + arg_tokens.len();
 
 	let Token::ClauseDelimiter = &clause[i] else {
-		panic!("Expected clause delimiter at end of function call clause: {clause:#?}");
+		r_panic!("Expected clause delimiter at end of function call clause: {clause:#?}");
 	};
 
-	Clause::CallFunction {
+	Ok(Clause::CallFunction {
 		function_name: name.clone(),
 		arguments: args,
-	}
+	})
 }
 
-fn parse_var_details(tokens: &[Token]) -> (VariableSpec, usize) {
+fn parse_var_details(tokens: &[Token]) -> Result<(VariableSpec, usize), String> {
 	let mut i = 0usize;
 	let Token::Name(var_name) = &tokens[i] else {
-		panic!("Expected identifier at start of variable identifier: {tokens:#?}");
+		r_panic!("Expected identifier at start of variable identifier: {tokens:#?}");
 	};
 	i += 1;
 
 	let arr_num = if i < tokens.len() {
 		if let Token::OpenSquareBracket = &tokens[i] {
-			let subscript = get_braced_tokens(&tokens[i..], SQUARE_BRACKETS);
-			let Expression::NaturalNumber(num_len) = Expression::parse(subscript) else {
-				panic!("Expected a constant array length specifier in variable identifier: {tokens:#?}");
+			let subscript = get_braced_tokens(&tokens[i..], SQUARE_BRACKETS)?;
+			let Expression::NaturalNumber(num_len) = Expression::parse(subscript)? else {
+				r_panic!("Expected a constant array length specifier in variable identifier: {tokens:#?}");
 			};
 			i += 2 + subscript.len();
 			Some(num_len)
@@ -623,39 +618,39 @@ fn parse_var_details(tokens: &[Token]) -> (VariableSpec, usize) {
 		None
 	};
 
-	(
+	Ok((
 		VariableSpec {
 			name: var_name.clone(),
 			arr_num,
 		},
 		i,
-	)
+	))
 }
 
 // get a clause, typically a line, bounded by ;
-fn get_clause_tokens(tokens: &[Token]) -> Option<&[Token]> {
+fn get_clause_tokens(tokens: &[Token]) -> Result<Option<&[Token]>, String> {
 	if tokens.len() < 2 {
-		None
+		Ok(None)
 	} else {
 		let mut i = 0usize;
 		while i < tokens.len() {
 			match tokens[i] {
 				Token::OpenBrace => {
-					let braced_block = get_braced_tokens(&tokens[i..], BRACES);
+					let braced_block = get_braced_tokens(&tokens[i..], BRACES)?;
 					i += 2 + braced_block.len();
 					// handle blocks marking the end of clauses, if/else being the exception
 					if i < tokens.len() {
 						if let Token::Else = tokens[i] {
 							i += 1;
-							let else_block = get_braced_tokens(&tokens[i..], BRACES);
+							let else_block = get_braced_tokens(&tokens[i..], BRACES)?;
 							i += 2 + else_block.len();
 						}
 					}
-					return Some(&tokens[..i]);
+					return Ok(Some(&tokens[..i]));
 				}
 				Token::ClauseDelimiter => {
 					i += 1;
-					return Some(&tokens[..i]);
+					return Ok(Some(&tokens[..i]));
 				}
 				_ => {
 					i += 1;
@@ -663,7 +658,7 @@ fn get_clause_tokens(tokens: &[Token]) -> Option<&[Token]> {
 			}
 		}
 
-		panic!("No clause could be found in: {tokens:#?}");
+		r_panic!("No clause could be found in: {tokens:#?}");
 	}
 }
 
@@ -673,7 +668,7 @@ const PARENTHESES: (Token, Token) = (Token::OpenParenthesis, Token::ClosingParen
 // this should be a generic function but rust doesn't support enum variants as type arguments yet
 // find tokens bounded by matching brackets
 // TODO: make an impl for &[Token] and put all these functions in it
-fn get_braced_tokens(tokens: &[Token], braces: (Token, Token)) -> &[Token] {
+fn get_braced_tokens(tokens: &[Token], braces: (Token, Token)) -> Result<&[Token], String> {
 	let _braces = (discriminant(&braces.0), discriminant(&braces.1));
 	// find corresponding bracket, the depth check is unnecessary but whatever
 	let len = {
@@ -693,75 +688,70 @@ fn get_braced_tokens(tokens: &[Token], braces: (Token, Token)) -> &[Token] {
 
 	if len >= 2 {
 		if _braces.0 == discriminant(&tokens[0]) && _braces.1 == discriminant(&tokens[len - 1]) {
-			return &tokens[1..(len - 1)];
+			return Ok(&tokens[1..(len - 1)]);
 		}
 	}
-	panic!("Invalid braced tokens: {tokens:#?}");
+	r_panic!("Invalid braced tokens: {tokens:#?}");
 }
 
 impl Expression {
 	// Iterators?
 	// TODO: support post/pre increment in expressions
-	fn parse(tokens: &[Token]) -> Expression {
+	fn parse(tokens: &[Token]) -> Result<Expression, String> {
 		let mut i = 0usize;
 
 		if let Token::String(s) = &tokens[i] {
 			i += 1;
-			assert_eq!(
-				i,
-				tokens.len(),
+			r_assert!(
+				i == tokens.len(),
 				"Expected semicolon after string literal {tokens:#?}"
 			);
-			return Expression::StringLiteral(s.clone());
+			return Ok(Expression::StringLiteral(s.clone()));
 		}
 
 		if let Token::Character(c) = &tokens[i] {
 			i += 1;
-			assert_eq!(
-				i,
-				tokens.len(),
+			r_assert!(
+				i == tokens.len(),
 				"Expected semicolon after character literal {tokens:#?}"
 			);
 			// convert character to a natural number, not sure if we need a character specific expression type
 			// apparently we can just cast?
-			return Expression::NaturalNumber(*c as usize);
+			return Ok(Expression::NaturalNumber(*c as usize));
 		}
 
 		if let Token::False = &tokens[i] {
 			i += 1;
-			assert_eq!(
-				i,
-				tokens.len(),
+			r_assert!(
+				i == tokens.len(),
 				"Expected semicolon after false literal {tokens:#?}"
 			);
-			return Expression::NaturalNumber(0);
+			return Ok(Expression::NaturalNumber(0));
 		}
 
 		if let Token::True = &tokens[i] {
 			i += 1;
-			assert_eq!(
-				i,
-				tokens.len(),
+			r_assert!(
+				i == tokens.len(),
 				"Expected semicolon after true literal {tokens:#?}"
 			);
-			return Expression::NaturalNumber(1);
+			return Ok(Expression::NaturalNumber(1));
 		}
 
 		if let Token::OpenSquareBracket = &tokens[i] {
-			let braced_tokens = get_braced_tokens(&tokens[i..], SQUARE_BRACKETS);
+			let braced_tokens = get_braced_tokens(&tokens[i..], SQUARE_BRACKETS)?;
 			i += 2 + braced_tokens.len();
-			assert_eq!(
-				i,
-				tokens.len(),
+			r_assert!(
+				i == tokens.len(),
 				"Expected semicolon after array literal {tokens:#?}"
 			);
 			// parse the array
-			return Expression::ArrayLiteral(
-				braced_tokens
-					.split(|t| if let Token::Comma = t { true } else { false })
-					.map(Self::parse)
-					.collect(),
-			);
+			let results: Result<Vec<Expression>, String> = braced_tokens
+				.split(|t| if let Token::Comma = t { true } else { false })
+				.map(Self::parse)
+				// TODO: test this collect error handling
+				.collect();
+			return Ok(Expression::ArrayLiteral(results?));
 		}
 
 		let mut current_sign = Some(Sign::Positive); // by default the first summand is positive
@@ -798,7 +788,7 @@ impl Expression {
 				}
 				(Some(sign), Token::Character(chr)) => {
 					// TODO: escaped characters?
-					assert!(
+					r_assert!(
 						chr.is_ascii(),
 						"Character tokens must be single-byte: {chr}"
 					);
@@ -818,7 +808,7 @@ impl Expression {
 					current_sign = None;
 				}
 				(Some(sign), Token::Name(_)) => {
-					let (var, len) = parse_var_details(&tokens[i..]);
+					let (var, len) = parse_var_details(&tokens[i..])?;
 					i += len;
 					match sign {
 						Sign::Positive => summands.push(Expression::VariableReference(var)),
@@ -830,9 +820,9 @@ impl Expression {
 					current_sign = None;
 				}
 				(Some(sign), Token::OpenParenthesis) => {
-					let braced_tokens = get_braced_tokens(&tokens[i..], PARENTHESES);
+					let braced_tokens = get_braced_tokens(&tokens[i..], PARENTHESES)?;
 					i += 2 + braced_tokens.len();
-					let braced_expr = Self::parse(braced_tokens);
+					let braced_expr = Self::parse(braced_tokens)?;
 					// probably inefficent but everything needs to be flattened at some point anyway so won't matter
 					// TODO: make expression structure more efficient (don't use vectors every time there is a negative)
 					summands.push(match (sign, braced_expr.clone()) {
@@ -868,20 +858,18 @@ impl Expression {
 					current_sign = None;
 				}
 				_ => {
-					panic!("Unexpected token found in expression: {tokens:#?}");
+					r_panic!("Unexpected token found in expression: {tokens:#?}");
 				}
 			}
 		}
 
 		match summands.len() {
-			1 => summands.into_iter().next().unwrap(),
-			1.. => Expression::SumExpression {
+			1 => Ok(summands.into_iter().next().unwrap()),
+			1.. => Ok(Expression::SumExpression {
 				sign: Sign::Positive,
 				summands,
-			},
-			_ => {
-				panic!("Expected value in expression: {tokens:#?}");
-			}
+			}),
+			_ => r_panic!("Expected value in expression: {tokens:#?}"),
 		}
 	}
 
@@ -889,7 +877,7 @@ impl Expression {
 	// (constant to add, variables to add, variables to subtract)
 	// currently multiplication is not supported so order of operations and flattening is very trivial
 	// If we add multiplication in future it will likely be constant multiplication only, so no variable on variable multiplication
-	pub fn flatten(self) -> (u8, Vec<VariableSpec>, Vec<VariableSpec>) {
+	pub fn flatten(self) -> Result<(u8, Vec<VariableSpec>, Vec<VariableSpec>), String> {
 		let expr = self;
 		let mut imm_sum = Wrapping(0u8);
 		let mut additions = Vec::new();
@@ -897,9 +885,10 @@ impl Expression {
 
 		match expr {
 			Expression::SumExpression { sign, summands } => {
-				let flattened = summands
+				let results: Result<Vec<(u8, Vec<VariableSpec>, Vec<VariableSpec>)>, String> =
+					summands.into_iter().map(|expr| expr.flatten()).collect();
+				let flattened = results?
 					.into_iter()
-					.map(|expr| expr.flatten())
 					.reduce(|acc, (imm, adds, subs)| {
 						(
 							(Wrapping(acc.0) + Wrapping(imm)).0,
@@ -930,11 +919,11 @@ impl Expression {
 				additions.push(var);
 			}
 			Expression::ArrayLiteral(_) | Expression::StringLiteral(_) => {
-				panic!("Unable to flatten arrays or string expressions: {expr:#?}");
+				r_panic!("Unable to flatten arrays or string expressions: {expr:#?}");
 			}
 		}
 
-		(imm_sum.0, additions, subtractions)
+		Ok((imm_sum.0, additions, subtractions))
 	}
 }
 

@@ -4,6 +4,7 @@ use std::{collections::HashMap, iter::zip};
 
 use crate::{
 	builder::CellId,
+	macros::macros::r_panic,
 	parser::{Clause, Expression, VariableSpec},
 	MastermindConfig,
 };
@@ -15,7 +16,11 @@ pub struct Compiler<'a> {
 }
 
 impl Compiler<'_> {
-	pub fn compile<'a>(&'a self, clauses: &[Clause], outer_scope: Option<&'a Scope>) -> Scope {
+	pub fn compile<'a>(
+		&'a self,
+		clauses: &[Clause],
+		outer_scope: Option<&'a Scope>,
+	) -> Result<Scope, String> {
 		let mut scope = if let Some(outer) = outer_scope {
 			outer.open_inner()
 		} else {
@@ -50,7 +55,7 @@ impl Compiler<'_> {
 			match clause {
 				Clause::AddToVariable { var, value } => {
 					// get variable cell from allocation stack
-					let mem = scope.get_variable_mem(&var).unwrap();
+					let mem = scope.get_variable_mem(&var)?;
 					scope.push_instruction(Instruction::AddToCell(mem, value));
 				}
 				Clause::DeclareVariable(var) => {
@@ -66,25 +71,25 @@ impl Compiler<'_> {
 						};
 						for i in 0..len {
 							var_copy.arr_num = Some(i);
-							let mem = scope.get_variable_mem(&var_copy).unwrap();
+							let mem = scope.get_variable_mem(&var_copy)?;
 							scope.push_instruction(Instruction::AllocateCell(mem));
 						}
 					} else {
-						let mem = scope.get_variable_mem(&var).unwrap();
+						let mem = scope.get_variable_mem(&var)?;
 						scope.push_instruction(Instruction::AllocateCell(mem));
 					}
 				}
 				Clause::ClearVariable(var) => {
-					let mem = scope.get_variable_mem(&var).unwrap();
+					let mem = scope.get_variable_mem(&var)?;
 					scope.push_instruction(Instruction::ClearCell(mem));
 				}
 				Clause::InputByte { var } => {
-					let mem = scope.get_variable_mem(&var).unwrap();
+					let mem = scope.get_variable_mem(&var)?;
 					scope.push_instruction(Instruction::InputToCell(mem));
 				}
 				Clause::OutputByte { value } => match value {
 					Expression::VariableReference(var) => {
-						let mem = scope.get_variable_mem(&var).unwrap();
+						let mem = scope.get_variable_mem(&var)?;
 						scope.push_instruction(Instruction::OutputCell(mem));
 					}
 					Expression::NaturalNumber(num) => {
@@ -105,13 +110,13 @@ impl Compiler<'_> {
 				},
 				Clause::WhileLoop { var, block } => {
 					// open loop on variable
-					let mem = scope.get_variable_mem(&var).unwrap();
+					let mem = scope.get_variable_mem(&var)?;
 					scope.push_instruction(Instruction::OpenLoop(mem));
 
 					// recursively compile instructions
 					// TODO: when recursively compiling, check which things changed based on a return info value
 					// TODO: make a function or something for this common pattern
-					let loop_scope = self.compile(&block, Some(&scope));
+					let loop_scope = self.compile(&block, Some(&scope))?;
 					scope.instructions.extend(loop_scope.get_instructions());
 
 					// close the loop
@@ -154,17 +159,17 @@ impl Compiler<'_> {
 				} => match is_draining {
 					true => {
 						// again this stuff needs to be fixed
-						let source_mem = scope.get_variable_mem(&source).unwrap();
+						let source_mem = scope.get_variable_mem(&source)?;
 
 						scope.push_instruction(Instruction::OpenLoop(source_mem));
 
 						// recurse
-						let loop_scope = self.compile(&block, Some(&scope));
+						let loop_scope = self.compile(&block, Some(&scope))?;
 						scope.instructions.extend(loop_scope.get_instructions());
 
 						// copy into each target and decrement the source
 						for target in targets {
-							let mem = scope.get_variable_mem(&target).unwrap();
+							let mem = scope.get_variable_mem(&target)?;
 							scope.push_instruction(Instruction::AddToCell(mem, 1));
 						}
 						scope.push_instruction(Instruction::AddToCell(source_mem, -1i8 as u8)); // 255
@@ -177,17 +182,17 @@ impl Compiler<'_> {
 						scope.push_instruction(Instruction::AllocateCell(temp_mem));
 
 						// again this stuff needs to be fixed
-						let source_mem = scope.get_variable_mem(&source).unwrap();
+						let source_mem = scope.get_variable_mem(&source)?;
 
 						scope.push_instruction(Instruction::OpenLoop(source_mem));
 
 						// recurse
-						let loop_scope = self.compile(&block, Some(&scope));
+						let loop_scope = self.compile(&block, Some(&scope))?;
 						scope.instructions.extend(loop_scope.get_instructions());
 
 						// copy into each target and decrement the source
 						for target in targets {
-							let mem = scope.get_variable_mem(&target).unwrap();
+							let mem = scope.get_variable_mem(&target)?;
 							scope.push_instruction(Instruction::AddToCell(mem, 1));
 						}
 						scope.push_instruction(Instruction::AddToCell(temp_mem, 1));
@@ -225,7 +230,7 @@ impl Compiler<'_> {
 						None => None,
 					};
 
-					let original_var_mem = new_scope.get_variable_mem(&var).unwrap();
+					let original_var_mem = new_scope.get_variable_mem(&var)?;
 
 					new_scope.push_instruction(Instruction::OpenLoop(original_var_mem));
 
@@ -237,7 +242,7 @@ impl Compiler<'_> {
 					new_scope.push_instruction(Instruction::CloseLoop(original_var_mem));
 
 					// change scope var pointer
-					new_scope.reassign_variable_mem(var.clone(), temp_var_mem);
+					new_scope.reassign_variable_mem(var.clone(), temp_var_mem)?;
 
 					// TODO: think about this?
 					// free the original cell temporarily as it isn't being used
@@ -250,7 +255,7 @@ impl Compiler<'_> {
 
 					// recursively compile if block
 					if let Some(block) = if_block {
-						let if_scope = self.compile(&block, Some(&new_scope));
+						let if_scope = self.compile(&block, Some(&new_scope))?;
 						new_scope.instructions.extend(if_scope.get_instructions());
 					};
 
@@ -277,7 +282,7 @@ impl Compiler<'_> {
 
 						// recursively compile else block
 						let block = else_block.unwrap();
-						let else_scope = self.compile(&block, Some(&new_scope));
+						let else_scope = self.compile(&block, Some(&new_scope))?;
 						new_scope.instructions.extend(else_scope.get_instructions());
 
 						new_scope.push_instruction(Instruction::CloseLoop(else_mem));
@@ -294,53 +299,65 @@ impl Compiler<'_> {
 				} => {
 					// create variable translations and recursively compile the inner variable block
 					let Some(function_definition) = scope.get_function(&function_name) else {
-						panic!("No function with name \"{}\" found", function_name);
+						r_panic!("No function with name \"{}\" found", function_name);
 					};
 
 					let mut new_scope = scope.open_inner();
-					new_scope.variable_aliases.extend(
-						zip(function_definition.arguments.clone().into_iter(), arguments).map(
-							|(arg_definition, calling_arg)| match (arg_definition, calling_arg) {
-								(
-									VariableSpec {
-										name: def_name,
-										arr_num: None,
-									},
-									VariableSpec {
-										name: call_name,
-										arr_num: None,
-									},
-								) => ArgumentTranslation::SingleToSingle(def_name, call_name),
-								(
-									VariableSpec {
-										name: def_name,
-										arr_num: None,
-									},
-									calling_var,
-								) => ArgumentTranslation::SingleToMultiCell(def_name, calling_var),
-								(
-									def_var,
-									VariableSpec {
-										name: call_name,
-										arr_num: None,
-									},
-								) => {
-									let calling_var_len =
-										scope.get_variable_size(&call_name).unwrap();
-									if calling_var_len != def_var.arr_num.unwrap() {
-										panic!("Cannot translate {call_name} as {def_var} as the lengths do not match");
+					let zipped: Result<Vec<ArgumentTranslation>, String> =
+						zip(function_definition.arguments.clone().into_iter(), arguments)
+							.map(|(arg_definition, calling_arg)| {
+								match (arg_definition, calling_arg) {
+									(
+										VariableSpec {
+											name: def_name,
+											arr_num: None,
+										},
+										VariableSpec {
+											name: call_name,
+											arr_num: None,
+										},
+									) => {
+										Ok(ArgumentTranslation::SingleToSingle(def_name, call_name))
 									}
-									ArgumentTranslation::MultiToMulti(def_var.name, call_name)
+									(
+										VariableSpec {
+											name: def_name,
+											arr_num: None,
+										},
+										calling_var,
+									) => Ok(ArgumentTranslation::SingleToMultiCell(
+										def_name,
+										calling_var,
+									)),
+									(
+										def_var,
+										VariableSpec {
+											name: call_name,
+											arr_num: None,
+										},
+									) => {
+										let calling_var_len =
+											scope.get_variable_size(&call_name)?.unwrap();
+										if calling_var_len != def_var.arr_num.unwrap() {
+											r_panic!("Cannot translate {call_name} as {def_var} as the lengths do not match");
+										}
+										Ok(ArgumentTranslation::MultiToMulti(
+											def_var.name,
+											call_name,
+										))
+									}
+									(def_var, call_var) => {
+										r_panic!(
+											"Cannot translate {call_var} as argument {def_var}"
+										)
+									}
 								}
-								(def_var, call_var) => {
-									panic!("Cannot translate {call_var} as argument {def_var}");
-								}
-							},
-						),
-					);
+							})
+							.collect();
+					new_scope.variable_aliases.extend(zipped?);
 
 					// recurse
-					let loop_scope = self.compile(&function_definition.block, Some(&new_scope));
+					let loop_scope = self.compile(&function_definition.block, Some(&new_scope))?;
 					new_scope.instructions.extend(loop_scope.get_instructions());
 
 					// extend the inner scope instructions onto the outer scope
@@ -365,7 +382,7 @@ impl Compiler<'_> {
 			scope.push_instruction(Instruction::FreeCell(mem));
 		}
 
-		scope
+		Ok(scope)
 	}
 }
 
@@ -406,7 +423,7 @@ pub struct Scope<'a> {
 	// experimental: This is where we keep track of the instructions generated by the compiler, then we return the scope to the calling function
 	instructions: Vec<Instruction>,
 	// very experimental: this is used for optimisations to keep track of how variables are used
-	variable_accesses: HashMap<VariableSpec, (usize, usize)>, // (reads, writes)
+	// variable_accesses: HashMap<VariableSpec, (usize, usize)>, // (reads, writes)
 }
 
 #[derive(Clone, Debug)]
@@ -441,7 +458,7 @@ impl Scope<'_> {
 			variable_sizes: HashMap::new(),
 			functions: HashMap::new(),
 			instructions: Vec::new(),
-			variable_accesses: HashMap::new(),
+			// variable_accesses: HashMap::new(),
 		}
 	}
 
@@ -464,7 +481,7 @@ impl Scope<'_> {
 			variable_sizes: HashMap::new(),
 			functions: HashMap::new(),
 			instructions: Vec::new(),
-			variable_accesses: HashMap::new(),
+			// variable_accesses: HashMap::new(),
 		}
 	}
 
@@ -522,10 +539,10 @@ impl Scope<'_> {
 		}
 	}
 
-	fn get_variable_mem(&self, var: &VariableSpec) -> Option<usize> {
+	fn get_variable_mem(&self, var: &VariableSpec) -> Result<usize, String> {
 		// TODO: check for variable size index out of range errors
 		if let Some(mem) = self.variable_memory_cells.get(var) {
-			return Some(mem + self.allocation_offset());
+			Ok(mem + self.allocation_offset())
 		} else if let Some(outer_scope) = self.outer_scope {
 			if let Some(alias) = self.variable_aliases.iter().find_map(|translation| {
 				if *translation.get_def_name() == var.name {
@@ -546,51 +563,60 @@ impl Scope<'_> {
 					None
 				}
 			}) {
-				return outer_scope.get_variable_mem(&alias);
+				// again not sure if Ok + ? is a bad pattern
+				Ok(outer_scope.get_variable_mem(&alias)?)
 			} else {
-				return outer_scope.get_variable_mem(var);
+				Ok(outer_scope.get_variable_mem(var)?)
 			}
+		} else {
+			r_panic!("No variable {var} found in current scope.");
 		}
-
-		panic!("No variable {var} found in current scope.");
 	}
 
 	// TODO: refactor this stuff heavily when we make multi-byte values contiguous and inline asm stuff
-	fn get_variable_size(&self, var_name: &str) -> Option<usize> {
+	fn get_variable_size(&self, var_name: &str) -> Result<Option<usize>, String> {
 		if let Some(len) = self.variable_sizes.get(var_name) {
-			*len
+			Ok(*len)
 		} else if let Some(outer_scope) = self.outer_scope {
 			if let Some(alias_name) = self.variable_aliases.iter().find_map(|translation| {
 				if translation.get_def_name() == var_name {
 					match translation {
 						ArgumentTranslation::SingleToSingle(_, _)
-						| ArgumentTranslation::SingleToMultiCell(_, _) => panic!(
-							"Something went wrong finding the size of variable \"{var_name}\""
-						),
-						ArgumentTranslation::MultiToMulti(_, call_name) => Some(call_name.clone()),
+						| ArgumentTranslation::SingleToMultiCell(_, _) => {
+							// fucked error handling, indicative of poor design patterns
+							return Some(Err(format!(
+								"Something went wrong finding the size of variable \"{var_name}\""
+							)));
+						}
+						ArgumentTranslation::MultiToMulti(_, call_name) => {
+							Some(Ok(call_name.clone()))
+						}
 					}
 				} else {
 					None
 				}
 			}) {
-				outer_scope.get_variable_size(&alias_name)
+				// not sure if a ? + Ok makes any sense, may cause overhead?
+				Ok(outer_scope.get_variable_size(&alias_name?)?)
 			} else {
-				outer_scope.get_variable_size(var_name)
+				Ok(outer_scope.get_variable_size(var_name)?)
 			}
 		} else {
-			panic!("Size of variable '{var_name}' could not be found");
+			r_panic!("Size of variable '{var_name}' could not be found");
 		}
 	}
 
 	// add a pointer to the variable in the scope, the scope cannot directly own the variable being reassigned
 	// mem is including the offset, as it is a value returned from a prior allocate call
-	fn reassign_variable_mem(&mut self, var: VariableSpec, mem: usize) {
+	fn reassign_variable_mem(&mut self, var: VariableSpec, mem: usize) -> Result<(), String> {
 		let None = self.variable_memory_cells.get(&var) else {
-			panic!("Cannot reassign {var} in same scope as it is defined!");
+			r_panic!("Cannot reassign {var} in same scope as it is defined!");
 		};
 
 		self.variable_memory_cells
 			.insert(var, mem - self.allocation_offset());
+
+		Ok(())
 	}
 
 	// reverts the above operation, again needs the original variable to not be stored directly in this scope

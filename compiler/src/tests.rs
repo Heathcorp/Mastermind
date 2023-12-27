@@ -1,4 +1,5 @@
 #![allow(dead_code)]
+
 // black box testing
 #[cfg(test)]
 pub mod tests {
@@ -11,7 +12,7 @@ pub mod tests {
 		MastermindConfig,
 	};
 
-	fn compile_and_run(program: String, input: String) -> String {
+	fn compile_and_run(program: String, input: String) -> Result<String, String> {
 		println!("{program}");
 		let config = MastermindConfig {
 			optimise_generated_code: false,
@@ -23,18 +24,18 @@ pub mod tests {
 			optimise_empty_blocks: false,
 		};
 		// compile mastermind
-		let tokens: Vec<Token> = tokenise(&program);
+		let tokens: Vec<Token> = tokenise(&program)?;
 		println!("{tokens:#?}");
-		let clauses = parse(&tokens);
+		let clauses = parse(&tokens)?;
 		println!("{clauses:#?}");
 		let instructions = Compiler { config: &config }
-			.compile(&clauses, None)
+			.compile(&clauses, None)?
 			.get_instructions();
 		println!("{instructions:#?}");
-		let bf_program = Builder { config: &config }.build(instructions);
+		let bf_program = Builder { config: &config }.build(instructions)?;
 		println!("{bf_program}");
 		// run generated brainfuck with input
-		run_program(bf_program, input)
+		Ok(run_program(bf_program, input))
 	}
 
 	// #[test]
@@ -42,7 +43,7 @@ pub mod tests {
 		let program = String::from("");
 		let input = String::from("");
 		let desired_output = String::from("");
-		let output = compile_and_run(program, input);
+		let output = compile_and_run(program, input).expect("");
 		println!("{output}");
 		assert_eq!(desired_output, output)
 	}
@@ -69,7 +70,7 @@ output ten;
 		);
 		let input = String::from("");
 		let desired_output = String::from("hello\n");
-		assert_eq!(desired_output, compile_and_run(program, input))
+		assert_eq!(desired_output, compile_and_run(program, input).expect(""))
 	}
 
 	#[test]
@@ -86,7 +87,7 @@ output 10;
 		);
 		let input = String::from("");
 		let desired_output = String::from("hello\n");
-		assert_eq!(desired_output, compile_and_run(program, input))
+		assert_eq!(desired_output, compile_and_run(program, input).expect(""))
 	}
 
 	#[test]
@@ -108,7 +109,7 @@ output 70;
 		);
 		let input = String::from("");
 		let desired_output = String::from("hello\n\n\0F");
-		let output = compile_and_run(program, input);
+		let output = compile_and_run(program, input).expect("");
 		println!("{output}");
 		assert_eq!(desired_output, output)
 	}
@@ -135,7 +136,7 @@ drain a {
 		);
 		let input = String::from("");
 		let desired_output = String::from("0AB\n1ABB\n2ABBB\n3ABBBB\n4ABBBBB\n5ABBBBBB\n6ABBBBBBB\n7ABBBBBBBB\n8ABBBBBBBBB\n9ABBBBBBBBBB\n");
-		assert_eq!(desired_output, compile_and_run(program, input))
+		assert_eq!(desired_output, compile_and_run(program, input).expect(""))
 	}
 
 	#[test]
@@ -161,7 +162,7 @@ drain g into a {output a;}
 		);
 		let input = String::from("");
 		let desired_output = String::from("AABAA\nBBDAB\nCCGAC\nDDKAD\neefghi");
-		assert_eq!(desired_output, compile_and_run(program, input))
+		assert_eq!(desired_output, compile_and_run(program, input).expect(""))
 	}
 
 	#[test]
@@ -201,7 +202,7 @@ output 10;
 		);
 		let input = String::from("");
 		let desired_output = String::from("ACE\n");
-		let output = compile_and_run(program, input);
+		let output = compile_and_run(program, input).expect("");
 		println!("{output}");
 		assert_eq!(desired_output, output)
 	}
@@ -245,7 +246,7 @@ output 10;
 		);
 		let input = String::from("");
 		let desired_output = String::from("ACE\n");
-		let output = compile_and_run(program, input);
+		let output = compile_and_run(program, input).expect("");
 		println!("{output}");
 		assert_eq!(desired_output, output)
 	}
@@ -264,7 +265,7 @@ output 10;
 		);
 		let input = String::from("");
 		let desired_output = String::from("5\n");
-		let output = compile_and_run(program, input);
+		let output = compile_and_run(program, input).expect("");
 		println!("{output}");
 		assert_eq!(desired_output, output)
 	}
@@ -300,7 +301,7 @@ drain a {
 		);
 		let input = String::from("");
 		let desired_output = String::from("0ABB\n1ABB\n2ABB\n3ABBBBBBBBBB\n4ABB\n5ABB\n");
-		let output = compile_and_run(program, input);
+		let output = compile_and_run(program, input).expect("");
 		println!("{output}");
 		assert_eq!(desired_output, output)
 	}
@@ -337,7 +338,7 @@ output 10;
 		);
 		let input = String::from("");
 		let desired_output = String::from("010131\n");
-		let output = compile_and_run(program, input);
+		let output = compile_and_run(program, input).expect("");
 		println!("{output}");
 		assert_eq!(desired_output, output)
 	}
@@ -374,7 +375,7 @@ output 10;
 		);
 		let input = String::from("");
 		let desired_output = String::from("01231\n");
-		let output = compile_and_run(program, input);
+		let output = compile_and_run(program, input).expect("");
 		println!("{output}");
 		assert_eq!(desired_output, output)
 	}
@@ -449,7 +450,7 @@ def func_2(think[4], green) {
 		);
 		let input = String::from("");
 		let desired_output = String::from("01202726$631\n@1202726$631\n");
-		let output = compile_and_run(program, input);
+		let output = compile_and_run(program, input).expect("");
 		println!("{output}");
 		assert_eq!(desired_output, output)
 	}
@@ -466,7 +467,7 @@ output b;
 		);
 		let input = String::from("A");
 		let desired_output = String::from("B");
-		let output = compile_and_run(program, input);
+		let output = compile_and_run(program, input).expect("");
 		println!("{output}");
 		assert_eq!(desired_output, output)
 	}
@@ -493,7 +494,7 @@ output b[0];
 		);
 		let input = String::from("ABC");
 		let desired_output = String::from("ABC\nDDD");
-		let output = compile_and_run(program, input);
+		let output = compile_and_run(program, input).expect("");
 		println!("{output}");
 		assert_eq!(desired_output, output)
 	}

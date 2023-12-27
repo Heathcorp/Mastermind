@@ -1,3 +1,7 @@
+#![allow(dead_code)]
+
+mod macros;
+
 // Stages: (rust format has jumbled these)
 mod brainfuck; // 6. Run
 mod builder; // 4. Build (and pre-optimise)
@@ -17,7 +21,7 @@ use misc::MastermindConfig;
 use optimiser::optimise;
 use parser::parse;
 use preprocessor::preprocess;
-use tokeniser::{tokenise, Token};
+use tokeniser::tokenise;
 
 use std::io::{stdin, stdout, Cursor};
 
@@ -64,7 +68,7 @@ struct Arguments {
 	optimise: usize,
 }
 
-fn main() {
+fn main() -> Result<(), String> {
 	std::env::set_var("RUST_BACKTRACE", "1");
 
 	let args = Arguments::parse();
@@ -88,19 +92,19 @@ fn main() {
 		true => {
 			// compile the provided file
 
-			let tokens: Vec<Token> = tokenise(&program);
+			let tokens = tokenise(&program)?;
 			// parse tokens into syntax tree
-			let clauses = parse(&tokens);
+			let clauses = parse(&tokens)?;
 			// compile syntax tree into brainfuck
 
 			// TODO: 2 stage compilation step, first stage compiles syntax tree into low-level instructions
 			// 	second stage actually writes out the low-level instructions into brainfuck
 
 			let compiler = Compiler { config: &config };
-			let instructions = compiler.compile(&clauses, None).get_instructions();
+			let instructions = compiler.compile(&clauses, None)?.get_instructions();
 
 			let builder = Builder { config: &config };
-			let bf_program = builder.build(instructions);
+			let bf_program = builder.build(instructions)?;
 
 			match config.optimise_generated_code {
 				true => optimise(bf_program.chars().into_iter().collect()),
@@ -122,4 +126,6 @@ fn main() {
 	} else {
 		print!("{bf_program}");
 	}
+
+	Ok(())
 }
