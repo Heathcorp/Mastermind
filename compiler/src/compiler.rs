@@ -246,7 +246,7 @@ impl Compiler<'_> {
 					// set the else condition cell
 					if let Some(mem) = else_condition_mem {
 						new_scope.push_instruction(Instruction::AddToCell(mem, -1i8 as u8));
-					}
+					};
 
 					// recursively compile if block
 					if let Some(block) = if_block {
@@ -415,6 +415,14 @@ enum ArgumentTranslation {
 	SingleToMultiCell(String, VariableSpec),
 	MultiToMulti(String, String),
 }
+impl ArgumentTranslation {
+	fn get_def_name(&self) -> &String {
+		let (ArgumentTranslation::SingleToSingle(def_name, _)
+		| ArgumentTranslation::SingleToMultiCell(def_name, _)
+		| ArgumentTranslation::MultiToMulti(def_name, _)) = self;
+		def_name
+	}
+}
 
 #[derive(Clone, Debug)] // probably shouldn't be cloning here but whatever
 struct Function {
@@ -515,56 +523,29 @@ impl Scope<'_> {
 	}
 
 	fn get_variable_mem(&self, var: &VariableSpec) -> Option<usize> {
-		if let Some(var_len) = self.variable_sizes.get(&var.name) {
-			// check for variable size index out of range errors
-			match (var_len, var.arr_num) {
-				(Some(len), Some(idx)) => assert!(
-					idx < *len,
-					"Variable index {var} out of range of defined length {len}"
-				),
-				(Some(_), None) => {
-					panic!("Cannot access multi-byte variable {var} without an index")
-				}
-				(None, Some(_)) => panic!(
-					"Cannot access single-byte variable {} with an index",
-					var.name
-				),
-				(None, None) => (),
-			};
-			if let Some(mem) = self.variable_memory_cells.get(var) {
-				return Some(mem + self.allocation_offset());
-			}
+		// TODO: check for variable size index out of range errors
+		if let Some(mem) = self.variable_memory_cells.get(var) {
+			return Some(mem + self.allocation_offset());
 		} else if let Some(outer_scope) = self.outer_scope {
-			if let Some(alias) =
-				self.variable_aliases
-					.iter()
-					.find_map(|translation| match translation {
-						ArgumentTranslation::SingleToSingle(def_name, _)
-						| ArgumentTranslation::SingleToMultiCell(def_name, _)
-						| ArgumentTranslation::MultiToMulti(def_name, _) => {
-							if *def_name == var.name {
-								match translation {
-									ArgumentTranslation::SingleToSingle(_, call_name) => {
-										Some(VariableSpec {
-											name: call_name.clone(),
-											arr_num: None,
-										})
-									}
-									ArgumentTranslation::SingleToMultiCell(_, call_var) => {
-										Some(call_var.clone())
-									}
-									ArgumentTranslation::MultiToMulti(_, call_name) => {
-										Some(VariableSpec {
-											name: call_name.clone(),
-											arr_num: var.arr_num,
-										})
-									}
-								}
-							} else {
-								None
-							}
+			if let Some(alias) = self.variable_aliases.iter().find_map(|translation| {
+				if *translation.get_def_name() == var.name {
+					match translation {
+						ArgumentTranslation::SingleToSingle(_, call_name) => Some(VariableSpec {
+							name: call_name.clone(),
+							arr_num: None,
+						}),
+						ArgumentTranslation::SingleToMultiCell(_, call_var) => {
+							Some(call_var.clone())
 						}
-					}) {
+						ArgumentTranslation::MultiToMulti(_, call_name) => Some(VariableSpec {
+							name: call_name.clone(),
+							arr_num: var.arr_num,
+						}),
+					}
+				} else {
+					None
+				}
+			}) {
 				return outer_scope.get_variable_mem(&alias);
 			} else {
 				return outer_scope.get_variable_mem(var);
@@ -574,30 +555,22 @@ impl Scope<'_> {
 		panic!("No variable {var} found in current scope.");
 	}
 
+	// TODO: refactor this stuff heavily when we make multi-byte values contiguous and inline asm stuff
 	fn get_variable_size(&self, var_name: &str) -> Option<usize> {
 		if let Some(len) = self.variable_sizes.get(var_name) {
 			*len
 		} else if let Some(outer_scope) = self.outer_scope {
-			if let Some(alias_name) =
-				self.variable_aliases
-					.iter()
-					.find_map(|translation| match translation {
-						ArgumentTranslation::SingleToSingle(def_name, _)
-						| ArgumentTranslation::SingleToMultiCell(def_name, _)
-						| ArgumentTranslation::MultiToMulti(def_name, _) => {
-							if def_name == var_name {
-								match translation {
-									ArgumentTranslation::SingleToSingle(_, _)
-									| ArgumentTranslation::SingleToMultiCell(_, _) => panic!(),
-									ArgumentTranslation::MultiToMulti(_, call_name) => {
-										Some(call_name.clone())
-									}
-								}
-							} else {
-								None
-							}
-						}
-					}) {
+			if let Some(alias_name) = self.variable_aliases.iter().find_map(|translation| {
+				if translation.get_def_name() == var_name {
+					match translation {
+						ArgumentTranslation::SingleToSingle(_, _)
+						| ArgumentTranslation::SingleToMultiCell(_, _) => panic!(),
+						ArgumentTranslation::MultiToMulti(_, call_name) => Some(call_name.clone()),
+					}
+				} else {
+					None
+				}
+			}) {
 				outer_scope.get_variable_size(&alias_name)
 			} else {
 				outer_scope.get_variable_size(var_name)

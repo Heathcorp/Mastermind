@@ -207,6 +207,69 @@ output 10;
 	}
 
 	#[test]
+	fn ifs_2() {
+		let program = String::from(
+			"
+let x = 7;
+let y = 9;
+
+let z = x - y;
+if z {
+	output 'A';
+} else {
+	output 'B';
+}
+
+y -= 1;
+
+if not y {output 'H';}
+
+z = x - y;
+if z {
+	output 'C';
+} else {
+	output 'D';
+}
+
+y -= 1;
+
+z = x - y;
+if not z {
+	output 'E';
+} else {
+	output 'F';
+}
+
+output 10;
+		",
+		);
+		let input = String::from("");
+		let desired_output = String::from("ACE\n");
+		let output = compile_and_run(program, input);
+		println!("{output}");
+		assert_eq!(desired_output, output)
+	}
+
+	#[test]
+	fn ifs_3() {
+		let program = String::from(
+			"
+let a = 5;
+if a {
+	let b = a + '0';
+	output b;
+}
+output 10;
+		",
+		);
+		let input = String::from("");
+		let desired_output = String::from("5\n");
+		let output = compile_and_run(program, input);
+		println!("{output}");
+		assert_eq!(desired_output, output)
+	}
+
+	#[test]
 	fn loops_and_ifs_1() {
 		let program = String::from(
 			"
@@ -322,6 +385,8 @@ output 10;
 			"
 let global_var = '0';
 
+let global_vars[2] = ['0', 64];
+
 def func_0(grape) {
 	let n = grape + 1;
 	output n;
@@ -360,6 +425,12 @@ output global_var;
 
 output 10;
 
+output global_vars[1];
+func_0(global_vars[0]);
+output global_vars[0];
+
+output 10;
+
 def func_2(think[4], green) {
 	think[2] += 7;
 	think[3] += 2;
@@ -377,7 +448,7 @@ def func_2(think[4], green) {
 		",
 		);
 		let input = String::from("");
-		let desired_output = String::from("01202726$631\n");
+		let desired_output = String::from("01202726$631\n@1202726$631\n");
 		let output = compile_and_run(program, input);
 		println!("{output}");
 		assert_eq!(desired_output, output)

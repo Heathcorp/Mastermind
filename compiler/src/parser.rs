@@ -140,7 +140,7 @@ fn parse_let_clause(clause: &[Token]) -> Vec<Clause> {
 						name: var_name.clone(),
 						arr_num: Some(i),
 					};
-					clauses.extend(parse_expr_adds(expr, target_var))
+					clauses.extend(parse_expr_adds(expr, target_var));
 				}
 			}
 			(
@@ -459,11 +459,15 @@ fn parse_if_else_clause(clause: &[Token]) -> Clause {
 		parse(block_tokens)
 	};
 
-	let block_two = if let Token::Else = &clause[i] {
-		i += 1;
-		let block_tokens = get_braced_tokens(&clause[i..], BRACES);
-		// i += 2 + block_tokens.len();
-		Some(parse(block_tokens))
+	let block_two = if i < clause.len() {
+		if let Token::Else = &clause[i] {
+			i += 1;
+			let block_tokens = get_braced_tokens(&clause[i..], BRACES);
+			// i += 2 + block_tokens.len();
+			Some(parse(block_tokens))
+		} else {
+			None
+		}
 	} else {
 		None
 	};
@@ -640,9 +644,14 @@ fn get_clause_tokens(tokens: &[Token]) -> Option<&[Token]> {
 					let braced_block = get_braced_tokens(&tokens[i..], BRACES);
 					i += 2 + braced_block.len();
 					// handle blocks marking the end of clauses, if/else being the exception
-					let Token::Else = tokens[i] else {
-						return Some(&tokens[..i]);
-					};
+					if i < tokens.len() {
+						if let Token::Else = tokens[i] {
+							i += 1;
+							let else_block = get_braced_tokens(&tokens[i..], BRACES);
+							i += 2 + else_block.len();
+						}
+					}
+					return Some(&tokens[..i]);
 				}
 				Token::ClauseDelimiter => {
 					i += 1;
