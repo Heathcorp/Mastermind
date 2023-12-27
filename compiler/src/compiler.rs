@@ -564,7 +564,9 @@ impl Scope<'_> {
 				if translation.get_def_name() == var_name {
 					match translation {
 						ArgumentTranslation::SingleToSingle(_, _)
-						| ArgumentTranslation::SingleToMultiCell(_, _) => panic!(),
+						| ArgumentTranslation::SingleToMultiCell(_, _) => panic!(
+							"Something went wrong finding the size of variable \"{var_name}\""
+						),
 						ArgumentTranslation::MultiToMulti(_, call_name) => Some(call_name.clone()),
 					}
 				} else {

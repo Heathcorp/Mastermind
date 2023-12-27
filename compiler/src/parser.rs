@@ -710,14 +710,18 @@ impl Expression {
 			assert_eq!(
 				i,
 				tokens.len(),
-				"Malformed string literal expression {tokens:#?}"
+				"Expected semicolon after string literal {tokens:#?}"
 			);
 			return Expression::StringLiteral(s.clone());
 		}
 
 		if let Token::Character(c) = &tokens[i] {
 			i += 1;
-			assert_eq!(i, tokens.len());
+			assert_eq!(
+				i,
+				tokens.len(),
+				"Expected semicolon after character literal {tokens:#?}"
+			);
 			// convert character to a natural number, not sure if we need a character specific expression type
 			// apparently we can just cast?
 			return Expression::NaturalNumber(*c as usize);
@@ -725,20 +729,32 @@ impl Expression {
 
 		if let Token::False = &tokens[i] {
 			i += 1;
-			assert_eq!(i, tokens.len());
+			assert_eq!(
+				i,
+				tokens.len(),
+				"Expected semicolon after false literal {tokens:#?}"
+			);
 			return Expression::NaturalNumber(0);
 		}
 
 		if let Token::True = &tokens[i] {
 			i += 1;
-			assert_eq!(i, tokens.len());
+			assert_eq!(
+				i,
+				tokens.len(),
+				"Expected semicolon after true literal {tokens:#?}"
+			);
 			return Expression::NaturalNumber(1);
 		}
 
 		if let Token::OpenSquareBracket = &tokens[i] {
 			let braced_tokens = get_braced_tokens(&tokens[i..], SQUARE_BRACKETS);
 			i += 2 + braced_tokens.len();
-			assert_eq!(i, tokens.len());
+			assert_eq!(
+				i,
+				tokens.len(),
+				"Expected semicolon after array literal {tokens:#?}"
+			);
 			// parse the array
 			return Expression::ArrayLiteral(
 				braced_tokens
@@ -782,9 +798,10 @@ impl Expression {
 				}
 				(Some(sign), Token::Character(chr)) => {
 					// TODO: escaped characters?
-					if !chr.is_ascii() {
-						panic!("Character tokens must be single-byte: {chr}");
-					};
+					assert!(
+						chr.is_ascii(),
+						"Character tokens must be single-byte: {chr}"
+					);
 
 					let mut buf = [0u8];
 					chr.encode_utf8(&mut buf);

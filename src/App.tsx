@@ -168,6 +168,7 @@ const App: Component = () => {
   };
 
   const [compiledCode, setCompiledCode] = createSignal<string>();
+  const [busy, setBusy] = createSignal<boolean>(false);
 
   const compilerWorker = new CompilerWorker();
 
@@ -193,6 +194,7 @@ const App: Component = () => {
         if (transaction === e.data.transaction) {
           removeCallback();
           setCompiledCode(e.data.message);
+          setBusy(false);
           resolve(e.data.message);
         }
       };
@@ -200,7 +202,8 @@ const App: Component = () => {
       const removeCallback = () =>
         compilerWorker.removeEventListener("message", callback);
 
-      // paranoid me is posting the message after setting up the listener
+      setBusy(true);
+      // post the message after setting up the listener for paranoia
       compilerWorker.postMessage({
         command: "COMPILE",
         transaction,
@@ -224,6 +227,7 @@ const App: Component = () => {
       }) => {
         if (transaction === e.data.transaction) {
           removeCallback();
+          setBusy(false);
           resolve(e.data.message);
         }
       };
@@ -231,6 +235,7 @@ const App: Component = () => {
       const removeCallback = () =>
         compilerWorker.removeEventListener("message", callback);
 
+      setBusy(true);
       // paranoid me is posting the message after setting up the listener
       compilerWorker.postMessage({
         command: "RUN",
@@ -257,6 +262,7 @@ const App: Component = () => {
         reorderFiles,
         compile,
         run,
+        busy,
       }}
     >
       <div id="window">
@@ -297,6 +303,8 @@ interface AppContextProps {
     optimisations: MastermindConfig
   ) => Promise<string>;
   run: (code: string) => Promise<string>;
+
+  busy: Accessor<boolean>;
 }
 
 interface FileState {

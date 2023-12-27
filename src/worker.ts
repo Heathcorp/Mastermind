@@ -20,12 +20,17 @@ function _run(code: string) {
 onmessage = ({ data }) => {
   switch (data.command) {
     case "COMPILE":
-      const compiledCode = _compile(
-        data.arguments.fileMap,
-        data.arguments.entryFileName,
-        data.arguments.optimisations
-      );
-      postMessage({ transaction: data.transaction, message: compiledCode });
+      try {
+        const compiledCode = _compile(
+          data.arguments.fileMap,
+          data.arguments.entryFileName,
+          data.arguments.optimisations
+        );
+        postMessage({ transaction: data.transaction, message: compiledCode });
+      } catch (e) {
+        console.log(e);
+        postMessage({ transaction: data.transaction, message: "error!" });
+      }
       break;
     case "RUN":
       const codeOutput = _run(data.arguments.code);

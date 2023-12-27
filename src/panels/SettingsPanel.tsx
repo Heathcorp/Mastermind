@@ -63,10 +63,16 @@ const SettingsPanel: Component = () => {
             </select>
           </div>
           {/* button with 3 options (compile, run, or both) */}
-          <div class="button" style={{ padding: 0 }}>
+          <div
+            classList={{ button: true, disabled: app.busy() }}
+            style={{ padding: 0 }}
+          >
             <div class="row" style={{ gap: 0, "align-items": "stretch" }}>
               <div
-                class="text-button"
+                classList={{
+                  "text-button": true,
+                  "text-button-disabled": app.busy(),
+                }}
                 style={{ padding: "0.5rem" }}
                 onClick={onCompile}
               >
@@ -76,7 +82,7 @@ const SettingsPanel: Component = () => {
               <div
                 classList={{
                   "text-button": true,
-                  "text-button-disabled": !app.compiledCode(),
+                  "text-button-disabled": !app.compiledCode() || app.busy(),
                 }}
                 style={{ padding: "0.5rem" }}
                 onClick={onRun}
