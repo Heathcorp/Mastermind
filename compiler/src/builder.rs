@@ -7,7 +7,11 @@
 
 use std::{collections::HashMap, fmt::Display, num::Wrapping};
 
-use crate::{compiler::Instruction, MastermindConfig};
+use crate::{
+	compiler::Instruction,
+	macros::macros::{r_assert, r_panic},
+	MastermindConfig,
+};
 
 pub struct Builder<'a> {
 	pub config: &'a MastermindConfig,
@@ -19,7 +23,7 @@ type TapeCell = usize;
 type TapeValue = u8;
 
 impl Builder<'_> {
-	pub fn build(&self, instructions: Vec<Instruction>) -> String {
+	pub fn build(&self, instructions: Vec<Instruction>) -> Result<String, String> {
 		let mut alloc_tape = Vec::new();
 		let mut alloc_map: HashMap<CellId, (TapeCell, LoopDepth, Option<TapeValue>)> =
 			HashMap::new();
@@ -31,8 +35,8 @@ impl Builder<'_> {
 		let mut ops: Vec<Opcode> = Vec::new();
 
 		for instruction in instructions {
-			// TODO: skipped loop
 			if let Some(depth) = skipped_loop_depth {
+				// current loop is being skipped because of unreachable loop optimisations
 				match instruction {
 					Instruction::OpenLoop(_) => {
 						current_loop_depth += 1;
@@ -55,27 +59,27 @@ impl Builder<'_> {
 					let old = alloc_map.insert(id, (cell, current_loop_depth, Some(0)));
 
 					let None = old else {
-						panic!("Attempted to reallocate cell id {id}");
+						r_panic!("Attempted to reallocate cell id {id}");
 					};
 				}
 				Instruction::FreeCell(id) => {
 					// TODO: do I need to check alloc loop depth here? Or are cells never freed in an inner scope?
 					// think about this in regards to reusing cell space when a cell isn't being used
 					let Some((cell, _alloc_loop_depth, known_value)) = alloc_map.remove(&id) else {
-						panic!("Attempted to free cell id {id} which could not be found");
+						r_panic!("Attempted to free cell id {id} which could not be found");
 					};
 
 					let Some(0) = known_value else {
-						panic!(
+						r_panic!(
 							"Attempted to free cell id {id} which has an unknown or non-zero value"
 						);
 					};
 
-					alloc_tape.free(cell);
+					alloc_tape.free(cell)?;
 				}
 				Instruction::OpenLoop(id) => {
 					let Some((cell, alloc_loop_depth, known_value)) = alloc_map.get_mut(&id) else {
-						panic!("Attempted to open loop at cell id {id} which could not be found");
+						r_panic!("Attempted to open loop at cell id {id} which could not be found");
 					};
 
 					let mut open = true;
@@ -99,12 +103,14 @@ impl Builder<'_> {
 				}
 				Instruction::CloseLoop(id) => {
 					let Some((cell, alloc_loop_depth, known_value)) = alloc_map.get_mut(&id) else {
-						panic!("Attempted to close loop at cell id {id} which could not be found");
+						r_panic!(
+							"Attempted to close loop at cell id {id} which could not be found"
+						);
 					};
 					let Some(stack_cell) = loop_stack.pop() else {
-						panic!("Attempted to close un-opened loop");
+						r_panic!("Attempted to close un-opened loop");
 					};
-					assert!(*cell == stack_cell, "Attempted to close a loop unbalanced");
+					r_assert!(*cell == stack_cell, "Attempted to close a loop unbalanced");
 
 					current_loop_depth -= 1;
 
@@ -112,16 +118,14 @@ impl Builder<'_> {
 					ops.push(Opcode::CloseLoop);
 
 					// if a loop finishes on a cell then it is guaranteed to be 0 based on brainfuck itself
-					// TODO: is this an issue if in a nested loop?
-					// I did encounter issues, interesting
-					// experimenting with difference in loop depth
+					// I did encounter issues with nested loops here, interesting
 					if current_loop_depth == *alloc_loop_depth {
 						*known_value = Some(0);
 					}
 				}
 				Instruction::AddToCell(id, imm) => {
 					let Some((cell, alloc_loop_depth, known_value)) = alloc_map.get_mut(&id) else {
-						panic!("Attempted to add to cell id {id} which could not be found");
+						r_panic!("Attempted to add to cell id {id} which could not be found");
 					};
 
 					ops.move_to_cell(&mut head_pos, *cell);
@@ -145,10 +149,20 @@ impl Builder<'_> {
 						}
 					}
 				}
+				Instruction::InputToCell(id) => {
+					let Some((cell, _, known_value)) = alloc_map.get_mut(&id) else {
+						r_panic!("Attempted to input to cell id {id} which could not be found");
+					};
+
+					ops.move_to_cell(&mut head_pos, *cell);
+					ops.push(Opcode::Input);
+					// no way to know at compile time what the input to the program will be
+					*known_value = None;
+				}
 				// Instruction::AssertCellValue(id, value) => {}
 				Instruction::ClearCell(id) => {
 					let Some((cell, alloc_loop_depth, known_value)) = alloc_map.get_mut(&id) else {
-						panic!("Attempted to clear cell id {id} which could not be found");
+						r_panic!("Attempted to clear cell id {id} which could not be found");
 					};
 
 					ops.move_to_cell(&mut head_pos, *cell);
@@ -185,7 +199,7 @@ impl Builder<'_> {
 				}
 				Instruction::OutputCell(id) => {
 					let Some((cell, _, _)) = alloc_map.get(&id) else {
-						panic!("Attempted to output cell id {id} which could not be found");
+						r_panic!("Attempted to output cell id {id} which could not be found");
 					};
 
 					ops.move_to_cell(&mut head_pos, *cell);
@@ -198,13 +212,13 @@ impl Builder<'_> {
 		ops.into_iter()
 			.for_each(|opcode| output.push_str(&opcode.to_string()));
 
-		output
+		Ok(output)
 	}
 }
 
 trait AllocationArray {
 	fn allocate(&mut self) -> TapeCell;
-	fn free(&mut self, cell: TapeCell);
+	fn free(&mut self, cell: TapeCell) -> Result<(), String>;
 }
 
 impl AllocationArray for Vec<bool> {
@@ -219,9 +233,9 @@ impl AllocationArray for Vec<bool> {
 		return self.len() - 1;
 	}
 
-	fn free(&mut self, cell: TapeCell) {
+	fn free(&mut self, cell: TapeCell) -> Result<(), String> {
 		let (true, true) = (cell < self.len(), self[cell]) else {
-			panic!("No allocated cell {cell} found in allocation array: {self:#?}");
+			r_panic!("No allocated cell {cell} found in allocation array: {self:#?}");
 		};
 
 		self[cell] = false;
@@ -233,6 +247,7 @@ impl AllocationArray for Vec<bool> {
 				break;
 			}
 		}
+		Ok(())
 	}
 }
 

@@ -2,7 +2,7 @@ use std::{collections::HashMap, num::Wrapping};
 
 // post-compilation optimisations
 
-// simple naive brainfuck optimisations, TODO: make this more advanced?
+// simple naive brainfuck optimisations
 // TODO: factor in [-] into optimisations
 
 pub fn optimise(program: Vec<char>) -> String {

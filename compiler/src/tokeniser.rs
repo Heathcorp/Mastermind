@@ -1,6 +1,10 @@
+// TODO: refactor this tokeniser, needs some fixes and could be made simpler/cleaner
+
 use regex::Regex;
 
-pub fn tokenise(source: &String) -> Vec<Token> {
+use crate::macros::macros::r_assert;
+
+pub fn tokenise(source: &String) -> Result<Vec<Token>, String> {
 	let stripped = source
 		.lines()
 		.map(strip_line)
@@ -11,6 +15,7 @@ pub fn tokenise(source: &String) -> Vec<Token> {
 		(" ", Token::None),
 		(";", Token::ClauseDelimiter),
 		("output", Token::Output),
+		("input", Token::Input),
 		// ("#debug", Token::Debug),
 		("let", Token::Let),
 		("=", Token::Equals),
@@ -55,58 +60,83 @@ pub fn tokenise(source: &String) -> Vec<Token> {
 		let remaining = &stripped[chr_idx..];
 
 		let mut found = false;
-		for (text, token) in mappings.iter() {
-			if remaining.starts_with(*text) {
-				tokens.push(token.clone());
-				chr_idx += (*text).len();
-				found = true;
-				break;
-			}
-		}
-		if !found {
-			// check for numbers and variables
-			let num_re = Regex::new(r"^[0-9]+").unwrap();
-			let txt_re = Regex::new(r"^[a-zA-Z_]\w*").unwrap();
-			let str_re = Regex::new("^\".*\"").unwrap();
-			let chr_re = Regex::new("^'.'").unwrap();
-			if let Some(num_capture) = num_re.captures(remaining) {
-				let substring = String::from(&num_capture[0]);
-				chr_idx += substring.len();
-				tokens.push(Token::Digits(substring));
-			} else if let Some(txt_capture) = txt_re.captures(remaining) {
-				let substring = String::from(&txt_capture[0]);
+
+		/////////
+		// check for numbers and variables
+		let num_re = Regex::new(r#"^[0-9]+"#).unwrap();
+		let name_re = Regex::new(r#"^[a-zA-Z_]\w*"#).unwrap();
+		// string regex taken from chatgpt
+		let str_re = Regex::new(r#"^"(?:[^"\\]|\\.)+""#).unwrap();
+		// char regex taken from chatgpt again
+		let chr_re = Regex::new(r#"^'(?:[^'\\]|\\.)'"#).unwrap();
+		if let Some(num_capture) = num_re.captures(remaining) {
+			found = true;
+			let substring = String::from(&num_capture[0]);
+			chr_idx += substring.len();
+			tokens.push(Token::Digits(substring));
+		} else if let Some(name_capture) = name_re.captures(remaining) {
+			found = true;
+			let substring = String::from(&name_capture[0]);
+			if mappings
+				.iter()
+				// this could be made more efficient if we had a table of keywords vs symbols
+				.find(|(keyword, _)| substring == *keyword)
+				.is_some()
+			{
+				found = false;
+			} else {
 				chr_idx += substring.len();
 				tokens.push(Token::Name(substring));
-			} else if let Some(str_capture) = str_re.captures(remaining) {
-				let mut substring = String::from(&str_capture[0]);
-				// not the most efficient way, this simply removes the quote characters
-				// could refactor this
-				chr_idx += substring.len();
-				substring.pop();
-				substring.remove(0);
-				tokens.push(Token::String(substring));
-			} else if let Some(chr_capture) = chr_re.captures(remaining) {
-				let mut substring = String::from(&chr_capture[0]);
-				// see above
-				chr_idx += substring.len();
-				substring.pop();
-				substring.remove(0);
-				// might need to change this for escaped characters (TODO)
-				assert_eq!(substring.len(), 1, "Character literals must be length 1");
-				tokens.push(Token::Character(substring.chars().next().unwrap()));
-			} else {
-				panic!("Unknown token found while tokenising program: \"{remaining}\"");
+			}
+		} else if let Some(str_capture) = str_re.captures(remaining) {
+			found = true;
+			let substring = String::from(&str_capture[0]);
+			// not the most efficient way, this simply removes the quote characters
+			// could refactor this
+			chr_idx += substring.len();
+			let unescaped: String = serde_json::from_str(&substring).unwrap();
+			tokens.push(Token::String(unescaped));
+		} else if let Some(chr_capture) = chr_re.captures(remaining) {
+			found = true;
+			let chr_literal = String::from(&chr_capture[0]);
+			// see above
+			chr_idx += chr_literal.len();
+			// this code sucks, TODO: refactor
+			// make a new double-quoted string because serde json doesn't like single quotes and I can't be bothered making my own unescaping function
+			let escaped_string =
+				String::new() + "\"" + &chr_literal[1..(chr_literal.len() - 1)] + "\"";
+			let unescaped: String = serde_json::from_str(&escaped_string).unwrap();
+			// might need to change this for escaped characters (TODO)
+			r_assert!(unescaped.len() == 1, "Character literals must be length 1");
+			tokens.push(Token::Character(unescaped.chars().next().unwrap()));
+		}
+		/////////
+
+		if !found {
+			for (text, token) in mappings.iter() {
+				if remaining.starts_with(*text) {
+					tokens.push(token.clone());
+					chr_idx += (*text).len();
+					found = true;
+					break;
+				}
 			}
 		}
+		r_assert!(
+			found,
+			"Unknown token found while tokenising program: \"{remaining}\""
+		);
 	}
 
-	tokens
+	Ok(tokens
 		.into_iter()
 		.filter(|t| match t {
 			Token::None => false,
 			_ => true,
 		})
-		.collect()
+		// stick a None token on the end to fix some weird parsing errors (seems silly but why not?)
+		.chain([Token::None])
+		.collect())
 }
 
 fn strip_line(line: &str) -> String {
@@ -129,6 +159,7 @@ fn strip_line(line: &str) -> String {
 pub enum Token {
 	None,
 	Output,
+	Input,
 	Def,
 	Let,
 	// Assert,
@@ -163,43 +194,4 @@ pub enum Token {
 	Plus,
 	Equals,
 	ClauseDelimiter,
-}
-
-#[cfg(test)]
-mod tests {
-	use super::*;
-
-	#[test]
-	fn dummy() {
-		let program = String::from(
-			"
-let h[3] = 6;
-int[1] e 5;
-int[1] l 12;
-int[1] o 15;
-// comment!
-int[1] a_char 96;
-loop a_char
-{
-	add h 1;
-	add e 1;
-	add l 1;
-	add o 1;
-};
-free a_char;
-output h;
-output e;
-output l;
-output l;
-output o;
-int[1] ten 10;
-output ten;
-",
-		);
-		let tokens = tokenise(&program);
-		println!("{tokens:#?}");
-		// let input = String::from("");
-		// let desired_output = String::from("");
-		assert_eq!("hello", "hello");
-	}
 }

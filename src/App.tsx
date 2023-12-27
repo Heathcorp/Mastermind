@@ -9,6 +9,9 @@ import {
   on,
 } from "solid-js";
 
+// special vite syntax for web workers to be included in the bundle
+import CompilerWorker from "./worker.ts?worker";
+
 import { EditorState } from "@codemirror/state";
 import { EditorView } from "@codemirror/view";
 import { v4 as uuidv4 } from "uuid";
@@ -21,7 +24,6 @@ import Divider from "./components/Divider";
 import EditorPanel from "./panels/EditorPanel";
 // import InputPanel from "./panels/InputPanel";
 
-import initWasm, { wasm_compile, wasm_run_bf } from "../compiler/pkg";
 import OutputPanel from "./panels/OutputPanel";
 import SettingsPanel, { MastermindConfig } from "./panels/SettingsPanel";
 import { defaultExtensions } from "./misc";
@@ -165,28 +167,98 @@ const App: Component = () => {
     });
   };
 
-  const [compiledCode, setCompiledCode] = createSignal<string>();
-  const compile = (entryFileId: string, optimisations: MastermindConfig) => {
-    let entryFileName: string | undefined;
-    const fileMap = Object.fromEntries(
-      fileStates().map((file) => {
-        if (file.id === entryFileId) entryFileName = file.label;
-        return [file.label, file.editorState.doc.toString()];
-      })
-    );
-    if (!entryFileName) return;
-    const result = wasm_compile(fileMap, entryFileName, optimisations);
-    setCompiledCode(result);
-    return result;
-  };
-  // TODO: add input stuff
-  const runCode = (code: string) => {
-    const result = wasm_run_bf(code);
-    return result;
-  };
-  initWasm();
+  const [busy, setBusy] = createSignal<boolean>(false);
 
-  const [output, setOutput] = createSignal<string>();
+  const compilerWorker = new CompilerWorker();
+
+  const compile = (entryFileId: string, optimisations: MastermindConfig) => {
+    return new Promise<string>((resolve, reject) => {
+      let entryFileName: string | undefined;
+      const fileMap = Object.fromEntries(
+        fileStates().map((file) => {
+          if (file.id === entryFileId) entryFileName = file.label;
+          return [file.label, file.editorState.doc.toString()];
+        })
+      );
+      if (!entryFileName) {
+        reject();
+        return;
+      }
+
+      // surely there is a library for this kind of thing, transactionify messages or something, maybe make one?
+      const transaction = uuidv4();
+      const callback = (e: {
+        data: { transaction: string; success: boolean; message: string };
+      }) => {
+        if (transaction === e.data.transaction) {
+          removeCallback();
+          setBusy(false);
+          if (e.data.success) {
+            setOutput({ type: "BF", content: e.data.message });
+            resolve(e.data.message);
+          } else {
+            setOutput({ type: "ERROR", content: e.data.message });
+            reject(e.data.message);
+          }
+        }
+      };
+      compilerWorker.addEventListener("message", callback);
+      const removeCallback = () =>
+        compilerWorker.removeEventListener("message", callback);
+
+      setBusy(true);
+      // post the message after setting up the listener for paranoia
+      compilerWorker.postMessage({
+        command: "COMPILE",
+        transaction,
+        arguments: {
+          fileMap,
+          entryFileName,
+          optimisations,
+        },
+      });
+
+      // TODO: maybe make a timeout to auto-reject
+      // probably more important for the run code
+    });
+  };
+
+  const run = (code: string) => {
+    return new Promise<string>((resolve, reject) => {
+      const transaction = uuidv4();
+      const callback = (e: {
+        data: { transaction: string; success: boolean; message: string };
+      }) => {
+        if (transaction === e.data.transaction) {
+          removeCallback();
+          setBusy(false);
+          if (e.data.success) {
+            setOutput({ type: "OUTPUT", content: e.data.message });
+            resolve(e.data.message);
+          } else {
+            setOutput({ type: "ERROR", content: e.data.message });
+            reject(e.data.message);
+          }
+        }
+      };
+      compilerWorker.addEventListener("message", callback);
+      const removeCallback = () =>
+        compilerWorker.removeEventListener("message", callback);
+
+      setBusy(true);
+      // paranoid me is posting the message after setting up the listener
+      compilerWorker.postMessage({
+        command: "RUN",
+        transaction,
+        arguments: { code },
+      });
+    });
+  };
+
+  const [output, setOutput] = createSignal<{
+    type: "BF" | "ERROR" | "OUTPUT";
+    content: string;
+  }>();
 
   return (
     <AppContext.Provider
@@ -198,11 +270,12 @@ const App: Component = () => {
         deleteFile,
         saveFileState,
         setFileLabel,
-        compile,
+        output,
         setOutput,
-        runCode,
-        compiledCode,
         reorderFiles,
+        compile,
+        run,
+        busy,
       }}
     >
       <div id="window">
@@ -211,7 +284,7 @@ const App: Component = () => {
         <div class="panel">
           <SettingsPanel />
           <Divider />
-          <OutputPanel outputText={output() ?? ""} />
+          <OutputPanel />
           {/* <Divider />
           <InputPanel /> */}
         </div>
@@ -234,14 +307,29 @@ interface AppContextProps {
   deleteFile: (id: string) => void;
   saveFileState: (id: string, state: EditorState) => void;
   setFileLabel: (id: string, label: string) => void;
+  setOutput: Setter<
+    | {
+        type: "BF" | "ERROR" | "OUTPUT";
+        content: string;
+      }
+    | undefined
+  >;
+  output: Accessor<
+    | {
+        type: "BF" | "ERROR" | "OUTPUT";
+        content: string;
+      }
+    | undefined
+  >;
+  reorderFiles: (from: string, to: string | null) => void;
+
   compile: (
     entryFileId: string,
     optimisations: MastermindConfig
-  ) => string | undefined;
-  setOutput: (output?: string) => void;
-  runCode: (code: string) => string;
-  compiledCode: Accessor<string | undefined>;
-  reorderFiles: (from: string, to: string | null) => void;
+  ) => Promise<string>;
+  run: (code: string) => Promise<string>;
+
+  busy: Accessor<boolean>;
 }
 
 interface FileState {

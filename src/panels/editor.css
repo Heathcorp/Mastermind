@@ -70,6 +70,7 @@
 }
 .text-button-disabled {
   opacity: 0.5;
+  cursor: not-allowed;
 }
 
 .text-button:hover:not(.text-button-disabled) {

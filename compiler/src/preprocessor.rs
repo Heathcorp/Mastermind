@@ -23,6 +23,7 @@ pub fn preprocess(file_path: PathBuf) -> String {
 }
 
 // utility functions so that files can be compiled from javascript strings in browser
+
 pub fn preprocess_from_memory(
 	file_map: &HashMap<String, String>,
 	entry_file_name: String,
