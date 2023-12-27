@@ -115,7 +115,6 @@ impl Compiler<'_> {
 
 					// recursively compile instructions
 					// TODO: when recursively compiling, check which things changed based on a return info value
-					// TODO: make a function or something for this common pattern
 					let loop_scope = self.compile(&block, Some(&scope))?;
 					scope.instructions.extend(loop_scope.get_instructions());
 
@@ -245,6 +244,7 @@ impl Compiler<'_> {
 					new_scope.reassign_variable_mem(var.clone(), temp_var_mem)?;
 
 					// TODO: think about this?
+					// pretty sure this will be added when we optimise variable usage and lifetimes
 					// free the original cell temporarily as it isn't being used
 					// instructions.push(Instruction::FreeCell(original_var_mem));
 
@@ -262,7 +262,6 @@ impl Compiler<'_> {
 					// close if block
 					new_scope.push_instruction(Instruction::CloseLoop(original_var_mem));
 
-					// TODO: think about this?
 					// reallocate the temporarily freed variable cell
 					// instructions.push(Instruction::AllocateCell(original_var_mem));
 
@@ -372,8 +371,6 @@ impl Compiler<'_> {
 			}
 		}
 
-		// TODO: check if current scope has any leftover memory allocations and free them
-		// TODO: check known values and clear them selectively
 		// create instructions to free cells
 		let mem_offset = scope.allocation_offset();
 		for (_, mem_rel) in scope.variable_memory_cells.clone() {

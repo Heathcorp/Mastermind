@@ -9,7 +9,6 @@ use crate::{
 pub fn parse(tokens: &[Token]) -> Result<Vec<Clause>, String> {
 	// basic steps:
 	// chew off tokens from the front, recursively parse blocks of tokens
-	// TODO: down the track with expressions we will need another function to parse those
 	let mut clauses: Vec<Clause> = Vec::new();
 	let mut i = 0usize;
 	while let Some(clause) = get_clause_tokens(&tokens[i..])? {
@@ -208,43 +207,7 @@ fn parse_add_clause(clause: &[Token]) -> Result<Vec<Clause>, String> {
 		},
 	};
 
-	let (imm, adds, subs) = expr.flatten()?;
-
-	clauses.push(Clause::AddToVariable {
-		var: var.clone(),
-		value: imm,
-	});
-
-	// duplicate code, TODO: refactor
-	let mut adds_set = HashMap::new();
-	for var in adds {
-		let n = adds_set.remove(&var).unwrap_or(0);
-		adds_set.insert(var, n + 1);
-	}
-	clauses.extend(
-		adds_set
-			.into_iter()
-			.map(|(source, num)| Clause::CopyVariable {
-				target: var.clone(),
-				source,
-				constant: num,
-			}),
-	);
-
-	let mut subs_set = HashMap::new();
-	for var in subs {
-		let n = subs_set.remove(&var).unwrap_or(0);
-		subs_set.insert(var, n + 1);
-	}
-	clauses.extend(
-		subs_set
-			.into_iter()
-			.map(|(source, num)| Clause::CopyVariable {
-				target: var.clone(),
-				source,
-				constant: -num,
-			}),
-	);
+	clauses.extend(parse_expr_adds(expr, var)?);
 
 	Ok(clauses)
 }
@@ -279,45 +242,10 @@ fn parse_set_clause(clause: &[Token]) -> Result<Vec<Clause>, String> {
 	i += 1;
 
 	let expr = Expression::parse(&clause[i..(clause.len() - 1)])?;
-	let (imm, adds, subs) = expr.flatten()?;
 
 	clauses.push(Clause::ClearVariable(var.clone()));
 
-	clauses.push(Clause::AddToVariable {
-		var: var.clone(),
-		value: imm,
-	});
-
-	// duplicate code, TODO: refactor
-	let mut adds_set = HashMap::new();
-	for var in adds {
-		let n = adds_set.remove(&var).unwrap_or(0);
-		adds_set.insert(var, n + 1);
-	}
-	clauses.extend(
-		adds_set
-			.into_iter()
-			.map(|(source, num)| Clause::CopyVariable {
-				target: var.clone(),
-				source,
-				constant: num,
-			}),
-	);
-
-	let mut subs_set = HashMap::new();
-	for var in subs {
-		let n = subs_set.remove(&var).unwrap_or(0);
-		subs_set.insert(var, n + 1);
-	}
-	clauses.extend(
-		subs_set
-			.into_iter()
-			.map(|(source, num)| Clause::CopyVariable {
-				target: var.clone(),
-				source,
-				constant: -num,
-			}),
-	);
+	clauses.extend(parse_expr_adds(expr, var)?);
 
 	Ok(clauses)
 }
@@ -749,8 +677,8 @@ impl Expression {
 			let results: Result<Vec<Expression>, String> = braced_tokens
 				.split(|t| if let Token::Comma = t { true } else { false })
 				.map(Self::parse)
-				// TODO: test this collect error handling
 				.collect();
+			// TODO: why do I need to split collect result into a seperate variable like here?
 			return Ok(Expression::ArrayLiteral(results?));
 		}
 
@@ -787,15 +715,12 @@ impl Expression {
 					current_sign = None;
 				}
 				(Some(sign), Token::Character(chr)) => {
-					// TODO: escaped characters?
+					let chr_int: usize = *chr as usize;
+
 					r_assert!(
-						chr.is_ascii(),
+						chr_int < 0xff,
 						"Character tokens must be single-byte: {chr}"
 					);
-
-					let mut buf = [0u8];
-					chr.encode_utf8(&mut buf);
-					let chr_int: usize = buf[0].try_into().unwrap();
 
 					i += 1;
 					match sign {
@@ -927,7 +852,7 @@ impl Expression {
 	}
 }
 
-// TODO: do we need crazy recursive expressions?
+// TODO: add multiplication
 // yes, but no variable * variable multiplication or division
 #[derive(Debug, Clone)]
 pub enum Expression {

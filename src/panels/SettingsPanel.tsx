@@ -29,19 +29,18 @@ const SettingsPanel: Component = () => {
     })
   );
 
-  const onRun = () => {
-    const code = app.compiledCode();
+  const onRun = async () => {
+    const code = app.output()?.content;
     if (!code) return;
-    app.run(code).then((result) => app.setOutput(result));
+
+    await app.run(code);
   };
 
-  const onCompile = () => {
+  const onCompile = async () => {
     const entryFileId = app.entryFile();
     if (!entryFileId) return;
-    app.compile(entryFileId, enabledOptimisations()).then((result) => {
-      console.log(result);
-      app.setOutput(result);
-    });
+
+    await app.compile(entryFileId, enabledOptimisations());
   };
 
   return (
@@ -74,7 +73,7 @@ const SettingsPanel: Component = () => {
                   "text-button-disabled": app.busy(),
                 }}
                 style={{ padding: "0.5rem" }}
-                onClick={onCompile}
+                onClick={!app.busy() ? onCompile : undefined}
               >
                 compile program
               </div>
@@ -82,10 +81,14 @@ const SettingsPanel: Component = () => {
               <div
                 classList={{
                   "text-button": true,
-                  "text-button-disabled": !app.compiledCode() || app.busy(),
+                  "text-button-disabled":
+                    // TODO: make a specific compiled code signal like we used to, basically store the last successful compilation
+                    app.busy() || app.output()?.type !== "BF",
                 }}
                 style={{ padding: "0.5rem" }}
-                onClick={onRun}
+                onClick={
+                  !app.busy() && app.output()?.type !== "BF" ? onRun : undefined
+                }
               >
                 run code
               </div>
@@ -93,10 +96,15 @@ const SettingsPanel: Component = () => {
             <Divider />
             <div
               style={{ "text-align": "center", padding: "0.5rem" }}
-              onClick={() => {
-                onCompile();
-                onRun();
-              }}
+              onClick={
+                !app.busy()
+                  ? async () => {
+                      await onCompile();
+                      // technically this second await is pointless
+                      await onRun();
+                    }
+                  : undefined
+              }
             >
               compile & run
             </div>
@@ -107,22 +115,26 @@ const SettingsPanel: Component = () => {
             classList={{
               row: true,
               button: true,
-              disabled: !app.compiledCode(),
+              disabled: !app.output(),
             }}
             style={{ cursor: "copy", "align-items": "center" }}
             onClick={() => {
-              const code = app.compiledCode();
-              if (!code) return;
+              const output = app.output();
+              if (!output) return;
               window.navigator.clipboard
-                .writeText(code)
-                .then(() =>
-                  window.alert("Compiled Brainfuck copied to clipboard!")
-                );
+                .writeText(output.content)
+                .then(() => window.alert("Output copied to clipboard!"));
             }}
           >
             <FiCopy />
-            compiled code
-            {app.compiledCode() && ` (${app.compiledCode()?.length} bytes)`}
+            {
+              {
+                ["BF"]: "compiled code",
+                ["ERROR"]: "error output",
+                ["OUTPUT"]: "code output",
+              }[app.output()?.type ?? "OUTPUT"]
+            }
+            {app.output() && ` (${app.output()?.content.length} bytes)`}
           </div>
         </div>
         <Divider />

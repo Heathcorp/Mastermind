@@ -97,7 +97,7 @@ fn main() -> Result<(), String> {
 			let clauses = parse(&tokens)?;
 			// compile syntax tree into brainfuck
 
-			// TODO: 2 stage compilation step, first stage compiles syntax tree into low-level instructions
+			// 2 stage compilation step, first stage compiles syntax tree into low-level instructions
 			// 	second stage actually writes out the low-level instructions into brainfuck
 
 			let compiler = Compiler { config: &config };

@@ -35,8 +35,8 @@ impl Builder<'_> {
 		let mut ops: Vec<Opcode> = Vec::new();
 
 		for instruction in instructions {
-			// TODO: skipped loop
 			if let Some(depth) = skipped_loop_depth {
+				// current loop is being skipped because of unreachable loop optimisations
 				match instruction {
 					Instruction::OpenLoop(_) => {
 						current_loop_depth += 1;
@@ -118,9 +118,7 @@ impl Builder<'_> {
 					ops.push(Opcode::CloseLoop);
 
 					// if a loop finishes on a cell then it is guaranteed to be 0 based on brainfuck itself
-					// TODO: is this an issue if in a nested loop?
-					// I did encounter issues, interesting
-					// experimenting with difference in loop depth
+					// I did encounter issues with nested loops here, interesting
 					if current_loop_depth == *alloc_loop_depth {
 						*known_value = Some(0);
 					}

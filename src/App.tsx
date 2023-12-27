@@ -167,7 +167,6 @@ const App: Component = () => {
     });
   };
 
-  const [compiledCode, setCompiledCode] = createSignal<string>();
   const [busy, setBusy] = createSignal<boolean>(false);
 
   const compilerWorker = new CompilerWorker();
@@ -189,13 +188,18 @@ const App: Component = () => {
       // surely there is a library for this kind of thing, transactionify messages or something, maybe make one?
       const transaction = uuidv4();
       const callback = (e: {
-        data: { transaction: string; message: string };
+        data: { transaction: string; success: boolean; message: string };
       }) => {
         if (transaction === e.data.transaction) {
           removeCallback();
-          setCompiledCode(e.data.message);
           setBusy(false);
-          resolve(e.data.message);
+          if (e.data.success) {
+            setOutput({ type: "BF", content: e.data.message });
+            resolve(e.data.message);
+          } else {
+            setOutput({ type: "ERROR", content: e.data.message });
+            reject(e.data.message);
+          }
         }
       };
       compilerWorker.addEventListener("message", callback);
@@ -220,15 +224,21 @@ const App: Component = () => {
   };
 
   const run = (code: string) => {
-    return new Promise<string>((resolve) => {
+    return new Promise<string>((resolve, reject) => {
       const transaction = uuidv4();
       const callback = (e: {
-        data: { transaction: string; message: string };
+        data: { transaction: string; success: boolean; message: string };
       }) => {
         if (transaction === e.data.transaction) {
           removeCallback();
           setBusy(false);
-          resolve(e.data.message);
+          if (e.data.success) {
+            setOutput({ type: "OUTPUT", content: e.data.message });
+            resolve(e.data.message);
+          } else {
+            setOutput({ type: "ERROR", content: e.data.message });
+            reject(e.data.message);
+          }
         }
       };
       compilerWorker.addEventListener("message", callback);
@@ -245,7 +255,10 @@ const App: Component = () => {
     });
   };
 
-  const [output, setOutput] = createSignal<string>();
+  const [output, setOutput] = createSignal<{
+    type: "BF" | "ERROR" | "OUTPUT";
+    content: string;
+  }>();
 
   return (
     <AppContext.Provider
@@ -257,8 +270,8 @@ const App: Component = () => {
         deleteFile,
         saveFileState,
         setFileLabel,
+        output,
         setOutput,
-        compiledCode,
         reorderFiles,
         compile,
         run,
@@ -271,7 +284,7 @@ const App: Component = () => {
         <div class="panel">
           <SettingsPanel />
           <Divider />
-          <OutputPanel outputText={output() ?? ""} />
+          <OutputPanel />
           {/* <Divider />
           <InputPanel /> */}
         </div>
@@ -294,8 +307,20 @@ interface AppContextProps {
   deleteFile: (id: string) => void;
   saveFileState: (id: string, state: EditorState) => void;
   setFileLabel: (id: string, label: string) => void;
-  setOutput: (output?: string) => void;
-  compiledCode: Accessor<string | undefined>;
+  setOutput: Setter<
+    | {
+        type: "BF" | "ERROR" | "OUTPUT";
+        content: string;
+      }
+    | undefined
+  >;
+  output: Accessor<
+    | {
+        type: "BF" | "ERROR" | "OUTPUT";
+        content: string;
+      }
+    | undefined
+  >;
   reorderFiles: (from: string, to: string | null) => void;
 
   compile: (
