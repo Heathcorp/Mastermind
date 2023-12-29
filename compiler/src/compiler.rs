@@ -87,7 +87,11 @@ impl Compiler<'_> {
 						(
 							VariableDefinition::Multi { name, len },
 							Expression::ArrayLiteral(expressions),
-							Memory::Cells { id: _, len: _ },
+							Memory::Cells {
+								id: _,
+								len: _,
+								target_index: _,
+							},
 						) => {
 							// for each expression in the array, perform above operations
 							r_assert!(
@@ -110,7 +114,11 @@ to array expression of length {}",
 						(
 							VariableDefinition::Multi { name, len },
 							Expression::StringLiteral(s),
-							Memory::Cells { id: _, len: _ },
+							Memory::Cells {
+								id: _,
+								len: _,
+								target_index: _,
+							},
 						) => {
 							// for each byte of the string, add it to its respective cell
 							r_assert!(
@@ -130,14 +138,13 @@ be initialised to string of length {}",
 							}
 						}
 						(
-							VariableDefinition::Multi { name: _, len: _ },
-							Expression::VariableReference(_),
-							Memory::Cells { id: _, len: _ },
-						) => todo!(),
-						(
 							VariableDefinition::Single { name: _ },
 							_,
-							Memory::Cells { id: _, len: _ },
+							Memory::Cells {
+								id: _,
+								len: _,
+								target_index: _,
+							},
 						)
 						| (
 							VariableDefinition::Multi { name: _, len: _ },
@@ -207,7 +214,8 @@ spread syntax, use drain <val> into {var} instead."
 				},
 				Clause::AddToVariable { var, value } => match (&var, &value) {
 					(
-						VariableTarget::Single { name: _ },
+						VariableTarget::Single { name: _ }
+						| VariableTarget::MultiCell { name: _, index: _ },
 						Expression::SumExpression {
 							sign: _,
 							summands: _,
@@ -215,26 +223,8 @@ spread syntax, use drain <val> into {var} instead."
 						| Expression::NaturalNumber(_)
 						| Expression::VariableReference(_),
 					) => {
-						let mem = scope.get_memory(&var)?;
-						let cell = Cell {
-							memory_id: mem.id(),
-							index: None,
-						};
-						_add_expr_to_cell(&mut scope, value, cell)?;
-					}
-					(
-						VariableTarget::MultiCell { name: _, index },
-						Expression::SumExpression {
-							sign: _,
-							summands: _,
-						}
-						| Expression::NaturalNumber(_)
-						| Expression::VariableReference(_),
-					) => {
-						let mem = scope.get_memory(&var)?;
-						let cell = Cell {
-							memory_id: mem.id(),
-							index: Some(*index),
+						let Some(cell) = scope.get_memory(&var)?.target_cell() else {
+							r_panic!("Unreachable error occurred when adding to {var}");
 						};
 						_add_expr_to_cell(&mut scope, value, cell)?;
 					}
@@ -266,18 +256,24 @@ spread syntax, use drain <val> into {var} instead."
 							}))
 						}
 						(
-							VariableTarget::MultiCell { name: _, index },
+							VariableTarget::Single { name: _ }
+							| VariableTarget::MultiCell { name: _, index: _ },
 							Memory::Cells {
 								id: memory_id,
 								len: _,
+								target_index: Some(index),
 							},
 						) => scope.push_instruction(Instruction::InputToCell(Cell {
 							memory_id,
-							index: Some(*index),
+							index: Some(index),
 						})),
 						(
 							VariableTarget::MultiSpread { name: _ },
-							Memory::Cells { id: memory_id, len },
+							Memory::Cells {
+								id: memory_id,
+								len,
+								target_index: None,
+							},
 						) => {
 							// run the low level input , operator once for each byte in the variable
 							for i in 0..len {
@@ -287,7 +283,7 @@ spread syntax, use drain <val> into {var} instead."
 								}));
 							}
 						}
-						_ => r_panic!("Cannot call input operation directly on variable \"{var}\""),
+						_ => r_panic!("Cannot input into variable \"{var}\""),
 					}
 				}
 				Clause::OutputValue { value } => {
@@ -303,18 +299,26 @@ spread syntax, use drain <val> into {var} instead."
 									index: None,
 								})),
 								(
-									VariableTarget::MultiCell { name: _, index },
+									VariableTarget::Single { name: _ }
+									| VariableTarget::MultiCell { name: _, index: _ },
 									Memory::Cells {
 										id: memory_id,
 										len: _,
+										// hack
+										target_index: Some(index),
 									},
 								) => scope.push_instruction(Instruction::OutputCell(Cell {
 									memory_id,
-									index: Some(*index),
+									index: Some(index),
 								})),
 								(
 									VariableTarget::MultiSpread { name: _ },
-									Memory::Cells { id: memory_id, len },
+									Memory::Cells {
+										id: memory_id,
+										len,
+										// hack
+										target_index: None,
+									},
 								) => {
 									// run the low level output . operator once for each byte in the variable
 									for i in 0..len {
@@ -324,9 +328,7 @@ spread syntax, use drain <val> into {var} instead."
 										}));
 									}
 								}
-								_ => r_panic!(
-									"Cannot call output operation directly on variable \"{var}\""
-								),
+								_ => r_panic!("Cannot output variable \"{var}\""),
 							}
 						}
 						Expression::SumExpression {
@@ -423,28 +425,8 @@ spread syntax, use drain <val> into {var} instead."
 					block,
 					is_draining,
 				} => {
-					let source_mem = scope.get_memory(&source)?;
-					let source_cell = match (&source, source_mem) {
-						(VariableTarget::Single { name: _ }, Memory::Cell { id: memory_id }) => {
-							Cell {
-								memory_id,
-								index: None,
-							}
-						}
-						(
-							VariableTarget::MultiCell { name: _, index },
-							Memory::Cells {
-								id: memory_id,
-								len: _,
-							},
-						) => Cell {
-							memory_id,
-							index: Some(*index),
-						},
-						(VariableTarget::MultiSpread { name: _ }, _) => {
-							r_panic!("Cannot copy or drain from spread variable \"{source}\"")
-						}
-						_ => r_panic!("Cannot copy or drain from source \"{source}\""),
+					let Some(source_cell) = scope.get_memory(&source)?.target_cell() else {
+						r_panic!("Cannot copy or drain from source \"{source}\"");
 					};
 
 					match is_draining {
@@ -468,17 +450,33 @@ spread syntax, use drain <val> into {var} instead."
 											1,
 										))
 									}
-									Memory::Cells { id: memory_id, len } => {
-										for i in 0..len {
+									Memory::Cells {
+										id: memory_id,
+										len,
+										target_index,
+									} => match target_index {
+										None => {
+											// should only happen if the spread operator is used, ideally this should be obvious with the code, (TODO: refactor target index hack)
+											for i in 0..len {
+												scope.push_instruction(Instruction::AddToCell(
+													Cell {
+														memory_id,
+														index: Some(i),
+													},
+													1,
+												));
+											}
+										}
+										Some(index) => {
 											scope.push_instruction(Instruction::AddToCell(
 												Cell {
 													memory_id,
-													index: Some(i),
+													index: Some(index),
 												},
 												1,
-											));
+											))
 										}
-									}
+									},
 								}
 							}
 
@@ -515,17 +513,33 @@ spread syntax, use drain <val> into {var} instead."
 											1,
 										))
 									}
-									Memory::Cells { id: memory_id, len } => {
-										for i in 0..len {
+									Memory::Cells {
+										id: memory_id,
+										len,
+										target_index,
+									} => match target_index {
+										None => {
+											// should only happen if the spread operator is used, ideally this should be obvious with the code, (TODO: refactor target index hack)
+											for i in 0..len {
+												scope.push_instruction(Instruction::AddToCell(
+													Cell {
+														memory_id,
+														index: Some(i),
+													},
+													1,
+												));
+											}
+										}
+										Some(index) => {
 											scope.push_instruction(Instruction::AddToCell(
 												Cell {
 													memory_id,
-													index: Some(i),
+													index: Some(index),
 												},
 												1,
-											));
+											))
 										}
-									}
+									},
 								}
 							}
 
@@ -577,30 +591,9 @@ spread syntax, use drain <val> into {var} instead."
 						None => None,
 					};
 
-					let condition_mem = new_scope.get_memory(&condition_var)?;
-					let condition_cell = match (&condition_var, condition_mem) {
-						(VariableTarget::Single { name: _ }, Memory::Cell { id: memory_id }) => {
-							Cell {
-								memory_id,
-								index: None,
-							}
-						}
-						(
-							VariableTarget::MultiCell { name: _, index },
-							Memory::Cells {
-								id: memory_id,
-								len: _,
-							},
-						) => Cell {
-							memory_id,
-							index: Some(*index),
-						},
-						(VariableTarget::MultiSpread { name: _ }, _) => r_panic!(
-							"Cannot open if/else statement on spread variable \"{condition_var}\""
-						),
-						_ => r_panic!(
-							"Cannot open if/else statement on variable \"{condition_var}\""
-						),
+					let Some(condition_cell) = new_scope.get_memory(&condition_var)?.target_cell()
+					else {
+						r_panic!("Cannot open if/else statement on variable \"{condition_var}\"");
 					};
 
 					// copy the condition to the temp cell
@@ -660,7 +653,7 @@ spread syntax, use drain <val> into {var} instead."
 									(
 										VariableDefinition::Single { name: def_name },
 										VariableTarget::Single { name: call_name },
-									) => ArgumentTranslation::SingleToSingle(def_name, call_name),
+									) => ArgumentTranslation::SingleFromSingle(def_name, call_name),
 									(
 										// this is a major hack, the parser will parse a calling argument as a single even though it is really targeting a multi
 										VariableDefinition::Multi {
@@ -668,19 +661,16 @@ spread syntax, use drain <val> into {var} instead."
 											len: _,
 										},
 										VariableTarget::Single { name: call_name },
-									) => ArgumentTranslation::MultiToMulti(def_name, call_name),
+									) => ArgumentTranslation::MultiFromMulti(def_name, call_name),
 									(
 										VariableDefinition::Single { name: def_name },
 										VariableTarget::MultiCell {
 											name: call_name,
 											index,
 										},
-									) => ArgumentTranslation::SingleToMultiCell(
+									) => ArgumentTranslation::SingleFromMultiCell(
 										def_name,
-										VariableTarget::MultiCell {
-											name: call_name,
-											index,
-										},
+										(call_name, index),
 									),
 									(def_var, call_var) => {
 										r_panic!(
@@ -756,26 +746,8 @@ fn _add_expr_to_cell(scope: &mut Scope, expr: Expression, cell: Cell) -> Result<
 	}
 
 	for (source, constant) in adds_set {
-		let source_mem = scope.get_memory(&source)?;
-		let source_cell = match (&source, source_mem) {
-			(VariableTarget::Single { name: _ }, Memory::Cell { id: memory_id }) => Cell {
-				memory_id,
-				index: None,
-			},
-			(
-				VariableTarget::MultiCell { name: _, index },
-				Memory::Cells {
-					id: memory_id,
-					len: _,
-				},
-			) => Cell {
-				memory_id,
-				index: Some(*index),
-			},
-			(VariableTarget::MultiSpread { name: _ }, _) => {
-				r_panic!("Cannot sum spread variable \"{source}\" in expression")
-			}
-			_ => r_panic!("Cannot sum variable \"{source}\" in expression"),
+		let Some(source_cell) = scope.get_memory(&source)?.target_cell() else {
+			r_panic!("Cannot sum variable \"{source}\" in expression");
 		};
 		_copy_cell(scope, source_cell, cell.clone(), constant);
 	}
@@ -826,8 +798,16 @@ pub enum Instruction {
 
 #[derive(Debug, Clone)]
 pub enum Memory {
-	Cell { id: MemoryId },
-	Cells { id: MemoryId, len: usize },
+	Cell {
+		id: MemoryId,
+	},
+	// this comment was originally in a different place which is why it might be a bit odd, highly relevant still
+	// a little hack was added which holds the targeted cell inside the memory, this is for when you pass in a multi-byte cell reference to a function
+	Cells {
+		id: MemoryId,
+		len: usize,
+		target_index: Option<usize>,
+	},
 	// infinite cell something (TODO?)
 }
 pub type MemoryId = usize;
@@ -842,13 +822,39 @@ impl Memory {
 	pub fn id(&self) -> MemoryId {
 		match self {
 			Memory::Cell { id } => *id,
-			Memory::Cells { id, len: _ } => *id,
+			Memory::Cells {
+				id,
+				len: _,
+				target_index: _,
+			} => *id,
 		}
 	}
 	pub fn len(&self) -> usize {
 		match self {
 			Memory::Cell { id: _ } => 1,
-			Memory::Cells { id: _, len } => *len,
+			Memory::Cells {
+				id: _,
+				len,
+				target_index: _,
+			} => *len,
+		}
+	}
+
+	pub fn target_cell(&self) -> Option<Cell> {
+		match self {
+			Memory::Cell { id } => Some(Cell {
+				memory_id: *id,
+				index: None,
+			}),
+			Memory::Cells {
+				id,
+				len: _,
+				target_index: Some(index),
+			} => Some(Cell {
+				memory_id: *id,
+				index: Some(*index),
+			}),
+			_ => None,
 		}
 	}
 }
@@ -876,22 +882,22 @@ pub struct Scope<'a> {
 
 #[derive(Clone, Debug)]
 enum ArgumentTranslation {
-	SingleToSingle(String, String),
-	SingleToMultiCell(String, VariableTarget),
-	MultiToMulti(String, String),
+	SingleFromSingle(String, String),
+	SingleFromMultiCell(String, (String, usize)),
+	MultiFromMulti(String, String),
 }
 impl ArgumentTranslation {
 	fn get_def_name(&self) -> &String {
-		let (ArgumentTranslation::SingleToSingle(def_name, _)
-		| ArgumentTranslation::SingleToMultiCell(def_name, _)
-		| ArgumentTranslation::MultiToMulti(def_name, _)) = self;
+		let (ArgumentTranslation::SingleFromSingle(def_name, _)
+		| ArgumentTranslation::SingleFromMultiCell(def_name, _)
+		| ArgumentTranslation::MultiFromMulti(def_name, _)) = self;
 		def_name
 	}
 	fn get_call_name(&self) -> &String {
 		match self {
-			ArgumentTranslation::SingleToSingle(_, call_name)
-			| ArgumentTranslation::MultiToMulti(_, call_name) => call_name,
-			ArgumentTranslation::SingleToMultiCell(_, call_var) => call_var.name(),
+			ArgumentTranslation::SingleFromSingle(_, call_name)
+			| ArgumentTranslation::MultiFromMulti(_, call_name) => call_name,
+			ArgumentTranslation::SingleFromMultiCell(_, (call_var, _)) => call_var,
 		}
 	}
 }
@@ -943,12 +949,20 @@ impl Scope<'_> {
 		let id = self.create_memory_id();
 		let result = Ok(match &var {
 			VariableDefinition::Single { name: _ } => Memory::Cell { id },
-			VariableDefinition::Multi { name: _, len } => Memory::Cells { id, len: *len },
+			VariableDefinition::Multi { name: _, len } => Memory::Cells {
+				id,
+				len: *len,
+				target_index: None,
+			},
 		});
 
-		if let Some(var) = self.variable_memory.insert(var, id) {
-			r_panic!("Attempted to reallocate variable {var} multiple times in the same scope");
+		let None = self.current_level_get_variable_definition(&var.name()) else {
+			r_panic!("Cannot allocate variable {var} twice in the same scope");
 		};
+
+		if let Some(var) = self.variable_memory.insert(var, id) {
+			r_panic!("Unreachable error occurred when allocating {var}");
+		}
 
 		result
 	}
@@ -1007,6 +1021,7 @@ impl Scope<'_> {
 					Memory::Cells {
 						id: *mem_id,
 						len: *len,
+						target_index: Some(*index),
 					}
 				}
 				(
@@ -1015,33 +1030,56 @@ impl Scope<'_> {
 				) => Memory::Cells {
 					id: *mem_id,
 					len: *len,
+					target_index: None,
 				},
-
 				_ => {
 					r_panic!("Malformed variable reference {var} to {var_def}")
 				}
 			})
 		} else if let Some(outer_scope) = self.outer_scope {
 			// recursive case
-			if let Some(alias_name) = self.variable_aliases.iter().find_map(|translation| {
-				if *translation.get_def_name() == *var.name() {
-					Some(translation.get_call_name().clone())
-				} else {
-					None
-				}
-			}) {
-				Ok(outer_scope.get_memory(&match var {
-					VariableTarget::Single { name: _ } => {
-						VariableTarget::Single { name: alias_name }
-					}
-					VariableTarget::MultiCell { name: _, index } => VariableTarget::MultiCell {
-						name: alias_name,
+			if let Some(translation) = self
+				.variable_aliases
+				.iter()
+				.find(|translation| *translation.get_def_name() == *var.name())
+			{
+				let alias_var = match (translation, var) {
+					(
+						ArgumentTranslation::SingleFromSingle(_, call_name),
+						VariableTarget::Single { name: _ },
+						// single variable let g;f(g);def f(h){++h;}c
+					) => VariableTarget::Single {
+						name: call_name.clone(),
+					},
+					(
+						ArgumentTranslation::SingleFromMultiCell(_, (call_name, call_index)),
+						VariableTarget::Single { name: _ },
+						// referenced byte passed as single let g[9];f(g[0]);def f(h){++h;}
+					) => VariableTarget::MultiCell {
+						name: call_name.clone(),
+						index: *call_index,
+					},
+					(
+						ArgumentTranslation::MultiFromMulti(_, call_name),
+						VariableTarget::MultiCell { name: _, index },
+						// referenced byte from multi-byte variable let g[9];f(g);def f(h[9]){++h[0];}
+					) => VariableTarget::MultiCell {
+						name: call_name.clone(),
 						index: *index,
 					},
-					VariableTarget::MultiSpread { name: _ } => {
-						VariableTarget::MultiSpread { name: alias_name }
-					}
-				})?)
+					(
+						ArgumentTranslation::MultiFromMulti(_, call_name),
+						VariableTarget::MultiSpread { name: _ },
+						// spread from multi-byte variable let g[9];f(g);def f(h[9]){output *h;}
+					) => VariableTarget::MultiSpread {
+						name: call_name.clone(),
+					},
+					_ => r_panic!(
+						"Malformed argument/variable translation {translation:#?}, target: {var}. \
+					I realise this error doesn't tell you much, this error should not occur anyway."
+					),
+				};
+				Ok(outer_scope.get_memory(&alias_var)?)
 			} else {
 				// again not sure if Ok + ? is a bad pattern
 				Ok(outer_scope.get_memory(var)?)

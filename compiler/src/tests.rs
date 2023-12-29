@@ -474,7 +474,7 @@ def func_0(grape) {
 
 		let frog[4];
 		let zero = '0';
-		drain zero into frog[0] frog[1] frog[2] frog[3];
+		drain zero into *frog;
 		frog[1] += 2;
 
 		zero = grape + 3;
@@ -569,6 +569,70 @@ output b[0];
 		);
 		let input = String::from("ABC");
 		let desired_output = String::from("ABC\nDDD");
+		let output = compile_and_run(program, input).expect("");
+		println!("{output}");
+		assert_eq!(desired_output, output)
+	}
+
+	#[test]
+	fn memory_1() {
+		let program = String::from(
+			r#"
+let b[3] = "Foo";
+
+def inc(h, g) {
+	g += 1;
+	if h {h += 1;} else {h = 'Z';}
+}
+
+output *b;
+inc(b[1], b[2]);
+output *b;
+
+output 10;
+
+let c = -1;
+inc(c, c);
+output c;
+"#,
+		);
+		let input = String::from("");
+		let desired_output = String::from("FooFpp\nZ");
+		let output = compile_and_run(program, input).expect("");
+		println!("{output}");
+		assert_eq!(desired_output, output)
+	}
+
+	#[test]
+	fn memory_2() {
+		let program = String::from(
+			r#"
+let b[3] = [1, 2, 3];
+
+def drain_h(h) {
+	drain h {
+		output 'h';
+	}
+}
+
+drain_h(b[2]);
+drain_h(b[2]);
+output ' ';
+drain_h(b[1]);
+output ' ';
+
+def drain_into(a, b[5]) {
+	drain a into *b;
+}
+
+let u = 'a' - 1;
+let v[5] = [8, 5, 12, 12, 15];
+drain_into(u, v);
+output *v;
+"#,
+		);
+		let input = String::from("");
+		let desired_output = String::from("hhh hh hello");
 		let output = compile_and_run(program, input).expect("");
 		println!("{output}");
 		assert_eq!(desired_output, output)

@@ -442,35 +442,43 @@ fn parse_var_target(tokens: &[Token]) -> Result<(VariableTarget, usize), String>
 	};
 	i += 1;
 
-	Ok((
-		if let Some(Token::OpenSquareBracket) = &tokens.get(i) {
-			if spread {
-				r_panic!("Cannot use spread operator and subscript on the same variable target: {tokens:#?}");
-			}
-			let subscript = get_braced_tokens(&tokens[i..], SQUARE_BRACKETS)?;
-			let Expression::NaturalNumber(index) = Expression::parse(subscript)? else {
-				r_panic!(
-					"Expected a constant array index specifier in variable identifier: {tokens:#?}"
-				);
-			};
-			i += 2 + subscript.len();
+	if let Some(Token::OpenSquareBracket) = &tokens.get(i) {
+		if spread {
+			r_panic!(
+				"Cannot use spread operator and subscript on the same variable target: {tokens:#?}"
+			);
+		}
+		let subscript = get_braced_tokens(&tokens[i..], SQUARE_BRACKETS)?;
+		let Expression::NaturalNumber(index) = Expression::parse(subscript)? else {
+			r_panic!(
+				"Expected a constant array index specifier in variable identifier: {tokens:#?}"
+			);
+		};
+		i += 2 + subscript.len();
 
+		Ok((
 			VariableTarget::MultiCell {
 				name: var_name.clone(),
 				index,
-			}
-		} else if spread {
+			},
+			i,
+		))
+	} else if spread {
+		Ok((
 			VariableTarget::MultiSpread {
 				name: var_name.clone(),
-			}
-		} else {
+			},
+			i,
+		))
+	} else {
+		Ok((
 			VariableTarget::Single {
 				name: var_name.clone(),
-			}
-		},
-		// also return the length of tokens read
-		i,
-	))
+			},
+			i,
+		))
+	}
+	// also return the length of tokens read
 }
 
 fn parse_var_definition(tokens: &[Token]) -> Result<(VariableDefinition, usize), String> {
