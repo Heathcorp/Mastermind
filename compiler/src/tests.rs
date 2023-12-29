@@ -115,6 +115,81 @@ output 70;
 	}
 
 	#[test]
+	fn hello_4() {
+		let program = String::from(
+			r#"
+let str[4] = [5, 12, 12, 15];
+let a = 'a' - 1;
+drain a into *str;
+output 'H';
+output *str;
+output 46;
+output 10;
+output "What?";
+"#,
+		);
+		let input = String::from("");
+		let desired_output = String::from("Hello.\nWhat?");
+		let output = compile_and_run(program, input).expect("");
+		println!("{output}");
+		assert_eq!(desired_output, output)
+	}
+
+	#[test]
+	fn hello_5() {
+		let program = String::from(
+			r#"
+output "Hell";
+output ['o', '.',  '\n'];
+"#,
+		);
+		let input = String::from("");
+		let desired_output = String::from("Hello.\n");
+		let output = compile_and_run(program, input).expect("");
+		println!("{output}");
+		assert_eq!(desired_output, output)
+	}
+
+	#[test]
+	fn expressions_1() {
+		let program = String::from(
+			r#";
+output '@' + 256 + 1 + false + true + 'e' - '@';
+			"#,
+		);
+		let input = String::from("");
+		let desired_output = String::from("g");
+		let output = compile_and_run(program, input).expect("");
+		println!("{output}");
+		assert_eq!(desired_output, output)
+	}
+
+	#[test]
+	fn expressions_2() {
+		let program = String::from(
+			r#";
+let p = 9 - (true + true -(-7));
+if not p {
+	output "Hi friend!\n";
+}
+
+let q = 8 + p - (4 + p);
+q -= 4;
+if p {
+	output "path a";
+} else {
+	output "path b";
+}
+			"#,
+		);
+		let input = String::from("");
+		let desired_output = String::from("Hi friend!\npath b");
+		let output = compile_and_run(program, input).expect("");
+		println!("{output}");
+		assert_eq!(desired_output, output)
+	}
+
+	#[test]
 	fn loops_1() {
 		let program = String::from(
 			"
@@ -475,7 +550,7 @@ output b;
 	#[test]
 	fn input_2() {
 		let program = String::from(
-			"
+			r#"
 let b[3];
 input b[0];
 input b[1];
@@ -485,12 +560,12 @@ output b[1];
 output b[2];
 b[0]+=3;
 b[1]+=2;
-output '\\n';
+output '\n';
 b[2]+=1;
 output b[2];
 output b[1];
 output b[0];
-",
+"#,
 		);
 		let input = String::from("ABC");
 		let desired_output = String::from("ABC\nDDD");

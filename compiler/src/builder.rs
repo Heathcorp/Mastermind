@@ -8,7 +8,7 @@
 use std::{collections::HashMap, fmt::Display, num::Wrapping};
 
 use crate::{
-	compiler::Instruction,
+	compiler::{Instruction, MemoryId},
 	macros::macros::{r_assert, r_panic},
 	MastermindConfig,
 };
@@ -17,7 +17,6 @@ pub struct Builder<'a> {
 	pub config: &'a MastermindConfig,
 }
 
-pub type CellId = usize;
 type LoopDepth = usize;
 type TapeCell = usize;
 type TapeValue = u8;
@@ -25,7 +24,7 @@ type TapeValue = u8;
 impl Builder<'_> {
 	pub fn build(&self, instructions: Vec<Instruction>) -> Result<String, String> {
 		let mut alloc_tape = Vec::new();
-		let mut alloc_map: HashMap<CellId, (TapeCell, LoopDepth, Option<TapeValue>)> =
+		let mut alloc_map: HashMap<MemoryId, (TapeCell, usize, LoopDepth, Option<TapeValue>)> =
 			HashMap::new();
 
 		let mut loop_stack: Vec<TapeCell> = Vec::new();
@@ -54,33 +53,48 @@ impl Builder<'_> {
 			match instruction {
 				// the ids (indices really) given by the compiler are guaranteed to be unique (at the time of writing)
 				// however they will absolutely not be very efficient
-				Instruction::AllocateCell(id) => {
-					let cell = alloc_tape.allocate();
-					let old = alloc_map.insert(id, (cell, current_loop_depth, Some(0)));
+				Instruction::Allocate(memory) => {
+					let cell = alloc_tape.allocate(memory.len());
+					let old = alloc_map.insert(
+						memory.id(),
+						(cell, memory.len(), current_loop_depth, Some(0)),
+					);
 
 					let None = old else {
-						r_panic!("Attempted to reallocate cell id {id}");
+						r_panic!("Attempted to reallocate memory {memory:#?}");
 					};
 				}
-				Instruction::FreeCell(id) => {
+				Instruction::Free(id) => {
 					// TODO: do I need to check alloc loop depth here? Or are cells never freed in an inner scope?
 					// think about this in regards to reusing cell space when a cell isn't being used
-					let Some((cell, _alloc_loop_depth, known_value)) = alloc_map.remove(&id) else {
-						r_panic!("Attempted to free cell id {id} which could not be found");
+					let Some((cell, size, _alloc_loop_depth, known_value)) = alloc_map.remove(&id)
+					else {
+						r_panic!("Attempted to free memory id {id} which could not be found");
 					};
 
 					let Some(0) = known_value else {
 						r_panic!(
-							"Attempted to free cell id {id} which has an unknown or non-zero value"
+							"Attempted to free memory id {id} which has an unknown or non-zero value"
 						);
 					};
 
-					alloc_tape.free(cell)?;
+					alloc_tape.free(cell, size)?;
 				}
-				Instruction::OpenLoop(id) => {
-					let Some((cell, alloc_loop_depth, known_value)) = alloc_map.get_mut(&id) else {
-						r_panic!("Attempted to open loop at cell id {id} which could not be found");
+				Instruction::OpenLoop(cell_obj) => {
+					let Some((cell_base, size, alloc_loop_depth, known_value)) =
+						alloc_map.get_mut(&cell_obj.memory_id)
+					else {
+						r_panic!(
+							"Attempted to open loop at cell {cell_obj:#?} which could not be found"
+						);
 					};
+
+					let mem_idx = cell_obj.index.unwrap_or(0);
+					r_assert!(
+						mem_idx < *size,
+						"Attempted to access memory outside of allocation"
+					);
+					let cell = *cell_base + mem_idx;
 
 					let mut open = true;
 
@@ -95,26 +109,36 @@ impl Builder<'_> {
 					}
 
 					if open {
-						ops.move_to_cell(&mut head_pos, *cell);
+						ops.move_to_cell(&mut head_pos, cell);
 						ops.push(Opcode::OpenLoop);
-						loop_stack.push(*cell);
+						loop_stack.push(cell);
 						current_loop_depth += 1;
 					}
 				}
-				Instruction::CloseLoop(id) => {
-					let Some((cell, alloc_loop_depth, known_value)) = alloc_map.get_mut(&id) else {
+				Instruction::CloseLoop(cell_obj) => {
+					let Some((cell_base, size, alloc_loop_depth, known_value)) =
+						alloc_map.get_mut(&cell_obj.memory_id)
+					else {
 						r_panic!(
-							"Attempted to close loop at cell id {id} which could not be found"
+							"Attempted to close loop at cell {cell_obj:#?} which could not be found"
 						);
 					};
+
+					let mem_idx = cell_obj.index.unwrap_or(0);
+					r_assert!(
+						mem_idx < *size,
+						"Attempted to access memory outside of allocation"
+					);
+					let cell = *cell_base + mem_idx;
+
 					let Some(stack_cell) = loop_stack.pop() else {
 						r_panic!("Attempted to close un-opened loop");
 					};
-					r_assert!(*cell == stack_cell, "Attempted to close a loop unbalanced");
+					r_assert!(cell == stack_cell, "Attempted to close a loop unbalanced");
 
 					current_loop_depth -= 1;
 
-					ops.move_to_cell(&mut head_pos, *cell);
+					ops.move_to_cell(&mut head_pos, cell);
 					ops.push(Opcode::CloseLoop);
 
 					// if a loop finishes on a cell then it is guaranteed to be 0 based on brainfuck itself
@@ -123,12 +147,21 @@ impl Builder<'_> {
 						*known_value = Some(0);
 					}
 				}
-				Instruction::AddToCell(id, imm) => {
-					let Some((cell, alloc_loop_depth, known_value)) = alloc_map.get_mut(&id) else {
-						r_panic!("Attempted to add to cell id {id} which could not be found");
+				Instruction::AddToCell(cell_obj, imm) => {
+					let Some((cell_base, size, alloc_loop_depth, known_value)) =
+						alloc_map.get_mut(&cell_obj.memory_id)
+					else {
+						r_panic!("Attempted to add to cell {cell_obj:#?} which could not be found");
 					};
 
-					ops.move_to_cell(&mut head_pos, *cell);
+					let mem_idx = cell_obj.index.unwrap_or(0);
+					r_assert!(
+						mem_idx < *size,
+						"Attempted to access memory outside of allocation"
+					);
+					let cell = *cell_base + mem_idx;
+
+					ops.move_to_cell(&mut head_pos, cell);
 
 					let i_imm = imm as i8;
 					if i_imm > 0 {
@@ -149,23 +182,44 @@ impl Builder<'_> {
 						}
 					}
 				}
-				Instruction::InputToCell(id) => {
-					let Some((cell, _, known_value)) = alloc_map.get_mut(&id) else {
-						r_panic!("Attempted to input to cell id {id} which could not be found");
+				Instruction::InputToCell(cell_obj) => {
+					let Some((cell_base, size, _, known_value)) =
+						alloc_map.get_mut(&cell_obj.memory_id)
+					else {
+						r_panic!(
+							"Attempted to input to cell {cell_obj:#?} which could not be found"
+						);
 					};
 
-					ops.move_to_cell(&mut head_pos, *cell);
+					// TODO: refactor this duplicate code (get_cell_safe or something like that)
+					let mem_idx = cell_obj.index.unwrap_or(0);
+					r_assert!(
+						mem_idx < *size,
+						"Attempted to access memory outside of allocation"
+					);
+					let cell = *cell_base + mem_idx;
+
+					ops.move_to_cell(&mut head_pos, cell);
 					ops.push(Opcode::Input);
 					// no way to know at compile time what the input to the program will be
 					*known_value = None;
 				}
 				// Instruction::AssertCellValue(id, value) => {}
-				Instruction::ClearCell(id) => {
-					let Some((cell, alloc_loop_depth, known_value)) = alloc_map.get_mut(&id) else {
-						r_panic!("Attempted to clear cell id {id} which could not be found");
+				Instruction::ClearCell(cell_obj) => {
+					let Some((cell_base, size, alloc_loop_depth, known_value)) =
+						alloc_map.get_mut(&cell_obj.memory_id)
+					else {
+						r_panic!("Attempted to clear cell {cell_obj:#?} which could not be found");
 					};
 
-					ops.move_to_cell(&mut head_pos, *cell);
+					let mem_idx = cell_obj.index.unwrap_or(0);
+					r_assert!(
+						mem_idx < *size,
+						"Attempted to access memory outside of allocation"
+					);
+					let cell = *cell_base + mem_idx;
+
+					ops.move_to_cell(&mut head_pos, cell);
 
 					let mut clear = true;
 
@@ -197,12 +251,19 @@ impl Builder<'_> {
 
 					*known_value = Some(0);
 				}
-				Instruction::OutputCell(id) => {
-					let Some((cell, _, _)) = alloc_map.get(&id) else {
-						r_panic!("Attempted to output cell id {id} which could not be found");
+				Instruction::OutputCell(cell_obj) => {
+					let Some((cell_base, size, _, _)) = alloc_map.get(&cell_obj.memory_id) else {
+						r_panic!("Attempted to output cell {cell_obj:#?} which could not be found");
 					};
 
-					ops.move_to_cell(&mut head_pos, *cell);
+					let mem_idx = cell_obj.index.unwrap_or(0);
+					r_assert!(
+						mem_idx < *size,
+						"Attempted to access memory outside of allocation"
+					);
+					let cell = *cell_base + mem_idx;
+
+					ops.move_to_cell(&mut head_pos, cell);
 					ops.push(Opcode::Output);
 				}
 			}
@@ -217,28 +278,45 @@ impl Builder<'_> {
 }
 
 trait AllocationArray {
-	fn allocate(&mut self) -> TapeCell;
-	fn free(&mut self, cell: TapeCell) -> Result<(), String>;
+	fn allocate(&mut self, size: usize) -> TapeCell;
+	fn free(&mut self, cell: TapeCell, size: usize) -> Result<(), String>;
 }
 
 impl AllocationArray for Vec<bool> {
-	fn allocate(&mut self) -> TapeCell {
+	fn allocate(&mut self, size: usize) -> TapeCell {
+		let mut region_start = 0;
 		for i in 0..self.len() {
-			if !self[i] {
-				self[i] = true;
-				return i;
+			if self[i] {
+				// reset search to start at next cell
+				region_start = i + 1;
+			} else if i - region_start == size {
+				break;
 			}
 		}
-		self.push(true);
-		return self.len() - 1;
+
+		for i in region_start..(region_start + size) {
+			if i < self.len() {
+				self[i] = true;
+			} else {
+				self.push(true);
+			}
+		}
+
+		return region_start;
 	}
 
-	fn free(&mut self, cell: TapeCell) -> Result<(), String> {
-		let (true, true) = (cell < self.len(), self[cell]) else {
-			r_panic!("No allocated cell {cell} found in allocation array: {self:#?}");
-		};
+	fn free(&mut self, cell: TapeCell, size: usize) -> Result<(), String> {
+		r_assert!(
+			cell + size <= self.len(),
+			"Cannot free cells {cell}..{} as allocation array is not \
+large enough (this should never occur): {self:#?}",
+			cell + size
+		);
 
-		self[cell] = false;
+		for i in cell..(cell + size) {
+			r_assert!(self[i], "Cannot free cell {i} as it is not allocated.");
+			self[i] = false;
+		}
 
 		// trim any false values at the end of the array
 		for i in (0..self.len()).rev() {
