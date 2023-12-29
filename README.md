@@ -26,6 +26,7 @@ I've also never written a compiler before and deliberately tried not to read any
 1. Multi-byte integers
 1. n-length strings?
 1. Maybe make functions clearer that they are more like macros?
+1. ~~Make if statements and drain loops able to use expressions.~~
 
 ### Web-interface TODO:
 
@@ -33,7 +34,7 @@ I've also never written a compiler before and deliberately tried not to read any
 2. ~~Reorderable file tabs~~
 3. ~~Button to copy compiled code~~
 4. ~~Compiled code size indicator~~
-5. More robust github actions workflows
+5. ~~More robust github actions workflows~~?
 6. ~~Pass panic messages from compiler into output panel~~
 7. Live I/O for running program
 8. ~~More robust non-blocking compiler calls. Currently if the "run_code" function hangs, the whole webpage is frozen. Maybe look into web workers for this.~~

@@ -425,12 +425,55 @@ spread syntax, use drain <val> into {var} instead."
 					block,
 					is_draining,
 				} => {
-					let Some(source_cell) = scope.get_memory(&source)?.target_cell() else {
-						r_panic!("Cannot copy or drain from source \"{source}\"");
-					};
-
+					// TODO: refactor this drain/copy loop business
 					match is_draining {
 						true => {
+							// draining loops can drain from an expression or a variable
+							let (source_cell, free_source_cell) = match &source {
+								Expression::VariableReference(var) => {
+									let mem = scope.get_memory(var)?;
+									match (var, mem) {
+										(
+											VariableTarget::Single { name: _ },
+											Memory::Cell { id: memory_id },
+										) => (
+											Cell {
+												memory_id,
+												index: None,
+											},
+											false,
+										),
+										(
+											VariableTarget::Single { name: _ }
+											| VariableTarget::MultiCell { name: _, index: _ },
+											Memory::Cells {
+												id: memory_id,
+												len: _,
+												target_index: Some(index),
+											},
+										) => (
+											Cell {
+												memory_id,
+												index: Some(index),
+											},
+											false,
+										),
+										_ => r_panic!("Cannot drain from expression {source:#?}"),
+									}
+								}
+								_ => {
+									let id = scope.create_memory_id();
+									scope.push_instruction(Instruction::Allocate(Memory::Cell {
+										id,
+									}));
+									let new_cell = Cell {
+										memory_id: id,
+										index: None,
+									};
+									_add_expr_to_cell(&mut scope, source, new_cell)?;
+									(new_cell, true)
+								}
+							};
 							scope.push_instruction(Instruction::OpenLoop(source_cell));
 
 							// recurse
@@ -482,16 +525,56 @@ spread syntax, use drain <val> into {var} instead."
 
 							scope.push_instruction(Instruction::AddToCell(source_cell, -1i8 as u8)); // 255
 							scope.push_instruction(Instruction::CloseLoop(source_cell));
+
+							// free the source cell if it was a expression we just created
+							if free_source_cell {
+								scope.push_instruction(Instruction::Free(source_cell.memory_id));
+							}
 						}
 						false => {
-							// allocate a temporary cell
-							let temp_mem_id = scope.create_memory_id();
-							scope.push_instruction(Instruction::Allocate(Memory::Cell {
-								id: temp_mem_id,
-							}));
-							let temp_cell = Cell {
-								memory_id: temp_mem_id,
-								index: None,
+							let source_cell = match &source {
+								Expression::VariableReference(var) => {
+									let var_mem = scope.get_memory(var)?;
+									let var_cell = match (var, var_mem) {
+										(
+											VariableTarget::Single { name: _ },
+											Memory::Cell { id: memory_id },
+										) => Cell {
+											memory_id,
+											index: None,
+										},
+										(
+											VariableTarget::Single { name: _ }
+											| VariableTarget::MultiCell { name: _, index: _ },
+											Memory::Cells {
+												id: memory_id,
+												len: _,
+												target_index: Some(index),
+											},
+										) => Cell {
+											memory_id,
+											index: Some(index),
+										},
+										_ => r_panic!("Cannot drain from expression {source:#?}"),
+									};
+
+									let new_mem_id = scope.create_memory_id();
+									scope.push_instruction(Instruction::Allocate(Memory::Cell {
+										id: new_mem_id,
+									}));
+
+									let new_cell = Cell {
+										memory_id: new_mem_id,
+										index: None,
+									};
+
+									_copy_cell(&mut scope, var_cell, new_cell, 1);
+
+									new_cell
+								}
+								_ => r_panic!(
+									"Cannot copy from {source:#?}, use a drain loop instead"
+								),
 							};
 
 							scope.push_instruction(Instruction::OpenLoop(source_cell));
@@ -543,22 +626,16 @@ spread syntax, use drain <val> into {var} instead."
 								}
 							}
 
-							scope.push_instruction(Instruction::AddToCell(temp_cell, 1));
 							scope.push_instruction(Instruction::AddToCell(source_cell, -1i8 as u8)); // 255
 							scope.push_instruction(Instruction::CloseLoop(source_cell));
 
-							// copy back the temp cell
-							scope.push_instruction(Instruction::OpenLoop(temp_cell));
-							scope.push_instruction(Instruction::AddToCell(temp_cell, -1i8 as u8));
-							scope.push_instruction(Instruction::AddToCell(source_cell, 1));
-							scope.push_instruction(Instruction::CloseLoop(temp_cell));
-
-							scope.push_instruction(Instruction::Free(temp_mem_id));
+							// free the temporary cell
+							scope.push_instruction(Instruction::Free(source_cell.memory_id));
 						}
 					}
 				}
 				Clause::IfStatement {
-					condition_var,
+					condition,
 					if_block,
 					else_block,
 				} => {
@@ -567,11 +644,12 @@ spread syntax, use drain <val> into {var} instead."
 					};
 					let mut new_scope = scope.open_inner();
 
-					let temp_mem_id = new_scope.create_memory_id();
-					new_scope
-						.push_instruction(Instruction::Allocate(Memory::Cell { id: temp_mem_id }));
-					let temp_cell = Cell {
-						memory_id: temp_mem_id,
+					let condition_mem_id = new_scope.create_memory_id();
+					new_scope.push_instruction(Instruction::Allocate(Memory::Cell {
+						id: condition_mem_id,
+					}));
+					let condition_cell = Cell {
+						memory_id: condition_mem_id,
 						index: None,
 					};
 
@@ -591,17 +669,12 @@ spread syntax, use drain <val> into {var} instead."
 						None => None,
 					};
 
-					let Some(condition_cell) = new_scope.get_memory(&condition_var)?.target_cell()
-					else {
-						r_panic!("Cannot open if/else statement on variable \"{condition_var}\"");
-					};
+					// copy the condition expression to the temporary condition cell
+					_add_expr_to_cell(&mut new_scope, condition, condition_cell)?;
 
-					// copy the condition to the temp cell
-					_copy_cell(&mut new_scope, condition_cell, temp_cell, 1);
-
-					new_scope.push_instruction(Instruction::OpenLoop(temp_cell));
+					new_scope.push_instruction(Instruction::OpenLoop(condition_cell));
 					// TODO: think about optimisations for clearing this variable, as the builder won't shorten it for safety as it doesn't know this loop is special
-					new_scope.push_instruction(Instruction::ClearCell(temp_cell));
+					new_scope.push_instruction(Instruction::ClearCell(condition_cell));
 
 					// set the else condition cell
 					// above comment about optimisations also applies here
@@ -616,8 +689,8 @@ spread syntax, use drain <val> into {var} instead."
 					};
 
 					// close if block
-					new_scope.push_instruction(Instruction::CloseLoop(temp_cell));
-					new_scope.push_instruction(Instruction::Free(temp_mem_id));
+					new_scope.push_instruction(Instruction::CloseLoop(condition_cell));
+					new_scope.push_instruction(Instruction::Free(condition_cell.memory_id));
 
 					// else block:
 					if let Some(cell) = else_condition_cell {

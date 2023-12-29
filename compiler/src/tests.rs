@@ -11,42 +11,66 @@ pub mod tests {
 		tokeniser::{tokenise, Token},
 		MastermindConfig,
 	};
+	// TODO: run test suite with different optimisations turned on
+	const CONFIG: MastermindConfig = MastermindConfig {
+		optimise_generated_code: false,
+		optimise_cell_clearing: false,
+		optimise_variable_usage: false,
+		optimise_memory_allocation: false,
+		optimise_unreachable_loops: false,
+		optimise_constants: false,
+		optimise_empty_blocks: false,
+	};
 
 	fn compile_and_run(program: String, input: String) -> Result<String, String> {
 		println!("{program}");
-		// TODO: run test suite with different optimisations turned on
-		let config = MastermindConfig {
-			optimise_generated_code: false,
-			optimise_cell_clearing: false,
-			optimise_variable_usage: false,
-			optimise_memory_allocation: false,
-			optimise_unreachable_loops: false,
-			optimise_constants: false,
-			optimise_empty_blocks: false,
-		};
 		// compile mastermind
 		let tokens: Vec<Token> = tokenise(&program)?;
 		println!("{tokens:#?}");
 		let clauses = parse(&tokens)?;
 		println!("{clauses:#?}");
-		let instructions = Compiler { config: &config }
+		let instructions = Compiler { config: &CONFIG }
 			.compile(&clauses, None)?
 			.get_instructions();
 		println!("{instructions:#?}");
-		let bf_program = Builder { config: &config }.build(instructions)?;
+		let bf_program = Builder { config: &CONFIG }.build(instructions)?;
 		println!("{bf_program}");
 		// run generated brainfuck with input
 		Ok(run_program(bf_program, input))
 	}
 
+	fn compile_program(program: String) -> Result<String, String> {
+		println!("{program}");
+		// compile mastermind
+		let tokens: Vec<Token> = tokenise(&program)?;
+		println!("{tokens:#?}");
+		let clauses = parse(&tokens)?;
+		println!("{clauses:#?}");
+		let instructions = Compiler { config: &CONFIG }
+			.compile(&clauses, None)?
+			.get_instructions();
+		println!("{instructions:#?}");
+		let bf_program = Builder { config: &CONFIG }.build(instructions)?;
+		println!("{bf_program}");
+
+		Ok(bf_program)
+	}
+
 	// #[test]
-	fn dummy_test() {
+	fn dummy_success_test() {
 		let program = String::from("");
 		let input = String::from("");
 		let desired_output = String::from("");
 		let output = compile_and_run(program, input).expect("");
 		println!("{output}");
 		assert_eq!(desired_output, output)
+	}
+
+	// #[test]
+	fn dummy_compile_fail_test() {
+		let program = String::from("");
+		let result = compile_program(program);
+		assert!(result.is_err());
 	}
 
 	#[test]
@@ -176,7 +200,7 @@ if not p {
 
 let q = 8 + p - (4 + p);
 q -= 4;
-if p {
+if q {
 	output "path a";
 } else {
 	output "path b";
@@ -185,6 +209,60 @@ if p {
 		);
 		let input = String::from("");
 		let desired_output = String::from("Hi friend!\npath b");
+		let output = compile_and_run(program, input).expect("");
+		println!("{output}");
+		assert_eq!(desired_output, output)
+	}
+
+	#[test]
+	fn expressions_3() {
+		let program = String::from(
+			r#";
+if 56 - 7 {
+	output 'A';
+} else {
+	output 'B';
+}
+
+let not_a = 'a' + (-1) - (0 - 1);
+if not not_a - 'a' {
+	output 'C';
+} else {
+	output 'D';
+}
+
+not_a += 1;
+if not_a - 'a' {
+	output not_a;
+} else {
+	output 'F';
+}
+			"#,
+		);
+		let input = String::from("");
+		let desired_output = String::from("ACb");
+		let output = compile_and_run(program, input).expect("");
+		println!("{output}");
+		assert_eq!(desired_output, output)
+	}
+
+	#[test]
+	fn expressions_4() {
+		let program = String::from(
+			r#";
+let x = 5;
+let A = 'A';
+
+drain x + 1 into A {
+	output '6';
+}
+
+output ' ';
+output A;
+			"#,
+		);
+		let input = String::from("");
+		let desired_output = String::from("666666 G");
 		let output = compile_and_run(program, input).expect("");
 		println!("{output}");
 		assert_eq!(desired_output, output)

@@ -1,4 +1,4 @@
-name: Build and deploy Mastermind Web Compiler
+name: Test, build and deploy Mastermind Web Compiler
 
 on:
   push:
@@ -9,7 +9,7 @@ on:
       - "!*.md"
 
 jobs:
-  build_and_deploy:
+  test_build_deploy:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v3
@@ -18,9 +18,9 @@ jobs:
           node-version: 18
           cache: "yarn"
           cache-dependency-path: "yarn.lock"
-      # This rust compilation step should be its own job or something
       - uses: jetli/wasm-pack-action@v0.4.0
-      - run: cd compiler && wasm-pack build --target web
+      - run: cd compiler && cargo test
+      - run: cd compiler && wasm-pack build --release --target web
       - run: yarn
       - run: yarn build
       - uses: FirebaseExtended/action-hosting-deploy@v0
