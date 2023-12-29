@@ -3,9 +3,8 @@
 use std::{collections::HashMap, iter::zip};
 
 use crate::{
-	builder::CellId,
-	macros::macros::r_panic,
-	parser::{Clause, Expression, VariableSpec},
+	macros::macros::{r_assert, r_panic},
+	parser::{Clause, Expression, VariableDefinition, VariableTarget},
 	MastermindConfig,
 };
 
@@ -53,65 +52,364 @@ impl Compiler<'_> {
 
 		for clause in clauses {
 			match clause {
-				Clause::AddToVariable { var, value } => {
-					// get variable cell from allocation stack
-					let mem = scope.get_variable_mem(&var)?;
-					scope.push_instruction(Instruction::AddToCell(mem, value));
-				}
 				Clause::DeclareVariable(var) => {
-					// allocate a memory cell on the allocation stack
-					// place the variable spec in the hashmap given the memory offset
-					scope.allocate_variable(var.clone());
+					// create an allocation in the scope
+					let memory = scope.allocate_variable_memory(var)?;
+					// push instruction to allocate cell(s) (the number of cells is stored in the Memory object)
+					scope.push_instruction(Instruction::Allocate(memory));
+				}
+				Clause::DefineVariable { var, value } => {
+					// same as above except we initialise the variable
+					let memory = scope.allocate_variable_memory(var.clone())?;
+					let memory_id = memory.id();
+					scope.push_instruction(Instruction::Allocate(memory.clone()));
 
-					// create instructions to allocate cells
-					if let Some(len) = var.arr_num {
-						let mut var_copy = VariableSpec {
-							name: var.name.clone(),
-							arr_num: None,
-						};
-						for i in 0..len {
-							var_copy.arr_num = Some(i);
-							let mem = scope.get_variable_mem(&var_copy)?;
-							scope.push_instruction(Instruction::AllocateCell(mem));
+					match (&var, &value, memory) {
+						(
+							VariableDefinition::Single { name: _ },
+							Expression::SumExpression {
+								sign: _,
+								summands: _,
+							}
+							| Expression::NaturalNumber(_)
+							| Expression::VariableReference(_),
+							Memory::Cell { id: _ },
+						) => {
+							_add_expr_to_cell(
+								&mut scope,
+								value,
+								Cell {
+									memory_id,
+									index: None,
+								},
+							)?;
 						}
-					} else {
-						let mem = scope.get_variable_mem(&var)?;
-						scope.push_instruction(Instruction::AllocateCell(mem));
-					}
+						(
+							VariableDefinition::Multi { name, len },
+							Expression::ArrayLiteral(expressions),
+							Memory::Cells {
+								id: _,
+								len: _,
+								target_index: _,
+							},
+						) => {
+							// for each expression in the array, perform above operations
+							r_assert!(
+								expressions.len() == *len,
+								"Variable \"{name}\" of length {len} cannot be initialised \
+to array expression of length {}",
+								expressions.len()
+							);
+							for (i, expr) in zip(0..*len, expressions) {
+								_add_expr_to_cell(
+									&mut scope,
+									expr.clone(),
+									Cell {
+										memory_id,
+										index: Some(i),
+									},
+								)?;
+							}
+						}
+						(
+							VariableDefinition::Multi { name, len },
+							Expression::StringLiteral(s),
+							Memory::Cells {
+								id: _,
+								len: _,
+								target_index: _,
+							},
+						) => {
+							// for each byte of the string, add it to its respective cell
+							r_assert!(
+								s.len() == *len,
+								"Variable \"{name}\" of length {len} cannot \
+be initialised to string of length {}",
+								s.len()
+							);
+							for (i, c) in zip(0..*len, s.bytes()) {
+								scope.push_instruction(Instruction::AddToCell(
+									Cell {
+										memory_id,
+										index: Some(i),
+									},
+									c,
+								));
+							}
+						}
+						(
+							VariableDefinition::Single { name: _ },
+							_,
+							Memory::Cells {
+								id: _,
+								len: _,
+								target_index: _,
+							},
+						)
+						| (
+							VariableDefinition::Multi { name: _, len: _ },
+							_,
+							Memory::Cell { id: _ },
+						) => r_panic!(
+							"Something went wrong when initialising variable \"{var}\". \
+This error should never occur."
+						),
+						_ => r_panic!(
+							"Cannot initialise variable \"{var}\" with expression {value:#?}"
+						),
+					};
 				}
-				Clause::ClearVariable(var) => {
-					let mem = scope.get_variable_mem(&var)?;
-					scope.push_instruction(Instruction::ClearCell(mem));
-				}
-				Clause::InputByte { var } => {
-					let mem = scope.get_variable_mem(&var)?;
-					scope.push_instruction(Instruction::InputToCell(mem));
-				}
-				Clause::OutputByte { value } => match value {
-					Expression::VariableReference(var) => {
-						let mem = scope.get_variable_mem(&var)?;
-						scope.push_instruction(Instruction::OutputCell(mem));
+				Clause::SetVariable { var, value } => match (&var, &value) {
+					(
+						VariableTarget::Single { name: _ },
+						Expression::SumExpression {
+							sign: _,
+							summands: _,
+						}
+						| Expression::NaturalNumber(_)
+						| Expression::VariableReference(_),
+					) => {
+						let mem = scope.get_memory(&var)?;
+						let cell = Cell {
+							memory_id: mem.id(),
+							index: None,
+						};
+						scope.push_instruction(Instruction::ClearCell(cell.clone()));
+						_add_expr_to_cell(&mut scope, value, cell)?;
 					}
-					Expression::NaturalNumber(num) => {
-						let val: u8 = (num % 256).try_into().unwrap();
-						// allocate a temporary cell for the byte being output
-						let mem = scope.allocate_unnamed_mem();
-						scope.push_instruction(Instruction::AllocateCell(mem));
-						scope.push_instruction(Instruction::AddToCell(mem, val));
-						scope.push_instruction(Instruction::OutputCell(mem));
-						scope.push_instruction(Instruction::ClearCell(mem));
-						scope.push_instruction(Instruction::FreeCell(mem));
+					(
+						VariableTarget::MultiCell { name: _, index },
+						Expression::SumExpression {
+							sign: _,
+							summands: _,
+						}
+						| Expression::NaturalNumber(_)
+						| Expression::VariableReference(_),
+					) => {
+						let mem = scope.get_memory(&var)?;
+						let cell = Cell {
+							memory_id: mem.id(),
+							index: Some(*index),
+						};
+						scope.push_instruction(Instruction::ClearCell(cell.clone()));
+						_add_expr_to_cell(&mut scope, value, cell)?;
 					}
-					Expression::SumExpression {
-						sign: _,
-						summands: _,
-					} => todo!(),
-					Expression::ArrayLiteral(_) | Expression::StringLiteral(_) => todo!(),
+					(
+						VariableTarget::MultiSpread { name: _ },
+						Expression::SumExpression {
+							sign: _,
+							summands: _,
+						}
+						| Expression::NaturalNumber(_)
+						| Expression::VariableReference(_),
+					) => r_panic!(
+						"Cannot set multi-byte variables using \
+spread syntax, use drain <val> into {var} instead."
+					),
+					(_, Expression::ArrayLiteral(_) | Expression::StringLiteral(_)) => r_panic!(
+						"Cannot set multi-byte variables after initialisation\
+, set individual bytes with [] subscript operator instead."
+					),
+					// _ => r_panic!("Cannot set variable \"{var}\" to expression {value:#?}"),
 				},
+				Clause::AddToVariable { var, value } => match (&var, &value) {
+					(
+						VariableTarget::Single { name: _ }
+						| VariableTarget::MultiCell { name: _, index: _ },
+						Expression::SumExpression {
+							sign: _,
+							summands: _,
+						}
+						| Expression::NaturalNumber(_)
+						| Expression::VariableReference(_),
+					) => {
+						let Some(cell) = scope.get_memory(&var)?.target_cell() else {
+							r_panic!("Unreachable error occurred when adding to {var}");
+						};
+						_add_expr_to_cell(&mut scope, value, cell)?;
+					}
+					(
+						VariableTarget::MultiSpread { name: _ },
+						Expression::SumExpression {
+							sign: _,
+							summands: _,
+						}
+						| Expression::NaturalNumber(_)
+						| Expression::VariableReference(_),
+					) => r_panic!(
+						"Cannot add to multi-byte variables using \
+spread syntax, use drain <val> into {var} instead."
+					),
+					(_, Expression::ArrayLiteral(_) | Expression::StringLiteral(_)) => r_panic!(
+						"Cannot add to multi-byte variables after initialisation\
+, set individual bytes with [] subscript operator instead."
+					),
+					// _ => r_panic!("Cannot add expression {value:#?} to variable \"{var}\""),
+				},
+				Clause::InputVariable { var } => {
+					let mem = scope.get_memory(&var)?;
+					match (&var, mem) {
+						(VariableTarget::Single { name: _ }, Memory::Cell { id: memory_id }) => {
+							scope.push_instruction(Instruction::InputToCell(Cell {
+								memory_id,
+								index: None,
+							}))
+						}
+						(
+							VariableTarget::Single { name: _ }
+							| VariableTarget::MultiCell { name: _, index: _ },
+							Memory::Cells {
+								id: memory_id,
+								len: _,
+								target_index: Some(index),
+							},
+						) => scope.push_instruction(Instruction::InputToCell(Cell {
+							memory_id,
+							index: Some(index),
+						})),
+						(
+							VariableTarget::MultiSpread { name: _ },
+							Memory::Cells {
+								id: memory_id,
+								len,
+								target_index: None,
+							},
+						) => {
+							// run the low level input , operator once for each byte in the variable
+							for i in 0..len {
+								scope.push_instruction(Instruction::InputToCell(Cell {
+									memory_id,
+									index: Some(i),
+								}));
+							}
+						}
+						_ => r_panic!("Cannot input into variable \"{var}\""),
+					}
+				}
+				Clause::OutputValue { value } => {
+					match value {
+						Expression::VariableReference(var) => {
+							let mem = scope.get_memory(&var)?;
+							match (&var, mem) {
+								(
+									VariableTarget::Single { name: _ },
+									Memory::Cell { id: memory_id },
+								) => scope.push_instruction(Instruction::OutputCell(Cell {
+									memory_id,
+									index: None,
+								})),
+								(
+									VariableTarget::Single { name: _ }
+									| VariableTarget::MultiCell { name: _, index: _ },
+									Memory::Cells {
+										id: memory_id,
+										len: _,
+										// hack
+										target_index: Some(index),
+									},
+								) => scope.push_instruction(Instruction::OutputCell(Cell {
+									memory_id,
+									index: Some(index),
+								})),
+								(
+									VariableTarget::MultiSpread { name: _ },
+									Memory::Cells {
+										id: memory_id,
+										len,
+										// hack
+										target_index: None,
+									},
+								) => {
+									// run the low level output . operator once for each byte in the variable
+									for i in 0..len {
+										scope.push_instruction(Instruction::OutputCell(Cell {
+											memory_id,
+											index: Some(i),
+										}));
+									}
+								}
+								_ => r_panic!("Cannot output variable \"{var}\""),
+							}
+						}
+						Expression::SumExpression {
+							sign: _,
+							summands: _,
+						}
+						| Expression::NaturalNumber(_) => {
+							// allocate a temporary cell and add the expression to it, output, then clear
+							let temp_mem_id = scope.create_memory_id();
+							scope.push_instruction(Instruction::Allocate(Memory::Cell {
+								id: temp_mem_id,
+							}));
+							let cell = Cell {
+								memory_id: temp_mem_id,
+								index: None,
+							};
+
+							_add_expr_to_cell(&mut scope, value, cell)?;
+							scope.push_instruction(Instruction::OutputCell(cell));
+							scope.push_instruction(Instruction::ClearCell(cell));
+
+							scope.push_instruction(Instruction::Free(temp_mem_id));
+						}
+						Expression::ArrayLiteral(expressions) => {
+							// same as above, except reuse the temporary cell after each output
+							let temp_mem_id = scope.create_memory_id();
+							scope.push_instruction(Instruction::Allocate(Memory::Cell {
+								id: temp_mem_id,
+							}));
+							let cell = Cell {
+								memory_id: temp_mem_id,
+								index: None,
+							};
+
+							for value in expressions {
+								_add_expr_to_cell(&mut scope, value, cell)?;
+								scope.push_instruction(Instruction::OutputCell(cell));
+								scope.push_instruction(Instruction::ClearCell(cell));
+							}
+
+							scope.push_instruction(Instruction::Free(temp_mem_id));
+						}
+						Expression::StringLiteral(s) => {
+							// same as above, allocate one temporary cell and reuse it for each character
+							let temp_mem_id = scope.create_memory_id();
+							scope.push_instruction(Instruction::Allocate(Memory::Cell {
+								id: temp_mem_id,
+							}));
+							let cell = Cell {
+								memory_id: temp_mem_id,
+								index: None,
+							};
+
+							for c in s.bytes() {
+								scope.push_instruction(Instruction::AddToCell(cell, c));
+								scope.push_instruction(Instruction::OutputCell(cell));
+								scope.push_instruction(Instruction::ClearCell(cell));
+							}
+
+							scope.push_instruction(Instruction::Free(temp_mem_id));
+						}
+					}
+				}
 				Clause::WhileLoop { var, block } => {
+					let mem = scope.get_memory(&var)?;
+					let cell = match var {
+						VariableTarget::Single { name: _ } => Cell {
+							memory_id: mem.id(),
+							index: None,
+						},
+						VariableTarget::MultiCell { name: _, index } => Cell {
+							memory_id: mem.id(),
+							index: Some(index),
+						},
+						VariableTarget::MultiSpread { name: _ } => {
+							r_panic!("Cannot open while loop on spread variable \"{var}\"")
+						}
+					};
+
 					// open loop on variable
-					let mem = scope.get_variable_mem(&var)?;
-					scope.push_instruction(Instruction::OpenLoop(mem));
+					scope.push_instruction(Instruction::OpenLoop(cell));
 
 					// recursively compile instructions
 					// TODO: when recursively compiling, check which things changed based on a return info value
@@ -119,96 +417,148 @@ impl Compiler<'_> {
 					scope.instructions.extend(loop_scope.get_instructions());
 
 					// close the loop
-					scope.push_instruction(Instruction::CloseLoop(mem));
-				}
-				Clause::CopyVariable {
-					target,
-					source,
-					constant,
-				} => {
-					// allocate a temporary cell
-					let temp_mem = scope.allocate_unnamed_mem();
-					scope.push_instruction(Instruction::AllocateCell(temp_mem));
-
-					let source_mem = scope.get_variable_mem(&source).expect(&format!(
-						"Source variable '{source}' couldn't be found while attempting copy"
-					));
-					let target_mem = scope.get_variable_mem(&target).expect(&format!(
-						"Target variable '{target}' couldn't be found while attempting copy"
-					));
-
-					// copy source to target and temp
-					scope.push_instruction(Instruction::OpenLoop(source_mem));
-					scope.push_instruction(Instruction::AddToCell(target_mem, constant as u8));
-					scope.push_instruction(Instruction::AddToCell(temp_mem, 1));
-					scope.push_instruction(Instruction::AddToCell(source_mem, -1i8 as u8));
-					scope.push_instruction(Instruction::CloseLoop(source_mem));
-					// copy back from temp
-					scope.push_instruction(Instruction::OpenLoop(temp_mem));
-					scope.push_instruction(Instruction::AddToCell(source_mem, 1));
-					scope.push_instruction(Instruction::AddToCell(temp_mem, -1i8 as u8));
-					scope.push_instruction(Instruction::CloseLoop(temp_mem));
-					scope.push_instruction(Instruction::FreeCell(temp_mem));
+					scope.push_instruction(Instruction::CloseLoop(cell));
 				}
 				Clause::CopyLoop {
 					source,
 					targets,
 					block,
 					is_draining,
-				} => match is_draining {
-					true => {
-						// again this stuff needs to be fixed
-						let source_mem = scope.get_variable_mem(&source)?;
+				} => {
+					let Some(source_cell) = scope.get_memory(&source)?.target_cell() else {
+						r_panic!("Cannot copy or drain from source \"{source}\"");
+					};
 
-						scope.push_instruction(Instruction::OpenLoop(source_mem));
+					match is_draining {
+						true => {
+							scope.push_instruction(Instruction::OpenLoop(source_cell));
 
-						// recurse
-						let loop_scope = self.compile(&block, Some(&scope))?;
-						scope.instructions.extend(loop_scope.get_instructions());
+							// recurse
+							let loop_scope = self.compile(&block, Some(&scope))?;
+							scope.instructions.extend(loop_scope.get_instructions());
 
-						// copy into each target and decrement the source
-						for target in targets {
-							let mem = scope.get_variable_mem(&target)?;
-							scope.push_instruction(Instruction::AddToCell(mem, 1));
+							// copy into each target and decrement the source
+							for target in targets {
+								let mem = scope.get_memory(&target)?;
+								match mem {
+									Memory::Cell { id: memory_id } => {
+										scope.push_instruction(Instruction::AddToCell(
+											Cell {
+												memory_id,
+												index: None,
+											},
+											1,
+										))
+									}
+									Memory::Cells {
+										id: memory_id,
+										len,
+										target_index,
+									} => match target_index {
+										None => {
+											// should only happen if the spread operator is used, ideally this should be obvious with the code, (TODO: refactor target index hack)
+											for i in 0..len {
+												scope.push_instruction(Instruction::AddToCell(
+													Cell {
+														memory_id,
+														index: Some(i),
+													},
+													1,
+												));
+											}
+										}
+										Some(index) => {
+											scope.push_instruction(Instruction::AddToCell(
+												Cell {
+													memory_id,
+													index: Some(index),
+												},
+												1,
+											))
+										}
+									},
+								}
+							}
+
+							scope.push_instruction(Instruction::AddToCell(source_cell, -1i8 as u8)); // 255
+							scope.push_instruction(Instruction::CloseLoop(source_cell));
 						}
-						scope.push_instruction(Instruction::AddToCell(source_mem, -1i8 as u8)); // 255
-						scope.push_instruction(Instruction::CloseLoop(source_mem));
-						// instructions.push(Instruction::AssertCellValue(source_mem, 0)); // builder already knows the cell is value 0 because it ended a loop on its cell
-					}
-					false => {
-						// allocate a temporary cell
-						let temp_mem = scope.allocate_unnamed_mem();
-						scope.push_instruction(Instruction::AllocateCell(temp_mem));
+						false => {
+							// allocate a temporary cell
+							let temp_mem_id = scope.create_memory_id();
+							scope.push_instruction(Instruction::Allocate(Memory::Cell {
+								id: temp_mem_id,
+							}));
+							let temp_cell = Cell {
+								memory_id: temp_mem_id,
+								index: None,
+							};
 
-						// again this stuff needs to be fixed
-						let source_mem = scope.get_variable_mem(&source)?;
+							scope.push_instruction(Instruction::OpenLoop(source_cell));
 
-						scope.push_instruction(Instruction::OpenLoop(source_mem));
+							// recurse
+							let loop_scope = self.compile(&block, Some(&scope))?;
+							scope.instructions.extend(loop_scope.get_instructions());
 
-						// recurse
-						let loop_scope = self.compile(&block, Some(&scope))?;
-						scope.instructions.extend(loop_scope.get_instructions());
+							// copy into each target and decrement the source
+							for target in targets {
+								let mem = scope.get_memory(&target)?;
+								match mem {
+									Memory::Cell { id: memory_id } => {
+										scope.push_instruction(Instruction::AddToCell(
+											Cell {
+												memory_id,
+												index: None,
+											},
+											1,
+										))
+									}
+									Memory::Cells {
+										id: memory_id,
+										len,
+										target_index,
+									} => match target_index {
+										None => {
+											// should only happen if the spread operator is used, ideally this should be obvious with the code, (TODO: refactor target index hack)
+											for i in 0..len {
+												scope.push_instruction(Instruction::AddToCell(
+													Cell {
+														memory_id,
+														index: Some(i),
+													},
+													1,
+												));
+											}
+										}
+										Some(index) => {
+											scope.push_instruction(Instruction::AddToCell(
+												Cell {
+													memory_id,
+													index: Some(index),
+												},
+												1,
+											))
+										}
+									},
+								}
+							}
 
-						// copy into each target and decrement the source
-						for target in targets {
-							let mem = scope.get_variable_mem(&target)?;
-							scope.push_instruction(Instruction::AddToCell(mem, 1));
+							scope.push_instruction(Instruction::AddToCell(temp_cell, 1));
+							scope.push_instruction(Instruction::AddToCell(source_cell, -1i8 as u8)); // 255
+							scope.push_instruction(Instruction::CloseLoop(source_cell));
+
+							// copy back the temp cell
+							scope.push_instruction(Instruction::OpenLoop(temp_cell));
+							scope.push_instruction(Instruction::AddToCell(temp_cell, -1i8 as u8));
+							scope.push_instruction(Instruction::AddToCell(source_cell, 1));
+							scope.push_instruction(Instruction::CloseLoop(temp_cell));
+
+							scope.push_instruction(Instruction::Free(temp_mem_id));
 						}
-						scope.push_instruction(Instruction::AddToCell(temp_mem, 1));
-						scope.push_instruction(Instruction::AddToCell(source_mem, -1i8 as u8)); // 255
-						scope.push_instruction(Instruction::CloseLoop(source_mem));
-
-						// copy back the temp cell
-						scope.push_instruction(Instruction::OpenLoop(temp_mem));
-						scope.push_instruction(Instruction::AddToCell(temp_mem, -1i8 as u8));
-						scope.push_instruction(Instruction::AddToCell(source_mem, 1));
-						scope.push_instruction(Instruction::CloseLoop(temp_mem));
-
-						scope.push_instruction(Instruction::FreeCell(temp_mem));
 					}
-				},
+				}
 				Clause::IfStatement {
-					var,
+					condition_var,
 					if_block,
 					else_block,
 				} => {
@@ -217,40 +567,46 @@ impl Compiler<'_> {
 					};
 					let mut new_scope = scope.open_inner();
 
-					let temp_var_mem = new_scope.allocate_unnamed_mem();
-					new_scope.push_instruction(Instruction::AllocateCell(temp_var_mem));
-					let else_condition_mem = match else_block {
+					let temp_mem_id = new_scope.create_memory_id();
+					new_scope
+						.push_instruction(Instruction::Allocate(Memory::Cell { id: temp_mem_id }));
+					let temp_cell = Cell {
+						memory_id: temp_mem_id,
+						index: None,
+					};
+
+					let else_condition_cell = match else_block {
 						Some(_) => {
-							let else_mem = new_scope.allocate_unnamed_mem();
-							new_scope.push_instruction(Instruction::AllocateCell(else_mem));
-							new_scope.push_instruction(Instruction::AddToCell(else_mem, 1));
-							Some(else_mem)
+							let else_mem_id = new_scope.create_memory_id();
+							new_scope.push_instruction(Instruction::Allocate(Memory::Cell {
+								id: else_mem_id,
+							}));
+							let else_cell = Cell {
+								memory_id: else_mem_id,
+								index: None,
+							};
+							new_scope.push_instruction(Instruction::AddToCell(else_cell, 1));
+							Some(else_cell)
 						}
 						None => None,
 					};
 
-					let original_var_mem = new_scope.get_variable_mem(&var)?;
+					let Some(condition_cell) = new_scope.get_memory(&condition_var)?.target_cell()
+					else {
+						r_panic!("Cannot open if/else statement on variable \"{condition_var}\"");
+					};
 
-					new_scope.push_instruction(Instruction::OpenLoop(original_var_mem));
+					// copy the condition to the temp cell
+					_copy_cell(&mut new_scope, condition_cell, temp_cell, 1);
 
-					// move the variable to the temporary cell
-					new_scope.push_instruction(Instruction::OpenLoop(original_var_mem));
-					new_scope.push_instruction(Instruction::AddToCell(temp_var_mem, 1));
-					new_scope
-						.push_instruction(Instruction::AddToCell(original_var_mem, -1i8 as u8));
-					new_scope.push_instruction(Instruction::CloseLoop(original_var_mem));
-
-					// change scope var pointer
-					new_scope.reassign_variable_mem(var.clone(), temp_var_mem)?;
-
-					// TODO: think about this?
-					// pretty sure this will be added when we optimise variable usage and lifetimes
-					// free the original cell temporarily as it isn't being used
-					// instructions.push(Instruction::FreeCell(original_var_mem));
+					new_scope.push_instruction(Instruction::OpenLoop(temp_cell));
+					// TODO: think about optimisations for clearing this variable, as the builder won't shorten it for safety as it doesn't know this loop is special
+					new_scope.push_instruction(Instruction::ClearCell(temp_cell));
 
 					// set the else condition cell
-					if let Some(mem) = else_condition_mem {
-						new_scope.push_instruction(Instruction::AddToCell(mem, -1i8 as u8));
+					// above comment about optimisations also applies here
+					if let Some(cell) = else_condition_cell {
+						new_scope.push_instruction(Instruction::ClearCell(cell));
 					};
 
 					// recursively compile if block
@@ -260,36 +616,26 @@ impl Compiler<'_> {
 					};
 
 					// close if block
-					new_scope.push_instruction(Instruction::CloseLoop(original_var_mem));
-
-					// reallocate the temporarily freed variable cell
-					// instructions.push(Instruction::AllocateCell(original_var_mem));
-
-					// move the temporary cell contents back to the variable cell
-					new_scope.push_instruction(Instruction::OpenLoop(temp_var_mem));
-					new_scope.push_instruction(Instruction::AddToCell(original_var_mem, 1));
-					new_scope.push_instruction(Instruction::AddToCell(temp_var_mem, -1i8 as u8));
-					new_scope.push_instruction(Instruction::CloseLoop(temp_var_mem));
-					new_scope.revert_reassignment(&var);
-
-					new_scope.push_instruction(Instruction::FreeCell(temp_var_mem));
+					new_scope.push_instruction(Instruction::CloseLoop(temp_cell));
+					new_scope.push_instruction(Instruction::Free(temp_mem_id));
 
 					// else block:
-					if let Some(else_mem) = else_condition_mem {
-						new_scope.push_instruction(Instruction::OpenLoop(else_mem));
-						new_scope.push_instruction(Instruction::AddToCell(else_mem, -1i8 as u8));
+					if let Some(cell) = else_condition_cell {
+						new_scope.push_instruction(Instruction::OpenLoop(cell));
+						// again think about how to optimise this clear in the build step
+						new_scope.push_instruction(Instruction::ClearCell(cell));
 
 						// recursively compile else block
+						// TODO: fix this bad practice unwrap
 						let block = else_block.unwrap();
 						let else_scope = self.compile(&block, Some(&new_scope))?;
 						new_scope.instructions.extend(else_scope.get_instructions());
 
-						new_scope.push_instruction(Instruction::CloseLoop(else_mem));
-						new_scope.push_instruction(Instruction::FreeCell(else_mem));
+						new_scope.push_instruction(Instruction::CloseLoop(cell));
+						new_scope.push_instruction(Instruction::Free(cell.memory_id));
 					}
 
 					// extend the inner scopes instructions onto the outer one
-					// maybe this if statement business should be its own function?
 					scope.instructions.extend(new_scope.get_instructions());
 				}
 				Clause::CallFunction {
@@ -297,60 +643,41 @@ impl Compiler<'_> {
 					arguments,
 				} => {
 					// create variable translations and recursively compile the inner variable block
-					let Some(function_definition) = scope.get_function(&function_name) else {
-						r_panic!("No function with name \"{}\" found", function_name);
-					};
+					let function_definition = scope.get_function(&function_name)?;
 
 					let mut new_scope = scope.open_inner();
 					let zipped: Result<Vec<ArgumentTranslation>, String> =
 						zip(function_definition.arguments.clone().into_iter(), arguments)
-							.map(|(arg_definition, calling_arg)| {
-								match (arg_definition, calling_arg) {
+							.map(|(arg_def, calling_arg)| {
+								Ok(match (arg_def, calling_arg) {
 									(
-										VariableSpec {
+										VariableDefinition::Single { name: def_name },
+										VariableTarget::Single { name: call_name },
+									) => ArgumentTranslation::SingleFromSingle(def_name, call_name),
+									(
+										// this is a major hack, the parser will parse a calling argument as a single even though it is really targeting a multi
+										VariableDefinition::Multi {
 											name: def_name,
-											arr_num: None,
+											len: _,
 										},
-										VariableSpec {
+										VariableTarget::Single { name: call_name },
+									) => ArgumentTranslation::MultiFromMulti(def_name, call_name),
+									(
+										VariableDefinition::Single { name: def_name },
+										VariableTarget::MultiCell {
 											name: call_name,
-											arr_num: None,
+											index,
 										},
-									) => {
-										Ok(ArgumentTranslation::SingleToSingle(def_name, call_name))
-									}
-									(
-										VariableSpec {
-											name: def_name,
-											arr_num: None,
-										},
-										calling_var,
-									) => Ok(ArgumentTranslation::SingleToMultiCell(
+									) => ArgumentTranslation::SingleFromMultiCell(
 										def_name,
-										calling_var,
-									)),
-									(
-										def_var,
-										VariableSpec {
-											name: call_name,
-											arr_num: None,
-										},
-									) => {
-										let calling_var_len =
-											scope.get_variable_size(&call_name)?.unwrap();
-										if calling_var_len != def_var.arr_num.unwrap() {
-											r_panic!("Cannot translate {call_name} as {def_var} as the lengths do not match");
-										}
-										Ok(ArgumentTranslation::MultiToMulti(
-											def_var.name,
-											call_name,
-										))
-									}
+										(call_name, index),
+									),
 									(def_var, call_var) => {
 										r_panic!(
 											"Cannot translate {call_var} as argument {def_var}"
 										)
 									}
-								}
+								})
 							})
 							.collect();
 					new_scope.variable_aliases.extend(zipped?);
@@ -372,47 +699,177 @@ impl Compiler<'_> {
 		}
 
 		// create instructions to free cells
-		let mem_offset = scope.allocation_offset();
-		for (_, mem_rel) in scope.variable_memory_cells.clone() {
-			let mem = mem_rel + mem_offset;
-			scope.push_instruction(Instruction::ClearCell(mem));
-			scope.push_instruction(Instruction::FreeCell(mem));
+		let mut clear_instructions = Vec::new();
+		for (var_def, mem_id) in scope.variable_memory.iter() {
+			match &var_def {
+				VariableDefinition::Single { name: _ } => {
+					clear_instructions.push(Instruction::ClearCell(Cell {
+						memory_id: *mem_id,
+						index: None,
+					}))
+				}
+				VariableDefinition::Multi { name: _, len } => {
+					for i in 0..*len {
+						clear_instructions.push(Instruction::ClearCell(Cell {
+							memory_id: *mem_id,
+							index: Some(i),
+						}))
+					}
+				}
+			}
+			clear_instructions.push(Instruction::Free(*mem_id));
+		}
+		for instr in clear_instructions {
+			scope.push_instruction(instr);
 		}
 
 		Ok(scope)
 	}
 }
 
+// not sure if this should be in the scope impl?
+// helper function for a common use-case
+// flatten an expression and add it to a specific cell (using copies and adds, etc)
+fn _add_expr_to_cell(scope: &mut Scope, expr: Expression, cell: Cell) -> Result<(), String> {
+	let (imm, adds, subs) = expr.flatten()?;
+
+	scope.push_instruction(Instruction::AddToCell(cell.clone(), imm));
+
+	let mut adds_set = HashMap::new();
+	for var in adds {
+		let n = adds_set.remove(&var).unwrap_or(0);
+		adds_set.insert(var, n + 1);
+	}
+	for var in subs {
+		let n = adds_set.remove(&var).unwrap_or(0);
+		adds_set.insert(var, n - 1);
+	}
+
+	for (source, constant) in adds_set {
+		let Some(source_cell) = scope.get_memory(&source)?.target_cell() else {
+			r_panic!("Cannot sum variable \"{source}\" in expression");
+		};
+		_copy_cell(scope, source_cell, cell.clone(), constant);
+	}
+
+	Ok(())
+}
+
+// another helper function to copy a cell from one to another leaving the original unaffected
+fn _copy_cell(scope: &mut Scope, source_cell: Cell, target_cell: Cell, constant: i32) {
+	if constant == 0 {
+		return;
+	}
+	// allocate a temporary cell
+	let temp_mem_id = scope.create_memory_id();
+	scope.push_instruction(Instruction::Allocate(Memory::Cell { id: temp_mem_id }));
+	let temp_cell = Cell {
+		memory_id: temp_mem_id,
+		index: None,
+	};
+
+	// copy source to target and temp
+	scope.push_instruction(Instruction::OpenLoop(source_cell));
+	scope.push_instruction(Instruction::AddToCell(target_cell, constant as u8));
+	scope.push_instruction(Instruction::AddToCell(temp_cell, 1));
+	scope.push_instruction(Instruction::AddToCell(source_cell, -1i8 as u8));
+	scope.push_instruction(Instruction::CloseLoop(source_cell));
+	// copy back from temp
+	scope.push_instruction(Instruction::OpenLoop(temp_cell));
+	scope.push_instruction(Instruction::AddToCell(source_cell, 1));
+	scope.push_instruction(Instruction::AddToCell(temp_cell, -1i8 as u8));
+	scope.push_instruction(Instruction::CloseLoop(temp_cell));
+	scope.push_instruction(Instruction::Free(temp_mem_id));
+}
+
 // this is subject to change
 #[derive(Debug, Clone)]
 pub enum Instruction {
-	AllocateCell(CellId), // most of the below comments are wrong, usize is a unique id of an allocated cell
-	FreeCell(CellId), // the number indicates which cell in the allocation stack should be freed (cell 0, is the top of the stack, 1 is the second element, etc)
-	OpenLoop(CellId), // same with other numbers here, they indicate the cell in the allocation stack to use in the instruction
-	CloseLoop(CellId), // pass in the cell id, this originally wasn't there but may be useful later on
-	AddToCell(CellId, u8),
-	InputToCell(CellId),
-	ClearCell(CellId), // not sure if this should be here, seems common enough that it should be
+	Allocate(Memory), // most of the below comments are wrong, usize is a unique id of an allocated cell
+	Free(MemoryId), // the number indicates which cell in the allocation stack should be freed (cell 0, is the top of the stack, 1 is the second element, etc)
+	OpenLoop(Cell), // same with other numbers here, they indicate the cell in the allocation stack to use in the instruction
+	CloseLoop(Cell), // pass in the cell id, this originally wasn't there but may be useful later on
+	AddToCell(Cell, u8),
+	InputToCell(Cell),
+	ClearCell(Cell), // not sure if this should be here, seems common enough that it should be
 	// AssertCellValue(CellId, u8), // again not sure if this is the correct place but whatever, or if this is even needed?
-	OutputCell(CellId),
-	// TODO: contiguous cells for quick iterations?
-	// AllocateContiguousCells(usize),
-	// FreeContiguousCells(usize), // number indicates
+	OutputCell(Cell),
+}
+
+#[derive(Debug, Clone)]
+pub enum Memory {
+	Cell {
+		id: MemoryId,
+	},
+	// this comment was originally in a different place which is why it might be a bit odd, highly relevant still
+	// a little hack was added which holds the targeted cell inside the memory, this is for when you pass in a multi-byte cell reference to a function
+	Cells {
+		id: MemoryId,
+		len: usize,
+		target_index: Option<usize>,
+	},
+	// infinite cell something (TODO?)
+}
+pub type MemoryId = usize;
+
+#[derive(Debug, Clone, Copy)]
+pub struct Cell {
+	pub memory_id: MemoryId,
+	pub index: Option<usize>,
+}
+
+impl Memory {
+	pub fn id(&self) -> MemoryId {
+		match self {
+			Memory::Cell { id } => *id,
+			Memory::Cells {
+				id,
+				len: _,
+				target_index: _,
+			} => *id,
+		}
+	}
+	pub fn len(&self) -> usize {
+		match self {
+			Memory::Cell { id: _ } => 1,
+			Memory::Cells {
+				id: _,
+				len,
+				target_index: _,
+			} => *len,
+		}
+	}
+
+	pub fn target_cell(&self) -> Option<Cell> {
+		match self {
+			Memory::Cell { id } => Some(Cell {
+				memory_id: *id,
+				index: None,
+			}),
+			Memory::Cells {
+				id,
+				len: _,
+				target_index: Some(index),
+			} => Some(Cell {
+				memory_id: *id,
+				index: Some(*index),
+			}),
+			_ => None,
+		}
+	}
 }
 
 #[derive(Clone, Debug)]
 pub struct Scope<'a> {
 	outer_scope: Option<&'a Scope<'a>>,
 
-	// number of memory cells that have been allocated?
+	// number of memory allocations
 	allocations: usize,
 	// mappings for variable names to places on above stack
-	variable_memory_cells: HashMap<VariableSpec, CellId>,
+	variable_memory: HashMap<VariableDefinition, MemoryId>,
 	// used for function arguments, translates an outer scope variable to an inner one, assumed they are the same array length if multi-cell
 	// originally this was just string to string, but we need to be able to map a single-bit variable to a cell of an outer array variable
 	variable_aliases: Vec<ArgumentTranslation>,
-	// thought I didn't need this but I do, basically a record of the byte lengths of each variable
-	variable_sizes: HashMap<String, Option<usize>>,
 
 	// functions accessible by any code within or in the current scope
 	functions: HashMap<String, Function>,
@@ -425,22 +882,29 @@ pub struct Scope<'a> {
 
 #[derive(Clone, Debug)]
 enum ArgumentTranslation {
-	SingleToSingle(String, String),
-	SingleToMultiCell(String, VariableSpec),
-	MultiToMulti(String, String),
+	SingleFromSingle(String, String),
+	SingleFromMultiCell(String, (String, usize)),
+	MultiFromMulti(String, String),
 }
 impl ArgumentTranslation {
 	fn get_def_name(&self) -> &String {
-		let (ArgumentTranslation::SingleToSingle(def_name, _)
-		| ArgumentTranslation::SingleToMultiCell(def_name, _)
-		| ArgumentTranslation::MultiToMulti(def_name, _)) = self;
+		let (ArgumentTranslation::SingleFromSingle(def_name, _)
+		| ArgumentTranslation::SingleFromMultiCell(def_name, _)
+		| ArgumentTranslation::MultiFromMulti(def_name, _)) = self;
 		def_name
+	}
+	fn get_call_name(&self) -> &String {
+		match self {
+			ArgumentTranslation::SingleFromSingle(_, call_name)
+			| ArgumentTranslation::MultiFromMulti(_, call_name) => call_name,
+			ArgumentTranslation::SingleFromMultiCell(_, (call_var, _)) => call_var,
+		}
 	}
 }
 
 #[derive(Clone, Debug)] // probably shouldn't be cloning here but whatever
 struct Function {
-	arguments: Vec<VariableSpec>,
+	arguments: Vec<VariableDefinition>,
 	block: Vec<Clause>,
 }
 // represents a position in a stack relative to the head/top
@@ -450,9 +914,8 @@ impl Scope<'_> {
 		Scope {
 			outer_scope: None,
 			allocations: 0,
-			variable_memory_cells: HashMap::new(),
+			variable_memory: HashMap::new(),
 			variable_aliases: Vec::new(),
-			variable_sizes: HashMap::new(),
 			functions: HashMap::new(),
 			instructions: Vec::new(),
 			// variable_accesses: HashMap::new(),
@@ -473,47 +936,40 @@ impl Scope<'_> {
 		Scope {
 			outer_scope: Some(self),
 			allocations: 0,
-			variable_memory_cells: HashMap::new(),
+			variable_memory: HashMap::new(),
 			variable_aliases: Vec::new(),
-			variable_sizes: HashMap::new(),
 			functions: HashMap::new(),
 			instructions: Vec::new(),
 			// variable_accesses: HashMap::new(),
 		}
 	}
 
-	fn allocate_variable(&mut self, var: VariableSpec) {
-		self.variable_sizes.insert(var.name.clone(), var.arr_num);
-		if let Some(len) = &var.arr_num {
-			for i in 0..*len {
-				self.allocate_variable_cell(VariableSpec {
-					name: var.name.clone(),
-					arr_num: Some(i),
-				});
-			}
-		} else {
-			self.allocate_variable_cell(VariableSpec {
-				name: var.name.clone(),
-				arr_num: None,
-			});
+	// not sure if this function should create the allocation instruction or not
+	fn allocate_variable_memory(&mut self, var: VariableDefinition) -> Result<Memory, String> {
+		let id = self.create_memory_id();
+		let result = Ok(match &var {
+			VariableDefinition::Single { name: _ } => Memory::Cell { id },
+			VariableDefinition::Multi { name: _, len } => Memory::Cells {
+				id,
+				len: *len,
+				target_index: None,
+			},
+		});
+
+		let None = self.current_level_get_variable_definition(&var.name()) else {
+			r_panic!("Cannot allocate variable {var} twice in the same scope");
+		};
+
+		if let Some(var) = self.variable_memory.insert(var, id) {
+			r_panic!("Unreachable error occurred when allocating {var}");
 		}
+
+		result
 	}
 
-	// not sure if this is even needed tbh, (TODO: refactor?)
-	fn allocate_variable_cell(&mut self, var: VariableSpec) {
-		let mem = self.push_memory_cell();
-		self.variable_memory_cells.insert(var, mem);
-	}
-
-	fn push_memory_cell(&mut self) -> usize {
-		// TODO: do we need to track this anywhere for cleanup?
+	fn create_memory_id(&mut self) -> MemoryId {
+		let current_scope_relative = self.allocations;
 		self.allocations += 1;
-		let mem = self.allocations - 1;
-		mem
-	}
-
-	fn allocate_unnamed_mem(&mut self) -> usize {
-		let current_scope_relative = self.push_memory_cell();
 		current_scope_relative + self.allocation_offset()
 	}
 
@@ -526,98 +982,110 @@ impl Scope<'_> {
 		}
 	}
 
-	fn get_function(&self, name: &str) -> Option<&Function> {
+	fn get_function(&self, name: &str) -> Result<&Function, String> {
 		if let Some(func) = self.functions.get(name) {
-			Some(func)
+			Ok(func)
 		} else if let Some(outer_scope) = self.outer_scope {
-			outer_scope.get_function(name)
+			// again not sure if Ok ? is a good pattern
+			Ok(outer_scope.get_function(name)?)
 		} else {
-			None
+			r_panic!("Could not find function \"{name}\" in current scope");
 		}
 	}
 
-	fn get_variable_mem(&self, var: &VariableSpec) -> Result<usize, String> {
-		// TODO: check for variable size index out of range errors
-		if let Some(mem) = self.variable_memory_cells.get(var) {
-			Ok(mem + self.allocation_offset())
-		} else if let Some(outer_scope) = self.outer_scope {
-			if let Some(alias) = self.variable_aliases.iter().find_map(|translation| {
-				if *translation.get_def_name() == var.name {
-					match translation {
-						ArgumentTranslation::SingleToSingle(_, call_name) => Some(VariableSpec {
-							name: call_name.clone(),
-							arr_num: None,
-						}),
-						ArgumentTranslation::SingleToMultiCell(_, call_var) => {
-							Some(call_var.clone())
-						}
-						ArgumentTranslation::MultiToMulti(_, call_name) => Some(VariableSpec {
-							name: call_name.clone(),
-							arr_num: var.arr_num,
-						}),
-					}
-				} else {
-					None
+	fn current_level_get_variable_definition(&self, var_name: &str) -> Option<&VariableDefinition> {
+		self.variable_memory
+			.keys()
+			.find(|var_def| var_def.name() == var_name)
+	}
+
+	// returns a memory allocation id, unfortunately we also have a little hack to add the length of the variable in here as well because we ended up needing it
+	fn get_memory(&self, var: &VariableTarget) -> Result<Memory, String> {
+		if let Some(var_def) = self.current_level_get_variable_definition(var.name()) {
+			let Some(mem_id) = self.variable_memory.get(var_def) else {
+				r_panic!("Something went wrong when compiling. This error should never occur.");
+			};
+			// base case, variable is defined in this scope level
+			Ok(match (var_def, var) {
+				(VariableDefinition::Single { name: _ }, VariableTarget::Single { name: _ }) => {
+					Memory::Cell { id: *mem_id }
 				}
-			}) {
-				// again not sure if Ok + ? is a bad pattern
-				Ok(outer_scope.get_variable_mem(&alias)?)
+				(
+					VariableDefinition::Multi { name: _, len },
+					VariableTarget::MultiCell { name: _, index },
+				) => {
+					r_assert!(
+						*index < *len,
+						"Memory access attempt: \"{var}\" out of range for variable: \"{var_def}\""
+					);
+					Memory::Cells {
+						id: *mem_id,
+						len: *len,
+						target_index: Some(*index),
+					}
+				}
+				(
+					VariableDefinition::Multi { name: _, len },
+					VariableTarget::MultiSpread { name: _ },
+				) => Memory::Cells {
+					id: *mem_id,
+					len: *len,
+					target_index: None,
+				},
+				_ => {
+					r_panic!("Malformed variable reference {var} to {var_def}")
+				}
+			})
+		} else if let Some(outer_scope) = self.outer_scope {
+			// recursive case
+			if let Some(translation) = self
+				.variable_aliases
+				.iter()
+				.find(|translation| *translation.get_def_name() == *var.name())
+			{
+				let alias_var = match (translation, var) {
+					(
+						ArgumentTranslation::SingleFromSingle(_, call_name),
+						VariableTarget::Single { name: _ },
+						// single variable let g;f(g);def f(h){++h;}c
+					) => VariableTarget::Single {
+						name: call_name.clone(),
+					},
+					(
+						ArgumentTranslation::SingleFromMultiCell(_, (call_name, call_index)),
+						VariableTarget::Single { name: _ },
+						// referenced byte passed as single let g[9];f(g[0]);def f(h){++h;}
+					) => VariableTarget::MultiCell {
+						name: call_name.clone(),
+						index: *call_index,
+					},
+					(
+						ArgumentTranslation::MultiFromMulti(_, call_name),
+						VariableTarget::MultiCell { name: _, index },
+						// referenced byte from multi-byte variable let g[9];f(g);def f(h[9]){++h[0];}
+					) => VariableTarget::MultiCell {
+						name: call_name.clone(),
+						index: *index,
+					},
+					(
+						ArgumentTranslation::MultiFromMulti(_, call_name),
+						VariableTarget::MultiSpread { name: _ },
+						// spread from multi-byte variable let g[9];f(g);def f(h[9]){output *h;}
+					) => VariableTarget::MultiSpread {
+						name: call_name.clone(),
+					},
+					_ => r_panic!(
+						"Malformed argument/variable translation {translation:#?}, target: {var}. \
+					I realise this error doesn't tell you much, this error should not occur anyway."
+					),
+				};
+				Ok(outer_scope.get_memory(&alias_var)?)
 			} else {
-				Ok(outer_scope.get_variable_mem(var)?)
+				// again not sure if Ok + ? is a bad pattern
+				Ok(outer_scope.get_memory(var)?)
 			}
 		} else {
 			r_panic!("No variable {var} found in current scope.");
 		}
-	}
-
-	// TODO: refactor this stuff heavily when we make multi-byte values contiguous and inline asm stuff
-	fn get_variable_size(&self, var_name: &str) -> Result<Option<usize>, String> {
-		if let Some(len) = self.variable_sizes.get(var_name) {
-			Ok(*len)
-		} else if let Some(outer_scope) = self.outer_scope {
-			if let Some(alias_name) = self.variable_aliases.iter().find_map(|translation| {
-				if translation.get_def_name() == var_name {
-					match translation {
-						ArgumentTranslation::SingleToSingle(_, _)
-						| ArgumentTranslation::SingleToMultiCell(_, _) => {
-							// fucked error handling, indicative of poor design patterns
-							return Some(Err(format!(
-								"Something went wrong finding the size of variable \"{var_name}\""
-							)));
-						}
-						ArgumentTranslation::MultiToMulti(_, call_name) => {
-							Some(Ok(call_name.clone()))
-						}
-					}
-				} else {
-					None
-				}
-			}) {
-				// not sure if a ? + Ok makes any sense, may cause overhead?
-				Ok(outer_scope.get_variable_size(&alias_name?)?)
-			} else {
-				Ok(outer_scope.get_variable_size(var_name)?)
-			}
-		} else {
-			r_panic!("Size of variable '{var_name}' could not be found");
-		}
-	}
-
-	// add a pointer to the variable in the scope, the scope cannot directly own the variable being reassigned
-	// mem is including the offset, as it is a value returned from a prior allocate call
-	fn reassign_variable_mem(&mut self, var: VariableSpec, mem: usize) -> Result<(), String> {
-		let None = self.variable_memory_cells.get(&var) else {
-			r_panic!("Cannot reassign {var} in same scope as it is defined!");
-		};
-
-		self.variable_memory_cells
-			.insert(var, mem - self.allocation_offset());
-
-		Ok(())
-	}
-
-	// reverts the above operation, again needs the original variable to not be stored directly in this scope
-	fn revert_reassignment(&mut self, var: &VariableSpec) {
-		self.variable_memory_cells.remove(var);
 	}
 }

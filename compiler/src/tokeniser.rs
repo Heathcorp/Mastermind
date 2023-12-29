@@ -13,7 +13,7 @@ pub fn tokenise(source: &String) -> Result<Vec<Token>, String> {
 
 	let mappings = [
 		(" ", Token::None),
-		(";", Token::ClauseDelimiter),
+		(";", Token::Semicolon),
 		("output", Token::Output),
 		("input", Token::Input),
 		// ("#debug", Token::Debug),
@@ -49,6 +49,7 @@ pub fn tokenise(source: &String) -> Result<Vec<Token>, String> {
 		("true", Token::True),
 		("false", Token::False),
 		(",", Token::Comma),
+		("*", Token::Asterisk),
 		("-", Token::Minus),
 		("+", Token::Plus),
 	];
@@ -177,6 +178,7 @@ pub enum Token {
 	OpenParenthesis,
 	ClosingParenthesis,
 	Comma,
+	Asterisk,
 	Copy,
 	Drain,
 	Into,
@@ -193,5 +195,5 @@ pub enum Token {
 	Minus,
 	Plus,
 	Equals,
-	ClauseDelimiter,
+	Semicolon,
 }

@@ -62,52 +62,71 @@ const SettingsPanel: Component = () => {
             </select>
           </div>
           {/* button with 3 options (compile, run, or both) */}
-          <div
-            classList={{ button: true, disabled: app.busy() }}
-            style={{ padding: 0 }}
-          >
-            <div class="row" style={{ gap: 0, "align-items": "stretch" }}>
-              <div
-                classList={{
-                  "text-button": true,
-                  "text-button-disabled": app.busy(),
-                }}
-                style={{ padding: "0.5rem" }}
-                onClick={!app.busy() ? onCompile : undefined}
-              >
-                compile program
+          <div style={{ position: "relative" }}>
+            <div
+              classList={{ button: true, disabled: app.busy() }}
+              style={{ padding: 0 }}
+            >
+              <div class="row" style={{ gap: 0, "align-items": "stretch" }}>
+                <div
+                  classList={{
+                    "text-button": true,
+                    "text-button-disabled": app.busy(),
+                  }}
+                  style={{ padding: "0.5rem" }}
+                  onClick={!app.busy() ? onCompile : undefined}
+                >
+                  compile program
+                </div>
+                <Divider />
+                <div
+                  classList={{
+                    "text-button": true,
+                    "text-button-disabled":
+                      // TODO: make a specific compiled code signal like we used to, basically store the last successful compilation
+                      app.busy() || app.output()?.type !== "BF",
+                  }}
+                  style={{ padding: "0.5rem" }}
+                  onClick={
+                    !app.busy() && app.output()?.type !== "BF"
+                      ? onRun
+                      : undefined
+                  }
+                >
+                  run code
+                </div>
               </div>
               <Divider />
               <div
-                classList={{
-                  "text-button": true,
-                  "text-button-disabled":
-                    // TODO: make a specific compiled code signal like we used to, basically store the last successful compilation
-                    app.busy() || app.output()?.type !== "BF",
-                }}
-                style={{ padding: "0.5rem" }}
+                style={{ "text-align": "center", padding: "0.5rem" }}
                 onClick={
-                  !app.busy() && app.output()?.type !== "BF" ? onRun : undefined
+                  !app.busy()
+                    ? async () => {
+                        await onCompile();
+                        // technically this second await is pointless
+                        await onRun();
+                      }
+                    : undefined
                 }
               >
-                run code
+                compile & run
               </div>
             </div>
-            <Divider />
-            <div
-              style={{ "text-align": "center", padding: "0.5rem" }}
-              onClick={
-                !app.busy()
-                  ? async () => {
-                      await onCompile();
-                      // technically this second await is pointless
-                      await onRun();
-                    }
-                  : undefined
-              }
-            >
-              compile & run
-            </div>
+            {/* status overlay on the button */}
+            {app.status() && (
+              <div class="button-status-overlay">
+                <div class="button-status-text">
+                  {
+                    {
+                      ["COMPILING"]: "compiling program",
+                      ["RUNNING"]: "running code",
+                      ["INPUT_BLOCKED"]: "waiting for input",
+                      0: null,
+                    }[app.status() ?? 0]
+                  }
+                </div>
+              </div>
+            )}
           </div>
           {/* misc options and markers */}
           <div

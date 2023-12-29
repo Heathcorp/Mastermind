@@ -14,6 +14,7 @@ pub mod tests {
 
 	fn compile_and_run(program: String, input: String) -> Result<String, String> {
 		println!("{program}");
+		// TODO: run test suite with different optimisations turned on
 		let config = MastermindConfig {
 			optimise_generated_code: false,
 			optimise_cell_clearing: false,
@@ -109,6 +110,81 @@ output 70;
 		);
 		let input = String::from("");
 		let desired_output = String::from("hello\n\n\0F");
+		let output = compile_and_run(program, input).expect("");
+		println!("{output}");
+		assert_eq!(desired_output, output)
+	}
+
+	#[test]
+	fn hello_4() {
+		let program = String::from(
+			r#"
+let str[4] = [5, 12, 12, 15];
+let a = 'a' - 1;
+drain a into *str;
+output 'H';
+output *str;
+output 46;
+output 10;
+output "What?";
+"#,
+		);
+		let input = String::from("");
+		let desired_output = String::from("Hello.\nWhat?");
+		let output = compile_and_run(program, input).expect("");
+		println!("{output}");
+		assert_eq!(desired_output, output)
+	}
+
+	#[test]
+	fn hello_5() {
+		let program = String::from(
+			r#"
+output "Hell";
+output ['o', '.',  '\n'];
+"#,
+		);
+		let input = String::from("");
+		let desired_output = String::from("Hello.\n");
+		let output = compile_and_run(program, input).expect("");
+		println!("{output}");
+		assert_eq!(desired_output, output)
+	}
+
+	#[test]
+	fn expressions_1() {
+		let program = String::from(
+			r#";
+output '@' + 256 + 1 + false + true + 'e' - '@';
+			"#,
+		);
+		let input = String::from("");
+		let desired_output = String::from("g");
+		let output = compile_and_run(program, input).expect("");
+		println!("{output}");
+		assert_eq!(desired_output, output)
+	}
+
+	#[test]
+	fn expressions_2() {
+		let program = String::from(
+			r#";
+let p = 9 - (true + true -(-7));
+if not p {
+	output "Hi friend!\n";
+}
+
+let q = 8 + p - (4 + p);
+q -= 4;
+if p {
+	output "path a";
+} else {
+	output "path b";
+}
+			"#,
+		);
+		let input = String::from("");
+		let desired_output = String::from("Hi friend!\npath b");
 		let output = compile_and_run(program, input).expect("");
 		println!("{output}");
 		assert_eq!(desired_output, output)
@@ -289,8 +365,7 @@ drain a {
 		c = 2;
 	} else {
 		c = 10;
-	};
-	nt_eq = 0;
+	}
 
 	drain c {output 'B';};
 
@@ -399,7 +474,7 @@ def func_0(grape) {
 
 		let frog[4];
 		let zero = '0';
-		drain zero into frog[0] frog[1] frog[2] frog[3];
+		drain zero into *frog;
 		frog[1] += 2;
 
 		zero = grape + 3;
@@ -475,7 +550,7 @@ output b;
 	#[test]
 	fn input_2() {
 		let program = String::from(
-			"
+			r#"
 let b[3];
 input b[0];
 input b[1];
@@ -485,15 +560,79 @@ output b[1];
 output b[2];
 b[0]+=3;
 b[1]+=2;
-output '\\n';
+output '\n';
 b[2]+=1;
 output b[2];
 output b[1];
 output b[0];
-",
+"#,
 		);
 		let input = String::from("ABC");
 		let desired_output = String::from("ABC\nDDD");
+		let output = compile_and_run(program, input).expect("");
+		println!("{output}");
+		assert_eq!(desired_output, output)
+	}
+
+	#[test]
+	fn memory_1() {
+		let program = String::from(
+			r#"
+let b[3] = "Foo";
+
+def inc(h, g) {
+	g += 1;
+	if h {h += 1;} else {h = 'Z';}
+}
+
+output *b;
+inc(b[1], b[2]);
+output *b;
+
+output 10;
+
+let c = -1;
+inc(c, c);
+output c;
+"#,
+		);
+		let input = String::from("");
+		let desired_output = String::from("FooFpp\nZ");
+		let output = compile_and_run(program, input).expect("");
+		println!("{output}");
+		assert_eq!(desired_output, output)
+	}
+
+	#[test]
+	fn memory_2() {
+		let program = String::from(
+			r#"
+let b[3] = [1, 2, 3];
+
+def drain_h(h) {
+	drain h {
+		output 'h';
+	}
+}
+
+drain_h(b[2]);
+drain_h(b[2]);
+output ' ';
+drain_h(b[1]);
+output ' ';
+
+def drain_into(a, b[5]) {
+	drain a into *b;
+}
+
+let u = 'a' - 1;
+let v[5] = [8, 5, 12, 12, 15];
+drain_into(u, v);
+output *v;
+"#,
+		);
+		let input = String::from("");
+		let desired_output = String::from("hhh hh hello");
 		let output = compile_and_run(program, input).expect("");
 		println!("{output}");
 		assert_eq!(desired_output, output)

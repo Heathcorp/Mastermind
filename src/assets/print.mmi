@@ -9,13 +9,13 @@ def print(num) {
     drain c {
       if not ones {
         iterating0 = false;
-      };
+      }
       ones -= 1;
-    };
+    }
     if not iterating0 {
       ones += 100;
-    };
-  };
+    }
+  }
 
   let tens = -1;
 
@@ -26,28 +26,30 @@ def print(num) {
     drain t {
       if not ones {
         iterating1 = false;
-      };
+      }
       ones -= 1;
-    };
+    }
     if not iterating1 {
       ones += 10;
-    };
-  };
+    }
+  }
 
+  // more efficient way of doing let chars[3] = "000";
   let chars[3];
   let zero = '0';
-  drain zero into chars[0] chars[1] chars[2];
+  drain zero into *chars;
 
+  // this looks odd but is a semi-efficient way of printing three digits selectively
   if hundreds {
     drain hundreds into chars[0];
     output chars[0];
     drain tens into chars[1];
     output chars[1];
-  };
+  }
   if tens {
     drain tens into chars[1];
     output chars[1];
-  };
+  }
   drain ones into chars[2];
   output chars[2];
 };
