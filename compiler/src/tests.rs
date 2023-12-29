@@ -14,6 +14,7 @@ pub mod tests {
 
 	fn compile_and_run(program: String, input: String) -> Result<String, String> {
 		println!("{program}");
+		// TODO: run test suite with different optimisations turned on
 		let config = MastermindConfig {
 			optimise_generated_code: false,
 			optimise_cell_clearing: false,
@@ -364,8 +365,7 @@ drain a {
 		c = 2;
 	} else {
 		c = 10;
-	};
-	nt_eq = 0;
+	}
 
 	drain c {output 'B';};
 

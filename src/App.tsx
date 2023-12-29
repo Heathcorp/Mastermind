@@ -31,7 +31,23 @@ import { makePersisted } from "@solid-primitives/storage";
 
 const AppContext = createContext<AppContextProps>();
 
+// update this when you want the user to see new syntax
+const MIGRATION_VERSION = 1;
+
 const App: Component = () => {
+  const [version, setVersion] = makePersisted(createSignal<number>());
+  createEffect(
+    on([version], () => {
+      const v = version();
+      if (!v || v !== MIGRATION_VERSION) {
+        window.alert(
+          "Version has changed since last load, new example programs will be loaded.\nNote: your old programs may now have incorrect syntax"
+        );
+        loadExampleFiles();
+        setVersion(MIGRATION_VERSION);
+      }
+    })
+  );
   // global signals and functions and things
   // to the program this is just a solidjs signal, all of this extra stuff is just for persistence
   const [entryFile, setEntryFile] = makePersisted(createSignal<string>());
@@ -80,35 +96,40 @@ const App: Component = () => {
     on([fileStates], () => {
       if (!fileStates().length) {
         // there are no files, initialise to the example files (divisors of 1 to 100)
-        const newId = uuidv4();
-        setFileStates(
-          [
-            {
-              id: newId,
-              label: "divisors_example.mmi",
-              rawText: divisorsExample,
-            },
-            { id: uuidv4(), label: "print.mmi", rawText: printExample },
-          ].map((rawState) => ({
-            // This could probably be common function, duplicate code of above deserialization and file creation functions (TODO: refactor)
-            id: rawState.id,
-            label: rawState.label,
-            editorState: EditorState.create({
-              doc: rawState.rawText,
-              extensions: [
-                ...defaultExtensions,
-                EditorView.updateListener.of((e) => {
-                  // this basically saves the editor every time it updates, this may be inefficient
-                  saveFileState(rawState.id, e.state);
-                }),
-              ],
-            }),
-          }))
-        );
-        setEntryFile(newId);
+        loadExampleFiles();
       }
     })
   );
+
+  const loadExampleFiles = () => {
+    const newId = uuidv4();
+    setFileStates((prev) => [
+      ...[
+        {
+          id: newId,
+          label: "divisors_example.mmi",
+          rawText: divisorsExample,
+        },
+        { id: uuidv4(), label: "print.mmi", rawText: printExample },
+      ].map((rawState) => ({
+        // This could probably be common function, duplicate code of above deserialization and file creation functions (TODO: refactor)
+        id: rawState.id,
+        label: rawState.label,
+        editorState: EditorState.create({
+          doc: rawState.rawText,
+          extensions: [
+            ...defaultExtensions,
+            EditorView.updateListener.of((e) => {
+              // this basically saves the editor every time it updates, this may be inefficient
+              saveFileState(rawState.id, e.state);
+            }),
+          ],
+        }),
+      })),
+      ...prev,
+    ]);
+    setEntryFile(newId);
+  };
 
   const createFile = () => {
     const newId = uuidv4();

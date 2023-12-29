@@ -13,9 +13,9 @@ I've also never written a compiler before and deliberately tried not to read any
 
 1. ~~Add input command~~
 1. ~~Remove need for semicolons after curly braces~~
-1. Make multi-byte variables contiguous
+1. ~~Make multi-byte variables contiguous~~
 1. ~~Add string literals for multi-byte variables~~
-1. Make output clause work with multi-byte variables by reference and strings/arrays by expression
+1. ~~Make output clause work with multi-byte variables by reference and strings/arrays by expression~~
 1. ~~Convert panics to result types?~~
 1. Keep track of source code line for better panic messages
 1. ~~Fix issue with variable/function names that start with keywords~~
