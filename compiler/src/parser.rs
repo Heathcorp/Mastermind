@@ -205,8 +205,22 @@ fn parse_drain_copy_clause(clause: &[Token], is_draining: bool) -> Result<Clause
 	let mut targets = Vec::new();
 	let mut block: Vec<Clause> = Vec::new();
 	let mut i = 1usize;
-	let (source, len) = parse_var_target(&clause[i..])?;
-	i += len;
+
+	let condition_start_token = i;
+
+	i += 1;
+	while let Some(token) = clause.get(i) {
+		if let Token::Into | Token::OpenBrace = token {
+			break;
+		}
+		i += 1;
+	}
+	r_assert!(
+		i < clause.len(),
+		"Expected source expression in draining/copying loop: {clause:#?}"
+	);
+
+	let source = Expression::parse(&clause[condition_start_token..i])?;
 
 	if let Token::Into = &clause[i] {
 		// simple drain/copy move operations
@@ -276,13 +290,21 @@ fn parse_if_else_clause(clause: &[Token]) -> Result<Clause, String> {
 		i += 1;
 	}
 
-	// TODO: use expressions here instead
-	let (var, len) = parse_var_target(&clause[i..])?;
-	i += len;
+	let condition_start_token = i;
 
-	let Token::OpenBrace = &clause[i] else {
-		r_panic!("Expected block in if statement: {clause:#?}");
-	};
+	i += 1;
+	while let Some(token) = clause.get(i) {
+		if let Token::OpenBrace = token {
+			break;
+		}
+		i += 1;
+	}
+	r_assert!(
+		i < clause.len(),
+		"Expected condition and block in if statement: {clause:#?}"
+	);
+
+	let condition = Expression::parse(&clause[condition_start_token..i])?;
 
 	let block_one: Vec<Clause> = {
 		let block_tokens = get_braced_tokens(&clause[i..], BRACES)?;
@@ -301,12 +323,12 @@ fn parse_if_else_clause(clause: &[Token]) -> Result<Clause, String> {
 
 	Ok(match (not, block_one, block_two) {
 		(false, block_one, block_two) => Clause::IfStatement {
-			condition_var: var,
+			condition,
 			if_block: Some(block_one),
 			else_block: block_two,
 		},
 		(true, block_one, block_two) => Clause::IfStatement {
-			condition_var: var,
+			condition,
 			if_block: block_two,
 			else_block: Some(block_one),
 		},
@@ -838,7 +860,7 @@ pub enum Clause {
 		value: Expression,
 	},
 	CopyLoop {
-		source: VariableTarget,
+		source: Expression,
 		targets: Vec<VariableTarget>,
 		block: Vec<Clause>,
 		is_draining: bool,
@@ -863,8 +885,7 @@ pub enum Clause {
 		arguments: Vec<VariableTarget>,
 	},
 	IfStatement {
-		// TODO: make this an expression
-		condition_var: VariableTarget,
+		condition: Expression,
 		if_block: Option<Vec<Clause>>,
 		else_block: Option<Vec<Clause>>,
 	},
