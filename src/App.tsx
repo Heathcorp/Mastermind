@@ -189,6 +189,9 @@ const App: Component = () => {
   };
 
   const [busy, setBusy] = createSignal<boolean>(false);
+  const [status, setStatus] = createSignal<
+    "COMPILING" | "RUNNING" | "INPUT_BLOCKED"
+  >();
 
   const compilerWorker = new CompilerWorker();
 
@@ -216,9 +219,11 @@ const App: Component = () => {
           setBusy(false);
           if (e.data.success) {
             setOutput({ type: "BF", content: e.data.message });
+            setStatus();
             resolve(e.data.message);
           } else {
             setOutput({ type: "ERROR", content: e.data.message });
+            setStatus();
             reject(e.data.message);
           }
         }
@@ -227,6 +232,7 @@ const App: Component = () => {
       const removeCallback = () =>
         compilerWorker.removeEventListener("message", callback);
 
+      setStatus("COMPILING");
       setBusy(true);
       // post the message after setting up the listener for paranoia
       compilerWorker.postMessage({
@@ -255,9 +261,11 @@ const App: Component = () => {
           setBusy(false);
           if (e.data.success) {
             setOutput({ type: "OUTPUT", content: e.data.message });
+            setStatus();
             resolve(e.data.message);
           } else {
             setOutput({ type: "ERROR", content: e.data.message });
+            setStatus();
             reject(e.data.message);
           }
         }
@@ -266,6 +274,7 @@ const App: Component = () => {
       const removeCallback = () =>
         compilerWorker.removeEventListener("message", callback);
 
+      setStatus("RUNNING");
       setBusy(true);
       // paranoid me is posting the message after setting up the listener
       compilerWorker.postMessage({
@@ -297,6 +306,7 @@ const App: Component = () => {
         compile,
         run,
         busy,
+        status,
       }}
     >
       <div id="window">
@@ -351,6 +361,7 @@ interface AppContextProps {
   run: (code: string) => Promise<string>;
 
   busy: Accessor<boolean>;
+  status: Accessor<"COMPILING" | "RUNNING" | "INPUT_BLOCKED" | undefined>;
 }
 
 interface FileState {
