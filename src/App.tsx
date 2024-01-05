@@ -39,10 +39,12 @@ const App: Component = () => {
   createEffect(
     on([version], () => {
       const v = version();
-      if (!v || v !== MIGRATION_VERSION) {
-        window.alert(
-          "Version has changed since last load, new example programs will be loaded.\nNote: your old programs may now have incorrect syntax"
-        );
+      if (v !== MIGRATION_VERSION) {
+        if (v) {
+          window.alert(
+            "Version has changed since last load, new example programs will be loaded.\nNote: your old programs may now have incorrect syntax"
+          );
+        }
         loadExampleFiles();
         setVersion(MIGRATION_VERSION);
       }
@@ -340,16 +342,16 @@ interface AppContextProps {
   setFileLabel: (id: string, label: string) => void;
   setOutput: Setter<
     | {
-        type: "BF" | "ERROR" | "OUTPUT";
-        content: string;
-      }
+      type: "BF" | "ERROR" | "OUTPUT";
+      content: string;
+    }
     | undefined
   >;
   output: Accessor<
     | {
-        type: "BF" | "ERROR" | "OUTPUT";
-        content: string;
-      }
+      type: "BF" | "ERROR" | "OUTPUT";
+      content: string;
+    }
     | undefined
   >;
   reorderFiles: (from: string, to: string | null) => void;
