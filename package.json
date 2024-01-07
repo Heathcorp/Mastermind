@@ -5,7 +5,7 @@
   "type": "module",
   "scripts": {
     "dev": "vite",
-    "build:grammar": "yarn run lezer-generator --typeScript src/lexer/mastermind.grammar -o src/lexer/mastermind_parser.ts",
+    "build:grammar": "yarn run lezer-generator src/lexer/mastermind.grammar -o src/lexer/mastermind_parser.ts",
     "build:wasm": "cd compiler && wasm-pack build --target web",
     "build": "tsc && vite build",
     "preview": "vite preview"
