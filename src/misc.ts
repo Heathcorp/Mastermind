@@ -31,14 +31,17 @@ import {
   completionKeymap,
 } from "@codemirror/autocomplete";
 import { lintKeymap } from "@codemirror/lint";
-import { cpp } from "@codemirror/lang-cpp";
+import { LRLanguage, LanguageSupport } from "@codemirror/language";
 
-import { tokyoNight } from "@uiw/codemirror-themes-all";
+import { vscodeDark } from "@uiw/codemirror-themes-all";
 import { EditorState } from "@codemirror/state";
 
+import { parser } from "./lexer/mastermind_parser";
+import { styleTags, tags } from "@lezer/highlight";
+
 export const defaultExtensions = [
-  cpp(),
-  tokyoNight,
+  mastermindLanguageSupport(),
+  vscodeDark,
   lineNumbers(),
   highlightActiveLineGutter(),
   highlightSpecialChars(),
@@ -69,3 +72,47 @@ export const defaultExtensions = [
     indentWithTab,
   ]),
 ];
+
+function mastermindLanguageSupport() {
+  return new LanguageSupport(LRLanguage.define({
+    parser: parser.configure({
+      props: [styleTags({
+        "DefClause/Def": tags.function(tags.definitionKeyword),
+        "DefClause/Name": tags.function(tags.definition(tags.variableName)),
+        "CallClause/Name": tags.function(tags.variableName),
+        "LetClause/Let": tags.definitionKeyword,
+        "VariableDefinition/Name": tags.variableName,
+
+
+        "OutputClause/Output": tags.controlKeyword,
+        "InputClause/Input": tags.controlKeyword,
+        "DrainCopyClause/DrainCopy DrainCopyClause/Into": tags.controlKeyword,
+        "WhileClause/While": tags.controlKeyword,
+        "IfElseClause/If IfElseClause/Not IfElseClause/Else": tags.controlKeyword,
+
+        Comment: tags.lineComment,
+        Include: tags.moduleKeyword,
+        IncludePath: tags.string,
+
+        Boolean: tags.bool,
+        Number: tags.integer,
+        Character: tags.character,
+        String: tags.string,
+        "VariableTarget/Name": tags.variableName,
+
+        SquareBrackets: tags.squareBracket,
+        Block: tags.brace,
+        Parentheses: tags.paren,
+
+        EqualOp: tags.updateOperator,
+        AddEqualOp: tags.updateOperator,
+        AddOp: tags.arithmeticOperator,
+        IncDecOp: tags.updateOperator,
+        "Semicolon Comma": tags.separator
+      })]
+    }),
+    languageData: {
+      commentTokens: { line: "//" },
+    }
+  }));
+} 

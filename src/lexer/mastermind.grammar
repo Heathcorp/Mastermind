@@ -1,0 +1,146 @@
+@precedence {preprocess @left, summation}
+
+@tokens { 
+    whitespace {
+        ($[ \t\r\n] | "\\" "\r"? "\n")+
+    }
+    Comment { "//" ![\n]* }
+
+    nameChar { @asciiLetter | "_" }
+    Name {
+        nameChar (nameChar | @digit)*
+    }
+
+
+    IncludePath {
+        "<" (![\n\\] | "\\" _)+ ">"
+    }
+    
+    Number {
+        (@digit)+
+    }
+    
+    String {
+        "\"" !["]* "\""
+    }
+
+    
+    Character {
+        "\'" !['] ![']? "\'"
+    }
+    
+    // newline { "\n" }
+    Semicolon { ";" }
+    Comma { "," }
+    EqualOp { "=" }
+    AddEqualOp { "+=" | "-=" }
+    AddOp { "+" | "-" }
+    IncDecOp { "++" | "--" }
+}
+
+kw<word> { @specialize<Name, word> }
+
+
+commaSep<content> {
+    "" | content (Comma content?)*
+}
+
+Boolean { kw<"true" | "false"> }
+
+VariableDefinition {
+    Name Subscript?
+}
+VariableTarget {
+    Name Subscript? |
+    "*" Name
+}
+
+Expression {
+    VariableTarget |
+    Number |
+    Boolean |
+    String |
+    Character |
+    Array { SquareBrackets<commaSep<Expression>> } |
+    Parentheses<Expression> |
+    (Expression AddOp !summation Expression)
+}
+
+Block {
+    "{"
+    Clause*
+    "}"
+}
+
+Parentheses<contents> {
+    "("
+    contents
+    ")"
+}
+
+SquareBrackets<contents> {
+    "[" 
+        contents
+    "]"
+}
+
+Subscript { SquareBrackets<Number> }
+
+Clause {
+    Empty { "" Semicolon} |
+
+    DefClause {
+        Def { kw<"def"> } Name Parentheses<commaSep<VariableDefinition>> Block
+    } |
+
+    CallClause {
+        Name Parentheses<commaSep<VariableTarget>> Semicolon
+    } |
+
+    LetClause {
+        Let { kw<"let"> } VariableDefinition (EqualOp Expression)? Semicolon
+    } |
+
+    SetClause {
+        VariableTarget EqualOp Expression Semicolon
+    } |
+
+    IncDec {
+        IncDecOp VariableTarget Semicolon
+    } |
+
+    Add {
+        VariableTarget AddEqualOp Expression Semicolon
+    } |
+
+    DrainCopyClause {
+        DrainCopy { kw<"drain"> | kw<"copy"> } Expression (Into { kw<"into"> } VariableTarget+)? (Block | Semicolon)
+    } |
+
+    WhileClause {
+        While { kw<"while"> } VariableTarget Block
+    } |
+
+    IfElseClause {
+        If { kw<"if"> } Not { kw<"not"> }? Expression Block (Else { kw<"else"> } Block)?
+    } |
+
+    OutputClause { Output { kw<"output"> } Expression Semicolon } |
+    InputClause { Input { kw<"input"> } VariableTarget Semicolon }
+}
+
+PreprocessorDirective {
+    IncludeDirective {
+        Include { "#include" } (IncludePath | String)
+    } 
+}
+
+@top File {
+    Clause*
+}
+
+@skip { 
+    PreprocessorDirective |
+    whitespace |
+    Comment
+}

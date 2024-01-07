@@ -11,8 +11,21 @@ pub fn preprocess(file_path: PathBuf) -> String {
 	file_contents
 		.lines()
 		.map(|line| {
-			if line.starts_with("#include ") {
-				let rel_include_path = PathBuf::from(&line[9..]);
+			if line.starts_with("#include") {
+				// TODO: refactor and deduplicate code, currently doesn't care if "" or <> or jk or any set of two characters
+				let split: Vec<&str> = line.split_whitespace().collect();
+				assert!(
+					split.len() == 2,
+					"Malformed #include preprocessor directive {line}"
+				);
+				let mut substring = split[1];
+				assert!(
+					substring.len() > 2,
+					"Expected path string in #include preprocessor directive {line}"
+				);
+				substring = &substring[1..(substring.len() - 1)];
+
+				let rel_include_path = PathBuf::from(substring);
 				let include_path = dir_path.join(rel_include_path);
 				preprocess(include_path)
 			} else {
@@ -35,9 +48,21 @@ pub fn preprocess_from_memory(
 	file_contents
 		.lines()
 		.map(|line| {
-			if line.starts_with("#include ") {
-				let other_file_name = String::from(&line[9..]);
-				preprocess_from_memory(file_map, other_file_name)
+			if line.starts_with("#include") {
+				// TODO: refactor and deduplicate code, currently doesn't care if "" or <> or jk or any set of two characters
+				let split: Vec<&str> = line.split_whitespace().collect();
+				assert!(
+					split.len() == 2,
+					"Malformed #include preprocessor directive {line}"
+				);
+				let mut substring = split[1];
+				assert!(
+					substring.len() > 2,
+					"Expected path string in #include preprocessor directive {line}"
+				);
+				substring = &substring[1..(substring.len() - 1)];
+
+				preprocess_from_memory(file_map, substring.to_owned())
 			} else {
 				line.to_owned()
 			}

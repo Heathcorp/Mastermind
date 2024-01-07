@@ -27,7 +27,7 @@ This should never happen, if issues persist please raise an issue on the Masterm
 onmessage = ({ data }) => {
   switch (data.command) {
     case "COMPILE":
-      // overwrite the console error function as I can't seem to catch wasm errors
+      // overwrite the console error function as I can't seem to catch wasm panics
       const old_error = console.error;
       console.error = (...args) => {
         old_error(err_msg);
@@ -39,18 +39,29 @@ onmessage = ({ data }) => {
           message: `${err_msg}\n${args.toString()}`,
         });
         // remove the wrapper function, is this legit js?
+        // TODO: make this more robust as it is not guaranteed to clean up?
         console.error = old_error;
       };
-      const compiledCode = _compile(
-        data.arguments.fileMap,
-        data.arguments.entryFileName,
-        data.arguments.optimisations
-      );
-      postMessage({
-        transaction: data.transaction,
-        success: true,
-        message: compiledCode,
-      });
+      try {
+        const compiledCode = _compile(
+          data.arguments.fileMap,
+          data.arguments.entryFileName,
+          data.arguments.optimisations
+        );
+
+        postMessage({
+          transaction: data.transaction,
+          success: true,
+          message: compiledCode,
+        });
+      } catch (e) {
+        // rust function returned Err(string), didn't panic
+        postMessage({
+          transaction: data.transaction,
+          success: false,
+          message: `Error:\n${e}`
+        });
+      }
       break;
     case "RUN":
       const codeOutput = _run(data.arguments.code);
