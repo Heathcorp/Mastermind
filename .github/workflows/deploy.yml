@@ -22,6 +22,7 @@ jobs:
       - run: cd compiler && cargo test
       - run: cd compiler && wasm-pack build --release --target web
       - run: yarn
+      - run: yarn build:grammar
       - run: yarn build
       - uses: FirebaseExtended/action-hosting-deploy@v0
         with:

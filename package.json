@@ -5,13 +5,15 @@
   "type": "module",
   "scripts": {
     "dev": "vite",
+    "build:grammar": "yarn run lezer-generator --typeScript src/lexer/mastermind.grammar -o src/lexer/mastermind_parser.ts",
     "build:wasm": "cd compiler && wasm-pack build --target web",
-    "build": "yarn build:wasm && tsc && vite build",
+    "build": "tsc && vite build",
     "preview": "vite preview"
   },
   "dependencies": {
     "@babel/runtime": "^7.23.5",
     "@codemirror/lang-cpp": "^6.0.2",
+    "@lezer/highlight": "^1.2.0",
     "@solid-primitives/storage": "^2.1.1",
     "@thisbeyond/solid-dnd": "^0.7.5",
     "@uiw/codemirror-themes-all": "^4.21.21",
@@ -21,6 +23,7 @@
     "uuid": "^9.0.1"
   },
   "devDependencies": {
+    "@lezer/generator": "^1.5.1",
     "@types/uuid": "^9.0.7",
     "typescript": "^5.2.2",
     "vite": "^5.0.0",

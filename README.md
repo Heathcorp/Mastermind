@@ -40,3 +40,4 @@ I've also never written a compiler before and deliberately tried not to read any
 8. ~~More robust non-blocking compiler calls. Currently if the "run_code" function hangs, the whole webpage is frozen. Maybe look into web workers for this.~~
 9. Set of loadable example (stdlib) files
 10. Documentation?
+11. ~~Syntax highlighting?~~
