@@ -41,3 +41,4 @@ I've also never written a compiler before and deliberately tried not to read any
 9. Set of loadable example (stdlib) files
 10. Documentation?
 11. ~~Syntax highlighting?~~
+12. Vim keybindings (someone suggested as a joke but is actually quite easy)
