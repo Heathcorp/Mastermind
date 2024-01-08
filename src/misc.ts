@@ -33,15 +33,15 @@ import {
 import { lintKeymap } from "@codemirror/lint";
 import { LRLanguage, LanguageSupport } from "@codemirror/language";
 
-import { vscodeDark } from "@uiw/codemirror-themes-all";
+import { tokyoNight } from "@uiw/codemirror-themes-all";
 import { EditorState } from "@codemirror/state";
 
 import { parser } from "./lexer/mastermind_parser";
 import { styleTags, tags } from "@lezer/highlight";
 
 export const defaultExtensions = [
+  tokyoNight,
   mastermindLanguageSupport(),
-  vscodeDark,
   lineNumbers(),
   highlightActiveLineGutter(),
   highlightSpecialChars(),
