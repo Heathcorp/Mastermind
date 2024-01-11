@@ -1,9 +1,8 @@
 import { Component, createEffect, on } from "solid-js";
 
-import { EditorView } from "@codemirror/view";
+import { EditorView, drawSelection } from "@codemirror/view";
 import { EditorState } from "@codemirror/state";
 
-import { dropCursor } from "@codemirror/view";
 import { useAppContext } from "../App";
 
 const OutputPanel: Component<{}> = () => {
@@ -19,11 +18,11 @@ const OutputPanel: Component<{}> = () => {
           parent: editorRef,
           state: EditorState.create({
             extensions: [
-              dropCursor(),
-              // drawSelection(),
+              drawSelection(),
               EditorView.lineWrapping,
               EditorView.editable.of(false),
             ],
+
           }),
         });
       }

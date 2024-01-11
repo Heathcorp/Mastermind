@@ -36,6 +36,7 @@
     AddEqualOp { "+=" | "-=" }
     AddOp { "+" | "-" }
     IncDecOp { "++" | "--" }
+    Asterisk { "*" }
 }
 
 kw<word> { @specialize<Name, word> }
@@ -48,11 +49,11 @@ commaSep<content> {
 Boolean { kw<"true" | "false"> }
 
 VariableDefinition {
-    Name Subscript?
+    Name SquareBrackets<Number>?
 }
 VariableTarget {
-    Name Subscript? |
-    "*" Name
+    Name SquareBrackets<Number>? |
+    Asterisk Name
 }
 
 Expression {
@@ -67,14 +68,12 @@ Expression {
 }
 
 Block {
-    "{"
-    Clause*
-    "}"
+    Braces<Clause*>
 }
 
 Parentheses<contents> {
     "("
-    contents
+        contents
     ")"
 }
 
@@ -84,17 +83,27 @@ SquareBrackets<contents> {
     "]"
 }
 
-Subscript { SquareBrackets<Number> }
+AngledBrackets<contents> {
+    "<"
+        contents
+    ">"
+}
+
+Braces<contents> {
+    "{"
+        contents
+    "}"
+}
 
 Clause {
     Empty { "" Semicolon} |
 
     DefClause {
-        Def { kw<"def"> } Name Parentheses<commaSep<VariableDefinition>> Block
+        Def { kw<"def"> } Name AngledBrackets<commaSep<VariableDefinition>> Block
     } |
 
     CallClause {
-        Name Parentheses<commaSep<VariableTarget>> Semicolon
+        Name AngledBrackets<commaSep<VariableTarget>> Semicolon
     } |
 
     LetClause {

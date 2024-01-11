@@ -101,14 +101,15 @@ function mastermindLanguageSupport() {
         "VariableTarget/Name": tags.variableName,
 
         SquareBrackets: tags.squareBracket,
-        Block: tags.brace,
         Parentheses: tags.paren,
+        Braces: tags.brace,
 
         EqualOp: tags.updateOperator,
         AddEqualOp: tags.updateOperator,
         AddOp: tags.arithmeticOperator,
         IncDecOp: tags.updateOperator,
-        "Semicolon Comma": tags.separator
+        "Semicolon Comma": tags.separator,
+        "Asterisk": tags.derefOperator,
       })]
     }),
     languageData: {

@@ -41,7 +41,7 @@ pub fn parse(tokens: &[Token]) -> Result<Vec<Clause>, String> {
 			(Token::Input, _, _) => {
 				clauses.push(parse_input_clause(clause)?);
 			}
-			(Token::Name(_), Token::OpenParenthesis, _) => {
+			(Token::Name(_), Token::OpenAngledBracket, _) => {
 				clauses.push(parse_function_call_clause(clause)?);
 			}
 			(Token::Def, _, _) => {
@@ -67,6 +67,11 @@ pub fn parse(tokens: &[Token]) -> Result<Vec<Clause>, String> {
 					_ => r_panic!("Invalid clause: {clause:#?}"),
 				}
 			}
+			(Token::OpenBrace, _, _) => {
+				let braced_tokens = get_braced_tokens(clause, BRACES)?;
+				let inner_clauses = parse(braced_tokens)?;
+				clauses.push(Clause::Block(inner_clauses));
+			}
 			// empty clause
 			(Token::Semicolon, _, _) => (),
 			// the None token usually represents whitespace, it should be filtered out before reaching this function
@@ -75,12 +80,13 @@ pub fn parse(tokens: &[Token]) -> Result<Vec<Clause>, String> {
 				Token::None
 				| Token::Else
 				| Token::Not
-				| Token::OpenBrace
 				| Token::ClosingBrace
 				| Token::OpenSquareBracket
 				| Token::ClosingSquareBracket
 				| Token::OpenParenthesis
 				| Token::ClosingParenthesis
+				| Token::OpenAngledBracket
+				| Token::ClosingAngledBracket
 				| Token::Comma
 				| Token::Plus
 				| Token::Minus
@@ -322,12 +328,12 @@ fn parse_if_else_clause(clause: &[Token]) -> Result<Clause, String> {
 	};
 
 	Ok(match (not, block_one, block_two) {
-		(false, block_one, block_two) => Clause::IfStatement {
+		(false, block_one, block_two) => Clause::IfElse {
 			condition,
 			if_block: Some(block_one),
 			else_block: block_two,
 		},
-		(true, block_one, block_two) => Clause::IfStatement {
+		(true, block_one, block_two) => Clause::IfElse {
 			condition,
 			if_block: block_two,
 			else_block: Some(block_one),
@@ -370,10 +376,10 @@ fn parse_function_definition_clause(clause: &[Token]) -> Result<Clause, String> 
 	};
 	let mut args = Vec::new();
 	i += 1;
-	let Token::OpenParenthesis = &clause[i] else {
-		r_panic!("Expected open parenthesis in function definition clause: {clause:#?}");
+	let Token::OpenAngledBracket = &clause[i] else {
+		r_panic!("Expected argument list in function definition clause: {clause:#?}");
 	};
-	let arg_tokens = get_braced_tokens(&clause[i..], PARENTHESES)?;
+	let arg_tokens = get_braced_tokens(&clause[i..], ANGLED_BRACKETS)?;
 	let mut j = 0usize;
 	// parse function argument names
 	while let Token::Name(_) = &arg_tokens[j] {
@@ -417,10 +423,10 @@ fn parse_function_call_clause(clause: &[Token]) -> Result<Clause, String> {
 	let mut args = Vec::new();
 	i += 1;
 
-	let Token::OpenParenthesis = &clause[i] else {
-		r_panic!("Expected open parenthesis in function call clause: {clause:#?}");
+	let Token::OpenAngledBracket = &clause[i] else {
+		r_panic!("Expected argument list in function call clause: {clause:#?}");
 	};
-	let arg_tokens = get_braced_tokens(&clause[i..], PARENTHESES)?;
+	let arg_tokens = get_braced_tokens(&clause[i..], ANGLED_BRACKETS)?;
 
 	let mut j = 0usize;
 	while let Token::Name(_) = &arg_tokens[j] {
@@ -574,6 +580,7 @@ fn get_clause_tokens(tokens: &[Token]) -> Result<Option<&[Token]>, String> {
 const SQUARE_BRACKETS: (Token, Token) = (Token::OpenSquareBracket, Token::ClosingSquareBracket);
 const BRACES: (Token, Token) = (Token::OpenBrace, Token::ClosingBrace);
 const PARENTHESES: (Token, Token) = (Token::OpenParenthesis, Token::ClosingParenthesis);
+const ANGLED_BRACKETS: (Token, Token) = (Token::OpenAngledBracket, Token::ClosingAngledBracket);
 // this should be a generic function but rust doesn't support enum variants as type arguments yet
 // find tokens bounded by matching brackets
 // TODO: make an impl for &[Token] and put all these functions in it
@@ -884,11 +891,12 @@ pub enum Clause {
 		function_name: String,
 		arguments: Vec<VariableTarget>,
 	},
-	IfStatement {
+	IfElse {
 		condition: Expression,
 		if_block: Option<Vec<Clause>>,
 		else_block: Option<Vec<Clause>>,
 	},
+	Block(Vec<Clause>),
 }
 
 // TODO: refactor to this instead:

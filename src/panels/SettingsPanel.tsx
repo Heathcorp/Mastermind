@@ -102,10 +102,10 @@ const SettingsPanel: Component = () => {
                 onClick={
                   !app.busy()
                     ? async () => {
-                        await onCompile();
-                        // technically this second await is pointless
-                        await onRun();
-                      }
+                      await onCompile();
+                      // technically this second await is pointless
+                      await onRun();
+                    }
                     : undefined
                 }
               >
@@ -113,7 +113,7 @@ const SettingsPanel: Component = () => {
               </div>
             </div>
             {/* status overlay on the button */}
-            {app.status() && (
+            {app.status() !== "IDLE" && (
               <div class="button-status-overlay">
                 <div class="button-status-text">
                   {
@@ -121,8 +121,8 @@ const SettingsPanel: Component = () => {
                       ["COMPILING"]: "compiling program",
                       ["RUNNING"]: "running code",
                       ["INPUT_BLOCKED"]: "waiting for input",
-                      0: null,
-                    }[app.status() ?? 0]
+                      ["IDLE"]: null,
+                    }[app.status()]
                   }
                 </div>
               </div>
