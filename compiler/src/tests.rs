@@ -253,7 +253,7 @@ if not_a - 'a' {
 let x = 5;
 let A = 'A';
 
-drain x + 1 into A {
+drain 0 + x + 1 into A {
 	output '6';
 }
 
@@ -465,25 +465,25 @@ drain a {
 			"
 let global_var = '0';
 
-def func_0(grape) {
+def func_0<grape> {
 	let n = grape + 1;
 	output n;
 	n = 0;
 };;
 
-def func_1(grape) {
+def func_1<grape> {
 	let n = grape + 2;
 	output n;
 	n = 0;
 }
 
 output global_var;
-func_0(global_var);
+func_0<global_var>;
 output global_var;
 
 global_var += 1;;;
 output global_var;
-;;func_1(global_var);
+;;func_1<global_var>;
 output global_var;
 
 output 10;
@@ -502,17 +502,17 @@ output 10;
 			"
 let global_var = '0';
 
-def func_0(grape) {
+def func_0<grape> {
 	let n = grape + 1;
 	output n;
 
-	def func_1(grape) {
+	def func_1<grape> {
 		grape += 1;
 		output grape;
 		grape += 1;
 	};
 
-	func_1(n);
+	func_1<n>;
 	output n;
 
 	grape += 1;
@@ -520,7 +520,7 @@ def func_0(grape) {
 };
 
 output global_var;
-func_0(global_var);
+func_0<global_var>;
 output global_var;
 
 output 10;
@@ -541,11 +541,11 @@ let global_var = '0';
 
 let global_vars[2] = ['0', 64];
 
-def func_0(grape) {
+def func_0<grape> {
 	let n = grape + 1;
 	output n;
 
-	def func_1(grape) {
+	def func_1<grape> {
 		grape += 1;
 		output grape;
 		grape += 1;
@@ -556,7 +556,7 @@ def func_0(grape) {
 		frog[1] += 2;
 
 		zero = grape + 3;
-		func_2(frog, zero);
+		func_2<frog, zero>;
 		output zero;
 
 		frog[0] = 0;
@@ -566,7 +566,7 @@ def func_0(grape) {
 		zero = 0;
 	};
 
-	func_1(n);
+	func_1<n>;
 	output n;
 
 	grape += 1;
@@ -574,18 +574,18 @@ def func_0(grape) {
 };
 
 output global_var;
-func_0(global_var);
+func_0<global_var>;
 output global_var;
 
 output 10;
 
 output global_vars[1];
-func_0(global_vars[0]);
+func_0<global_vars[0]>;
 output global_vars[0];
 
 output 10;
 
-def func_2(think[4], green) {
+def func_2<think[4], green> {
 	think[2] += 7;
 	think[3] += 2;
 
@@ -658,19 +658,19 @@ output b[0];
 			r#"
 let b[3] = "Foo";
 
-def inc(h, g) {
+def inc<h, g> {
 	g += 1;
 	if h {h += 1;} else {h = 'Z';}
 }
 
 output *b;
-inc(b[1], b[2]);
+inc<b[1], b[2]>;
 output *b;
 
 output 10;
 
 let c = -1;
-inc(c, c);
+inc<c, c>;
 output c;
 "#,
 		);
@@ -687,30 +687,70 @@ output c;
 			r#"
 let b[3] = [1, 2, 3];
 
-def drain_h(h) {
+def drain_h<h> {
 	drain h {
 		output 'h';
 	}
 }
 
-drain_h(b[2]);
-drain_h(b[2]);
+drain_h<b[2]>;
+drain_h<b[2]>;
 output ' ';
-drain_h(b[1]);
+drain_h<b[1]>;
 output ' ';
 
-def drain_into(a, b[5]) {
+def drain_into<a, b[5]> {
 	drain a into *b;
 }
 
 let u = 'a' - 1;
 let v[5] = [8, 5, 12, 12, 15];
-drain_into(u, v);
+drain_into<u, v>;
 output *v;
 "#,
 		);
 		let input = String::from("");
 		let desired_output = String::from("hhh hh hello");
+		let output = compile_and_run(program, input).expect("");
+		println!("{output}");
+		assert_eq!(desired_output, output)
+	}
+
+	#[test]
+	fn blocks_1() {
+		let program = String::from(
+			r#"
+{{{{{{{
+	let g = 0 + 5 + (-(-5));
+	output "Freidns";
+	{
+		output g;
+	}
+}}}}}}}
+"#,
+		);
+		let input = String::from("");
+		let desired_output = String::from("Freidns\n");
+		let output = compile_and_run(program, input).expect("");
+		println!("{output}");
+		assert_eq!(desired_output, output)
+	}
+
+	#[test]
+	fn blocks_2() {
+		let program = String::from(
+			r#"
+let f = 'f';
+output f;
+{
+	let f = 'F';
+	output f;
+}
+output f;
+	"#,
+		);
+		let input = String::from("");
+		let desired_output = String::from("fFf");
 		let output = compile_and_run(program, input).expect("");
 		println!("{output}");
 		assert_eq!(desired_output, output)

@@ -1,55 +1,61 @@
-def print(num) {
-  let ones = num;
-  let hundreds = -1;
+def print<num> {
+  let digits[3] = [-1, -1, num];
 
-  let iterating0 = true;
-  while iterating0 {
-    hundreds += 1;
-    let c = 100;
-    drain c {
-      if not ones {
-        iterating0 = false;
+  // scoping "iterating" to the loop only for memory allocation efficiency
+  {
+    // find hundreds
+    let iterating = true;
+    while iterating {
+      digits[0] += 1;
+      drain (100) {
+        if not digits[2] {
+          iterating = false;
+        }
+        digits[2] -= 1;
       }
-      ones -= 1;
-    }
-    if not iterating0 {
-      ones += 100;
+      if not iterating {
+        digits[2] += 100;
+      }
     }
   }
 
-  let tens = -1;
-
-  let iterating1 = true;
-  while iterating1 {
-    tens += 1;
-    let t = 10;
-    drain t {
-      if not ones {
-        iterating1 = false;
+  {
+    // find tens
+    let iterating = true;
+    while iterating {
+      digits[1] += 1;
+      drain 10 {
+        if not digits[2] {
+          iterating = false;
+        }
+        digits[2] -= 1;
       }
-      ones -= 1;
-    }
-    if not iterating1 {
-      ones += 10;
+      if not iterating {
+        digits[2] += 10;
+      }
     }
   }
 
-  // more efficient way of doing let chars[3] = "000";
+  // ones digits are the remainder
+
+  // this is a semi-efficient way of defining chars[3] = "000"
   let chars[3];
-  let zero = '0';
-  drain zero into *chars;
+  // equivalent to [>+>+>+<<<-]
+  drain '0' into *chars;
 
-  // this looks odd but is a semi-efficient way of printing three digits selectively
-  if hundreds {
-    drain hundreds into chars[0];
+  // uncomment this and you will see what I mean
+  // output *chars;
+
+  if digits[0] {
+    drain digits[0] into chars[0];
     output chars[0];
-    drain tens into chars[1];
+    drain digits[1] into chars[1];
     output chars[1];
   }
-  if tens {
-    drain tens into chars[1];
+  if digits[1] {
+    drain digits[1] into chars[1];
     output chars[1];
   }
-  drain ones into chars[2];
+  drain digits[2] into chars[2];
   output chars[2];
-};
+}

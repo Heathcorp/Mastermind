@@ -192,8 +192,8 @@ const App: Component = () => {
 
   const [busy, setBusy] = createSignal<boolean>(false);
   const [status, setStatus] = createSignal<
-    "COMPILING" | "RUNNING" | "INPUT_BLOCKED"
-  >();
+    "COMPILING" | "RUNNING" | "INPUT_BLOCKED" | "IDLE"
+  >("IDLE");
 
   const compilerWorker = new CompilerWorker();
 
@@ -221,11 +221,11 @@ const App: Component = () => {
           setBusy(false);
           if (e.data.success) {
             setOutput({ type: "BF", content: e.data.message });
-            setStatus();
+            setStatus("IDLE");
             resolve(e.data.message);
           } else {
             setOutput({ type: "ERROR", content: e.data.message });
-            setStatus();
+            setStatus("IDLE");
             reject(e.data.message);
           }
         }
@@ -263,11 +263,11 @@ const App: Component = () => {
           setBusy(false);
           if (e.data.success) {
             setOutput({ type: "OUTPUT", content: e.data.message });
-            setStatus();
+            setStatus("IDLE");
             resolve(e.data.message);
           } else {
             setOutput({ type: "ERROR", content: e.data.message });
-            setStatus();
+            setStatus("IDLE");
             reject(e.data.message);
           }
         }
@@ -363,7 +363,7 @@ interface AppContextProps {
   run: (code: string) => Promise<string>;
 
   busy: Accessor<boolean>;
-  status: Accessor<"COMPILING" | "RUNNING" | "INPUT_BLOCKED" | undefined>;
+  status: Accessor<"COMPILING" | "RUNNING" | "INPUT_BLOCKED" | "IDLE">;
 }
 
 interface FileState {

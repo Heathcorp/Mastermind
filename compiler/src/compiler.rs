@@ -634,7 +634,7 @@ spread syntax, use drain <val> into {var} instead."
 						}
 					}
 				}
-				Clause::IfStatement {
+				Clause::IfElse {
 					condition,
 					if_block,
 					else_block,
@@ -709,6 +709,10 @@ spread syntax, use drain <val> into {var} instead."
 					}
 
 					// extend the inner scopes instructions onto the outer one
+					scope.instructions.extend(new_scope.get_instructions());
+				}
+				Clause::Block(clauses) => {
+					let new_scope = self.compile(&clauses, Some(&scope))?;
 					scope.instructions.extend(new_scope.get_instructions());
 				}
 				Clause::CallFunction {

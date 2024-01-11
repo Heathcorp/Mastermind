@@ -3,45 +3,45 @@
 let N = 100;
 let number = 1;
 
+// a draining loop, loops n times, clearing the variable
 drain N into number {
   output "The factors of ";
-  print(number);
+  print<number>;
   output " are 1";
   
-  let nt_equal_to_one = number - 1;
-  if nt_equal_to_one {
+  if number - 1 {
 
     let num_copy = number - 2;
     let divisor = 2;
     drain num_copy into divisor {
+      // currently functions are more like macros
+      // there are no arguments-by-values or return values
       let result;
-      divisible(result, number, divisor);
+      divisible<result, number, divisor>;
 
       if result {
         output ", ";
-        print(divisor);
+        print<divisor>;
       }
     }
 
     output " and ";
 
-    print(number);
+    print<number>;
   }
 
   output '\n';
 }
 
-def divisible(result, dividend, divisor) {
+def divisible<result, dividend, divisor> {
   // result = 0 if dividend % divisor = 0
   let b = dividend;
 
-  let radix;
   let iterating = true;
-
+  
   while iterating {
-
-    radix = divisor;
-    drain radix {
+    // a copying loop, loops n times without modifying the variable
+    copy divisor {
       b -= 1;
       if not b {
         iterating = false;
