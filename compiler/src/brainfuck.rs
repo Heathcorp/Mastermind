@@ -1,5 +1,8 @@
 use std::{fmt, io::Read, io::Write, num::Wrapping};
 
+use wasm_bindgen::{JsCast, JsValue};
+use wasm_bindgen_futures::JsFuture;
+
 struct Tape {
 	positive_array: Vec<Wrapping<u8>>,
 	negative_array: Vec<Wrapping<u8>>,
@@ -138,6 +141,14 @@ pub struct BVM {
 	program: Vec<char>,
 }
 
+pub trait AsyncByteReader {
+	async fn read_byte(&mut self) -> u8;
+}
+
+pub trait ByteWriter {
+	fn write_byte(&mut self, byte: u8);
+}
+
 impl BVM {
 	pub fn new(program: Vec<char>) -> Self {
 		BVM {
@@ -145,6 +156,123 @@ impl BVM {
 			program,
 		}
 	}
+
+	// TODO: refactor/rewrite this, can definitely be improved with async read/write traits or similar
+	// I don't love that I duplicated this to make it work with js
+	pub async fn run_async(
+		&mut self,
+		output_callback: &js_sys::Function,
+		input_callback: &js_sys::Function,
+	) -> Result<String, String> {
+		let mut pc: usize = 0;
+		// this could be more efficient with a pre-computed map
+		let mut loop_stack: Vec<usize> = Vec::new();
+
+		let mut output_bytes: Vec<u8> = Vec::new();
+
+		while pc < self.program.len() {
+			match self.program[pc] {
+				'+' => {
+					self.tape.modify_current_cell(Wrapping(1), None);
+				}
+				'-' => {
+					self.tape.modify_current_cell(Wrapping(255), None);
+				}
+				',' => {
+					// https://github.com/rustwasm/wasm-bindgen/issues/2195
+					// let password_jsval: JsValue = func.call1(&this, &JsValue::from_bool(true))?;
+					// let password_promise_res: Result<js_sys::Promise, JsValue> =
+					// 	password_jsval.dyn_into();
+					// let password_promise = password_promise_res
+					// 	.map_err(|_| "Function askUnlockPassword does not return a Promise")
+					// 	.map_err(err_to_js)?;
+					// let password_jsstring = JsFuture::from(password_promise).await?;
+					// let password = password_jsstring
+					// 	.as_string()
+					// 	.ok_or("Promise didn't return a String")
+					// 	.map_err(err_to_js)?;
+
+					// TODO: handle errors
+					let jsval = input_callback
+						.call0(&JsValue::null())
+						.or(Err("failed calling input callback"))?;
+					let promise_res: Result<js_sys::Promise, JsValue> = jsval.dyn_into();
+					let promise = promise_res.or(Err(
+						"failed getting promise from return value of input callback",
+					))?;
+					let js_num = JsFuture::from(promise)
+						.await
+						.or(Err("failed getting number from returned promise"))?;
+					let num = js_num.as_f64().unwrap();
+					let byte: u8 = num as u8; // I have no idea if this works (TODO: test)
+					self.tape.set_current_cell(Wrapping(byte));
+				}
+				'.' => {
+					// TODO: handle errors
+					let byte = self.tape.get_current_cell().0;
+					let fnum: f64 = byte as f64; // I have no idea if this works (TODO: test again)
+					output_callback
+						.call1(&JsValue::null(), &JsValue::from_f64(fnum))
+						.or(Err("failed calling output callback"))?;
+
+					output_bytes.push(byte);
+				}
+				'>' => {
+					self.tape.move_head_position(1);
+				}
+				'<' => {
+					self.tape.move_head_position(-1);
+				}
+				'[' => {
+					// entering a loop
+					if self.tape.get_current_cell().0 == 0 {
+						// skip the loop, (advance to the corresponding closing loop brace)
+						// TODO: make this more efficient by pre-computing a loops map
+						let mut loop_count = 1;
+						while loop_count > 0 {
+							pc += 1;
+							loop_count += match self.program[pc] {
+								'[' => 1,
+								']' => -1,
+								_ => 0,
+							}
+						}
+					} else {
+						// add the open loop to the stack and proceed
+						loop_stack.push(pc);
+					}
+				}
+				']' => {
+					if self.tape.get_current_cell().0 == 0 {
+						// exit the loop
+						loop_stack.pop();
+					} else {
+						// cell isn't 0 so jump back to corresponding opening loop brace
+						// not sure what rust will do if the stack is empty
+						pc = loop_stack[loop_stack.len() - 1];
+					}
+				}
+				'#' => {
+					println!("{}", self.tape);
+				}
+				'@' => {
+					print!("{}", self.tape.get_current_cell().0 as i32);
+				}
+				_ => (),
+			};
+
+			// let s: String = self.program[(cmp::max(0i32, (pc as i32) - 10i32) as usize)
+			// 	..(cmp::min(self.program.len() as i32, (pc as i32) + 10i32) as usize)]
+			// 	.iter()
+			// 	.collect();
+			// println!("{s}");
+			// println!("{}", self.tape);
+			pc += 1;
+		}
+
+		Ok(unsafe { String::from_utf8_unchecked(output_bytes) })
+	}
+
 	pub fn run(&mut self, input: &mut impl Read, output: &mut impl Write) {
 		let mut pc: usize = 0;
 		// this could be more efficient with a pre-computed map

@@ -1,21 +1,9 @@
 import initWasm, { wasm_compile, wasm_run_bf } from "../compiler/pkg";
 import { MastermindConfig } from "./panels/SettingsPanel";
 
+import { v4 as uuidv4 } from "uuid";
+
 initWasm();
-
-function _compile(
-  fileMap: Record<string, string>,
-  entryFileName: string,
-  optimisations: MastermindConfig
-) {
-  return wasm_compile(fileMap, entryFileName, optimisations);
-}
-
-// TODO: add input streaming stuff
-function _run(code: string) {
-  const result = wasm_run_bf(code);
-  return result;
-}
 
 const err_msg =
   "There was an uncaught error in WASM-based Mastermind compilation or Brainfuck execution.\n\
@@ -24,7 +12,24 @@ This should never happen, if issues persist please raise an issue on the Masterm
 (raw rust panic message below)\n";
 
 // please don't send multiple commands to this worker at the same time
-onmessage = ({ data }) => {
+self.addEventListener("message", ({ data }: MessageEvent<
+  ({
+    transaction: string,
+    command: "COMPILE",
+    arguments: {
+      fileMap: Record<string, string>,
+      entryFileName: string,
+      optimisations: MastermindConfig
+    }
+  } |
+  {
+    transaction: string,
+    command: "RUN",
+    arguments: {
+      code: string
+    }
+  })
+>) => {
   switch (data.command) {
     case "COMPILE":
       // overwrite the console error function as I can't seem to catch wasm panics
@@ -43,7 +48,7 @@ onmessage = ({ data }) => {
         console.error = old_error;
       };
       try {
-        const compiledCode = _compile(
+        const compiledCode = wasm_compile(
           data.arguments.fileMap,
           data.arguments.entryFileName,
           data.arguments.optimisations
@@ -64,12 +69,69 @@ onmessage = ({ data }) => {
       }
       break;
     case "RUN":
-      const codeOutput = _run(data.arguments.code);
-      postMessage({
-        transaction: data.transaction,
-        success: true,
-        message: codeOutput,
-      });
+      try {
+
+        _run(data.arguments.code, data.transaction).then(codeOutput => {
+          console.log(codeOutput);
+          postMessage({
+            transaction: data.transaction,
+            success: true,
+            message: codeOutput,
+          });
+        }).catch((reason) => {
+          console.log("FAIL", reason);
+          postMessage({
+            transaction: data.transaction,
+            success: false,
+            message: reason,
+          });
+        });
+      } catch (e) {
+        postMessage({
+          transaction: data.transaction,
+          success: false,
+          message: `Error:\n${e}`
+        });
+      }
+
       break;
   }
-};
+});
+
+function _run(code: string, runTransaction: string) {
+  const result = wasm_run_bf(code,
+
+    function (byte: number) {
+      // output a byte from the BVM
+      postMessage({ transaction: runTransaction, command: "OUTPUT_BYTE", arguments: { byte } });
+    },
+
+    function (): Promise<number> {
+      // TODO: set a timeout maybe for fault tolerance
+      // get a byte from the input buffer and return it to the BVM
+      return new Promise((resolve, _reject) => {
+        const t = uuidv4();
+
+        const callback = ({ data }: MessageEvent<{
+          transaction: string,
+          command: string,
+          arguments: { byte: number }
+        }>) => {
+          if (data.transaction !== t || data.command !== "INPUT_BYTE") return;
+          // received this back from main thread
+
+          resolve(data.arguments.byte);
+
+          self.removeEventListener("message", callback);
+        }
+        self.addEventListener("message", callback);
+
+        // send a request back to the main thread for a character
+        // this is a bit poorly done, the main transaction is for the run command, the argument transaction is for this input request
+        postMessage({ command: "REQUEST_INPUT", transaction: runTransaction, arguments: { transaction: t } });
+      })
+    }
+
+  );
+  return result;
+}

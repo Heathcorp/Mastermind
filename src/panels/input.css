@@ -1,0 +1,29 @@
+.input-panel .cm-cursor {
+  background-color: white;
+  width: 0.5rem;
+  border: none;
+}
+
+.input-panel {
+  background-color: var(--BG-4);
+}
+
+.input-marker-layer {
+  pointer-events: none;
+}
+
+.input-readonly-marker {
+  background-color: rgb(0, 0, 0, 0.5);
+}
+
+.input-cursor-marker {
+  box-sizing: border-box;
+  border: 1px solid var(--BORDER-2);
+  width: 0.5rem;
+}
+
+.input-cursor-waiting-marker {
+  box-sizing: border-box;
+  border: 1px solid var(--DANGER);
+  width: 0.5rem;
+}
