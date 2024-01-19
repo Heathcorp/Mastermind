@@ -36,9 +36,10 @@ I've also never written a compiler before and deliberately tried not to read any
 4. ~~Compiled code size indicator~~
 5. ~~More robust github actions workflows~~?
 6. ~~Pass panic messages from compiler into output panel~~
-7. Live I/O for running program
+7. ~~Live I/O for running program~~
 8. ~~More robust non-blocking compiler calls. Currently if the "run_code" function hangs, the whole webpage is frozen. Maybe look into web workers for this.~~
 9. Set of loadable example (stdlib) files
 10. Documentation?
 11. ~~Syntax highlighting?~~
 12. Vim keybindings (someone suggested as a joke but is actually quite easy)
+13. Button to kill running brainfuck program
