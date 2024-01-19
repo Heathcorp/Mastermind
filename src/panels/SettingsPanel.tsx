@@ -4,6 +4,7 @@ import { useAppContext } from "../App";
 import { makePersisted } from "@solid-primitives/storage";
 import { AiFillGithub } from "solid-icons/ai";
 import { FiCopy } from "solid-icons/fi";
+import { AiOutlineStop } from "solid-icons/ai";
 
 import "./settings.css";
 const SettingsPanel: Component<{ style?: JSX.CSSProperties }> = (props) => {
@@ -18,7 +19,8 @@ const SettingsPanel: Component<{ style?: JSX.CSSProperties }> = (props) => {
       optimise_memory_allocation: false,
       optimise_unreachable_loops: false,
       optimise_variable_usage: false,
-    }), { name: "mastermind_compiler_optimisations" }
+    }),
+    { name: "mastermind_compiler_optimisations" }
   );
 
   createEffect(
@@ -103,10 +105,10 @@ const SettingsPanel: Component<{ style?: JSX.CSSProperties }> = (props) => {
                 onClick={
                   !app.busy()
                     ? async () => {
-                      await onCompile();
-                      // technically this second await is pointless
-                      await onRun();
-                    }
+                        await onCompile();
+                        // technically this second await is pointless
+                        await onRun();
+                      }
                     : undefined
                 }
               >
@@ -120,7 +122,16 @@ const SettingsPanel: Component<{ style?: JSX.CSSProperties }> = (props) => {
                   {
                     {
                       ["COMPILING"]: "compiling program",
-                      ["RUNNING"]: "running code",
+                      ["RUNNING"]: (
+                        <>
+                          {"running code"}
+                          <AiOutlineStop
+                            class="stop-button"
+                            title="kill brainfuck process"
+                            onClick={() => app.restartWorker()}
+                          />
+                        </>
+                      ),
                       ["INPUT_BLOCKED"]: "waiting for input",
                       ["IDLE"]: null,
                     }[app.status()]
@@ -152,7 +163,7 @@ const SettingsPanel: Component<{ style?: JSX.CSSProperties }> = (props) => {
                 ["BF"]: "compiled code",
                 ["ERROR"]: "error output",
                 ["OUTPUT"]: "code output",
-                ["LIVE_OUTPUT"]: "live output"
+                ["LIVE_OUTPUT"]: "live output",
               }[app.output()?.type ?? "OUTPUT"]
             }
 

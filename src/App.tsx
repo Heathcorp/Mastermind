@@ -36,7 +36,9 @@ const AppContext = createContext<AppContextProps>();
 const MIGRATION_VERSION = 3;
 
 const App: Component = () => {
-  const [version, setVersion] = makePersisted(createSignal<number>(), { name: "mastermind_version" });
+  const [version, setVersion] = makePersisted(createSignal<number>(), {
+    name: "mastermind_version",
+  });
   createEffect(
     on([version], () => {
       const v = version();
@@ -53,7 +55,9 @@ const App: Component = () => {
   );
   // global signals and functions and things
   // to the program this is just a solidjs signal, all of this extra stuff is just for persistence
-  const [entryFile, setEntryFile] = makePersisted(createSignal<string>(), { name: "mastermind_entry_file" });
+  const [entryFile, setEntryFile] = makePersisted(createSignal<string>(), {
+    name: "mastermind_entry_file",
+  });
   const [fileStates, setFileStates] = makePersisted(
     createSignal<FileState[]>(
       (() => {
@@ -196,7 +200,16 @@ const App: Component = () => {
     "COMPILING" | "RUNNING" | "INPUT_BLOCKED" | "IDLE"
   >("IDLE");
 
-  const compilerWorker = new CompilerWorker();
+  let compilerWorker = new CompilerWorker();
+  const restartWorker = () => {
+    // kill the old web worker and replace it with a new one
+    console.log("Terminating and restarting web worker");
+    compilerWorker.terminate();
+    compilerWorker = new CompilerWorker();
+    setBusy(false);
+    setStatus("IDLE");
+    setInputCallback(undefined);
+  };
 
   const compile = (entryFileId: string, optimisations: MastermindConfig) => {
     return new Promise<string>((resolve, reject) => {
@@ -230,7 +243,6 @@ const App: Component = () => {
           setStatus("IDLE");
           reject(e.data.message);
         }
-
       };
       compilerWorker.addEventListener("message", callback);
       const removeCallback = () =>
@@ -258,7 +270,13 @@ const App: Component = () => {
     return new Promise<string>((resolve, reject) => {
       const transaction = uuidv4();
       const callback = (e: {
-        data: { transaction: string; success: boolean; message: string; command?: string; arguments?: { byte?: number, transaction?: string } };
+        data: {
+          transaction: string;
+          success: boolean;
+          message: string;
+          command?: string;
+          arguments?: { byte?: number; transaction?: string };
+        };
       }) => {
         if (transaction !== e.data.transaction) return;
 
@@ -266,13 +284,22 @@ const App: Component = () => {
           // TODO: refactor so the output is a uint8array and we can do multi-byte chars, also so as to avoid ! here
           const char = String.fromCharCode(e.data.arguments!.byte!);
           // if this is the first byte back from the BVM, reset the output buffer and start adding on characters
-          setOutput(prev => ({ type: "LIVE_OUTPUT", content: prev?.type === "LIVE_OUTPUT" ? prev.content + char : char }))
+          setOutput((prev) => ({
+            type: "LIVE_OUTPUT",
+            content: prev?.type === "LIVE_OUTPUT" ? prev.content + char : char,
+          }));
           return;
         } else if (e.data.command === "REQUEST_INPUT") {
           const inputTransaction = e.data.arguments!.transaction!;
           // get/wait for input from the user, use new transaction id to send back in input byte to the worker
 
-          const sendInputByte = (b: number) => { compilerWorker.postMessage({ transaction: inputTransaction, command: "INPUT_BYTE", arguments: { byte: b } }); };
+          const sendInputByte = (b: number) => {
+            compilerWorker.postMessage({
+              transaction: inputTransaction,
+              command: "INPUT_BYTE",
+              arguments: { byte: b },
+            });
+          };
 
           // TODO: make this a uint8 array instead of chars
           const c = popNextInputCharacter();
@@ -290,12 +317,12 @@ const App: Component = () => {
         setBusy(false);
         if (e.data.success) {
           setOutput({ type: "OUTPUT", content: e.data.message });
-          setInput(prev => ({ ...prev, amountRead: null }));
+          setInput((prev) => ({ ...prev, amountRead: null }));
           setStatus("IDLE");
           resolve(e.data.message);
         } else {
           setOutput({ type: "ERROR", content: e.data.message });
-          setInput(prev => ({ ...prev, amountRead: null }));
+          setInput((prev) => ({ ...prev, amountRead: null }));
           setStatus("IDLE");
           reject(e.data.message);
         }
@@ -315,47 +342,59 @@ const App: Component = () => {
     });
   };
 
+  const [output, setOutput] = makePersisted(
+    createSignal<{
+      type: "BF" | "ERROR" | "OUTPUT" | "LIVE_OUTPUT";
+      content: string;
+    }>(),
+    { name: "mastermind_output" }
+  );
 
-  const [output, setOutput] = makePersisted(createSignal<{
-    type: "BF" | "ERROR" | "OUTPUT" | "LIVE_OUTPUT";
-    content: string;
-  }>(), { name: "mastermind_output" });
-
-  const [input, setInput] = makePersisted(createSignal<{ text: string, amountRead: number | null }>({ text: "write input here...", amountRead: null }), { name: "mastermind_input", });
+  const [input, setInput] = makePersisted(
+    createSignal<{ text: string; amountRead: number | null }>({
+      text: "write input here...",
+      amountRead: null,
+    }),
+    { name: "mastermind_input" }
+  );
   // to fix a bug for when the program starts and it saved the amount read in the state:
-  onMount(() => setInput(prev => {
-    console.log({ prev });
-    return { ...prev, amountRead: null };
-  }));
+  onMount(() =>
+    setInput((prev) => {
+      console.log({ prev });
+      return { ...prev, amountRead: null };
+    })
+  );
   const popNextInputCharacter = (): string | undefined => {
     let c;
-    setInput(prev => {
+    setInput((prev) => {
       if ((prev.amountRead ?? 0) < prev.text.length) {
         c = prev.text.charAt(prev.amountRead ?? 0);
         return { text: prev.text, amountRead: (prev.amountRead ?? 0) + 1 };
       } else if (prev.amountRead === null) {
-        return { text: prev.text, amountRead: 0 }
+        return { text: prev.text, amountRead: 0 };
       } else {
         return prev;
       }
     });
-    return c
+    return c;
   };
 
   // this side effect is used to detect when input changes for when the BVM is waiting for user input
   const [inputCallback, setInputCallback] = createSignal<(b: number) => void>();
-  createEffect(on([input, inputCallback], () => {
-    const callback = inputCallback();
-    if (!callback) return;
+  createEffect(
+    on([input, inputCallback], () => {
+      const callback = inputCallback();
+      if (!callback) return;
 
-    const c = popNextInputCharacter();
-    if (c) {
-      // if there is now enough characters in the input, call the callback and remove it so that it only happens once
-      callback(c.charCodeAt(0));
-      setStatus("RUNNING");
-      setInputCallback(undefined);
-    }
-  }));
+      const c = popNextInputCharacter();
+      if (c) {
+        // if there is now enough characters in the input, call the callback and remove it so that it only happens once
+        callback(c.charCodeAt(0));
+        setStatus("RUNNING");
+        setInputCallback(undefined);
+      }
+    })
+  );
 
   return (
     <AppContext.Provider
@@ -376,6 +415,7 @@ const App: Component = () => {
         status,
         input,
         setInput,
+        restartWorker,
       }}
     >
       <div id="window">
@@ -409,20 +449,20 @@ interface AppContextProps {
   setFileLabel: (id: string, label: string) => void;
   setOutput: Setter<
     | {
-      type: "BF" | "ERROR" | "OUTPUT" | "LIVE_OUTPUT";
-      content: string;
-    }
+        type: "BF" | "ERROR" | "OUTPUT" | "LIVE_OUTPUT";
+        content: string;
+      }
     | undefined
   >;
   output: Accessor<
     | {
-      type: "BF" | "ERROR" | "OUTPUT" | "LIVE_OUTPUT";
-      content: string;
-    }
+        type: "BF" | "ERROR" | "OUTPUT" | "LIVE_OUTPUT";
+        content: string;
+      }
     | undefined
   >;
-  input: Accessor<{ text: string, amountRead: number | null }>;
-  setInput: Setter<{ text: string, amountRead: number | null }>;
+  input: Accessor<{ text: string; amountRead: number | null }>;
+  setInput: Setter<{ text: string; amountRead: number | null }>;
 
   reorderFiles: (from: string, to: string | null) => void;
 
@@ -434,6 +474,8 @@ interface AppContextProps {
 
   busy: Accessor<boolean>;
   status: Accessor<"COMPILING" | "RUNNING" | "INPUT_BLOCKED" | "IDLE">;
+
+  restartWorker: () => void;
 }
 
 interface FileState {
