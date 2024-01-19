@@ -1,4 +1,4 @@
-import { Component, For, createEffect, createSignal, on } from "solid-js";
+import { Component, For, createEffect, createSignal, on, JSX } from "solid-js";
 import Divider from "../components/Divider";
 import { useAppContext } from "../App";
 import { makePersisted } from "@solid-primitives/storage";
@@ -6,7 +6,7 @@ import { AiFillGithub } from "solid-icons/ai";
 import { FiCopy } from "solid-icons/fi";
 
 import "./settings.css";
-const SettingsPanel: Component = () => {
+const SettingsPanel: Component<{ style?: JSX.CSSProperties }> = (props) => {
   const app = useAppContext()!;
 
   const [enabledOptimisations, setEnabledOptimisations] = makePersisted(
@@ -18,7 +18,7 @@ const SettingsPanel: Component = () => {
       optimise_memory_allocation: false,
       optimise_unreachable_loops: false,
       optimise_variable_usage: false,
-    })
+    }), { name: "mastermind_compiler_optimisations" }
   );
 
   createEffect(
@@ -30,10 +30,11 @@ const SettingsPanel: Component = () => {
   );
 
   const onRun = async () => {
-    const code = app.output()?.content;
-    if (!code) return;
+    // TODO: error handling here? is it needed?
+    const output = app.output();
+    if (output?.type !== "BF") return;
 
-    await app.run(code);
+    await app.run(output.content);
   };
 
   const onCompile = async () => {
@@ -44,7 +45,7 @@ const SettingsPanel: Component = () => {
   };
 
   return (
-    <div class="panel" style={{ "flex-direction": "row" }}>
+    <div class="panel" style={{ "flex-direction": "row", ...props.style }}>
       <div class="panel settings-panel">
         <div class="row settings-container">
           {/* entry file selection */}
@@ -151,8 +152,11 @@ const SettingsPanel: Component = () => {
                 ["BF"]: "compiled code",
                 ["ERROR"]: "error output",
                 ["OUTPUT"]: "code output",
+                ["LIVE_OUTPUT"]: "live output"
               }[app.output()?.type ?? "OUTPUT"]
             }
+
+            {/* TODO: convert this to be more correct, <Show/> or something? */}
             {app.output() && ` (${app.output()?.content.length} bytes)`}
           </div>
         </div>

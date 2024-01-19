@@ -83,7 +83,6 @@ function mastermindLanguageSupport() {
         "LetClause/Let": tags.definitionKeyword,
         "VariableDefinition/Name": tags.variableName,
 
-
         "OutputClause/Output": tags.controlKeyword,
         "InputClause/Input": tags.controlKeyword,
         "DrainCopyClause/DrainCopy DrainCopyClause/Into": tags.controlKeyword,

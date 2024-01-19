@@ -7,14 +7,18 @@
   align-items: stretch;
   overflow-x: scroll;
 
-  -ms-overflow-style: none; /* Internet Explorer 10+ */
-  scrollbar-width: none; /* Firefox */
+  -ms-overflow-style: none;
+  /* Internet Explorer 10+ */
+  scrollbar-width: none;
+  /* Firefox */
 
   /* draggability things */
   /* z-index: 1; */
 }
+
 .tab-bar::-webkit-scrollbar {
-  display: none; /* Safari and Chrome */
+  display: none;
+  /* Safari and Chrome */
 }
 
 .tab-filler {
@@ -57,22 +61,4 @@
 
 .tab-insert-marker {
   border-left: 2px solid var(--BORDER-2);
-}
-
-.text-button {
-  user-select: none;
-  border-radius: 0.5rem;
-  padding: 0.5rem;
-  font-size: 1rem;
-  cursor: pointer;
-
-  transition: background-color 100ms;
-}
-.text-button-disabled {
-  opacity: 0.5;
-  cursor: not-allowed;
-}
-
-.text-button:hover:not(.text-button-disabled) {
-  background-color: rgb(0, 0, 0, 0.25);
 }
