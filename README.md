@@ -44,6 +44,6 @@ I've also never written a compiler before and deliberately tried not to read any
 12. Vim keybindings (someone suggested as a joke but is actually quite easy)
 13. ~~Button to kill running brainfuck program~~
 14. ~~Improve file name editing~~
-15. Fix weird top tab height changing issue
+15. ~~Fix weird top tab height changing issue~~
 16. Check browser compatibility
 17. Playtest

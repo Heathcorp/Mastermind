@@ -1,6 +1,9 @@
 .tab-bar {
   position: relative;
   height: 3rem;
+  /* added these to fix a weird bug with heights changing */
+  min-height: 3rem;
+  max-height: 3rem;;
   display: flex;
   flex-direction: row;
   justify-content: flex-start;
