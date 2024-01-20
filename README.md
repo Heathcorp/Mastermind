@@ -46,4 +46,5 @@ I've also never written a compiler before and deliberately tried not to read any
 14. ~~Improve file name editing~~
 15. ~~Fix weird top tab height changing issue~~
 16. ~~Check browser compatibility~~
-17. Playtest
+17. Improve settings responsiveness
+18. Playtest
