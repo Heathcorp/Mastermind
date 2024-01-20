@@ -125,11 +125,13 @@ const SettingsPanel: Component<{ style?: JSX.CSSProperties }> = (props) => {
                       ["RUNNING"]: (
                         <>
                           {"running code"}
-                          <AiOutlineStop
-                            class="stop-button"
-                            title="kill brainfuck process"
+                          <div
                             onClick={() => app.restartWorker()}
-                          />
+                            title="kill brainfuck process"
+                            class="stop-button"
+                          >
+                            <AiOutlineStop />
+                          </div>
                         </>
                       ),
                       ["INPUT_BLOCKED"]: "waiting for input",

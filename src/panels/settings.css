@@ -59,6 +59,9 @@ a:active.socials-icon {
 }
 
 .stop-button {
+  display: flex;
+  justify-content: center;
+  align-items: center;
   color: var(--DANGER);
   font-size: 1.25rem;
   padding: 0.25rem;
@@ -68,6 +71,6 @@ a:active.socials-icon {
 }
 
 .stop-button:hover {
-  background-color: rgba(240, 50, 75, 0.5);
+  background-color: var(--DANGER-TRANSPARENT);
   border: 1px solid var(--DANGER);
 }

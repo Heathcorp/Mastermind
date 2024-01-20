@@ -12,6 +12,7 @@
   --BORDER-2: hsl(195, 60%, 38%);
 
   --DANGER: #de4f4f;
+  --DANGER-TRANSPARENT: #de4f4f40;
 
   --default-border: 1px solid var(--BORDER-0);
 }
