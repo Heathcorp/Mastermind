@@ -64,6 +64,7 @@ a:active.socials-icon {
   padding: 0.25rem;
   border-radius: 0.25rem;
   cursor: pointer;
+  border: 1px solid transparent;
 }
 
 .stop-button:hover {

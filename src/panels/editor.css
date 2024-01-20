@@ -1,6 +1,9 @@
 .tab-bar {
   position: relative;
   height: 3rem;
+  /* added these to fix a weird bug with heights changing */
+  min-height: 3rem;
+  max-height: 3rem;;
   display: flex;
   flex-direction: row;
   justify-content: flex-start;
@@ -61,4 +64,23 @@
 
 .tab-insert-marker {
   border-left: 2px solid var(--BORDER-2);
+}
+
+.tab-label-editor-input {
+  -webkit-appearance: none;
+  -moz-appearance: none;
+  appearance: none;
+  border: none;
+  outline: none;
+  background-color: unset;
+  
+  cursor: inherit;
+}
+
+.tab-label-editor-input:focus {
+  cursor: text;
+}
+
+.file-label-text {
+  font-size: 1rem;
 }

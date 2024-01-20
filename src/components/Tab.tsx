@@ -1,4 +1,4 @@
-import { Component, Show, createSignal } from "solid-js";
+import { Component, Show, createEffect, createSignal, on } from "solid-js";
 
 import { AiOutlineDelete, AiOutlineEdit } from "solid-icons/ai";
 import {
@@ -27,6 +27,16 @@ const Tab: Component<{
   onDragOver(({ droppable }) => setIsUnderDrag(droppable?.id === props.fileId));
   onDragEnd(() => setIsUnderDrag(false));
 
+  let inputRef: HTMLInputElement | undefined;
+
+  const saveLabel = () => {
+    setEditingLabel((editingLabel) => {
+      if (!editingLabel || !inputRef?.value) return editingLabel;
+      app.setFileLabel(props.fileId, inputRef?.value);
+      return false;
+    });
+  };
+
   return (
     <div
       ref={(e) => {
@@ -37,50 +47,50 @@ const Tab: Component<{
         ["tab"]: true,
         ["tab-selected"]: props.fileActive,
         ["tab-insert-marker"]: isUnderDrag(),
+        ["file-label-text"]: true,
       }}
       onPointerDown={props.onSelect}
     >
-      {editingLabel() ? (
-        // TODO: refactor this file renaming behaviour
+      <Show when={!editingLabel()}>
+        <AiOutlineEdit
+          class="text-button"
+          onClick={() => {
+            setEditingLabel(true);
+            inputRef?.focus();
+          }}
+        />
+      </Show>
+      <Show when={editingLabel()} fallback={props.fileLabel}>
         <form
           onSubmit={(e) => {
             e.preventDefault();
-            // TODO: refactor this, maybe find a form library? At least make this a reusable component
-            app.setFileLabel(
-              props.fileId,
-              (
-                e.target.children as HTMLCollection & {
-                  label: HTMLInputElement;
-                }
-              ).label.value
-            );
-
-            setEditingLabel(false);
+            saveLabel();
           }}
         >
-          <input name="label" value={props.fileLabel} />
-        </form>
-      ) : (
-        <>
-          <AiOutlineEdit
-            class="text-button"
-            onClick={() => setEditingLabel(true)}
+          <input
+            class="tab-label-editor-input file-label-text"
+            ref={inputRef}
+            name="filename"
+            readOnly={!editingLabel()}
+            onBlur={saveLabel}
+            value={props.fileLabel}
+            // I learnt something today, HTML input elements are really stupid and don't change size from their value
+            size={props.fileLabel.length}
           />
-          {props.fileLabel}
-          <Show when={app.fileStates().length > 1}>
-            <AiOutlineDelete
-              class="text-button"
-              style={{ "margin-left": "0.5rem" }}
-              // Not sure if delete logic should be handled by the parent component
-              onClick={() =>
-                window.confirm(
-                  "Are you sure you want to delete this file? This cannot be undone."
-                ) && app.deleteFile(props.fileId)
-              }
-            />
-          </Show>
-        </>
-      )}
+        </form>
+      </Show>
+      <Show when={app.fileStates().length > 1}>
+        <AiOutlineDelete
+          class="text-button"
+          style={{ "margin-left": "0.5rem" }}
+          // Not sure if delete logic should be handled by the parent component
+          onClick={() =>
+            window.confirm(
+              "Are you sure you want to delete this file? This cannot be undone."
+            ) && app.deleteFile(props.fileId)
+          }
+        />
+      </Show>
     </div>
   );
 };

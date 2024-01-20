@@ -171,10 +171,10 @@ const App: Component = () => {
   };
   const setFileLabel = (id: string, label: string) => {
     setFileStates((prev) => {
-      const fileStateIndex = prev.findIndex((f) => f.id === id);
-      if (fileStateIndex === -1) return prev;
-      const fileState = prev.splice(fileStateIndex, 1)[0]!;
-      return [...prev, { ...fileState, label }];
+      const fileState = prev.find((f) => f.id === id);
+      if (!fileState) return prev;
+      fileState.label = label;
+      return [...prev];
     });
   };
   const reorderFiles = (from: string, to: string | null) => {
