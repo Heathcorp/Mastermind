@@ -1,4 +1,4 @@
-import { Component, Show, createEffect, createSignal, on } from "solid-js";
+import { Component, Show, createSignal } from "solid-js";
 
 import { AiOutlineDelete, AiOutlineEdit } from "solid-icons/ai";
 import {
