@@ -10,9 +10,8 @@ import {
 import Divider from "../components/Divider";
 import { useAppContext } from "../App";
 import { makePersisted } from "@solid-primitives/storage";
-import { AiFillGithub } from "solid-icons/ai";
+import { AiFillGithub, AiOutlineStop } from "solid-icons/ai";
 import { FiCopy } from "solid-icons/fi";
-import { AiOutlineStop } from "solid-icons/ai";
 
 import "./settings.css";
 const SettingsPanel: Component<{ style?: JSX.CSSProperties }> = (props) => {

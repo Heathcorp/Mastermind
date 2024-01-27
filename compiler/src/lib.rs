@@ -19,7 +19,7 @@ use misc::MastermindConfig;
 use optimiser::optimise;
 use parser::parse;
 use preprocessor::preprocess_from_memory;
-use tokeniser::{tokenise, Token};
+use tokeniser::tokenise;
 
 use std::collections::HashMap;
 
@@ -51,8 +51,8 @@ pub fn wasm_compile(
 	let compiler = Compiler { config: &config };
 	let builder = Builder { config: &config };
 
-	let preprocessed_file = preprocess_from_memory(&file_contents, entry_file_name);
-	let tokens: Vec<Token> = tokenise(&preprocessed_file).unwrap();
+	let preprocessed_file = preprocess_from_memory(&file_contents, entry_file_name)?;
+	let tokens = tokenise(&preprocessed_file)?;
 	let parsed = parse(&tokens)?;
 	let instructions = compiler.compile(&parsed, None)?;
 	let bf_code = builder.build(instructions.get_instructions())?;

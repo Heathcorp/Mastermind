@@ -8,6 +8,7 @@
     "build:grammar": "yarn run lezer-generator src/lexer/mastermind.grammar -o src/lexer/mastermind_parser.js",
     "build:wasm": "cd compiler && wasm-pack build --target web",
     "build": "tsc && vite build",
+    "profile:wasm": "yarn build:wasm --profiling && yarn build && twiggy top -n 20 compiler/pkg/mastermind_bg.wasm",
     "preview": "vite preview"
   },
   "dependencies": {
