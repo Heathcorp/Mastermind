@@ -209,6 +209,7 @@ const App: Component = () => {
     setBusy(false);
     setStatus("IDLE");
     setInputCallback(undefined);
+    setInput((prev) => ({ text: prev.text, amountRead: null }));
   };
 
   const compile = (entryFileId: string, optimisations: MastermindConfig) => {

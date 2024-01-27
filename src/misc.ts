@@ -26,14 +26,12 @@ import {
 import { highlightSelectionMatches, searchKeymap } from "@codemirror/search";
 import {
   closeBrackets,
-  autocompletion,
   closeBracketsKeymap,
   completionKeymap,
 } from "@codemirror/autocomplete";
-import { lintKeymap } from "@codemirror/lint";
 import { LRLanguage, LanguageSupport } from "@codemirror/language";
 
-import { tokyoNight } from "@uiw/codemirror-themes-all";
+import { tokyoNight } from "@uiw/codemirror-theme-tokyo-night";
 import { EditorState } from "@codemirror/state";
 
 import { parser } from "./lexer/mastermind_parser";
@@ -54,7 +52,6 @@ export const defaultExtensions = [
   syntaxHighlighting(defaultHighlightStyle, { fallback: true }),
   bracketMatching(),
   closeBrackets(),
-  autocompletion(),
   rectangularSelection(),
   crosshairCursor(),
   highlightActiveLine(),
@@ -66,7 +63,6 @@ export const defaultExtensions = [
     ...historyKeymap,
     ...foldKeymap,
     ...completionKeymap,
-    ...lintKeymap,
     // TODO: add a warning to let users escape the editor by pressing the esc key
     //  remember codemirror docos
     indentWithTab,
