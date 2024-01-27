@@ -1,10 +1,17 @@
-import { Component, For, createEffect, createSignal, on, JSX } from "solid-js";
+import {
+  Component,
+  For,
+  createEffect,
+  createSignal,
+  on,
+  JSX,
+  Show,
+} from "solid-js";
 import Divider from "../components/Divider";
 import { useAppContext } from "../App";
 import { makePersisted } from "@solid-primitives/storage";
-import { AiFillGithub } from "solid-icons/ai";
+import { AiFillGithub, AiOutlineStop } from "solid-icons/ai";
 import { FiCopy } from "solid-icons/fi";
-import { AiOutlineStop } from "solid-icons/ai";
 
 import "./settings.css";
 const SettingsPanel: Component<{ style?: JSX.CSSProperties }> = (props) => {
@@ -122,22 +129,20 @@ const SettingsPanel: Component<{ style?: JSX.CSSProperties }> = (props) => {
                   {
                     {
                       ["COMPILING"]: "compiling program",
-                      ["RUNNING"]: (
-                        <>
-                          {"running code"}
-                          <div
-                            onClick={() => app.restartWorker()}
-                            title="kill brainfuck process"
-                            class="stop-button"
-                          >
-                            <AiOutlineStop />
-                          </div>
-                        </>
-                      ),
+                      ["RUNNING"]: "running code",
                       ["INPUT_BLOCKED"]: "waiting for input",
                       ["IDLE"]: null,
                     }[app.status()]
                   }
+                  <Show when={app.status() !== "IDLE"}>
+                    <div
+                      onClick={() => app.restartWorker()}
+                      title="kill brainfuck process"
+                      class="stop-button"
+                    >
+                      <AiOutlineStop />
+                    </div>
+                  </Show>
                 </div>
               </div>
             )}

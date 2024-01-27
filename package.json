@@ -8,6 +8,7 @@
     "build:grammar": "yarn run lezer-generator src/lexer/mastermind.grammar -o src/lexer/mastermind_parser.js",
     "build:wasm": "cd compiler && wasm-pack build --target web",
     "build": "tsc && vite build",
+    "profile:wasm": "yarn build:wasm --profiling && yarn build && twiggy top -n 20 compiler/pkg/mastermind_bg.wasm",
     "preview": "vite preview"
   },
   "dependencies": {
@@ -16,7 +17,7 @@
     "@lezer/highlight": "^1.2.0",
     "@solid-primitives/storage": "^2.1.1",
     "@thisbeyond/solid-dnd": "^0.7.5",
-    "@uiw/codemirror-themes-all": "^4.21.21",
+    "@uiw/codemirror-theme-tokyo-night": "^4.21.21",
     "codemirror": "^6.0.1",
     "solid-icons": "^1.1.0",
     "solid-js": "^1.8.5",
@@ -27,6 +28,7 @@
     "@types/uuid": "^9.0.7",
     "typescript": "^5.2.2",
     "vite": "^5.0.0",
+    "vite-bundle-visualizer": "^1.0.0",
     "vite-plugin-solid": "^2.7.2"
   }
 }

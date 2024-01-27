@@ -1,6 +1,6 @@
 // TODO: refactor this tokeniser, needs some fixes and could be made simpler/cleaner
 
-use regex::Regex;
+use regex_lite::Regex;
 
 use crate::macros::macros::r_assert;
 
@@ -55,6 +55,13 @@ pub fn tokenise(source: &String) -> Result<Vec<Token>, String> {
 		("-", Token::Minus),
 		("+", Token::Plus),
 	];
+	// check for numbers and variables
+	let num_re = Regex::new(r#"^[0-9]+"#).unwrap();
+	let name_re = Regex::new(r#"^[a-zA-Z_]\w*"#).unwrap();
+	// string regex taken from chatgpt
+	let str_re = Regex::new(r#"^"(?:[^"\\]|\\.)+""#).unwrap();
+	// char regex taken from chatgpt again
+	let chr_re = Regex::new(r#"^'(?:[^'\\]|\\.)'"#).unwrap();
 
 	let mut tokens: Vec<Token> = Vec::new();
 
@@ -65,13 +72,6 @@ pub fn tokenise(source: &String) -> Result<Vec<Token>, String> {
 		let mut found = false;
 
 		/////////
-		// check for numbers and variables
-		let num_re = Regex::new(r#"^[0-9]+"#).unwrap();
-		let name_re = Regex::new(r#"^[a-zA-Z_]\w*"#).unwrap();
-		// string regex taken from chatgpt
-		let str_re = Regex::new(r#"^"(?:[^"\\]|\\.)+""#).unwrap();
-		// char regex taken from chatgpt again
-		let chr_re = Regex::new(r#"^'(?:[^'\\]|\\.)'"#).unwrap();
 		if let Some(num_capture) = num_re.captures(remaining) {
 			found = true;
 			let substring = String::from(&num_capture[0]);
@@ -97,7 +97,8 @@ pub fn tokenise(source: &String) -> Result<Vec<Token>, String> {
 			// not the most efficient way, this simply removes the quote characters
 			// could refactor this
 			chr_idx += substring.len();
-			let unescaped: String = serde_json::from_str(&substring).unwrap();
+			let unescaped: String = serde_json::from_str(&substring)
+				.or(Err("Could not unescape string literal in tokenisation due to serde error, this should never occur."))?;
 			tokens.push(Token::String(unescaped));
 		} else if let Some(chr_capture) = chr_re.captures(remaining) {
 			found = true;
@@ -108,7 +109,8 @@ pub fn tokenise(source: &String) -> Result<Vec<Token>, String> {
 			// make a new double-quoted string because serde json doesn't like single quotes and I can't be bothered making my own unescaping function
 			let escaped_string =
 				String::new() + "\"" + &chr_literal[1..(chr_literal.len() - 1)] + "\"";
-			let unescaped: String = serde_json::from_str(&escaped_string).unwrap();
+			let unescaped: String = serde_json::from_str(&escaped_string)
+				.or(Err("Could not unescape character literal in tokenisation due to serde error, this should never occur."))?;
 			// might need to change this for escaped characters (TODO)
 			r_assert!(unescaped.len() == 1, "Character literals must be length 1");
 			tokens.push(Token::Character(unescaped.chars().next().unwrap()));
@@ -146,8 +148,8 @@ fn strip_line(line: &str) -> String {
 	let mut stripped = line;
 	// remove comments
 	let split = line.split_once("//");
-	if split.is_some() {
-		stripped = split.unwrap().0;
+	if let Some((one, _comment)) = split {
+		stripped = one;
 	}
 
 	// remove excess whitespace

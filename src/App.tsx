@@ -209,6 +209,7 @@ const App: Component = () => {
     setBusy(false);
     setStatus("IDLE");
     setInputCallback(undefined);
+    setInput((prev) => ({ text: prev.text, amountRead: null }));
   };
 
   const compile = (entryFileId: string, optimisations: MastermindConfig) => {
@@ -358,12 +359,7 @@ const App: Component = () => {
     { name: "mastermind_input" }
   );
   // to fix a bug for when the program starts and it saved the amount read in the state:
-  onMount(() =>
-    setInput((prev) => {
-      console.log({ prev });
-      return { ...prev, amountRead: null };
-    })
-  );
+  onMount(() => setInput((prev) => ({ ...prev, amountRead: null })));
   const popNextInputCharacter = (): string | undefined => {
     let c;
     setInput((prev) => {
