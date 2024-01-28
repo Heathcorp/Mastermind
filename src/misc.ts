@@ -5,7 +5,6 @@ import {
   drawSelection,
   dropCursor,
   rectangularSelection,
-  crosshairCursor,
   highlightActiveLine,
   keymap,
 } from "@codemirror/view";
