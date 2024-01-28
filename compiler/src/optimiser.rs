@@ -1,26 +1,28 @@
 use std::{collections::HashMap, num::Wrapping};
 
+use crate::builder::Opcode;
+
 // post-compilation optimisations
 
 // simple naive brainfuck optimisations
-// TODO: factor in [-] into optimisations
+// TODO: factor in [-] into optimisations (doing)
 
-pub fn optimise(program: Vec<char>) -> String {
-	let mut output = String::new();
+pub fn optimise(program: Vec<Opcode>) -> Vec<Opcode> {
+	let mut output = Vec::new();
 
 	// get stretch of characters to optimise (+-<>)
 	let mut i = 0;
-	let mut subset: Vec<char> = Vec::new();
+	let mut subset = Vec::new();
 	while i < program.len() {
 		let op = program[i];
 		match op {
-			'+' | '-' | '>' | '<' => {
+			Opcode::Add | Opcode::Subtract | Opcode::Right | Opcode::Left => {
 				subset.push(op);
 			}
-			'[' | ']' | '.' | ',' => {
+			Opcode::OpenLoop | Opcode::CloseLoop | Opcode::Input | Opcode::Output => {
 				// optimise subset and push
 				let optimised_subset = optimise_subset(subset);
-				output.extend(optimised_subset.iter());
+				output.extend(optimised_subset);
 
 				subset = Vec::new();
 				output.push(op);
@@ -33,7 +35,7 @@ pub fn optimise(program: Vec<char>) -> String {
 	output
 }
 
-fn optimise_subset(run: Vec<char>) -> Vec<char> {
+fn optimise_subset(run: Vec<Opcode>) -> Vec<Opcode> {
 	let mut tape: HashMap<i32, Wrapping<i8>> = HashMap::new();
 	let mut head: i32 = 0;
 
@@ -41,24 +43,24 @@ fn optimise_subset(run: Vec<char>) -> Vec<char> {
 	while i < run.len() {
 		let op = run[i];
 		match op {
-			'-' | '+' => {
+			Opcode::Subtract | Opcode::Add => {
 				if !tape.contains_key(&head) {
 					tape.insert(head, Wrapping(0i8));
 				}
 				let cell = tape.get_mut(&head).unwrap();
 				*cell += match op {
-					'+' => 1,
-					'-' => -1,
+					Opcode::Add => 1,
+					Opcode::Subtract => -1,
 					_ => 0,
 				};
 				if cell.0 == 0 {
 					tape.remove(&head);
 				}
 			}
-			'>' => {
+			Opcode::Right => {
 				head += 1;
 			}
-			'<' => {
+			Opcode::Left => {
 				head -= 1;
 			}
 			_ => (),
@@ -119,13 +121,13 @@ fn optimise_subset(run: Vec<char>) -> Vec<char> {
 	match d1 {
 		true => {
 			for _ in start_index..(tape_arr.len() - 1) {
-				output.push('>');
+				output.push(Opcode::Right);
 				idx += 1;
 			}
 		}
 		false => {
 			for _ in (1..=start_index).rev() {
-				output.push('<');
+				output.push(Opcode::Left);
 				idx -= 1;
 			}
 		}
@@ -138,13 +140,13 @@ fn optimise_subset(run: Vec<char>) -> Vec<char> {
 				let v = tape_arr[cell].0;
 				for _ in 0..v.abs() {
 					output.push(match v > 0 {
-						true => '+',
-						false => '-',
+						true => Opcode::Add,
+						false => Opcode::Subtract,
 					});
 				}
 
 				if cell < (tape_arr.len() - 1) {
-					output.push('>');
+					output.push(Opcode::Right);
 					idx += 1;
 				}
 			}
@@ -154,13 +156,13 @@ fn optimise_subset(run: Vec<char>) -> Vec<char> {
 				let v = tape_arr[cell].0;
 				for _ in 0..v.abs() {
 					output.push(match v > 0 {
-						true => '+',
-						false => '-',
+						true => Opcode::Add,
+						false => Opcode::Subtract,
 					});
 				}
 
 				if cell > 0 {
-					output.push('<');
+					output.push(Opcode::Left);
 					idx -= 1;
 				}
 			}
@@ -171,13 +173,13 @@ fn optimise_subset(run: Vec<char>) -> Vec<char> {
 	match d3 {
 		true => {
 			for _ in idx..final_index {
-				output.push('>');
+				output.push(Opcode::Right);
 				idx += 1;
 			}
 		}
 		false => {
 			for _ in final_index..idx {
-				output.push('<');
+				output.push(Opcode::Left);
 				idx -= 1;
 			}
 		}
@@ -188,33 +190,37 @@ fn optimise_subset(run: Vec<char>) -> Vec<char> {
 
 #[cfg(test)]
 mod tests {
+	use crate::builder::BrainfuckProgram;
+
 	use super::*;
 
 	#[test]
 	fn subset_equivalence_test_0() {
-		let v = String::from("+++>><<++>--->+++<><><><><<<<<+++"); //(3) 0  0 [5] -3 3
-		let o: String = optimise_subset(v.chars().collect()).into_iter().collect();
+		let v = BrainfuckProgram::from_str("+++>><<++>--->+++<><><><><<<<<+++"); //(3) 0  0 [5] -3 3
+		let o = optimise_subset(v).to_string();
 		assert_eq!(o, ">>+++<---<+++++<<<+++");
 	}
 
 	#[test]
 	fn program_equivalence_test_0() {
-		let v = String::from("<><><>++<+[--++>>+<<-]");
-		let o: String = optimise(v.chars().collect());
+		let v = BrainfuckProgram::from_str("<><><>++<+[--++>>+<<-]");
+		let o: String = optimise(v).to_string();
 		assert_eq!(o, "++<+[->>+<<]");
 	}
 
 	#[test]
 	fn program_equivalence_test_1() {
-		let v = String::from("+++++++++>>+++>---->>>++++--<--++<<hello<++++[-<+>>++<+<->]++--->+"); // [9] 0 (7) -4 0 0 2 // [(0)] 2 // -1 1
-		let o: String = optimise(v.chars().collect());
+		let v = BrainfuckProgram::from_str(
+			"+++++++++>>+++>---->>>++++--<--++<<hello<++++[-<+>>++<+<->]++--->+",
+		); // [9] 0 (7) -4 0 0 2 // [(0)] 2 // -1 1
+		let o: String = optimise(v).to_string();
 		assert_eq!(o, "+++++++++>>+++++++>---->>>++<<<<[>++<]");
 	}
 
 	#[test]
 	fn program_equivalence_test_2() {
-		let v = String::from(">><.");
-		let o: String = optimise(v.chars().collect());
+		let v = BrainfuckProgram::from_str(">><.");
+		let o: String = optimise(v).to_string();
 		assert_eq!(o, ">.");
 	}
 }

@@ -15,7 +15,7 @@ mod misc;
 mod tests;
 
 use brainfuck::BVM;
-use builder::Builder;
+use builder::{BrainfuckProgram, Builder};
 use compiler::Compiler;
 use misc::MastermindConfig;
 use optimiser::optimise;
@@ -107,8 +107,8 @@ fn main() -> Result<(), String> {
 			let bf_program = builder.build(instructions)?;
 
 			match config.optimise_generated_code {
-				true => optimise(bf_program.chars().into_iter().collect()),
-				false => bf_program,
+				true => optimise(bf_program).to_string(),
+				false => bf_program.to_string(),
 			}
 		}
 		false => program,

@@ -5,7 +5,7 @@
 pub mod tests {
 	use crate::{
 		brainfuck::tests::run_program,
-		builder::Builder,
+		builder::{BrainfuckProgram, Builder},
 		compiler::Compiler,
 		parser::parse,
 		tokeniser::{tokenise, Token},
@@ -34,9 +34,10 @@ pub mod tests {
 			.get_instructions();
 		println!("{instructions:#?}");
 		let bf_program = Builder { config: &CONFIG }.build(instructions)?;
-		println!("{bf_program}");
+		let bfs = bf_program.to_string();
+		println!("{}", bfs);
 		// run generated brainfuck with input
-		Ok(run_program(bf_program, input))
+		Ok(run_program(bfs, input))
 	}
 
 	fn compile_program(program: String) -> Result<String, String> {
@@ -51,9 +52,10 @@ pub mod tests {
 			.get_instructions();
 		println!("{instructions:#?}");
 		let bf_program = Builder { config: &CONFIG }.build(instructions)?;
-		println!("{bf_program}");
+		let bfs = bf_program.to_string();
+		println!("{}", bfs);
 
-		Ok(bf_program)
+		Ok(bfs)
 	}
 
 	// #[test]
