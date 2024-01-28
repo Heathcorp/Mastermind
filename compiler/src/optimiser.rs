@@ -16,7 +16,7 @@ pub fn optimise(program: Vec<Opcode>) -> Vec<Opcode> {
 	while i < program.len() {
 		let op = program[i];
 		match op {
-			Opcode::Add | Opcode::Subtract | Opcode::Right | Opcode::Left => {
+			Opcode::Add | Opcode::Subtract | Opcode::Right | Opcode::Left | Opcode::Clear => {
 				subset.push(op);
 			}
 			Opcode::OpenLoop | Opcode::CloseLoop | Opcode::Input | Opcode::Output => {
@@ -27,7 +27,6 @@ pub fn optimise(program: Vec<Opcode>) -> Vec<Opcode> {
 				subset = Vec::new();
 				output.push(op);
 			}
-			_ => (),
 		}
 		i += 1;
 	}
@@ -36,25 +35,40 @@ pub fn optimise(program: Vec<Opcode>) -> Vec<Opcode> {
 }
 
 fn optimise_subset(run: Vec<Opcode>) -> Vec<Opcode> {
-	let mut tape: HashMap<i32, Wrapping<i8>> = HashMap::new();
+	#[derive(Clone)]
+	enum Change {
+		Add(Wrapping<i8>),
+		Set(Wrapping<i8>),
+	}
+	let mut tape: HashMap<i32, Change> = HashMap::new();
 	let mut head: i32 = 0;
 
 	let mut i = 0;
 	while i < run.len() {
 		let op = run[i];
 		match op {
+			Opcode::Clear => {
+				tape.insert(head, Change::Set(Wrapping(0i8)));
+			}
 			Opcode::Subtract | Opcode::Add => {
-				if !tape.contains_key(&head) {
-					tape.insert(head, Wrapping(0i8));
-				}
-				let cell = tape.get_mut(&head).unwrap();
-				*cell += match op {
+				let mut change = tape.remove(&head).unwrap_or(Change::Add(Wrapping(0i8)));
+
+				let (Change::Add(val) | Change::Set(val)) = &mut change;
+				*val += match op {
 					Opcode::Add => 1,
 					Opcode::Subtract => -1,
 					_ => 0,
 				};
-				if cell.0 == 0 {
-					tape.remove(&head);
+
+				match &change {
+					Change::Add(val) => {
+						if *val != Wrapping(0i8) {
+							tape.insert(head, change);
+						}
+					}
+					Change::Set(_) => {
+						tape.insert(head, change);
+					}
 				}
 			}
 			Opcode::Right => {
@@ -69,19 +83,22 @@ fn optimise_subset(run: Vec<Opcode>) -> Vec<Opcode> {
 	}
 	// always have a start and end cell
 	if !tape.contains_key(&0) {
-		tape.insert(0, Wrapping(0i8));
+		tape.insert(0, Change::Add(Wrapping(0i8)));
 	}
 	if !tape.contains_key(&head) {
-		tape.insert(head, Wrapping(0i8));
+		tape.insert(head, Change::Add(Wrapping(0i8)));
 	}
 
+	// This whole algorithm is probably really efficient and I reckon there's almost certainly a better way
+	// It's also just really poorly done in general, I don't understand what everything does and I wrote the damned thing
+	// TODO: refactor this properly
 	// convert hashmap to array
 	// start by making a negative and positive array
 	let mut pos_arr = Vec::new();
 	let mut neg_arr = Vec::new();
 	for (cell, value) in tape.into_iter() {
 		let i: usize;
-		let arr: &mut Vec<Wrapping<i8>>;
+		let arr: &mut Vec<Change>;
 		if cell < 0 {
 			i = (-(cell + 1)) as usize;
 			arr = &mut neg_arr;
@@ -91,22 +108,24 @@ fn optimise_subset(run: Vec<Opcode>) -> Vec<Opcode> {
 		}
 
 		if i >= arr.len() {
-			arr.resize(i + 1, Wrapping(0i8));
+			arr.resize(i + 1, Change::Add(Wrapping(0i8)));
 		}
 		arr[i] = value;
 	}
-	// now combine the two arrays
-	let mut tape_arr: Vec<Wrapping<i8>> = Vec::new();
-	tape_arr.extend(neg_arr.iter().rev());
-	tape_arr.extend(pos_arr.iter());
-
 	let start_index = neg_arr.len();
+	// now combine the two arrays
+	let mut tape_arr: Vec<Change> = Vec::new();
+	tape_arr.extend(neg_arr.into_iter().rev());
+	tape_arr.extend(pos_arr.into_iter());
+
 	if ((start_index) + 1) >= (tape_arr.len()) {
-		tape_arr.resize(start_index + 1, Wrapping(0i8));
+		tape_arr.resize(start_index + 1, Change::Add(Wrapping(0i8)));
 	}
 	let final_index = ((start_index as i32) + head) as usize;
 
 	let mut output = Vec::new();
+
+	// Also this following algorithm for zig-zagging around the tape is pretty poor as well, there has to be a nicer way of doing it
 
 	// if final cell is to the right of the start cell then we need to go to the left first, and vice-versa
 	// 1. go to the furthest point on the tape (opposite of direction to final cell)
@@ -137,7 +156,13 @@ fn optimise_subset(run: Vec<Opcode>) -> Vec<Opcode> {
 	match d2 {
 		true => {
 			for cell in idx..tape_arr.len() {
-				let v = tape_arr[cell].0;
+				let change = &tape_arr[cell];
+				if let Change::Set(_) = change {
+					output.push(Opcode::Clear);
+				}
+				let (Change::Add(v) | Change::Set(v)) = change;
+				let v = v.0;
+
 				for _ in 0..v.abs() {
 					output.push(match v > 0 {
 						true => Opcode::Add,
@@ -153,7 +178,13 @@ fn optimise_subset(run: Vec<Opcode>) -> Vec<Opcode> {
 		}
 		false => {
 			for cell in (0..=idx).rev() {
-				let v = tape_arr[cell].0;
+				let change = &tape_arr[cell];
+				if let Change::Set(_) = change {
+					output.push(Opcode::Clear);
+				}
+				let (Change::Add(v) | Change::Set(v)) = change;
+				let v = v.0;
+
 				for _ in 0..v.abs() {
 					output.push(match v > 0 {
 						true => Opcode::Add,
@@ -222,5 +253,28 @@ mod tests {
 		let v = BrainfuckProgram::from_str(">><.");
 		let o: String = optimise(v).to_string();
 		assert_eq!(o, ">.");
+	}
+
+	#[test]
+	fn subset_equivalence_test_1() {
+		let v = BrainfuckProgram::from_str("+++<+++>[-]+++"); //(3) 0  0 [5] -3 3
+		let o = optimise_subset(v).to_string();
+		assert_eq!(o, "<+++>[-]+++");
+	}
+
+	#[test]
+	fn subset_equivalence_test_2() {
+		let v = BrainfuckProgram::from_str("+++<+++>[-]+++[-]<[-]--+>-"); //(3) 0  0 [5] -3 3
+		let o = optimise_subset(v).to_string();
+		assert_eq!(o, "<[-]->[-]-");
+	}
+
+	#[test]
+	fn program_equivalence_test_3() {
+		let v = BrainfuckProgram::from_str(
+			"+++++[-]+++++++++>>+++>---->>>++++--<--++<<hello<++++[[-]<+>>++<+<->]++--->+",
+		); // [9] 0 (7) -4 0 0 2 // [(0)] 2 // -1 1
+		let o: String = optimise(v).to_string();
+		assert_eq!(o, "[-]+++++++++>>+++++++>---->>>++<<<<[[-]+>++<]");
 	}
 }
