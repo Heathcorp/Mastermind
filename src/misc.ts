@@ -53,7 +53,6 @@ export const defaultExtensions = [
   bracketMatching(),
   closeBrackets(),
   rectangularSelection(),
-  crosshairCursor(),
   highlightActiveLine(),
   highlightSelectionMatches(),
   keymap.of([
@@ -69,6 +68,7 @@ export const defaultExtensions = [
   ]),
 ];
 
+// TODO: work on the indent support
 function mastermindLanguageSupport() {
   return new LanguageSupport(LRLanguage.define({
     parser: parser.configure({

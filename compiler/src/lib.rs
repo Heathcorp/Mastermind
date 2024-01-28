@@ -13,7 +13,7 @@ mod preprocessor;
 mod tokeniser;
 
 use brainfuck::BVM;
-use builder::Builder;
+use builder::{BrainfuckProgram, Builder};
 use compiler::Compiler;
 use misc::MastermindConfig;
 use optimiser::optimise;
@@ -58,8 +58,8 @@ pub fn wasm_compile(
 	let bf_code = builder.build(instructions.get_instructions())?;
 
 	Ok(match config.optimise_generated_code {
-		true => optimise(bf_code.chars().collect()),
-		false => bf_code,
+		true => optimise(bf_code).to_string(),
+		false => bf_code.to_string(),
 	})
 }
 

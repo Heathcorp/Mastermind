@@ -5,7 +5,7 @@
 // this algorithm is responsible for actually allocating physical tape cells as opposed to the parser
 // can introduce optimisations here with some kind of allocation timeline sorting algorithm (hard leetcode style problem)
 
-use std::{collections::HashMap, fmt::Display, num::Wrapping};
+use std::{collections::HashMap, num::Wrapping};
 
 use crate::{
 	compiler::{Instruction, MemoryId},
@@ -22,7 +22,7 @@ type TapeCell = usize;
 type TapeValue = u8;
 
 impl Builder<'_> {
-	pub fn build(&self, instructions: Vec<Instruction>) -> Result<String, String> {
+	pub fn build(&self, instructions: Vec<Instruction>) -> Result<Vec<Opcode>, String> {
 		let mut alloc_tape = Vec::new();
 		let mut alloc_map: HashMap<MemoryId, (TapeCell, usize, LoopDepth, Vec<Option<TapeValue>>)> =
 			HashMap::new();
@@ -257,9 +257,7 @@ impl Builder<'_> {
 					}
 
 					if clear {
-						ops.push(Opcode::OpenLoop);
-						ops.push(Opcode::Subtract);
-						ops.push(Opcode::CloseLoop);
+						ops.push(Opcode::Clear);
 					}
 
 					if *alloc_loop_depth == current_loop_depth {
@@ -287,11 +285,7 @@ impl Builder<'_> {
 			}
 		}
 
-		let mut output = String::new();
-		ops.into_iter()
-			.for_each(|opcode| output.push_str(&opcode.to_string()));
-
-		Ok(output)
+		Ok(ops)
 	}
 }
 
@@ -347,6 +341,7 @@ large enough (this should never occur): {self:#?}",
 	}
 }
 
+#[derive(Clone, Copy)]
 pub enum Opcode {
 	Add,
 	Subtract,
@@ -356,25 +351,13 @@ pub enum Opcode {
 	CloseLoop,
 	Output,
 	Input,
+	Clear,
 }
 
-impl Display for Opcode {
-	fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-		f.write_str(match self {
-			Opcode::Add => "+",
-			Opcode::Subtract => "-",
-			Opcode::Right => ">",
-			Opcode::Left => "<",
-			Opcode::OpenLoop => "[",
-			Opcode::CloseLoop => "]",
-			Opcode::Output => ".",
-			Opcode::Input => ",",
-		})
-	}
-}
-
-trait BrainfuckProgram {
+pub trait BrainfuckProgram {
 	fn move_to_cell(&mut self, head_pos: &mut usize, cell: usize);
+	fn from_str(s: &str) -> Self;
+	fn to_string(self) -> String;
 }
 
 impl BrainfuckProgram for Vec<Opcode> {
@@ -390,5 +373,50 @@ impl BrainfuckProgram for Vec<Opcode> {
 			}
 		}
 		*head_pos = cell;
+	}
+
+	fn from_str(s: &str) -> Vec<Opcode> {
+		let mut ops = Vec::new();
+		let mut i = 0;
+		while i < s.len() {
+			let substr = &s[i..];
+			if substr.starts_with("[-]") {
+				ops.push(Opcode::Clear);
+				i += 3;
+			} else {
+				match substr.chars().next().unwrap() {
+					'+' => ops.push(Opcode::Add),
+					'-' => ops.push(Opcode::Subtract),
+					'>' => ops.push(Opcode::Right),
+					'<' => ops.push(Opcode::Left),
+					'[' => ops.push(Opcode::OpenLoop),
+					']' => ops.push(Opcode::CloseLoop),
+					'.' => ops.push(Opcode::Output),
+					',' => ops.push(Opcode::Input),
+					_ => (), // could put a little special opcode in for other characters
+				}
+				i += 1;
+			}
+		}
+
+		ops
+	}
+
+	fn to_string(self) -> String {
+		let mut s = String::new();
+		self.into_iter().for_each(|o| {
+			s.push_str(match o {
+				Opcode::Add => "+",
+				Opcode::Subtract => "-",
+				Opcode::Right => ">",
+				Opcode::Left => "<",
+				Opcode::OpenLoop => "[",
+				Opcode::CloseLoop => "]",
+				Opcode::Output => ".",
+				Opcode::Input => ",",
+				Opcode::Clear => "[-]",
+			})
+		});
+		s
 	}
 }
