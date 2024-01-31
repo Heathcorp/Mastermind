@@ -52,6 +52,7 @@ pub fn tokenise(source: &String) -> Result<Vec<Token>, String> {
 		("false", Token::False),
 		(",", Token::Comma),
 		("*", Token::Asterisk),
+		("@", Token::At),
 		("-", Token::Minus),
 		("+", Token::Plus),
 	];
@@ -185,6 +186,7 @@ pub enum Token {
 	ClosingAngledBracket,
 	Comma,
 	Asterisk,
+	At,
 	Copy,
 	Drain,
 	Into,

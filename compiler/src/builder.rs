@@ -18,7 +18,7 @@ pub struct Builder<'a> {
 }
 
 type LoopDepth = usize;
-type TapeCell = usize;
+pub type TapeCell = usize;
 type TapeValue = u8;
 
 impl Builder<'_> {
@@ -53,8 +53,8 @@ impl Builder<'_> {
 			match instruction {
 				// the ids (indices really) given by the compiler are guaranteed to be unique (at the time of writing)
 				// however they will absolutely not be very efficient
-				Instruction::Allocate(memory) => {
-					let cell = alloc_tape.allocate(memory.len());
+				Instruction::Allocate(memory, location_specifier) => {
+					let cell = alloc_tape.allocate(location_specifier, memory.len())?;
 					let old = alloc_map.insert(
 						memory.id(),
 						(
@@ -290,18 +290,29 @@ impl Builder<'_> {
 }
 
 trait AllocationArray {
-	fn allocate(&mut self, size: usize) -> TapeCell;
+	fn allocate(&mut self, location: Option<TapeCell>, size: usize) -> Result<TapeCell, String>;
 	fn free(&mut self, cell: TapeCell, size: usize) -> Result<(), String>;
 }
 
 impl AllocationArray for Vec<bool> {
-	fn allocate(&mut self, size: usize) -> TapeCell {
-		let mut region_start = 0;
-		for i in 0..self.len() {
+	fn allocate(&mut self, location: Option<TapeCell>, size: usize) -> Result<TapeCell, String> {
+		// should the region start at the current tape head?
+		let mut region_start = location.unwrap_or(0);
+		// extend the tape if the location specifier is too big
+		if region_start >= self.len() {
+			self.resize(region_start + 1, false);
+		}
+
+		for i in region_start..self.len() {
 			if self[i] {
+				// if a specifier was set, it is invalid so throw an error
+				// TODO: not sure if this should throw here or not
+				if let Some(l) = location {
+					r_panic!("Location specifier @{l} conflicts with another allocation");
+				};
 				// reset search to start at next cell
 				region_start = i + 1;
-			} else if i - region_start == size {
+			} else if i - region_start == (size - 1) {
 				break;
 			}
 		}
@@ -314,7 +325,7 @@ impl AllocationArray for Vec<bool> {
 			}
 		}
 
-		return region_start;
+		Ok(region_start)
 	}
 
 	fn free(&mut self, cell: TapeCell, size: usize) -> Result<(), String> {
