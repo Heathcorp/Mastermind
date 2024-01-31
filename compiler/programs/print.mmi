@@ -51,3 +51,61 @@ def print(num) {
   drain ones into chars[2];
   output chars[2];
 };
+
+def print_opt<num> {
+  let chars[3];
+  drain 12 {
+    chars[0] += 4;
+    chars[1] += 4;
+    chars[2] += 4;
+  }
+
+  let ones;
+  let tens = -1;
+  {
+    let b = num;
+    let iterating = 1;
+    while iterating {
+      ones = b;
+      tens += 1;
+      drain 10 {
+        iterating -= 1;
+        if b {
+          iterating += 1;
+        }
+        b -= 1;
+      }
+    }
+  }
+
+  let hundreds = -1;
+  {
+    let iterating = 1;
+    let b;
+    drain tens into b;
+    while iterating {
+      tens = b;
+      hundreds += 1;
+      drain 10 {
+        iterating -= 1;
+        if b {
+          iterating += 1;
+        }
+        b -= 1;
+      }
+    }
+  }
+
+  if hundreds {
+    drain hundreds into chars[0];
+    output chars[0];
+    drain tens into chars[1];
+    output chars[1];
+  }
+  if tens {
+    drain tens into chars[1];
+    output chars[1];
+  }
+  drain ones into chars[2];
+  output chars[2];
+}
