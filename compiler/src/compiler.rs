@@ -27,40 +27,45 @@ impl Compiler<'_> {
 		};
 
 		// hoist functions to top
-		let clauses: Vec<Clause> = clauses
-			.iter()
-			.filter_map(|clause| {
-				if let Clause::DefineFunction {
-					name,
-					arguments,
-					block,
-				} = clause
-				{
-					scope.functions.insert(
-						name.clone(),
-						Function {
-							arguments: arguments.clone(),
-							block: block.clone(),
-						},
-					);
-					None
-				} else {
-					Some(clause.clone())
-				}
-			})
-			.collect();
+		// also keep track of all variables that are allocated
+		let mut filtered_clauses: Vec<Clause> = Vec::new();
 
 		for clause in clauses {
+			if let Clause::DeclareVariable(var) | Clause::DefineVariable { var, value: _ } = clause
+			{
+				// hoisting scope allocations to the top
+				scope.allocate_variable_memory(var.clone())?;
+			}
+
+			if let Clause::DefineFunction {
+				name,
+				arguments,
+				block,
+			} = clause
+			{
+				scope.functions.insert(
+					name.clone(),
+					Function {
+						arguments: arguments.clone(),
+						block: block.clone(),
+					},
+				);
+			} else {
+				filtered_clauses.push(clause.clone());
+			}
+		}
+
+		for clause in filtered_clauses {
 			match clause {
 				Clause::DeclareVariable(var) => {
 					// create an allocation in the scope
-					let memory = scope.allocate_variable_memory(var)?;
+					let memory = scope.get_memory(&var.clone().to_target())?;
 					// push instruction to allocate cell(s) (the number of cells is stored in the Memory object)
 					scope.push_instruction(Instruction::Allocate(memory));
 				}
 				Clause::DefineVariable { var, value } => {
 					// same as above except we initialise the variable
-					let memory = scope.allocate_variable_memory(var.clone())?;
+					let memory = scope.get_memory(&var.clone().to_target())?;
 					let memory_id = memory.id();
 					scope.push_instruction(Instruction::Allocate(memory.clone()));
 
@@ -1043,6 +1048,11 @@ impl Scope<'_> {
 
 		result
 	}
+
+	// fn allocate_unnamed_cell(&mut self) -> Memory {
+	// 	let mem_id = self.create_memory_id();
+	// 	Memory::Cell { id: mem_id }
+	// }
 
 	fn create_memory_id(&mut self) -> MemoryId {
 		let current_scope_relative = self.allocations;

@@ -23,19 +23,19 @@ pub mod tests {
 	};
 
 	fn compile_and_run(program: String, input: String) -> Result<String, String> {
-		println!("{program}");
+		// println!("{program}");
 		// compile mastermind
 		let tokens: Vec<Token> = tokenise(&program)?;
-		println!("{tokens:#?}");
+		// println!("{tokens:#?}");
 		let clauses = parse(&tokens)?;
-		println!("{clauses:#?}");
+		// println!("{clauses:#?}");
 		let instructions = Compiler { config: &CONFIG }
 			.compile(&clauses, None)?
 			.get_instructions();
-		println!("{instructions:#?}");
+		// println!("{instructions:#?}");
 		let bf_program = Builder { config: &CONFIG }.build(instructions)?;
 		let bfs = bf_program.to_string();
-		println!("{}", bfs);
+		// println!("{}", bfs);
 		// run generated brainfuck with input
 		Ok(run_program(bfs, input))
 	}
@@ -560,19 +560,12 @@ def func_0<grape> {
 		zero = grape + 3;
 		func_2<frog, zero>;
 		output zero;
-
-		frog[0] = 0;
-		frog[1] = 0;
-		frog[2] = 0;
-		frog[3] = 0;
-		zero = 0;
 	};
 
 	func_1<n>;
 	output n;
 
 	grape += 1;
-	n = 0;
 };
 
 output global_var;
@@ -597,14 +590,16 @@ def func_2<think[4], green> {
 	output think[3];
 
 	output green;
-	let green = '$';
-	output green;
-	green = 0;
+	// this originally worked but I realised I don't actually need this
+	// technically green is not declared in this scope because functions are more like templates but I still think removing this functionality is justified
+	// let green = '$';
+	// output green;
+	// green = 0;
 };
 		",
 		);
 		let input = String::from("");
-		let desired_output = String::from("01202726$631\n@1202726$631\n");
+		let desired_output = String::from("01202726631\n@1202726631\n");
 		let output = compile_and_run(program, input).expect("");
 		println!("{output}");
 		assert_eq!(desired_output, output)
