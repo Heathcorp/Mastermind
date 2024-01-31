@@ -4,9 +4,9 @@ mod macros;
 
 // Stages: (rust format has jumbled these)
 mod brainfuck; // 6. Run
+mod brainfuck_optimiser; // 5. Post-Optimise
 mod builder; // 4. Build (and pre-optimise)
 mod compiler; // 3. Compile
-mod optimiser; // 5. Post-Optimise
 mod parser; // 2. Parse
 mod preprocessor; // 0. Preprocess includes and macro-type stuff
 mod tokeniser; // 1. Tokenise
@@ -15,10 +15,10 @@ mod misc;
 mod tests;
 
 use brainfuck::BVM;
+use brainfuck_optimiser::optimise;
 use builder::{BrainfuckProgram, Builder};
 use compiler::Compiler;
 use misc::MastermindConfig;
-use optimiser::optimise;
 use parser::parse;
 use preprocessor::preprocess;
 use tokeniser::tokenise;

@@ -3,6 +3,7 @@
 use std::{collections::HashMap, iter::zip};
 
 use crate::{
+	builder::TapeCell,
 	macros::macros::{r_assert, r_panic},
 	parser::{Clause, Expression, VariableDefinition, VariableTarget},
 	MastermindConfig,
@@ -27,42 +28,65 @@ impl Compiler<'_> {
 		};
 
 		// hoist functions to top
-		let clauses: Vec<Clause> = clauses
-			.iter()
-			.filter_map(|clause| {
-				if let Clause::DefineFunction {
-					name,
-					arguments,
-					block,
-				} = clause
-				{
-					scope.functions.insert(
-						name.clone(),
-						Function {
-							arguments: arguments.clone(),
-							block: block.clone(),
-						},
-					);
-					None
-				} else {
-					Some(clause.clone())
-				}
-			})
-			.collect();
+		// also keep track of all variables that are allocated
+		let mut filtered_clauses: Vec<Clause> = Vec::new();
 
 		for clause in clauses {
+			if let Clause::DeclareVariable {
+				var,
+				location_specifier: _,
+			}
+			| Clause::DefineVariable {
+				var,
+				location_specifier: _,
+				value: _,
+			} = clause
+			{
+				// hoisting scope allocations to the top
+				scope.allocate_variable_memory(var.clone())?;
+			}
+
+			if let Clause::DefineFunction {
+				name,
+				arguments,
+				block,
+			} = clause
+			{
+				scope.functions.insert(
+					name.clone(),
+					Function {
+						arguments: arguments.clone(),
+						block: block.clone(),
+					},
+				);
+			} else {
+				filtered_clauses.push(clause.clone());
+			}
+		}
+
+		for clause in filtered_clauses {
 			match clause {
-				Clause::DeclareVariable(var) => {
+				Clause::DeclareVariable {
+					var,
+					location_specifier,
+				} => {
 					// create an allocation in the scope
-					let memory = scope.allocate_variable_memory(var)?;
+					let memory = scope.get_memory(&var.clone().to_target())?;
 					// push instruction to allocate cell(s) (the number of cells is stored in the Memory object)
-					scope.push_instruction(Instruction::Allocate(memory));
+					scope.push_instruction(Instruction::Allocate(memory, location_specifier));
 				}
-				Clause::DefineVariable { var, value } => {
+				Clause::DefineVariable {
+					var,
+					location_specifier,
+					value,
+				} => {
 					// same as above except we initialise the variable
-					let memory = scope.allocate_variable_memory(var.clone())?;
+					let memory = scope.get_memory(&var.clone().to_target())?;
 					let memory_id = memory.id();
-					scope.push_instruction(Instruction::Allocate(memory.clone()));
+					scope.push_instruction(Instruction::Allocate(
+						memory.clone(),
+						location_specifier,
+					));
 
 					match (&var, &value, memory) {
 						(
@@ -338,9 +362,10 @@ spread syntax, use drain <val> into {var} instead."
 						| Expression::NaturalNumber(_) => {
 							// allocate a temporary cell and add the expression to it, output, then clear
 							let temp_mem_id = scope.create_memory_id();
-							scope.push_instruction(Instruction::Allocate(Memory::Cell {
-								id: temp_mem_id,
-							}));
+							scope.push_instruction(Instruction::Allocate(
+								Memory::Cell { id: temp_mem_id },
+								None,
+							));
 							let cell = Cell {
 								memory_id: temp_mem_id,
 								index: None,
@@ -355,9 +380,10 @@ spread syntax, use drain <val> into {var} instead."
 						Expression::ArrayLiteral(expressions) => {
 							// same as above, except reuse the temporary cell after each output
 							let temp_mem_id = scope.create_memory_id();
-							scope.push_instruction(Instruction::Allocate(Memory::Cell {
-								id: temp_mem_id,
-							}));
+							scope.push_instruction(Instruction::Allocate(
+								Memory::Cell { id: temp_mem_id },
+								None,
+							));
 							let cell = Cell {
 								memory_id: temp_mem_id,
 								index: None,
@@ -374,9 +400,10 @@ spread syntax, use drain <val> into {var} instead."
 						Expression::StringLiteral(s) => {
 							// same as above, allocate one temporary cell and reuse it for each character
 							let temp_mem_id = scope.create_memory_id();
-							scope.push_instruction(Instruction::Allocate(Memory::Cell {
-								id: temp_mem_id,
-							}));
+							scope.push_instruction(Instruction::Allocate(
+								Memory::Cell { id: temp_mem_id },
+								None,
+							));
 							let cell = Cell {
 								memory_id: temp_mem_id,
 								index: None,
@@ -463,9 +490,10 @@ spread syntax, use drain <val> into {var} instead."
 								}
 								_ => {
 									let id = scope.create_memory_id();
-									scope.push_instruction(Instruction::Allocate(Memory::Cell {
-										id,
-									}));
+									scope.push_instruction(Instruction::Allocate(
+										Memory::Cell { id },
+										None,
+									));
 									let new_cell = Cell {
 										memory_id: id,
 										index: None,
@@ -559,9 +587,10 @@ spread syntax, use drain <val> into {var} instead."
 									};
 
 									let new_mem_id = scope.create_memory_id();
-									scope.push_instruction(Instruction::Allocate(Memory::Cell {
-										id: new_mem_id,
-									}));
+									scope.push_instruction(Instruction::Allocate(
+										Memory::Cell { id: new_mem_id },
+										None,
+									));
 
 									let new_cell = Cell {
 										memory_id: new_mem_id,
@@ -645,9 +674,12 @@ spread syntax, use drain <val> into {var} instead."
 					let mut new_scope = scope.open_inner();
 
 					let condition_mem_id = new_scope.create_memory_id();
-					new_scope.push_instruction(Instruction::Allocate(Memory::Cell {
-						id: condition_mem_id,
-					}));
+					new_scope.push_instruction(Instruction::Allocate(
+						Memory::Cell {
+							id: condition_mem_id,
+						},
+						None,
+					));
 					let condition_cell = Cell {
 						memory_id: condition_mem_id,
 						index: None,
@@ -656,9 +688,10 @@ spread syntax, use drain <val> into {var} instead."
 					let else_condition_cell = match else_block {
 						Some(_) => {
 							let else_mem_id = new_scope.create_memory_id();
-							new_scope.push_instruction(Instruction::Allocate(Memory::Cell {
-								id: else_mem_id,
-							}));
+							new_scope.push_instruction(Instruction::Allocate(
+								Memory::Cell { id: else_mem_id },
+								None,
+							));
 							let else_cell = Cell {
 								memory_id: else_mem_id,
 								index: None,
@@ -839,7 +872,10 @@ fn _copy_cell(scope: &mut Scope, source_cell: Cell, target_cell: Cell, constant:
 	}
 	// allocate a temporary cell
 	let temp_mem_id = scope.create_memory_id();
-	scope.push_instruction(Instruction::Allocate(Memory::Cell { id: temp_mem_id }));
+	scope.push_instruction(Instruction::Allocate(
+		Memory::Cell { id: temp_mem_id },
+		None,
+	));
 	let temp_cell = Cell {
 		memory_id: temp_mem_id,
 		index: None,
@@ -862,7 +898,7 @@ fn _copy_cell(scope: &mut Scope, source_cell: Cell, target_cell: Cell, constant:
 // this is subject to change
 #[derive(Debug, Clone)]
 pub enum Instruction {
-	Allocate(Memory), // most of the below comments are wrong, usize is a unique id of an allocated cell
+	Allocate(Memory, Option<TapeCell>), // most of the below comments are wrong, usize is a unique id of an allocated cell
 	Free(MemoryId), // the number indicates which cell in the allocation stack should be freed (cell 0, is the top of the stack, 1 is the second element, etc)
 	OpenLoop(Cell), // same with other numbers here, they indicate the cell in the allocation stack to use in the instruction
 	CloseLoop(Cell), // pass in the cell id, this originally wasn't there but may be useful later on
@@ -1043,6 +1079,11 @@ impl Scope<'_> {
 
 		result
 	}
+
+	// fn allocate_unnamed_cell(&mut self) -> Memory {
+	// 	let mem_id = self.create_memory_id();
+	// 	Memory::Cell { id: mem_id }
+	// }
 
 	fn create_memory_id(&mut self) -> MemoryId {
 		let current_scope_relative = self.allocations;

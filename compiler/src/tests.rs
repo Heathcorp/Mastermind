@@ -5,7 +5,7 @@
 pub mod tests {
 	use crate::{
 		brainfuck::tests::run_program,
-		builder::{BrainfuckProgram, Builder},
+		builder::{BrainfuckProgram, Builder, Opcode},
 		compiler::Compiler,
 		parser::parse,
 		tokeniser::{tokenise, Token},
@@ -23,39 +23,38 @@ pub mod tests {
 	};
 
 	fn compile_and_run(program: String, input: String) -> Result<String, String> {
-		println!("{program}");
+		// println!("{program}");
 		// compile mastermind
 		let tokens: Vec<Token> = tokenise(&program)?;
-		println!("{tokens:#?}");
+		// println!("{tokens:#?}");
 		let clauses = parse(&tokens)?;
-		println!("{clauses:#?}");
+		// println!("{clauses:#?}");
 		let instructions = Compiler { config: &CONFIG }
 			.compile(&clauses, None)?
 			.get_instructions();
-		println!("{instructions:#?}");
+		// println!("{instructions:#?}");
 		let bf_program = Builder { config: &CONFIG }.build(instructions)?;
 		let bfs = bf_program.to_string();
-		println!("{}", bfs);
+		// println!("{}", bfs);
 		// run generated brainfuck with input
 		Ok(run_program(bfs, input))
 	}
 
-	fn compile_program(program: String) -> Result<String, String> {
-		println!("{program}");
+	fn compile_program(program: String) -> Result<Vec<Opcode>, String> {
+		// println!("{program}");
 		// compile mastermind
 		let tokens: Vec<Token> = tokenise(&program)?;
-		println!("{tokens:#?}");
+		// println!("{tokens:#?}");
 		let clauses = parse(&tokens)?;
-		println!("{clauses:#?}");
+		// println!("{clauses:#?}");
 		let instructions = Compiler { config: &CONFIG }
 			.compile(&clauses, None)?
 			.get_instructions();
-		println!("{instructions:#?}");
-		let bf_program = Builder { config: &CONFIG }.build(instructions)?;
-		let bfs = bf_program.to_string();
-		println!("{}", bfs);
+		// println!("{instructions:#?}");
+		let bf_code = Builder { config: &CONFIG }.build(instructions)?;
+		// println!("{}", bfs);
 
-		Ok(bfs)
+		Ok(bf_code)
 	}
 
 	// #[test]
@@ -73,6 +72,21 @@ pub mod tests {
 		let program = String::from("");
 		let result = compile_program(program);
 		assert!(result.is_err());
+	}
+
+	// #[test]
+	fn dummy_code_test() {
+		let program = String::from("");
+		let desired_code = String::from("");
+		let code = compile_program(program).expect("").to_string();
+		println!("{code}");
+		assert_eq!(desired_code, code);
+
+		let input = String::from("");
+		let desired_output = String::from("");
+		let output = run_program(code, input);
+		println!("{output}");
+		assert_eq!(desired_output, output)
 	}
 
 	#[test]
@@ -560,19 +574,12 @@ def func_0<grape> {
 		zero = grape + 3;
 		func_2<frog, zero>;
 		output zero;
-
-		frog[0] = 0;
-		frog[1] = 0;
-		frog[2] = 0;
-		frog[3] = 0;
-		zero = 0;
 	};
 
 	func_1<n>;
 	output n;
 
 	grape += 1;
-	n = 0;
 };
 
 output global_var;
@@ -597,14 +604,16 @@ def func_2<think[4], green> {
 	output think[3];
 
 	output green;
-	let green = '$';
-	output green;
-	green = 0;
+	// this originally worked but I realised I don't actually need this
+	// technically green is not declared in this scope because functions are more like templates but I still think removing this functionality is justified
+	// let green = '$';
+	// output green;
+	// green = 0;
 };
 		",
 		);
 		let input = String::from("");
-		let desired_output = String::from("01202726$631\n@1202726$631\n");
+		let desired_output = String::from("01202726631\n@1202726631\n");
 		let output = compile_and_run(program, input).expect("");
 		println!("{output}");
 		assert_eq!(desired_output, output)
@@ -756,5 +765,65 @@ output f;
 		let output = compile_and_run(program, input).expect("");
 		println!("{output}");
 		assert_eq!(desired_output, output)
+	}
+
+	#[test]
+	fn memory_specifiers_1() -> Result<(), String> {
+		let program = String::from(
+			r#"
+let foo @3 = 2;
+{
+	let n = 12;
+	while n {
+		n -= 1;
+		foo += 10;
+	}
+}
+output foo;
+"#,
+		);
+		let desired_code = String::from(">>>++<<<++++++++++++[->>>++++++++++<<<][-]>>>.[-]");
+		let code = compile_program(program)?.to_string();
+		println!("{code}");
+
+		let input = String::from("");
+		let desired_output = String::from("z");
+		let output = run_program(code.clone(), input);
+		println!("{output}");
+		assert_eq!(desired_code, code);
+		assert_eq!(desired_output, output);
+		Ok(())
+	}
+
+	#[test]
+	fn memory_specifiers_2() -> Result<(), String> {
+		let program = String::from(
+			r#"
+let a @5 = 4;
+let foo @0 = 2;
+let b = 10;
+"#,
+		);
+		let code = compile_program(program)?.to_string();
+		println!("{code}");
+
+		assert!(code.starts_with(">>>>>++++<<<<<++>++++++++++"));
+		Ok(())
+	}
+
+	#[test]
+	fn memory_specifiers_3() -> Result<(), String> {
+		let program = String::from(
+			r#"
+let a @1 = 1;
+let foo @0 = 2;
+let b = 3;
+"#,
+		);
+		let code = compile_program(program)?.to_string();
+		println!("{code}");
+
+		assert!(code.starts_with(">+<++>>+++"));
+		Ok(())
 	}
 }

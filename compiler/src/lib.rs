@@ -4,19 +4,19 @@ mod macros;
 
 // allowing dead code because we have two different compile targets (wasm and command-line)
 mod brainfuck;
+mod brainfuck_optimiser;
 mod builder;
 mod compiler;
 mod misc;
-mod optimiser;
 mod parser;
 mod preprocessor;
 mod tokeniser;
 
 use brainfuck::BVM;
+use brainfuck_optimiser::optimise;
 use builder::{BrainfuckProgram, Builder};
 use compiler::Compiler;
 use misc::MastermindConfig;
-use optimiser::optimise;
 use parser::parse;
 use preprocessor::preprocess_from_memory;
 use tokeniser::tokenise;

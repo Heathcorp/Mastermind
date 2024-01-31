@@ -37,6 +37,7 @@
     AddOp { "+" | "-" }
     IncDecOp { "++" | "--" }
     Asterisk { "*" }
+    At { "@" }
 }
 
 kw<word> { @specialize<Name, word> }
@@ -107,7 +108,7 @@ Clause {
     } |
 
     LetClause {
-        Let { kw<"let"> } VariableDefinition (EqualOp Expression)? Semicolon
+        Let { kw<"let"> } VariableDefinition LocationSpecifier { At Number }? (EqualOp Expression)? Semicolon
     } |
 
     SetClause {

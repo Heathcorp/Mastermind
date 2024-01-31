@@ -1,6 +1,7 @@
 use std::{fmt::Display, mem::discriminant, num::Wrapping};
 
 use crate::{
+	builder::TapeCell,
 	macros::macros::{r_assert, r_panic},
 	tokeniser::Token,
 };
@@ -98,7 +99,8 @@ pub fn parse(tokens: &[Token]) -> Result<Vec<Clause>, String> {
 				| Token::True
 				| Token::False
 				| Token::Equals
-				| Token::Asterisk,
+				| Token::Asterisk
+				| Token::At,
 				_,
 				_,
 			) => r_panic!("Invalid clause: {clause:#?}"),
@@ -116,9 +118,34 @@ fn parse_let_clause(clause: &[Token]) -> Result<Clause, String> {
 	// let why[9];
 	let mut i = 1usize;
 	// this kind of logic could probably be done with iterators, (TODO for future refactors)
-	let (var, len) = parse_var_definition(&clause[i..])?;
 
+	let (var, len) = parse_var_definition(&clause[i..])?;
 	i += len;
+
+	// parse any memory location specifiers
+	// let g @4 = 68;
+	let mut mem_spec = None;
+	if let Token::At = &clause[i] {
+		i += 1;
+		// let positive = match &clause[i] {
+		// 	Token::Minus => {
+		// 		i += 1;
+		// 		false
+		// 	}
+		// 	_ => true,
+		// };
+		let Token::Digits(num_str) = &clause[i] else {
+			r_panic!("Expected constant number in memory location specifier: {clause:#?}");
+		};
+		i += 1;
+		// TODO: error handling
+		let offset: usize = num_str.parse().unwrap();
+		// mem_spec = Some(match positive {
+		// 	true => offset as i32,
+		// 	false => -(offset as i32),
+		// })
+		mem_spec = Some(offset);
+	}
 
 	if let Token::Equals = &clause[i] {
 		i += 1;
@@ -126,11 +153,18 @@ fn parse_let_clause(clause: &[Token]) -> Result<Clause, String> {
 		let expr = Expression::parse(remaining)?;
 		// equivalent to set clause stuff
 		// except we need to convert a variable definition to a variable target
-		Ok(Clause::DefineVariable { var, value: expr })
+		Ok(Clause::DefineVariable {
+			var,
+			location_specifier: mem_spec,
+			value: expr,
+		})
 	} else if i < (clause.len() - 1) {
 		r_panic!("Invalid token in let clause: {clause:#?}");
 	} else {
-		Ok(Clause::DeclareVariable(var))
+		Ok(Clause::DeclareVariable {
+			var,
+			location_specifier: mem_spec,
+		})
 	}
 }
 
@@ -853,9 +887,13 @@ pub enum Sign {
 
 #[derive(Debug, Clone)]
 pub enum Clause {
-	DeclareVariable(VariableDefinition),
+	DeclareVariable {
+		var: VariableDefinition,
+		location_specifier: Option<TapeCell>,
+	},
 	DefineVariable {
 		var: VariableDefinition,
+		location_specifier: Option<TapeCell>,
 		value: Expression,
 	},
 	AddToVariable {
