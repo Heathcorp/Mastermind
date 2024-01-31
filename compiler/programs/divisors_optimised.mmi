@@ -1,0 +1,54 @@
+#include "print.mmi"
+
+let space_char = 2;
+let N; // = 100;
+drain 10 {
+  space_char += 3;
+  N += 10;
+}
+
+let number = 1;
+// a draining loop, loops n times, clearing the variable
+drain N into number {
+    let divisor @5 = 1;
+    copy number into divisor {
+      // currently functions are more like macros
+      // there are no arguments-by-values or return values
+      let result;
+      divisible<result, number, divisor>;
+
+      while result {
+        result -= 1;
+        print<divisor>;
+        output space_char;
+      }
+    }
+
+  output '\n';
+}
+
+def divisible<result, dividend, divisor> {
+  // result = 0 if dividend % divisor = 0
+
+  let b = dividend;
+
+  let iterating = 1;
+  while iterating {
+    // a copying loop, loops n times without modifying the variable
+    let g;
+    drain divisor into g {
+      b -= 1;
+      iterating -= 1;
+      if b {
+        iterating += 1;
+      }
+    }
+    drain g into divisor;
+  }
+  result = 1;
+  // if there is no remainder then we are divisible
+  while b {
+    b = 0;
+    result -= 1;
+  }
+}
