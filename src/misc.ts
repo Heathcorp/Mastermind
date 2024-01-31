@@ -76,6 +76,7 @@ function mastermindLanguageSupport() {
         "DefClause/Name": tags.function(tags.definition(tags.variableName)),
         "CallClause/Name": tags.function(tags.variableName),
         "LetClause/Let": tags.definitionKeyword,
+        "LetClause/LocationSpecifier/At": tags.annotation,
         "VariableDefinition/Name": tags.variableName,
 
         "OutputClause/Output": tags.controlKeyword,
