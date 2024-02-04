@@ -418,11 +418,11 @@ const App: Component = () => {
         <EditorPanel />
         <Divider />
         <div class="panel">
-          <SettingsPanel style={{ flex: 2 }} />
+          <SettingsPanel style={{ flex: 3 }} />
           <Divider />
           <InputPanel style={{ flex: 1 }} />
           <Divider />
-          <OutputPanel style={{ flex: 3 }} />
+          <OutputPanel style={{ flex: 4 }} />
         </div>
       </div>
     </AppContext.Provider>

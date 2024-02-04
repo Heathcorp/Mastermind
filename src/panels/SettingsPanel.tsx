@@ -58,19 +58,20 @@ const SettingsPanel: Component<{ style?: JSX.CSSProperties }> = (props) => {
       <div class="panel settings-panel">
         <div class="row settings-container">
           {/* entry file selection */}
-          <div class="row">
+          <label class="row">
             entry file:
             <select
               value={app.entryFile()}
               onChange={(e) => app.setEntryFile(e.target.value)}
             >
+              {/* TODO: fix an issue with file renaming not updating this list */}
               <For each={app.fileStates()}>
                 {(file) => {
                   return <option value={file.id}>{file.label}</option>;
                 }}
               </For>
             </select>
-          </div>
+          </label>
           {/* button with 3 options (compile, run, or both) */}
           <div style={{ position: "relative" }}>
             <div
@@ -184,6 +185,7 @@ const SettingsPanel: Component<{ style?: JSX.CSSProperties }> = (props) => {
             <span class="settings-heading">Optimisations:</span>
             <span
               class="text-button"
+              style={{ "white-space": "nowrap" }}
               onClick={() =>
                 setEnabledOptimisations((prev) => {
                   const entries = Object.entries(prev);
@@ -209,11 +211,7 @@ const SettingsPanel: Component<{ style?: JSX.CSSProperties }> = (props) => {
           >
             <For each={Object.entries(enabledOptimisations())}>
               {([key, enabled]: [string, boolean]) => (
-                <label
-                  for={key}
-                  class="row"
-                  style={{ "align-items": "flex-end" }}
-                >
+                <label class="row">
                   <input
                     type="checkbox"
                     checked={enabled}
