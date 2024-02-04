@@ -29,6 +29,7 @@ import OutputPanel from "./panels/OutputPanel";
 import SettingsPanel, { MastermindConfig } from "./panels/SettingsPanel";
 import { defaultExtensions } from "./misc";
 import { makePersisted } from "@solid-primitives/storage";
+import { createStore } from "solid-js/store";
 
 const AppContext = createContext<AppContextProps>();
 
@@ -59,11 +60,7 @@ const App: Component = () => {
     name: "mastermind_entry_file",
   });
   const [fileStates, setFileStates] = makePersisted(
-    createSignal<FileState[]>(
-      (() => {
-        return [];
-      })()
-    ),
+    createStore<FileState[]>([]),
     {
       name: "mastermind_files",
       serialize: (fileStates: FileState[]) =>
@@ -100,8 +97,8 @@ const App: Component = () => {
   );
 
   createEffect(
-    on([fileStates], () => {
-      if (!fileStates().length) {
+    on([() => fileStates], () => {
+      if (!fileStates.length) {
         // there are no files, initialise to the example files (divisors of 1 to 100)
         loadExampleFiles();
       }
@@ -162,20 +159,18 @@ const App: Component = () => {
     setFileStates((prev) => prev.filter((f) => f.id !== id));
   };
   const saveFileState = (id: string, state: EditorState) => {
-    setFileStates((prev) => {
-      const fileState = prev.find((f) => f.id === id);
-      if (!fileState) return prev;
-      fileState.editorState = state;
-      return [...prev];
-    });
+    setFileStates(
+      (file) => file.id === id,
+      "editorState",
+      () => state
+    );
   };
   const setFileLabel = (id: string, label: string) => {
-    setFileStates((prev) => {
-      const fileState = prev.find((f) => f.id === id);
-      if (!fileState) return prev;
-      fileState.label = label;
-      return [...prev];
-    });
+    setFileStates(
+      (file) => file.id === id,
+      "label",
+      () => label
+    );
   };
   const reorderFiles = (from: string, to: string | null) => {
     if (from === to) return;
@@ -216,7 +211,7 @@ const App: Component = () => {
     return new Promise<string>((resolve, reject) => {
       let entryFileName: string | undefined;
       const fileMap = Object.fromEntries(
-        fileStates().map((file) => {
+        fileStates.map((file) => {
           if (file.id === entryFileId) entryFileName = file.label;
           return [file.label, file.editorState.doc.toString()];
         })
@@ -436,7 +431,7 @@ export function useAppContext() {
 }
 
 interface AppContextProps {
-  fileStates: Accessor<FileState[]>;
+  fileStates: FileState[];
   entryFile: Accessor<string | undefined>;
   setEntryFile: Setter<string | undefined>;
   createFile: () => string;

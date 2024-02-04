@@ -30,13 +30,13 @@ const SettingsPanel: Component<{ style?: JSX.CSSProperties }> = (props) => {
     { name: "mastermind_compiler_optimisations" }
   );
 
-  createEffect(
-    on([app.fileStates, app.entryFile], () => {
-      if (app.fileStates().length && !app.entryFile()) {
-        app.setEntryFile(app.fileStates()[0]?.id);
-      }
-    })
-  );
+  createEffect(() => {
+    const fileStates = app.fileStates;
+    const entryFile = app.entryFile();
+    if (app.fileStates.length && !entryFile) {
+      app.setEntryFile(fileStates[0]?.id);
+    }
+  });
 
   const onRun = async () => {
     // TODO: error handling here? is it needed?
@@ -53,6 +53,10 @@ const SettingsPanel: Component<{ style?: JSX.CSSProperties }> = (props) => {
     await app.compile(entryFileId, enabledOptimisations());
   };
 
+  createEffect(() => {
+    console.log(app.fileStates);
+  });
+
   return (
     <div class="panel" style={{ "flex-direction": "row", ...props.style }}>
       <div class="panel settings-panel">
@@ -65,10 +69,8 @@ const SettingsPanel: Component<{ style?: JSX.CSSProperties }> = (props) => {
               onChange={(e) => app.setEntryFile(e.target.value)}
             >
               {/* TODO: fix an issue with file renaming not updating this list */}
-              <For each={app.fileStates()}>
-                {(file) => {
-                  return <option value={file.id}>{file.label}</option>;
-                }}
+              <For each={app.fileStates}>
+                {(file) => <option value={file.id}>{file.label}</option>}
               </For>
             </select>
           </label>

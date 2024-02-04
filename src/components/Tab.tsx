@@ -79,7 +79,7 @@ const Tab: Component<{
           />
         </form>
       </Show>
-      <Show when={app.fileStates().length > 1}>
+      <Show when={app.fileStates.length > 1}>
         <AiOutlineDelete
           class="text-button"
           style={{ "margin-left": "0.5rem" }}

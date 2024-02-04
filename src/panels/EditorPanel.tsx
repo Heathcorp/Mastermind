@@ -20,14 +20,14 @@ const EditorPanel: Component = () => {
   const [editingFile, setEditingFile] = createSignal<string>();
 
   createEffect(
-    on([app.fileStates, editingFile], () => {
+    on([() => app.fileStates, editingFile], () => {
       // default behaviours for when files are deleted
-      if (!app.fileStates().length) return;
+      if (!app.fileStates.length) return;
       if (
         !editingFile() ||
-        !app.fileStates().find((f) => f.id === editingFile())
+        !app.fileStates.find((f) => f.id === editingFile())
       ) {
-        setEditingFile(app.fileStates()[0]?.id);
+        setEditingFile(app.fileStates[0]?.id);
       }
     })
   );
@@ -44,7 +44,7 @@ const EditorPanel: Component = () => {
       if (!editorView) {
         // the element exists but view hasn't been constructed yet
         // construct it
-        const fileState = app.fileStates().find((f) => f.id === editingFile());
+        const fileState = app.fileStates.find((f) => f.id === editingFile());
         editorView = new EditorView({
           state: fileState?.editorState,
           parent: editorRef,
@@ -55,9 +55,7 @@ const EditorPanel: Component = () => {
         const oldState = editorView.state;
         app.saveFileState(previousFileId, oldState);
 
-        const newFileState = app
-          .fileStates()
-          .find((f) => f.id === editingFile());
+        const newFileState = app.fileStates.find((f) => f.id === editingFile());
         if (!newFileState) return;
         editorView.setState(newFileState.editorState);
       }
@@ -79,7 +77,7 @@ const EditorPanel: Component = () => {
           }
         >
           <DragDropSensors>
-            <For each={app.fileStates()}>
+            <For each={app.fileStates}>
               {(fileState) => (
                 <Tab
                   fileId={fileState.id}
