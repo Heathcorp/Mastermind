@@ -53,59 +53,51 @@ def print(num) {
 };
 
 def print_opt<num> {
-  let chars[3];
-  drain 12 {
-    chars[0] += 4;
-    chars[1] += 4;
-    chars[2] += 4;
-  }
-
   let ones;
-  let tens = -1;
-  {
-    let b = num;
-    let iterating = 1;
-    while iterating {
-      ones = b;
-      tens += 1;
-      drain 10 {
-        iterating -= 1;
-        if b {
-          iterating += 1;
-        }
-        b -= 1;
-      }
-    }
-  }
+  let hundreds = num;
+  let tens;
 
-  let hundreds = -1;
-  {
-    let iterating = 1;
-    let b;
-    drain tens into b;
-    while iterating {
-      tens = b;
+  drain 2 {
+    // shift everything 
+    // 1 -> 2
+    // 0 -> 1
+    drain tens into ones;
+    drain hundreds into tens;
+
+
+    let l = 10;
+    drain tens {
+      --l;
+      if l {
+        l -= 10;
+        hundreds -= 1;
+      }
+      l += 10;
       hundreds += 1;
-      drain 10 {
-        iterating -= 1;
-        if b {
-          iterating += 1;
-        }
-        b -= 1;
-      }
     }
-  }
+    tens = 10;
+    drain l {--tens;}
+  } 
 
-  if hundreds {
-    drain hundreds into chars[0];
-    output chars[0];
-    drain tens into chars[1];
-    output chars[1];
+  let chars1;
+  let chars0;
+  let chars2;
+  drain 12 {
+    chars0 += 4;
+    chars1 += 4;
+    chars2 += 4;
   }
-  if tens {
-    drain tens into chars[1];
-    output chars[1];
+  while hundreds {
+    drain hundreds into chars0;
+    drain tens into chars1;
+    output chars0;
+    output chars1;
   }
-  drain ones into chars[2];
-  output chars[2];
+  while tens {
+    drain tens into chars1;
+    output chars1;
+  }
+  drain ones into chars2;
+  output chars2;
 }
+
