@@ -22,11 +22,8 @@ I've also never written a compiler before and deliberately tried not to read any
 9. ~~Simple include system~~, with example files for "standard library" style code
 10. In-line brainfuck (in-line assembly) so we can make optimisations for the compiler and use unsafe looping moves.
    - Idea: asm(a, b, c[3], d[(contiguous)5, etc (need to make syntax for this)]) {#goto(a)+++>[[]--]};
-11. Some kind of stack or array implementation
-12. Multi-byte integers
-13. n-length strings?
-14. ~~Maybe make functions clearer that they are more like macros?~~
-15. ~~Make if statements and drain loops able to use expressions.~~
+11. ~~Maybe make functions clearer that they are more like macros?~~
+12. ~~Make if statements and drain loops able to use expressions.~~
 
 ### Web-interface TODO:
 
@@ -46,5 +43,5 @@ I've also never written a compiler before and deliberately tried not to read any
 14. ~~Improve file name editing~~
 15. ~~Fix weird top tab height changing issue~~
 16. ~~Check browser compatibility~~
-17. Improve settings responsiveness
+17. ~~Improve settings responsiveness~~
 18. Playtest
