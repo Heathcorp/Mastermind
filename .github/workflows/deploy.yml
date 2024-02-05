@@ -7,7 +7,7 @@ on:
     paths:
       - "**"
       - "!*.md"
-      - "!./compiler/programs/*.mmi"
+      # - "!./compiler/programs/*.mmi"
 
 jobs:
   test_build_deploy:
