@@ -3,7 +3,6 @@ import {
   For,
   createEffect,
   createSignal,
-  on,
   JSX,
   Show,
 } from "solid-js";
