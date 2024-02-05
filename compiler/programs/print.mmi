@@ -64,7 +64,7 @@ def print_opt<num> {
     drain tens into ones;
     drain hundreds into tens;
 
-
+    // more efficient than dividing by 100
     let l = 10;
     drain tens {
       --l;
