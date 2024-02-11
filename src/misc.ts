@@ -76,7 +76,7 @@ function mastermindLanguageSupport() {
         "DefClause/Name": tags.function(tags.definition(tags.variableName)),
         "CallClause/Name": tags.function(tags.variableName),
         "LetClause/Let": tags.definitionKeyword,
-        "LetClause/LocationSpecifier/At": tags.annotation,
+        "LocationSpecifier/At": tags.annotation,
         "VariableDefinition/Name": tags.variableName,
 
         "OutputClause/Output": tags.controlKeyword,
@@ -105,6 +105,16 @@ function mastermindLanguageSupport() {
         IncDecOp: tags.updateOperator,
         "Semicolon Comma": tags.separator,
         "Asterisk": tags.derefOperator,
+
+        "BrainfuckClause/Bf": tags.controlKeyword,
+        "BrainfuckClause/Clobbers": tags.controlKeyword,
+        "AssertClause/Assert": tags.controlKeyword,
+
+        "EBrainfuck/BfPlus EBrainfuck/BfMinus": tags.arithmeticOperator,
+        "EBrainfuck/BfRight EBrainfuck/BfLeft": tags.angleBracket,
+        "EBrainfuck/BfOpenLoop EBrainfuck/BfCloseLoop": tags.squareBracket,
+        "EBrainfuck/BfOutput EBrainfuck/BfInput": tags.controlKeyword,
+        // "EBrainfuck/BfComment": tags.comment,
       })]
     }),
     languageData: {

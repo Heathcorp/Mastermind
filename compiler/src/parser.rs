@@ -73,6 +73,10 @@ pub fn parse(tokens: &[Token]) -> Result<Vec<Clause>, String> {
 				let inner_clauses = parse(braced_tokens)?;
 				clauses.push(Clause::Block(inner_clauses));
 			}
+			(Token::Bf, _, _) => {
+				todo!()
+			}
+			(Token::Assert, _, _) => clauses.push(parse_assert_clause(clause)?),
 			// empty clause
 			(Token::Semicolon, _, _) => (),
 			// the None token usually represents whitespace, it should be filtered out before reaching this function
@@ -400,6 +404,27 @@ fn parse_input_clause(clause: &[Token]) -> Result<Clause, String> {
 	};
 
 	Ok(Clause::InputVariable { var })
+}
+
+fn parse_assert_clause(clause: &[Token]) -> Result<Clause, String> {
+	let mut i = 1usize;
+
+	let (var, len) = parse_var_target(&clause[i..])?;
+	i += len;
+
+	let Token::Equals = &clause[i] else {
+		r_panic!("Expected assertion value in assert clause: {clause:#?}");
+	};
+	i += 1;
+
+	let Token::Semicolon = &clause[clause.len() - 1] else {
+		r_panic!("Invalid token at end of assert clause: {clause:#?}");
+	};
+
+	let remaining = &clause[i..(clause.len() - 1)];
+	let expr = Expression::parse(remaining)?;
+
+	Ok(Clause::AssertVariableValue { var, value: expr })
 }
 
 fn parse_function_definition_clause(clause: &[Token]) -> Result<Clause, String> {
@@ -901,6 +926,10 @@ pub enum Clause {
 		value: Expression,
 	},
 	SetVariable {
+		var: VariableTarget,
+		value: Expression,
+	},
+	AssertVariableValue {
 		var: VariableTarget,
 		value: Expression,
 	},

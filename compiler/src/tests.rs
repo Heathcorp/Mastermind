@@ -12,7 +12,7 @@ pub mod tests {
 		MastermindConfig,
 	};
 	// TODO: run test suite with different optimisations turned on
-	const CONFIG: MastermindConfig = MastermindConfig {
+	const OPT_NONE: MastermindConfig = MastermindConfig {
 		optimise_generated_code: false,
 		optimise_cell_clearing: false,
 		optimise_variable_usage: false,
@@ -22,6 +22,16 @@ pub mod tests {
 		optimise_empty_blocks: false,
 	};
 
+	const OPT_ALL: MastermindConfig = MastermindConfig {
+		optimise_generated_code: true,
+		optimise_cell_clearing: true,
+		optimise_variable_usage: true,
+		optimise_memory_allocation: true,
+		optimise_unreachable_loops: true,
+		optimise_constants: true,
+		optimise_empty_blocks: true,
+	};
+
 	fn compile_and_run(program: String, input: String) -> Result<String, String> {
 		// println!("{program}");
 		// compile mastermind
@@ -29,29 +39,37 @@ pub mod tests {
 		// println!("{tokens:#?}");
 		let clauses = parse(&tokens)?;
 		// println!("{clauses:#?}");
-		let instructions = Compiler { config: &CONFIG }
+		let instructions = Compiler { config: &OPT_NONE }
 			.compile(&clauses, None)?
 			.get_instructions();
 		// println!("{instructions:#?}");
-		let bf_program = Builder { config: &CONFIG }.build(instructions)?;
+		let bf_program = Builder { config: &OPT_NONE }.build(instructions)?;
 		let bfs = bf_program.to_string();
 		// println!("{}", bfs);
 		// run generated brainfuck with input
 		Ok(run_program(bfs, input))
 	}
 
-	fn compile_program(program: String) -> Result<Vec<Opcode>, String> {
+	fn compile_program(
+		program: String,
+		config: Option<&MastermindConfig>,
+	) -> Result<Vec<Opcode>, String> {
 		// println!("{program}");
 		// compile mastermind
 		let tokens: Vec<Token> = tokenise(&program)?;
 		// println!("{tokens:#?}");
 		let clauses = parse(&tokens)?;
 		// println!("{clauses:#?}");
-		let instructions = Compiler { config: &CONFIG }
-			.compile(&clauses, None)?
-			.get_instructions();
+		let instructions = Compiler {
+			config: config.unwrap_or(&OPT_NONE),
+		}
+		.compile(&clauses, None)?
+		.get_instructions();
 		// println!("{instructions:#?}");
-		let bf_code = Builder { config: &CONFIG }.build(instructions)?;
+		let bf_code = Builder {
+			config: config.unwrap_or(&OPT_NONE),
+		}
+		.build(instructions)?;
 		// println!("{}", bfs);
 
 		Ok(bf_code)
@@ -70,7 +88,7 @@ pub mod tests {
 	// #[test]
 	fn dummy_compile_fail_test() {
 		let program = String::from("");
-		let result = compile_program(program);
+		let result = compile_program(program, None);
 		assert!(result.is_err());
 	}
 
@@ -78,7 +96,7 @@ pub mod tests {
 	fn dummy_code_test() {
 		let program = String::from("");
 		let desired_code = String::from("");
-		let code = compile_program(program).expect("").to_string();
+		let code = compile_program(program, None).expect("").to_string();
 		println!("{code}");
 		assert_eq!(desired_code, code);
 
@@ -783,7 +801,7 @@ output foo;
 "#,
 		);
 		let desired_code = String::from(">>>++<<<++++++++++++[->>>++++++++++<<<][-]>>>.[-]");
-		let code = compile_program(program)?.to_string();
+		let code = compile_program(program, None)?.to_string();
 		println!("{code}");
 
 		let input = String::from("");
@@ -804,7 +822,7 @@ let foo @0 = 2;
 let b = 10;
 "#,
 		);
-		let code = compile_program(program)?.to_string();
+		let code = compile_program(program, None)?.to_string();
 		println!("{code}");
 
 		assert!(code.starts_with(">>>>>++++<<<<<++>++++++++++"));
@@ -820,10 +838,28 @@ let foo @0 = 2;
 let b = 3;
 "#,
 		);
-		let code = compile_program(program)?.to_string();
+		let code = compile_program(program, None)?.to_string();
 		println!("{code}");
 
 		assert!(code.starts_with(">+<++>>+++"));
+		Ok(())
+	}
+
+	#[test]
+	fn assertions_1() -> Result<(), String> {
+		let program = String::from(
+			r#"
+let a @0 = 5;
+output a;
+assert a = 2;
+a = 0;
+output a;
+"#,
+		);
+		let code = compile_program(program, Some(&OPT_ALL))?.to_string();
+		println!("{code}");
+
+		assert!(code.starts_with("+++++.--."));
 		Ok(())
 	}
 }

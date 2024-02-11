@@ -69,6 +69,32 @@ impl Builder<'_> {
 						r_panic!("Attempted to reallocate memory {memory:#?}");
 					};
 				}
+				Instruction::AssertCellValue(cell_obj, imm) => {
+					let Some((_cell_base, size, alloc_loop_depth, known_values)) =
+						alloc_map.get_mut(&cell_obj.memory_id)
+					else {
+						r_panic!(
+							"Attempted to assert value of cell {cell_obj:#?} \
+which could not be found"
+						);
+					};
+
+					let mem_idx = cell_obj.index.unwrap_or(0);
+					r_assert!(
+						mem_idx < *size,
+						"Attempted to access memory outside of allocation"
+					);
+					let known_value = &mut known_values[mem_idx];
+
+					if *alloc_loop_depth == current_loop_depth {
+						*known_value = Some(imm);
+					} else {
+						r_panic!(
+							"Cannot assert cell {cell_obj:#?} value \
+outside of loop it was allocated"
+						);
+					}
+				}
 				Instruction::Free(id) => {
 					// TODO: do I need to check alloc loop depth here? Or are cells never freed in an inner scope?
 					// think about this in regards to reusing cell space when a cell isn't being used

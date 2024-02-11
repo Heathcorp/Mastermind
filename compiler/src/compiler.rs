@@ -270,6 +270,56 @@ spread syntax, use drain <val> into {var} instead."
 					),
 					// _ => r_panic!("Cannot add expression {value:#?} to variable \"{var}\""),
 				},
+				Clause::AssertVariableValue { var, value } => {
+					// unfortunately no array assertions due to a limitation with my data-structure/algorithm design
+					let (imm, adds, subs) = value.flatten()?;
+					r_assert!(
+						adds.len() == 0 && subs.len() == 0,
+						"Expected compile-time constant expression in assertion for {var}"
+					);
+
+					let mem = scope.get_memory(&var)?;
+					match &var {
+						VariableTarget::Single { name: _ }
+						| VariableTarget::MultiCell { name: _, index: _ } => {
+							let cell = match mem {
+								Memory::Cell { id } => Cell {
+									memory_id: id,
+									index: None,
+								},
+								Memory::Cells {
+									id,
+									len: _,
+									target_index: Some(idx),
+								} => Cell {
+									memory_id: id,
+									index: Some(idx),
+								},
+								_ => r_panic!(
+									"Could not access {var} in assertion. This should not occur."
+								),
+							};
+							scope.push_instruction(Instruction::AssertCellValue(cell, imm));
+						}
+						VariableTarget::MultiSpread { name: _ } => match mem {
+							Memory::Cells {
+								id,
+								len,
+								target_index: None,
+							} => {
+								for i in 0..len {
+									let cell = Cell {
+										memory_id: id,
+										index: Some(i),
+									};
+									scope.push_instruction(Instruction::AssertCellValue(cell, imm));
+								}
+							}
+							_ => r_panic!("Could not access spread variable {var} in assertion."),
+						},
+					}
+					// _ => r_panic!("Unsupported compile-time assertion: {var} = {value:#?}"),
+				}
 				Clause::InputVariable { var } => {
 					let mem = scope.get_memory(&var)?;
 					match (&var, mem) {
@@ -765,7 +815,7 @@ spread syntax, use drain <val> into {var} instead."
 										VariableTarget::Single { name: call_name },
 									) => ArgumentTranslation::SingleFromSingle(def_name, call_name),
 									(
-										// this is a major hack, the parser will parse a calling argument as a single even though it is really targeting a multi
+										// this is a minor hack, the parser will parse a calling argument as a single even though it is really targeting a multi
 										VariableDefinition::Multi {
 											name: def_name,
 											len: _,
@@ -905,7 +955,7 @@ pub enum Instruction {
 	AddToCell(Cell, u8),
 	InputToCell(Cell),
 	ClearCell(Cell), // not sure if this should be here, seems common enough that it should be
-	// AssertCellValue(CellId, u8), // again not sure if this is the correct place but whatever, or if this is even needed?
+	AssertCellValue(Cell, u8), // allows the user to hand-tune optimisations further
 	OutputCell(Cell),
 }
 
