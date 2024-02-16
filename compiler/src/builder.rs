@@ -22,7 +22,11 @@ pub type TapeCell = usize;
 type TapeValue = u8;
 
 impl Builder<'_> {
-	pub fn build(&self, instructions: Vec<Instruction>) -> Result<Vec<Opcode>, String> {
+	pub fn build(
+		&self,
+		instructions: Vec<Instruction>,
+		return_to_origin: bool,
+	) -> Result<Vec<Opcode>, String> {
 		let mut alloc_tape = Vec::new();
 		let mut alloc_map: HashMap<MemoryId, (TapeCell, usize, LoopDepth, Vec<Option<TapeValue>>)> =
 			HashMap::new();
@@ -334,6 +338,11 @@ outside of loop it was allocated"
 					ops.extend(operations);
 				}
 			}
+		}
+
+		// this is used in embedded brainfuck contexts to preserve head position
+		if return_to_origin {
+			ops.move_to_cell(&mut head_pos, 0);
 		}
 
 		Ok(ops)

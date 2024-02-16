@@ -43,7 +43,7 @@ pub mod tests {
 			.compile(&clauses, None)?
 			.finalise_instructions(false);
 		// println!("{instructions:#?}");
-		let bf_program = Builder { config: &OPT_NONE }.build(instructions)?;
+		let bf_program = Builder { config: &OPT_NONE }.build(instructions, false)?;
 		let bfs = bf_program.to_string();
 		// println!("{}", bfs);
 		// run generated brainfuck with input
@@ -69,7 +69,7 @@ pub mod tests {
 		let bf_code = Builder {
 			config: config.unwrap_or(&OPT_NONE),
 		}
-		.build(instructions)?;
+		.build(instructions, false)?;
 		// println!("{}", bfs);
 
 		Ok(bf_code)
@@ -991,11 +991,16 @@ bf {
 	}
 
 	#[test]
-	// DO NOT RUN RIGHT NOW!
 	fn inline_brainfuck_5() -> Result<(), String> {
 		let program = String::from(
 			r#"
 // external function within the same file, could be tricky to implement
+def quote<n> {
+	// H 'H'
+	output 39;
+	output n;
+	output 39;
+}
 
 bf {
 	// enters a line of user input
@@ -1003,19 +1008,12 @@ bf {
 	,----------[
 		++++++++++
 		{
-			def quote<n> {
-				// H 'H'
-				output 39;
-				output n;
-				output 39;
-			}
 			// TODO: make sure top level variables aren't cleared automatically
 			let chr @0;
 			assert chr unknown;
 			quote<chr>;
 			output 10;
 			// this time it may be tricky because the compiler needs to return to the start cell
-			chr += 0;
 		}
 		[-]
 		,----------
@@ -1028,6 +1026,45 @@ bf {
 
 		let output = run_code(code, String::from("hello\n"));
 		assert_eq!(output, "'h'\n'e'\n'l'\n'l'\n'o'\n");
+		Ok(())
+	}
+
+	#[test]
+	fn inline_brainfuck_6() -> Result<(), String> {
+		let program = String::from(
+			r#"
+let b = 4;
+
+bf {
+	++--
+	{
+		output b;
+	}
+	++--
+}
+"#,
+		);
+		let result = compile_program(program, None);
+		assert!(result.is_err());
+
+		Ok(())
+	}
+
+	#[test]
+	fn inline_brainfuck_7() -> Result<(), String> {
+		let program = String::from(
+			r#"
+	bf {
+		,>,>,
+		<<
+		{{{{{{let g @5 = 1;}}}}}}
+	}
+	"#,
+		);
+		let code = compile_program(program, None)?.to_string();
+		println!("{code}");
+
+		assert_eq!(code, ",>,>,<<>>>>>+[-]<<<<<");
 		Ok(())
 	}
 }

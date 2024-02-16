@@ -832,13 +832,15 @@ spread syntax, use drain <val> into {var} instead."
 					for op in operations {
 						match op {
 							ExtendedOpcode::Block(mm_clauses) => {
+								// create a scope object for functions from the outside scope
+								let functions_scope = scope.open_inner_templates_only();
 								// compile the block and extend the operations
-								println!("{clauses:#?}");
+
 								let compiler = Compiler {
 									config: &self.config,
 								};
 								let instructions = compiler
-									.compile(&mm_clauses, None)?
+									.compile(&mm_clauses, Some(&functions_scope))?
 									.finalise_instructions(false);
 								// compile without cleaning up top level variables, this is the brainfuck programmer's responsibility
 								// TODO: figure out how to make the compiler return to the initial head position before building and re-adding?
@@ -846,7 +848,7 @@ spread syntax, use drain <val> into {var} instead."
 								let builder = Builder {
 									config: &self.config,
 								};
-								let built_code = builder.build(instructions)?;
+								let built_code = builder.build(instructions, true)?;
 								// IMPORTANT TODO: MAKE SURE IT RETURNS TO THE SAME POSITION
 								expanded_bf.extend(built_code);
 							}
@@ -1117,6 +1119,9 @@ impl Memory {
 #[derive(Clone, Debug)]
 pub struct Scope<'a> {
 	outer_scope: Option<&'a Scope<'a>>,
+	// syntactic context instead of normal context
+	// used for embedded mm so that the inner mm can use outer functions but not variables
+	fn_only: bool,
 
 	// number of memory allocations
 	allocations: usize,
@@ -1168,6 +1173,7 @@ impl Scope<'_> {
 	pub fn new() -> Scope<'static> {
 		Scope {
 			outer_scope: None,
+			fn_only: false,
 			allocations: 0,
 			variable_memory: HashMap::new(),
 			variable_aliases: Vec::new(),
@@ -1222,6 +1228,22 @@ impl Scope<'_> {
 	fn open_inner(&self) -> Scope {
 		Scope {
 			outer_scope: Some(self),
+			fn_only: false,
+			allocations: 0,
+			variable_memory: HashMap::new(),
+			variable_aliases: Vec::new(),
+			functions: HashMap::new(),
+			instructions: Vec::new(),
+			// variable_accesses: HashMap::new(),
+		}
+	}
+
+	// syntactic context instead of normal context
+	// used for embedded mm so that the inner mm can use outer functions
+	fn open_inner_templates_only(&self) -> Scope {
+		Scope {
+			outer_scope: Some(self),
+			fn_only: true,
 			allocations: 0,
 			variable_memory: HashMap::new(),
 			variable_aliases: Vec::new(),
@@ -1267,6 +1289,10 @@ impl Scope<'_> {
 
 	// recursively tallies the allocation stack size of the outer scope, does not include this scope
 	fn allocation_offset(&self) -> usize {
+		// little bit of a hack but works for now
+		if self.fn_only {
+			return 0;
+		}
 		if let Some(outer_scope) = self.outer_scope {
 			outer_scope.allocations + outer_scope.allocation_offset()
 		} else {
@@ -1275,6 +1301,7 @@ impl Scope<'_> {
 	}
 
 	fn get_function(&self, name: &str) -> Result<&Function, String> {
+		// this function is unaffected by the self.fn_only flag
 		if let Some(func) = self.functions.get(name) {
 			Ok(func)
 		} else if let Some(outer_scope) = self.outer_scope {
@@ -1328,6 +1355,8 @@ impl Scope<'_> {
 					r_panic!("Malformed variable reference {var} to {var_def}")
 				}
 			})
+		} else if self.fn_only {
+			r_panic!("Attempted to access variable memory outside of embedded Mastermind context.");
 		} else if let Some(outer_scope) = self.outer_scope {
 			// recursive case
 			if let Some(translation) = self

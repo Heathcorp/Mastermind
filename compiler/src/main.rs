@@ -106,7 +106,7 @@ fn main() -> Result<(), String> {
 				.finalise_instructions(false);
 
 			let builder = Builder { config: &config };
-			let bf_program = builder.build(instructions)?;
+			let bf_program = builder.build(instructions, false)?;
 
 			match config.optimise_generated_code {
 				true => optimise(bf_program).to_string(),

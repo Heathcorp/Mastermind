@@ -490,11 +490,12 @@ fn parse_brainfuck_clause(clause: &[Token]) -> Result<Clause, String> {
 				let block_tokens = get_braced_tokens(&bf_tokens[j..], BRACES)?;
 				let clauses = parse(block_tokens)?;
 				ops.push(ExtendedOpcode::Block(clauses));
-				j += block_tokens.len() + 2;
+				j += block_tokens.len() + 1;
 			}
 			// not sure whether to panic here or do nothing
 			_ => (),
 		}
+		j += 1;
 	}
 
 	Ok(Clause::InlineBrainfuck {
