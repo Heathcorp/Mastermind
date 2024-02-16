@@ -24,6 +24,7 @@ I've also never written a compiler before and deliberately tried not to read any
    - Idea: asm(a, b, c[3], d[(contiguous)5, etc (need to make syntax for this)]) {#goto(a)+++>[[]--]};
 11. ~~Maybe make functions clearer that they are more like macros?~~
 12. ~~Make if statements and drain loops able to use expressions.~~
+13. Fix recursive functions freezing compiler, make algorithm for checking call tree for recursion (recursion is impossible without a runtime)
 
 ### Web-interface TODO:
 

@@ -108,7 +108,7 @@ function mastermindLanguageSupport() {
 
         "BrainfuckClause/Bf": tags.controlKeyword,
         "BrainfuckClause/Clobbers": tags.controlKeyword,
-        "AssertClause/Assert": tags.controlKeyword,
+        "AssertClause/Assert AssertClause/Equals AssertClause/Unknown": tags.controlKeyword,
 
         "EBrainfuck/BfPlus EBrainfuck/BfMinus": tags.arithmeticOperator,
         "EBrainfuck/BfRight EBrainfuck/BfLeft": tags.angleBracket,

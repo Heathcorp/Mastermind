@@ -86,8 +86,9 @@ which could not be found"
 					);
 					let known_value = &mut known_values[mem_idx];
 
-					if *alloc_loop_depth == current_loop_depth {
-						*known_value = Some(imm);
+					// allow the user to assert that we don't know the value of the cell by clobbering when we do inline brainfuck
+					if *alloc_loop_depth == current_loop_depth || imm.is_none() {
+						*known_value = imm;
 					} else {
 						r_panic!(
 							"Cannot assert cell {cell_obj:#?} value \
@@ -308,6 +309,30 @@ outside of loop it was allocated"
 					ops.move_to_cell(&mut head_pos, cell);
 					ops.push(Opcode::Output);
 				}
+				Instruction::InsertBrainfuckAtCell(operations, location_specifier) => {
+					ops.move_to_cell(
+						&mut head_pos,
+						location_specifier.unwrap_or({
+							// default position to run brainfuck in?
+							// not sure what is best here, probably the last cell in the allocation tape
+							let mut first_unallocated = None;
+							for i in 0..alloc_tape.len() {
+								match (first_unallocated, &alloc_tape[i]) {
+									(None, false) => {
+										first_unallocated = Some(i);
+									}
+									(Some(_), true) => {
+										first_unallocated = None;
+									}
+									_ => (),
+								}
+							}
+
+							first_unallocated.unwrap_or(alloc_tape.len())
+						}),
+					);
+					ops.extend(operations);
+				}
 			}
 		}
 
@@ -378,7 +403,7 @@ large enough (this should never occur): {self:#?}",
 	}
 }
 
-#[derive(Clone, Copy)]
+#[derive(Clone, Copy, Debug)]
 pub enum Opcode {
 	Add,
 	Subtract,

@@ -4,7 +4,7 @@
 #[cfg(test)]
 pub mod tests {
 	use crate::{
-		brainfuck::tests::run_program,
+		brainfuck::tests::run_code,
 		builder::{BrainfuckProgram, Builder, Opcode},
 		compiler::Compiler,
 		parser::parse,
@@ -41,13 +41,13 @@ pub mod tests {
 		// println!("{clauses:#?}");
 		let instructions = Compiler { config: &OPT_NONE }
 			.compile(&clauses, None)?
-			.get_instructions();
+			.finalise_instructions(false);
 		// println!("{instructions:#?}");
 		let bf_program = Builder { config: &OPT_NONE }.build(instructions)?;
 		let bfs = bf_program.to_string();
 		// println!("{}", bfs);
 		// run generated brainfuck with input
-		Ok(run_program(bfs, input))
+		Ok(run_code(bfs, input))
 	}
 
 	fn compile_program(
@@ -64,7 +64,7 @@ pub mod tests {
 			config: config.unwrap_or(&OPT_NONE),
 		}
 		.compile(&clauses, None)?
-		.get_instructions();
+		.finalise_instructions(false);
 		// println!("{instructions:#?}");
 		let bf_code = Builder {
 			config: config.unwrap_or(&OPT_NONE),
@@ -102,7 +102,7 @@ pub mod tests {
 
 		let input = String::from("");
 		let desired_output = String::from("");
-		let output = run_program(code, input);
+		let output = run_code(code, input);
 		println!("{output}");
 		assert_eq!(desired_output, output)
 	}
@@ -800,16 +800,14 @@ let foo @3 = 2;
 output foo;
 "#,
 		);
-		let desired_code = String::from(">>>++<<<++++++++++++[->>>++++++++++<<<][-]>>>.[-]");
 		let code = compile_program(program, None)?.to_string();
 		println!("{code}");
 
 		let input = String::from("");
-		let desired_output = String::from("z");
-		let output = run_program(code.clone(), input);
+		let output = run_code(code.clone(), input);
 		println!("{output}");
-		assert_eq!(desired_code, code);
-		assert_eq!(desired_output, output);
+		assert_eq!(code, ">>>++<<<++++++++++++[->>>++++++++++<<<][-]>>>.");
+		assert_eq!(output, "z");
 		Ok(())
 	}
 
@@ -851,7 +849,7 @@ let b = 3;
 			r#"
 let a @0 = 5;
 output a;
-assert a = 2;
+assert a equals 2;
 a = 0;
 output a;
 "#,
@@ -860,6 +858,176 @@ output a;
 		println!("{code}");
 
 		assert!(code.starts_with("+++++.--."));
+		Ok(())
+	}
+
+	#[test]
+	fn assertions_2() -> Result<(), String> {
+		let program = String::from(
+			r#"
+let a @0 = 2;
+output a;
+assert a unknown;
+a = 0;
+output a;
+"#,
+		);
+		let code = compile_program(program, Some(&OPT_ALL))?.to_string();
+		println!("{code}");
+
+		assert!(code.starts_with("++.[-]."));
+		Ok(())
+	}
+
+	#[test]
+	fn inline_brainfuck_1() -> Result<(), String> {
+		let program = String::from(
+			r#"
+bf {
+	,.[-]
+	+[-->-[>>+>-----<<]<--<---]>-.>>>+.>>..+++[.>]<<<<.+++.------.<<-.>>>>+.
+}
+"#,
+		);
+		let code = compile_program(program, None)?.to_string();
+		println!("{code}");
+
+		assert_eq!(
+			code,
+			",.[-]+[-->-[>>+>-----<<]<--<---]>-.>>>+.>>..+++[.>]<<<<.+++.------.<<-.>>>>+."
+		);
+
+		let output = run_code(code, String::from("~"));
+		assert_eq!(output, "~Hello, World!");
+		Ok(())
+	}
+
+	#[test]
+	fn inline_brainfuck_2() -> Result<(), String> {
+		let program = String::from(
+			r#"
+// let a @0;
+// let b @1;
+bf @3 {
+	,.[-]
+	+[-->-[>>+>-----<<]<--<---]>-.>>>+.>>..+++[.>]<<<<.+++.------.<<-.>>>>+.
+}
+"#,
+		);
+		let code = compile_program(program, None)?.to_string();
+		println!("{code}");
+
+		assert!(code.starts_with(
+			">>>,.[-]+[-->-[>>+>-----<<]<--<---]>-.>>>+.>>..+++[.>]<<<<.+++.------.<<-.>>>>+."
+		));
+
+		let output = run_code(code, String::from("~"));
+		assert_eq!(output, "~Hello, World!");
+		Ok(())
+	}
+
+	#[test]
+	fn inline_brainfuck_3() -> Result<(), String> {
+		let program = String::from(
+			r#"
+let str[3] @0;
+
+bf @0 clobbers *str {
+	,>,>,
+	<<
+}
+
+bf @0 clobbers *str {
+	[+>]
+	<<<
+}
+
+bf @0 clobbers *str {
+	[.[-]>]
+	<<<
+}
+assert *str equals 0;
+"#,
+		);
+		let code = compile_program(program, None)?.to_string();
+		println!("{code}");
+
+		assert!(code.starts_with(",>,>,<<[+>]<<<[.[-]>]<<<"));
+
+		let output = run_code(code, String::from("HEY"));
+		assert_eq!(output, "IFZ");
+		Ok(())
+	}
+
+	#[test]
+	fn inline_brainfuck_4() -> Result<(), String> {
+		let program = String::from(
+			r#"
+bf {
+	// enters a line of user input
+	// runs some embedded mastermind for each character
+	,----------[
+		++++++++++
+		{
+			// TODO: assert unknown and assert equals
+			let chr @0;
+			assert chr unknown;
+			output chr;
+			chr += 1;
+			output chr;
+		}
+		[-]
+		,----------
+	]
+}
+"#,
+		);
+		let code = compile_program(program, None)?.to_string();
+		println!("{code}");
+
+		let output = run_code(code, String::from("line of input\n"));
+		assert_eq!(output, "lmijnoef !opfg !ijnopquvtu");
+		Ok(())
+	}
+
+	#[test]
+	// DO NOT RUN RIGHT NOW!
+	fn inline_brainfuck_5() -> Result<(), String> {
+		let program = String::from(
+			r#"
+// external function within the same file, could be tricky to implement
+
+bf {
+	// enters a line of user input
+	// runs some embedded mastermind for each character
+	,----------[
+		++++++++++
+		{
+			def quote<n> {
+				// H 'H'
+				output 39;
+				output n;
+				output 39;
+			}
+			// TODO: make sure top level variables aren't cleared automatically
+			let chr @0;
+			assert chr unknown;
+			quote<chr>;
+			output 10;
+			// this time it may be tricky because the compiler needs to return to the start cell
+			chr += 0;
+		}
+		[-]
+		,----------
+	]
+}
+"#,
+		);
+		let code = compile_program(program, None)?.to_string();
+		println!("{code}");
+
+		let output = run_code(code, String::from("hello\n"));
+		assert_eq!(output, "'h'\n'e'\n'l'\n'l'\n'o'\n");
 		Ok(())
 	}
 }

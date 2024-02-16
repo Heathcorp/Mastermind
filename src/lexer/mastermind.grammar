@@ -172,7 +172,7 @@ Clause {
         Bf { kw<"bf"> } LocationSpecifier? (Clobbers { kw<"clobbers"> } VariableTarget+)? Braces<EBrainfuck>
     } |
     AssertClause {
-        Assert { kw<"assert"> } VariableTarget EqualOp Constant Semicolon
+        Assert { kw<"assert"> } VariableTarget ((Equals { kw<"equals"> } Constant) | Unknown { kw<"unknown"> }) Semicolon
     }
 }
 

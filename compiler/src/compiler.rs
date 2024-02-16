@@ -3,9 +3,9 @@
 use std::{collections::HashMap, iter::zip};
 
 use crate::{
-	builder::TapeCell,
+	builder::{Builder, Opcode, TapeCell},
 	macros::macros::{r_assert, r_panic},
-	parser::{Clause, Expression, VariableDefinition, VariableTarget},
+	parser::{Clause, Expression, ExtendedOpcode, VariableDefinition, VariableTarget},
 	MastermindConfig,
 };
 
@@ -272,11 +272,21 @@ spread syntax, use drain <val> into {var} instead."
 				},
 				Clause::AssertVariableValue { var, value } => {
 					// unfortunately no array assertions due to a limitation with my data-structure/algorithm design
-					let (imm, adds, subs) = value.flatten()?;
-					r_assert!(
-						adds.len() == 0 && subs.len() == 0,
-						"Expected compile-time constant expression in assertion for {var}"
-					);
+					let imm = {
+						match value {
+							Some(expr) => {
+								let (imm, adds, subs) = expr.flatten()?;
+
+								r_assert!(
+									adds.len() == 0 && subs.len() == 0,
+									"Expected compile-time constant expression in assertion for {var}"
+								);
+
+								Some(imm)
+							}
+							None => None,
+						}
+					};
 
 					let mem = scope.get_memory(&var)?;
 					match &var {
@@ -491,7 +501,9 @@ spread syntax, use drain <val> into {var} instead."
 					// recursively compile instructions
 					// TODO: when recursively compiling, check which things changed based on a return info value
 					let loop_scope = self.compile(&block, Some(&scope))?;
-					scope.instructions.extend(loop_scope.get_instructions());
+					scope
+						.instructions
+						.extend(loop_scope.finalise_instructions(true));
 
 					// close the loop
 					scope.push_instruction(Instruction::CloseLoop(cell));
@@ -556,7 +568,9 @@ spread syntax, use drain <val> into {var} instead."
 
 							// recurse
 							let loop_scope = self.compile(&block, Some(&scope))?;
-							scope.instructions.extend(loop_scope.get_instructions());
+							scope
+								.instructions
+								.extend(loop_scope.finalise_instructions(true));
 
 							// copy into each target and decrement the source
 							for target in targets {
@@ -660,7 +674,9 @@ spread syntax, use drain <val> into {var} instead."
 
 							// recurse
 							let loop_scope = self.compile(&block, Some(&scope))?;
-							scope.instructions.extend(loop_scope.get_instructions());
+							scope
+								.instructions
+								.extend(loop_scope.finalise_instructions(true));
 
 							// copy into each target and decrement the source
 							for target in targets {
@@ -768,7 +784,9 @@ spread syntax, use drain <val> into {var} instead."
 					// recursively compile if block
 					if let Some(block) = if_block {
 						let if_scope = self.compile(&block, Some(&new_scope))?;
-						new_scope.instructions.extend(if_scope.get_instructions());
+						new_scope
+							.instructions
+							.extend(if_scope.finalise_instructions(true));
 					};
 
 					// close if block
@@ -785,18 +803,111 @@ spread syntax, use drain <val> into {var} instead."
 						// TODO: fix this bad practice unwrap
 						let block = else_block.unwrap();
 						let else_scope = self.compile(&block, Some(&new_scope))?;
-						new_scope.instructions.extend(else_scope.get_instructions());
+						new_scope
+							.instructions
+							.extend(else_scope.finalise_instructions(true));
 
 						new_scope.push_instruction(Instruction::CloseLoop(cell));
 						new_scope.push_instruction(Instruction::Free(cell.memory_id));
 					}
 
 					// extend the inner scopes instructions onto the outer one
-					scope.instructions.extend(new_scope.get_instructions());
+					scope
+						.instructions
+						.extend(new_scope.finalise_instructions(true));
 				}
 				Clause::Block(clauses) => {
 					let new_scope = self.compile(&clauses, Some(&scope))?;
-					scope.instructions.extend(new_scope.get_instructions());
+					scope
+						.instructions
+						.extend(new_scope.finalise_instructions(true));
+				}
+				Clause::InlineBrainfuck {
+					location_specifier,
+					clobbered_variables,
+					operations,
+				} => {
+					// loop through the opcodes
+					let mut expanded_bf: Vec<Opcode> = Vec::new();
+					for op in operations {
+						match op {
+							ExtendedOpcode::Block(mm_clauses) => {
+								// compile the block and extend the operations
+								println!("{clauses:#?}");
+								let compiler = Compiler {
+									config: &self.config,
+								};
+								let instructions = compiler
+									.compile(&mm_clauses, None)?
+									.finalise_instructions(false);
+								// compile without cleaning up top level variables, this is the brainfuck programmer's responsibility
+								// TODO: figure out how to make the compiler return to the initial head position before building and re-adding?
+								// IMPORTANT!!!!!!!!!!!!
+								let builder = Builder {
+									config: &self.config,
+								};
+								let built_code = builder.build(instructions)?;
+								// IMPORTANT TODO: MAKE SURE IT RETURNS TO THE SAME POSITION
+								expanded_bf.extend(built_code);
+							}
+							ExtendedOpcode::Add => expanded_bf.push(Opcode::Add),
+							ExtendedOpcode::Subtract => expanded_bf.push(Opcode::Subtract),
+							ExtendedOpcode::Right => expanded_bf.push(Opcode::Right),
+							ExtendedOpcode::Left => expanded_bf.push(Opcode::Left),
+							ExtendedOpcode::OpenLoop => expanded_bf.push(Opcode::OpenLoop),
+							ExtendedOpcode::CloseLoop => expanded_bf.push(Opcode::CloseLoop),
+							ExtendedOpcode::Output => expanded_bf.push(Opcode::Output),
+							ExtendedOpcode::Input => expanded_bf.push(Opcode::Input),
+						}
+					}
+					scope.push_instruction(Instruction::InsertBrainfuckAtCell(
+						expanded_bf,
+						location_specifier,
+					));
+					// assert that we clobbered the variables
+					// not sure whether this should go before or after the actual bf code
+					for var in clobbered_variables {
+						let mem = scope.get_memory(&var)?;
+						// little bit of duplicate code from the copyloop clause here:
+						match mem {
+							Memory::Cell { id } => {
+								scope.push_instruction(Instruction::AssertCellValue(
+									Cell {
+										memory_id: id,
+										index: None,
+									},
+									None,
+								))
+							}
+							Memory::Cells {
+								id,
+								len,
+								target_index,
+							} => match target_index {
+								None => {
+									// should only happen if the spread operator is used, ideally this should be obvious with the code, (TODO: refactor target index hack)
+									for i in 0..len {
+										scope.push_instruction(Instruction::AssertCellValue(
+											Cell {
+												memory_id: id,
+												index: Some(i),
+											},
+											None,
+										));
+									}
+								}
+								Some(index) => {
+									scope.push_instruction(Instruction::AssertCellValue(
+										Cell {
+											memory_id: id,
+											index: Some(index),
+										},
+										None,
+									))
+								}
+							},
+						}
+					}
 				}
 				Clause::CallFunction {
 					function_name,
@@ -844,11 +955,15 @@ spread syntax, use drain <val> into {var} instead."
 
 					// recurse
 					let loop_scope = self.compile(&function_definition.block, Some(&new_scope))?;
-					new_scope.instructions.extend(loop_scope.get_instructions());
+					new_scope
+						.instructions
+						.extend(loop_scope.finalise_instructions(true));
 
 					// extend the inner scope instructions onto the outer scope
 					// maybe function call compiling should be its own function?
-					scope.instructions.extend(new_scope.get_instructions());
+					scope
+						.instructions
+						.extend(new_scope.finalise_instructions(false));
 				}
 				Clause::DefineFunction {
 					name: _,
@@ -856,31 +971,6 @@ spread syntax, use drain <val> into {var} instead."
 					block: _,
 				} => (),
 			}
-		}
-
-		// create instructions to free cells
-		let mut clear_instructions = Vec::new();
-		for (var_def, mem_id) in scope.variable_memory.iter() {
-			match &var_def {
-				VariableDefinition::Single { name: _ } => {
-					clear_instructions.push(Instruction::ClearCell(Cell {
-						memory_id: *mem_id,
-						index: None,
-					}))
-				}
-				VariableDefinition::Multi { name: _, len } => {
-					for i in 0..*len {
-						clear_instructions.push(Instruction::ClearCell(Cell {
-							memory_id: *mem_id,
-							index: Some(i),
-						}))
-					}
-				}
-			}
-			clear_instructions.push(Instruction::Free(*mem_id));
-		}
-		for instr in clear_instructions {
-			scope.push_instruction(instr);
 		}
 
 		Ok(scope)
@@ -955,8 +1045,10 @@ pub enum Instruction {
 	AddToCell(Cell, u8),
 	InputToCell(Cell),
 	ClearCell(Cell), // not sure if this should be here, seems common enough that it should be
-	AssertCellValue(Cell, u8), // allows the user to hand-tune optimisations further
+	AssertCellValue(Cell, Option<u8>), // allows the user to hand-tune optimisations further
 	OutputCell(Cell),
+	// circular dependency here, TODO: should make an EBrainfuck OPcode object or similar for embedded mastermind
+	InsertBrainfuckAtCell(Vec<Opcode>, Option<TapeCell>),
 }
 
 #[derive(Debug, Clone)]
@@ -1085,9 +1177,41 @@ impl Scope<'_> {
 		}
 	}
 
-	pub fn get_instructions(self) -> Vec<Instruction> {
+	// I don't love this system of deciding what to clean up at the end in this specific function, but I'm not sure what the best way to achieve this would be
+	// this used to be called "get_instructions" but I think this more implies things are being modified
+	pub fn finalise_instructions(mut self, clean_up_variables: bool) -> Vec<Instruction> {
+		if !clean_up_variables {
+			return self.instructions;
+		}
+
 		// optimisations could go here?
-		// TODO: move all optimisations from the builder to here
+		// TODO: add some optimisations from the builder to here
+
+		// create instructions to free cells
+		let mut clear_instructions = Vec::new();
+		for (var_def, mem_id) in self.variable_memory.iter() {
+			match &var_def {
+				VariableDefinition::Single { name: _ } => {
+					clear_instructions.push(Instruction::ClearCell(Cell {
+						memory_id: *mem_id,
+						index: None,
+					}))
+				}
+				VariableDefinition::Multi { name: _, len } => {
+					for i in 0..*len {
+						clear_instructions.push(Instruction::ClearCell(Cell {
+							memory_id: *mem_id,
+							index: Some(i),
+						}))
+					}
+				}
+			}
+			clear_instructions.push(Instruction::Free(*mem_id));
+		}
+		for instr in clear_instructions {
+			self.push_instruction(instr);
+		}
+
 		self.instructions
 	}
 
