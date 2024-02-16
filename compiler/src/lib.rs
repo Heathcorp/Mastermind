@@ -55,7 +55,7 @@ pub fn wasm_compile(
 	let tokens = tokenise(&preprocessed_file)?;
 	let parsed = parse(&tokens)?;
 	let instructions = compiler.compile(&parsed, None)?;
-	let bf_code = builder.build(instructions.get_instructions())?;
+	let bf_code = builder.build(instructions.finalise_instructions(false), false)?;
 
 	Ok(match config.optimise_generated_code {
 		true => optimise(bf_code).to_string(),

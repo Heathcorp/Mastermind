@@ -38,6 +38,16 @@
     IncDecOp { "++" | "--" }
     Asterisk { "*" }
     At { "@" }
+
+    BfPlus { "+" }
+    BfMinus { "-" }
+    BfRight { ">" }
+    BfLeft { "<" }
+    BfOpenLoop { "[" }
+    BfCloseLoop { "]" }
+    BfOutput { "." }
+    BfInput { "," }
+    // BfComment { (![\\/#+-><.,{}\][ \t\n\r])+ }
 }
 
 kw<word> { @specialize<Name, word> }
@@ -57,15 +67,35 @@ VariableTarget {
     Asterisk Name
 }
 
+LocationSpecifier { At Number }
+
+Constant {
+    Number | Boolean | Character
+}
+
 Expression {
     VariableTarget |
-    Number |
-    Boolean |
+    Constant |
     String |
-    Character |
     Array { SquareBrackets<commaSep<Expression>> } |
     Parentheses<Expression> |
     (Expression AddOp !summation Expression)
+}
+
+
+EBrainfuck {
+    (
+        BfPlus |
+        BfMinus |
+        BfRight |
+        BfLeft |
+        BfOpenLoop |
+        BfCloseLoop |
+        BfOutput |
+        BfInput |
+        Block
+        // | BfComment
+    )*
 }
 
 Block {
@@ -108,7 +138,7 @@ Clause {
     } |
 
     LetClause {
-        Let { kw<"let"> } VariableDefinition LocationSpecifier { At Number }? (EqualOp Expression)? Semicolon
+        Let { kw<"let"> } VariableDefinition LocationSpecifier? (EqualOp Expression)? Semicolon
     } |
 
     SetClause {
@@ -136,12 +166,19 @@ Clause {
     } |
 
     OutputClause { Output { kw<"output"> } Expression Semicolon } |
-    InputClause { Input { kw<"input"> } VariableTarget Semicolon }
+    InputClause { Input { kw<"input"> } VariableTarget Semicolon } |
+
+    BrainfuckClause {
+        Bf { kw<"bf"> } LocationSpecifier? (Clobbers { kw<"clobbers"> } VariableTarget+)? Braces<EBrainfuck>
+    } |
+    AssertClause {
+        Assert { kw<"assert"> } VariableTarget ((Equals { kw<"equals"> } Constant) | Unknown { kw<"unknown"> }) Semicolon
+    }
 }
 
 PreprocessorDirective {
     IncludeDirective {
-        Include { "#include" } (IncludePath | String)
+        Include { "#include" } ( IncludePath | String )
     } 
 }
 

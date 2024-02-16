@@ -379,8 +379,8 @@ pub mod tests {
 
 	use std::io::Cursor;
 
-	pub fn run_program(program: String, input: String) -> String {
-		let mut bvm = BVM::new(program.chars().collect());
+	pub fn run_code(code: String, input: String) -> String {
+		let mut bvm = BVM::new(code.chars().collect());
 
 		let input_bytes: Vec<u8> = input.bytes().collect();
 		let mut input_stream = Cursor::new(input_bytes);
@@ -397,7 +397,7 @@ pub mod tests {
 		let program = String::from("");
 		let input = String::from("");
 		let desired_output = String::from("");
-		assert_eq!(desired_output, run_program(program, input))
+		assert_eq!(desired_output, run_code(program, input))
 	}
 
 	#[test]
@@ -405,7 +405,7 @@ pub mod tests {
 		let program = String::from("++++++++[>++++[>++>+++>+++>+<<<<-]>+>+>->>+[<]<-]>>.>---.+++++++..+++.>>.<-.<.+++.------.--------.>>+.>++.");
 		let input = String::from("");
 		let desired_output = String::from("Hello World!\n");
-		assert_eq!(desired_output, run_program(program, input))
+		assert_eq!(desired_output, run_code(program, input))
 	}
 
 	#[test]
@@ -415,7 +415,7 @@ pub mod tests {
 		);
 		let input = String::from("");
 		let desired_output = String::from("Hello, World!");
-		assert_eq!(desired_output, run_program(program, input))
+		assert_eq!(desired_output, run_code(program, input))
 	}
 
 	#[test]
@@ -423,6 +423,6 @@ pub mod tests {
 		let program = String::from("+++++[>+++++[>++>++>+++>+++>++++>++++<<<<<<-]<-]+++++[>>[>]<[+.<<]>[++.>>>]<[+.<]>[-.>>]<[-.<<<]>[.>]<[+.<]<-]++++++++++.");
 		let input = String::from("");
 		let desired_output = String::from("eL34NfeOL454KdeJ44JOdefePK55gQ67ShfTL787KegJ77JTeghfUK88iV9:XjgYL:;:KfiJ::JYfijgZK;;k[<=]lh^L=>=KgkJ==J^gklh_K>>m`?@bnicL@A@KhmJ@@JchmnidKAA\n");
-		assert_eq!(desired_output, run_program(program, input))
+		assert_eq!(desired_output, run_code(program, input))
 	}
 }

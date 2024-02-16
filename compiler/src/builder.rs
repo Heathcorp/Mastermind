@@ -22,7 +22,11 @@ pub type TapeCell = usize;
 type TapeValue = u8;
 
 impl Builder<'_> {
-	pub fn build(&self, instructions: Vec<Instruction>) -> Result<Vec<Opcode>, String> {
+	pub fn build(
+		&self,
+		instructions: Vec<Instruction>,
+		return_to_origin: bool,
+	) -> Result<Vec<Opcode>, String> {
 		let mut alloc_tape = Vec::new();
 		let mut alloc_map: HashMap<MemoryId, (TapeCell, usize, LoopDepth, Vec<Option<TapeValue>>)> =
 			HashMap::new();
@@ -68,6 +72,33 @@ impl Builder<'_> {
 					let None = old else {
 						r_panic!("Attempted to reallocate memory {memory:#?}");
 					};
+				}
+				Instruction::AssertCellValue(cell_obj, imm) => {
+					let Some((_cell_base, size, alloc_loop_depth, known_values)) =
+						alloc_map.get_mut(&cell_obj.memory_id)
+					else {
+						r_panic!(
+							"Attempted to assert value of cell {cell_obj:#?} \
+which could not be found"
+						);
+					};
+
+					let mem_idx = cell_obj.index.unwrap_or(0);
+					r_assert!(
+						mem_idx < *size,
+						"Attempted to access memory outside of allocation"
+					);
+					let known_value = &mut known_values[mem_idx];
+
+					// allow the user to assert that we don't know the value of the cell by clobbering when we do inline brainfuck
+					if *alloc_loop_depth == current_loop_depth || imm.is_none() {
+						*known_value = imm;
+					} else {
+						r_panic!(
+							"Cannot assert cell {cell_obj:#?} value \
+outside of loop it was allocated"
+						);
+					}
 				}
 				Instruction::Free(id) => {
 					// TODO: do I need to check alloc loop depth here? Or are cells never freed in an inner scope?
@@ -282,7 +313,36 @@ impl Builder<'_> {
 					ops.move_to_cell(&mut head_pos, cell);
 					ops.push(Opcode::Output);
 				}
+				Instruction::InsertBrainfuckAtCell(operations, location_specifier) => {
+					ops.move_to_cell(
+						&mut head_pos,
+						location_specifier.unwrap_or({
+							// default position to run brainfuck in?
+							// not sure what is best here, probably the last cell in the allocation tape
+							let mut first_unallocated = None;
+							for i in 0..alloc_tape.len() {
+								match (first_unallocated, &alloc_tape[i]) {
+									(None, false) => {
+										first_unallocated = Some(i);
+									}
+									(Some(_), true) => {
+										first_unallocated = None;
+									}
+									_ => (),
+								}
+							}
+
+							first_unallocated.unwrap_or(alloc_tape.len())
+						}),
+					);
+					ops.extend(operations);
+				}
 			}
+		}
+
+		// this is used in embedded brainfuck contexts to preserve head position
+		if return_to_origin {
+			ops.move_to_cell(&mut head_pos, 0);
 		}
 
 		Ok(ops)
@@ -352,7 +412,7 @@ large enough (this should never occur): {self:#?}",
 	}
 }
 
-#[derive(Clone, Copy)]
+#[derive(Clone, Copy, Debug)]
 pub enum Opcode {
 	Add,
 	Subtract,

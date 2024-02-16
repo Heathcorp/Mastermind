@@ -101,10 +101,12 @@ fn main() -> Result<(), String> {
 			// 	second stage actually writes out the low-level instructions into brainfuck
 
 			let compiler = Compiler { config: &config };
-			let instructions = compiler.compile(&clauses, None)?.get_instructions();
+			let instructions = compiler
+				.compile(&clauses, None)?
+				.finalise_instructions(false);
 
 			let builder = Builder { config: &config };
-			let bf_program = builder.build(instructions)?;
+			let bf_program = builder.build(instructions, false)?;
 
 			match config.optimise_generated_code {
 				true => optimise(bf_program).to_string(),

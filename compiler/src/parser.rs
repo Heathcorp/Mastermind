@@ -24,7 +24,7 @@ pub fn parse(tokens: &[Token]) -> Result<Vec<Clause>, String> {
 			(Token::Plus, Token::Plus, _) | (Token::Minus, Token::Minus, _) => {
 				clauses.push(parse_increment_clause(clause)?);
 			}
-			(Token::Name(_), Token::Equals, _) => {
+			(Token::Name(_), Token::EqualsSign, _) => {
 				clauses.extend(parse_set_clause(clause)?);
 			}
 			(Token::Drain, _, _) => {
@@ -48,7 +48,7 @@ pub fn parse(tokens: &[Token]) -> Result<Vec<Clause>, String> {
 			(Token::Def, _, _) => {
 				clauses.push(parse_function_definition_clause(clause)?);
 			}
-			(Token::Name(_), Token::Plus | Token::Minus, Token::Equals) => {
+			(Token::Name(_), Token::Plus | Token::Minus, Token::EqualsSign) => {
 				clauses.extend(parse_add_clause(clause)?);
 			}
 			(Token::If, _, _) => {
@@ -59,10 +59,10 @@ pub fn parse(tokens: &[Token]) -> Result<Vec<Clause>, String> {
 				let (_, len) = parse_var_target(clause)?;
 				let remaining = &clause[len..];
 				match (&remaining[0], &remaining[1]) {
-					(Token::Equals, _) => {
+					(Token::EqualsSign, _) => {
 						clauses.extend(parse_set_clause(clause)?);
 					}
-					(Token::Plus | Token::Minus, Token::Equals) => {
+					(Token::Plus | Token::Minus, Token::EqualsSign) => {
 						clauses.extend(parse_add_clause(clause)?);
 					}
 					_ => r_panic!("Invalid clause: {clause:#?}"),
@@ -73,6 +73,10 @@ pub fn parse(tokens: &[Token]) -> Result<Vec<Clause>, String> {
 				let inner_clauses = parse(braced_tokens)?;
 				clauses.push(Clause::Block(inner_clauses));
 			}
+			(Token::Bf, _, _) => {
+				clauses.push(parse_brainfuck_clause(clause)?);
+			}
+			(Token::Assert, _, _) => clauses.push(parse_assert_clause(clause)?),
 			// empty clause
 			(Token::Semicolon, _, _) => (),
 			// the None token usually represents whitespace, it should be filtered out before reaching this function
@@ -98,8 +102,12 @@ pub fn parse(tokens: &[Token]) -> Result<Vec<Clause>, String> {
 				| Token::Character(_)
 				| Token::True
 				| Token::False
-				| Token::Equals
+				| Token::EqualsSign
 				| Token::Asterisk
+				| Token::Clobbers
+				| Token::Equals
+				| Token::Unknown
+				| Token::Dot
 				| Token::At,
 				_,
 				_,
@@ -127,27 +135,16 @@ fn parse_let_clause(clause: &[Token]) -> Result<Clause, String> {
 	let mut mem_spec = None;
 	if let Token::At = &clause[i] {
 		i += 1;
-		// let positive = match &clause[i] {
-		// 	Token::Minus => {
-		// 		i += 1;
-		// 		false
-		// 	}
-		// 	_ => true,
-		// };
 		let Token::Digits(num_str) = &clause[i] else {
 			r_panic!("Expected constant number in memory location specifier: {clause:#?}");
 		};
 		i += 1;
 		// TODO: error handling
 		let offset: usize = num_str.parse().unwrap();
-		// mem_spec = Some(match positive {
-		// 	true => offset as i32,
-		// 	false => -(offset as i32),
-		// })
 		mem_spec = Some(offset);
 	}
 
-	if let Token::Equals = &clause[i] {
+	if let Token::EqualsSign = &clause[i] {
 		i += 1;
 		let remaining = &clause[i..(clause.len() - 1)];
 		let expr = Expression::parse(remaining)?;
@@ -224,7 +221,7 @@ fn parse_set_clause(clause: &[Token]) -> Result<Vec<Clause>, String> {
 	i += len;
 
 	// definitely could use iterators instead (TODO for refactor)
-	let Token::Equals = &clause[i] else {
+	let Token::EqualsSign = &clause[i] else {
 		r_panic!("Expected equals sign in set clause: {clause:#?}");
 	};
 	i += 1;
@@ -400,6 +397,112 @@ fn parse_input_clause(clause: &[Token]) -> Result<Clause, String> {
 	};
 
 	Ok(Clause::InputVariable { var })
+}
+
+fn parse_assert_clause(clause: &[Token]) -> Result<Clause, String> {
+	let mut i = 1usize;
+
+	let (var, len) = parse_var_target(&clause[i..])?;
+	i += len;
+
+	if let Token::Unknown = &clause[i] {
+		Ok(Clause::AssertVariableValue { var, value: None })
+	} else {
+		let Token::Equals = &clause[i] else {
+			r_panic!("Expected assertion value in assert clause: {clause:#?}");
+		};
+		i += 1;
+
+		let Token::Semicolon = &clause[clause.len() - 1] else {
+			r_panic!("Invalid token at end of assert clause: {clause:#?}");
+		};
+
+		let remaining = &clause[i..(clause.len() - 1)];
+		let expr = Expression::parse(remaining)?;
+
+		Ok(Clause::AssertVariableValue {
+			var,
+			value: Some(expr),
+		})
+	}
+}
+
+fn parse_brainfuck_clause(clause: &[Token]) -> Result<Clause, String> {
+	// bf {++--<><}
+	// bf @3 {++--<><}
+	// bf clobbers var1 var2 {++--<><}
+	// bf @2 clobbers *arr {++--<><}
+
+	let mut clobbers = Vec::new();
+	let mut i = 1usize;
+
+	// check for location specifier
+	let mut mem_offset = None;
+	if let Token::At = &clause[i] {
+		i += 1;
+		let Token::Digits(raw) = &clause[i] else {
+			r_panic!("Expected constant number in memory location specifier: {clause:#?}");
+		};
+		i += 1;
+
+		// TODO: error handling
+		let offset: usize = raw.parse().unwrap();
+		mem_offset = Some(offset);
+	}
+
+	if let Token::Clobbers = &clause[i] {
+		i += 1;
+
+		loop {
+			match &clause[i] {
+				Token::Name(_) | Token::Asterisk => {
+					let (var, len) = parse_var_target(&clause[i..])?;
+					i += len;
+					clobbers.push(var);
+				}
+				Token::OpenBrace => {
+					break;
+				}
+				_ => {
+					r_panic!("Unexpected token in drain clause: {clause:#?}");
+				}
+			}
+		}
+	}
+
+	let bf_tokens = get_braced_tokens(&clause[i..], BRACES)?;
+	let mut ops = Vec::new();
+	let mut j = 0;
+	while j < bf_tokens.len() {
+		// TODO: support embedded mastermind in the embedded brainfuck
+		// TODO: combine [-] into clear opcodes
+		match &bf_tokens[j] {
+			Token::Plus => ops.push(ExtendedOpcode::Add),
+			Token::Minus => ops.push(ExtendedOpcode::Subtract),
+			Token::ClosingAngledBracket => ops.push(ExtendedOpcode::Right),
+			Token::OpenAngledBracket => ops.push(ExtendedOpcode::Left),
+			Token::OpenSquareBracket => ops.push(ExtendedOpcode::OpenLoop),
+			Token::ClosingSquareBracket => ops.push(ExtendedOpcode::CloseLoop),
+			Token::Dot => ops.push(ExtendedOpcode::Output),
+			Token::Comma => ops.push(ExtendedOpcode::Input),
+			Token::OpenBrace => {
+				// embedded mastermind
+				let block_tokens = get_braced_tokens(&bf_tokens[j..], BRACES)?;
+				let clauses = parse(block_tokens)?;
+				ops.push(ExtendedOpcode::Block(clauses));
+				j += block_tokens.len() + 1;
+			}
+			// not sure whether to panic here or do nothing
+			_ => (),
+		}
+		j += 1;
+	}
+
+	Ok(Clause::InlineBrainfuck {
+		location_specifier: mem_offset,
+		clobbered_variables: clobbers,
+		operations: ops,
+	})
 }
 
 fn parse_function_definition_clause(clause: &[Token]) -> Result<Clause, String> {
@@ -904,6 +1007,12 @@ pub enum Clause {
 		var: VariableTarget,
 		value: Expression,
 	},
+	AssertVariableValue {
+		var: VariableTarget,
+		// Some(constant) indicates we know the value, None indicates we don't know the value
+		// typically will either be used for assert unknown or assert 0
+		value: Option<Expression>,
+	},
 	CopyLoop {
 		source: Expression,
 		targets: Vec<VariableTarget>,
@@ -934,6 +1043,26 @@ pub enum Clause {
 		if_block: Option<Vec<Clause>>,
 		else_block: Option<Vec<Clause>>,
 	},
+	Block(Vec<Clause>),
+	InlineBrainfuck {
+		location_specifier: Option<TapeCell>,
+		clobbered_variables: Vec<VariableTarget>,
+		// TODO: make this support embedded mastermind
+		operations: Vec<ExtendedOpcode>,
+	},
+}
+
+// extended brainfuck opcodes to include mastermind code blocks
+#[derive(Debug, Clone)]
+pub enum ExtendedOpcode {
+	Add,
+	Subtract,
+	Right,
+	Left,
+	OpenLoop,
+	CloseLoop,
+	Output,
+	Input,
 	Block(Vec<Clause>),
 }
 
