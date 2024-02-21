@@ -11,8 +11,14 @@ import { useAppContext } from "../App";
 import { makePersisted } from "@solid-primitives/storage";
 import { AiFillGithub, AiOutlineStop } from "solid-icons/ai";
 import { FiCopy } from "solid-icons/fi";
+import { IoHelpCircle } from "solid-icons/io";
 
 import "./settings.css";
+import { Portal } from "solid-js/web";
+import { SolidMarkdown } from "solid-markdown";
+import readmeContent from "../../README.md?raw";
+import { IoClose } from "solid-icons/io";
+import remarkGfm from "remark-gfm";
 const SettingsPanel: Component<{ style?: JSX.CSSProperties }> = (props) => {
   const app = useAppContext()!;
 
@@ -28,6 +34,8 @@ const SettingsPanel: Component<{ style?: JSX.CSSProperties }> = (props) => {
     }),
     { name: "mastermind_compiler_optimisations" }
   );
+
+  const [helpOpen, setHelpOpen] = createSignal(false);
 
   createEffect(() => {
     const fileStates = app.fileStates;
@@ -235,6 +243,42 @@ const SettingsPanel: Component<{ style?: JSX.CSSProperties }> = (props) => {
           target="_blank"
         >
           <AiFillGithub />
+        </a>
+        <a
+          class="socials-icon text-button"
+          style={{ "font-size": "2.25rem" }}
+          target="_blank"
+          onClick={() => setHelpOpen(true)}
+        >
+          <IoHelpCircle />
+
+          <Show when={helpOpen()}>
+            {/* The weirdest solid js feature, puts the component into the top level html body */}
+            <Portal>
+              <div
+                class="readme-modal-container"
+                onClick={() => setHelpOpen(false)}
+              >
+                <div class="readme-modal" onClick={(e) => e.stopPropagation()}>
+                  <div class="markdown-container">
+                    <SolidMarkdown remarkPlugins={[remarkGfm]}>
+                      {readmeContent}
+                    </SolidMarkdown>
+                  </div>
+                  <IoClose
+                    class="text-button"
+                    style={{
+                      "font-size": "1.5rem",
+                      position: "absolute",
+                      right: "1rem",
+                      top: "1rem",
+                    }}
+                    onClick={() => setHelpOpen(false)}
+                  />
+                </div>
+              </div>
+            </Portal>
+          </Show>
         </a>
       </div>
     </div>

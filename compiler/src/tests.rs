@@ -969,7 +969,6 @@ bf {
 	,----------[
 		++++++++++
 		{
-			// TODO: assert unknown and assert equals
 			let chr @0;
 			assert chr unknown;
 			output chr;
