@@ -82,3 +82,28 @@ a:active.socials-icon {
   background-color: var(--DANGER-TRANSPARENT);
   border: 1px solid var(--DANGER);
 }
+
+.readme-modal-container {
+  position: absolute;
+  top: 0px;
+  left: 0px;
+  bottom: 0px;
+  right: 0px;
+  background-color: rgba(0, 0, 0, 0.3);
+
+  padding: 2rem;
+  overflow: scroll;
+
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+}
+
+.readme-modal {
+  position: relative;
+  max-width: 800px;
+
+  padding: 2rem;
+  background-color: var(--BG-0);
+  border: 1px solid var(--BORDER-0);
+}

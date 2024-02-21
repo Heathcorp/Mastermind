@@ -19,7 +19,6 @@ pub fn tokenise(source: &String) -> Result<Vec<Token>, String> {
 		// ("#debug", Token::Debug),
 		("let", Token::Let),
 		("=", Token::EqualsSign),
-		// ("assert", Token::Assert),
 		("while", Token::While),
 		("drain", Token::Drain),
 		("into", Token::Into),
