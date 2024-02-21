@@ -256,7 +256,7 @@ bf @0 {
    >>
    // read input (until eof) to the tape, nullifying any spaces or newlines
    // (this is probably not a good practical example, ideas are appreciated)
-   .[
+   ,[
       {
          let c @0;
          assert c unknown; // needed otherwise the compiler assumes c = 0
@@ -268,7 +268,7 @@ bf @0 {
             c = 0;
          }
       }
-      >.
+      >,
    ]
 }
 ```

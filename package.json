@@ -20,7 +20,7 @@
     "@thisbeyond/solid-dnd": "^0.7.5",
     "@uiw/codemirror-theme-tokyo-night": "^4.21.21",
     "codemirror": "^6.0.1",
-    "remark-gfm": "^4.0.0",
+    "remark-gfm": "3.0.1",
     "solid-icons": "^1.1.0",
     "solid-js": "^1.8.5",
     "solid-markdown": "^2.0.0",
