@@ -37,7 +37,8 @@ var += [4, 5, 7][1] + 3;
 ```
 
 ##### Note: Array indices must be compile-time constant integers
-This is a limitation of Brainfuck, getting around this problem requires more runtime code than I want to include for the sake of optimisations. If you want to implement runtime array index access, read the section on [in-line Brainfuck](#in-line-brainfuck-features).
+This is a limitation of Brainfuck, getting around this problem requires more runtime code than I want to include for the sake of optimisations. If you want to implement runtime array index access, read the section on in-line Brainfuck.
+<!-- [in-line Brainfuck](#in-line-brainfuck-features). TODO: fix this broken link -->
 
 ### Input & Output
 
@@ -187,7 +188,12 @@ Imports work much like the C preprocessor:
 ```
 This copies the contents of "other_file" into the current file.
 
-### In-line Brainfuck features
+<!-- can't seem to get this link to work on my site :( -->
+<!-- <section id="in-line-brainfuck-features"> -->
+
+### In-line Brainfuck features 
+<!-- </section> -->
+
 In-line Brainfuck allows the programmer to define custom behaviour as if they were writing raw Brainfuck, much in the same way as C has in-line assembly syntax.
 
 ```
