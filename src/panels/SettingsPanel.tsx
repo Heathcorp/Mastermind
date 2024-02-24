@@ -35,8 +35,6 @@ const SettingsPanel: Component<{ style?: JSX.CSSProperties }> = (props) => {
     { name: "mastermind_compiler_optimisations" }
   );
 
-  const [helpOpen, setHelpOpen] = createSignal(false);
-
   createEffect(() => {
     const fileStates = app.fileStates;
     const entryFile = app.entryFile();
@@ -242,22 +240,22 @@ const SettingsPanel: Component<{ style?: JSX.CSSProperties }> = (props) => {
           href="https://github.com/Heathcorp/Mastermind"
           target="_blank"
         >
-          <AiFillGithub />
+          <AiFillGithub title="Git repository" />
         </a>
         <a
           class="socials-icon text-button"
           style={{ "font-size": "2.25rem" }}
           target="_blank"
-          onClick={() => setHelpOpen(true)}
+          onClick={() => app.setHelpOpen(true)}
         >
-          <IoHelpCircle />
+          <IoHelpCircle title="help" />
 
-          <Show when={helpOpen()}>
+          <Show when={app.helpOpen()}>
             {/* The weirdest solid js feature, puts the component into the top level html body */}
             <Portal>
               <div
                 class="readme-modal-container"
-                onClick={() => setHelpOpen(false)}
+                onClick={() => app.setHelpOpen(false)}
               >
                 <div class="readme-modal" onClick={(e) => e.stopPropagation()}>
                   <div class="markdown-container">
@@ -266,6 +264,7 @@ const SettingsPanel: Component<{ style?: JSX.CSSProperties }> = (props) => {
                     </SolidMarkdown>
                   </div>
                   <IoClose
+                    title="close help"
                     class="text-button"
                     style={{
                       "font-size": "1.5rem",
@@ -273,7 +272,7 @@ const SettingsPanel: Component<{ style?: JSX.CSSProperties }> = (props) => {
                       right: "1rem",
                       top: "1rem",
                     }}
-                    onClick={() => setHelpOpen(false)}
+                    onClick={() => app.setHelpOpen(false)}
                   />
                 </div>
               </div>

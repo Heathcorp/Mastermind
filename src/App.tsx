@@ -40,6 +40,7 @@ const App: Component = () => {
   const [version, setVersion] = makePersisted(createSignal<number>(), {
     name: "mastermind_version",
   });
+  const [helpOpen, setHelpOpen] = createSignal(false);
   createEffect(
     on([version], () => {
       const v = version();
@@ -51,6 +52,7 @@ const App: Component = () => {
         }
         loadExampleFiles();
         setVersion(MIGRATION_VERSION);
+        setHelpOpen(true);
       }
     })
   );
@@ -407,6 +409,8 @@ const App: Component = () => {
         input,
         setInput,
         restartWorker,
+        helpOpen,
+        setHelpOpen,
       }}
     >
       <div id="window">
@@ -467,6 +471,9 @@ interface AppContextProps {
   status: Accessor<"COMPILING" | "RUNNING" | "INPUT_BLOCKED" | "IDLE">;
 
   restartWorker: () => void;
+
+  helpOpen: Accessor<boolean>;
+  setHelpOpen: Setter<boolean>;
 }
 
 interface FileState {
