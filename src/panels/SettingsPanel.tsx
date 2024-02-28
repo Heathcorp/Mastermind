@@ -106,7 +106,7 @@ const SettingsPanel: Component<{ style?: JSX.CSSProperties }> = (props) => {
                   }}
                   style={{ padding: "0.5rem" }}
                   onClick={
-                    !app.busy() && app.output()?.type !== "BF"
+                    !app.busy() && app.output()?.type === "BF"
                       ? onRun
                       : undefined
                   }
