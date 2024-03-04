@@ -7,6 +7,7 @@ mod brainfuck;
 mod brainfuck_optimiser;
 mod builder;
 mod compiler;
+mod constants_optimiser;
 mod misc;
 mod parser;
 mod preprocessor;

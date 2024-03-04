@@ -9,6 +9,7 @@ use std::{collections::HashMap, num::Wrapping};
 
 use crate::{
 	compiler::{Instruction, MemoryId},
+	constants_optimiser::calculate_optimal_addition,
 	macros::macros::{r_assert, r_panic},
 	MastermindConfig,
 };
@@ -203,17 +204,25 @@ outside of loop it was allocated"
 					let cell = *cell_base + mem_idx;
 					let known_value = &mut known_values[mem_idx];
 
-					ops.move_to_cell(&mut head_pos, cell);
+					// TODO: fix bug, if only one multiplication then we can have a value already in the cell, but never otherwise
 
-					let i_imm = imm as i8;
-					if i_imm > 0 {
-						for _ in 0..i_imm {
-							ops.push(Opcode::Add);
-						}
-					} else if i_imm < 0 {
-						for _ in 0..-i_imm {
-							ops.push(Opcode::Subtract);
-						}
+					// not sure if these optimisations should be in the builder step or in the compiler
+					if self.config.optimise_constants {
+						// ops.move_to_cell(&mut head_pos, cell);
+						// TODO: algorithm that finds the best combo of products and constants to make the number to minimise bf code
+						// first we get the closest allocated cell so we can calculate the distance cost of multiplying
+						// TODO: instead find the nearest zero cell, doesn't matter if allocated or not
+						let temp_cell = alloc_tape.allocate_cell_near(cell);
+
+						// TODO: fix this head pos stuff, make a custom struct for this function to borrow here instead
+						let optimised_ops =
+							calculate_optimal_addition(imm as i8, &mut head_pos, cell, temp_cell);
+						ops.extend(optimised_ops);
+
+						alloc_tape.free(temp_cell, 1)?;
+					} else {
+						ops.move_to_cell(&mut head_pos, cell);
+						ops.add_to_current_cell(imm as i8);
 					}
 
 					if imm != 0 {
@@ -351,6 +360,7 @@ outside of loop it was allocated"
 
 trait AllocationArray {
 	fn allocate(&mut self, location: Option<TapeCell>, size: usize) -> Result<TapeCell, String>;
+	fn allocate_cell_near(&mut self, location: TapeCell) -> TapeCell;
 	fn free(&mut self, cell: TapeCell, size: usize) -> Result<(), String>;
 }
 
@@ -386,6 +396,44 @@ impl AllocationArray for Vec<bool> {
 		}
 
 		Ok(region_start)
+	}
+
+	// allocate but start looking close to the given cell, used for optimising constants as you need an extra cell to multiply
+	// again not sure if this stuff should be in the builder step or the compiler step ? This seems the simplest for now
+	// but I'm wary that complex systems often evolve from simple ones, and any optimisations introduce complexity
+	fn allocate_cell_near(&mut self, location: TapeCell) -> TapeCell {
+		// this will allocate the given cell if unallocated so beware
+		if !self[location] {
+			self[location] = true;
+			return location;
+		}
+
+		// alternate left then right, getting further and further out
+		// there is surely a nice one liner rusty iterator way of doing it but somehow this is clearer until I learn that
+		let mut left_iter = (0..location).rev();
+		let mut right_iter = (location + 1)..;
+		loop {
+			if let Some(i) = left_iter.next() {
+				if !self[i] {
+					// unallocated cell, allocate it and return
+					self[i] = true;
+					return i;
+				}
+			}
+
+			if let Some(i) = right_iter.next() {
+				if i < self.len() {
+					if !self[i] {
+						// unallocated cell, allocate it and return
+						self[i] = true;
+						return i;
+					}
+				} else {
+					self.push(true);
+					return i;
+				}
+			}
+		}
 	}
 
 	fn free(&mut self, cell: TapeCell, size: usize) -> Result<(), String> {
@@ -427,6 +475,7 @@ pub enum Opcode {
 
 pub trait BrainfuckProgram {
 	fn move_to_cell(&mut self, head_pos: &mut usize, cell: usize);
+	fn add_to_current_cell(&mut self, imm: i8);
 	fn from_str(s: &str) -> Self;
 	fn to_string(self) -> String;
 }
@@ -489,5 +538,17 @@ impl BrainfuckProgram for Vec<Opcode> {
 			})
 		});
 		s
+	}
+
+	fn add_to_current_cell(&mut self, imm: i8) {
+		if imm > 0 {
+			for _ in 0..imm {
+				self.push(Opcode::Add);
+			}
+		} else if imm < 0 {
+			for _ in 0..-imm {
+				self.push(Opcode::Subtract);
+			}
+		}
 	}
 }

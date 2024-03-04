@@ -11,6 +11,8 @@ pub struct MastermindConfig {
 	// TODO: optimise memory layout to minimise tape head movement
 	// recommended to turn on these next two together
 	pub optimise_memory_allocation: bool,
+	// golf constants, useful for single characters or large numbers
+	// probably not great with strings yet, may need another optimisation for that
 	pub optimise_constants: bool,
 	// TODO: recursively prune if statements/loops if they do nothing
 	pub optimise_empty_blocks: bool,

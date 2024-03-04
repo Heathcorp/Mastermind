@@ -7,6 +7,7 @@ mod brainfuck; // 6. Run
 mod brainfuck_optimiser; // 5. Post-Optimise
 mod builder; // 4. Build (and pre-optimise)
 mod compiler; // 3. Compile
+mod constants_optimiser; // a component of 4
 mod parser; // 2. Parse
 mod preprocessor; // 0. Preprocess includes and macro-type stuff
 mod tokeniser; // 1. Tokenise
