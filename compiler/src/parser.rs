@@ -519,7 +519,11 @@ fn parse_function_definition_clause(clause: &[Token]) -> Result<Clause, String> 
 	let arg_tokens = get_braced_tokens(&clause[i..], ANGLED_BRACKETS)?;
 	let mut j = 0usize;
 	// parse function argument names
-	while let Token::Name(_) = &arg_tokens[j] {
+	while j < arg_tokens.len() {
+		// this used to be in the while condition but moved it here to check for the case of no arguments
+		let Token::Name(_) = &arg_tokens[j] else {
+			break;
+		};
 		let (var, len) = parse_var_definition(&arg_tokens[j..])?;
 		j += len;
 
@@ -566,7 +570,11 @@ fn parse_function_call_clause(clause: &[Token]) -> Result<Clause, String> {
 	let arg_tokens = get_braced_tokens(&clause[i..], ANGLED_BRACKETS)?;
 
 	let mut j = 0usize;
-	while let Token::Name(_) = &arg_tokens[j] {
+	while j < arg_tokens.len() {
+		// this used to be in the while condition but moved it here to check for the case of no arguments
+		let Token::Name(_) = &arg_tokens[j] else {
+			break;
+		};
 		let (var, len) = parse_var_target(&arg_tokens[j..])?;
 		j += len;
 

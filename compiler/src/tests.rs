@@ -654,6 +654,25 @@ def func_2<think[4], green> {
 	}
 
 	#[test]
+	fn functions_4() {
+		let program = String::from(
+			r#"
+def hello<> {
+	output "hello";
+}
+
+hello<>;
+output 10;
+		"#,
+		);
+		let input = String::from("");
+		let desired_output = String::from("hello\n");
+		let output = compile_and_run(program, input).expect("");
+		println!("{output}");
+		assert_eq!(desired_output, output)
+	}
+
+	#[test]
 	fn input_1() {
 		let program = String::from(
 			"
