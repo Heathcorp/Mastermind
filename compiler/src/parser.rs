@@ -247,7 +247,7 @@ fn parse_drain_copy_clause(clause: &[Token], is_draining: bool) -> Result<Clause
 
 	i += 1;
 	while let Some(token) = clause.get(i) {
-		if let Token::Into | Token::OpenBrace = token {
+		if let Token::Into | Token::OpenBrace | Token::Semicolon = token {
 			break;
 		}
 		i += 1;

@@ -354,6 +354,19 @@ drain g into a {output a;}
 	}
 
 	#[test]
+	fn loops_2() {
+		let program = String::from(
+			"
+drain 40 {};
+output 'h';
+      ",
+		);
+		let input = String::from("");
+		let desired_output = String::from("h");
+		assert_eq!(desired_output, compile_and_run(program, input).expect(""))
+	}
+
+	#[test]
 	fn ifs_1() {
 		let program = String::from(
 			"
