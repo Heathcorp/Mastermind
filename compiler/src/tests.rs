@@ -354,7 +354,7 @@ drain g into a {output a;}
 	}
 
 	#[test]
-	fn loops_2() {
+	fn loops_3() {
 		let program = String::from(
 			"
 drain 40 {};
