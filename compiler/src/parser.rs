@@ -130,19 +130,8 @@ fn parse_let_clause(clause: &[Token]) -> Result<Clause, String> {
 	let (var, len) = parse_var_definition(&clause[i..])?;
 	i += len;
 
-	// parse any memory location specifiers
-	// let g @4 = 68;
-	let mut mem_spec = None;
-	if let Token::At = &clause[i] {
-		i += 1;
-		let Token::Digits(num_str) = &clause[i] else {
-			r_panic!("Expected constant number in memory location specifier: {clause:#?}");
-		};
-		i += 1;
-		// TODO: error handling
-		let offset: usize = num_str.parse().unwrap();
-		mem_spec = Some(offset);
-	}
+	let (location_specifier, len) = parse_location_specifier(&clause[i..])?;
+	i += len;
 
 	if let Token::EqualsSign = &clause[i] {
 		i += 1;
@@ -152,7 +141,7 @@ fn parse_let_clause(clause: &[Token]) -> Result<Clause, String> {
 		// except we need to convert a variable definition to a variable target
 		Ok(Clause::DefineVariable {
 			var,
-			location_specifier: mem_spec,
+			location_specifier,
 			value: expr,
 		})
 	} else if i < (clause.len() - 1) {
@@ -160,7 +149,7 @@ fn parse_let_clause(clause: &[Token]) -> Result<Clause, String> {
 	} else {
 		Ok(Clause::DeclareVariable {
 			var,
-			location_specifier: mem_spec,
+			location_specifier,
 		})
 	}
 }
@@ -247,7 +236,7 @@ fn parse_drain_copy_clause(clause: &[Token], is_draining: bool) -> Result<Clause
 
 	i += 1;
 	while let Some(token) = clause.get(i) {
-		if let Token::Into | Token::OpenBrace = token {
+		if let Token::Into | Token::OpenBrace | Token::Semicolon = token {
 			break;
 		}
 		i += 1;
@@ -427,6 +416,34 @@ fn parse_assert_clause(clause: &[Token]) -> Result<Clause, String> {
 	}
 }
 
+// parse any memory location specifiers
+// let g @4 = 68;
+fn parse_location_specifier(tokens: &[Token]) -> Result<(Option<i32>, usize), String> {
+	if let Token::At = &tokens[0] {
+		let mut i = 1;
+		let positive = if let Token::Minus = &tokens[i] {
+			i += 1;
+			false
+		} else {
+			true
+		};
+
+		let Token::Digits(raw) = &tokens[i] else {
+			r_panic!("Expected constant number in memory location specifier: {tokens:#?}");
+		};
+		i += 1;
+
+		// TODO: error handling
+		let mut offset: i32 = raw.parse().unwrap();
+		if !positive {
+			offset = -offset;
+		}
+		Ok((Some(offset), i))
+	} else {
+		Ok((None, 0))
+	}
+}
+
 fn parse_brainfuck_clause(clause: &[Token]) -> Result<Clause, String> {
 	// bf {++--<><}
 	// bf @3 {++--<><}
@@ -437,18 +454,8 @@ fn parse_brainfuck_clause(clause: &[Token]) -> Result<Clause, String> {
 	let mut i = 1usize;
 
 	// check for location specifier
-	let mut mem_offset = None;
-	if let Token::At = &clause[i] {
-		i += 1;
-		let Token::Digits(raw) = &clause[i] else {
-			r_panic!("Expected constant number in memory location specifier: {clause:#?}");
-		};
-		i += 1;
-
-		// TODO: error handling
-		let offset: usize = raw.parse().unwrap();
-		mem_offset = Some(offset);
-	}
+	let (mem_offset, len) = parse_location_specifier(&clause[i..])?;
+	i += len;
 
 	if let Token::Clobbers = &clause[i] {
 		i += 1;
@@ -519,7 +526,11 @@ fn parse_function_definition_clause(clause: &[Token]) -> Result<Clause, String> 
 	let arg_tokens = get_braced_tokens(&clause[i..], ANGLED_BRACKETS)?;
 	let mut j = 0usize;
 	// parse function argument names
-	while let Token::Name(_) = &arg_tokens[j] {
+	while j < arg_tokens.len() {
+		// this used to be in the while condition but moved it here to check for the case of no arguments
+		let Token::Name(_) = &arg_tokens[j] else {
+			break;
+		};
 		let (var, len) = parse_var_definition(&arg_tokens[j..])?;
 		j += len;
 
@@ -566,7 +577,11 @@ fn parse_function_call_clause(clause: &[Token]) -> Result<Clause, String> {
 	let arg_tokens = get_braced_tokens(&clause[i..], ANGLED_BRACKETS)?;
 
 	let mut j = 0usize;
-	while let Token::Name(_) = &arg_tokens[j] {
+	while j < arg_tokens.len() {
+		// this used to be in the while condition but moved it here to check for the case of no arguments
+		let Token::Name(_) = &arg_tokens[j] else {
+			break;
+		};
 		let (var, len) = parse_var_target(&arg_tokens[j..])?;
 		j += len;
 

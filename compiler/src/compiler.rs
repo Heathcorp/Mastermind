@@ -1049,7 +1049,6 @@ pub enum Instruction {
 	ClearCell(Cell), // not sure if this should be here, seems common enough that it should be
 	AssertCellValue(Cell, Option<u8>), // allows the user to hand-tune optimisations further
 	OutputCell(Cell),
-	// circular dependency here, TODO: should make an EBrainfuck OPcode object or similar for embedded mastermind
 	InsertBrainfuckAtCell(Vec<Opcode>, Option<TapeCell>),
 }
 

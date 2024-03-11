@@ -5,7 +5,7 @@
 pub mod tests {
 	use crate::{
 		brainfuck::tests::run_code,
-		builder::{BrainfuckProgram, Builder, Opcode},
+		builder::{BrainfuckOpcodes, Builder, Opcode},
 		compiler::Compiler,
 		parser::parse,
 		tokeniser::{tokenise, Token},
@@ -129,7 +129,7 @@ output ten;
 		);
 		let input = String::from("");
 		let desired_output = String::from("hello\n");
-		assert_eq!(desired_output, compile_and_run(program, input).expect(""))
+		assert_eq!(desired_output, compile_and_run(program, input).expect(""));
 	}
 
 	#[test]
@@ -354,6 +354,19 @@ drain g into a {output a;}
 	}
 
 	#[test]
+	fn loops_3() {
+		let program = String::from(
+			"
+drain 40;
+output 'h';
+      ",
+		);
+		let input = String::from("");
+		let desired_output = String::from("h");
+		assert_eq!(desired_output, compile_and_run(program, input).expect(""))
+	}
+
+	#[test]
 	fn ifs_1() {
 		let program = String::from(
 			"
@@ -531,7 +544,7 @@ output 10;
 	}
 
 	#[test]
-	fn functions_2() {
+	fn functions_2() -> Result<(), String> {
 		let program = String::from(
 			"
 let global_var = '0';
@@ -550,7 +563,6 @@ def func_0<grape> {
 	output n;
 
 	grape += 1;
-	n = 0;
 };
 
 output global_var;
@@ -562,9 +574,13 @@ output 10;
 		);
 		let input = String::from("");
 		let desired_output = String::from("01231\n");
-		let output = compile_and_run(program, input).expect("");
+		let code = compile_program(program, Some(&OPT_NONE))?.to_string();
+		println!("{}", code);
+		let output = run_code(code, input);
 		println!("{output}");
-		assert_eq!(desired_output, output)
+		assert_eq!(desired_output, output);
+
+		Ok(())
 	}
 
 	#[test]
@@ -632,6 +648,25 @@ def func_2<think[4], green> {
 		);
 		let input = String::from("");
 		let desired_output = String::from("01202726631\n@1202726631\n");
+		let output = compile_and_run(program, input).expect("");
+		println!("{output}");
+		assert_eq!(desired_output, output)
+	}
+
+	#[test]
+	fn functions_4() {
+		let program = String::from(
+			r#"
+def hello<> {
+	output "hello";
+}
+
+hello<>;
+output 10;
+		"#,
+		);
+		let input = String::from("");
+		let desired_output = String::from("hello\n");
 		let output = compile_and_run(program, input).expect("");
 		println!("{output}");
 		assert_eq!(desired_output, output)
@@ -1064,6 +1099,46 @@ bf {
 		println!("{code}");
 
 		assert_eq!(code, ",>,>,<<>>>>>+[-]<<<<<");
+		Ok(())
+	}
+
+	#[test]
+	fn constant_optimisations_1() -> Result<(), String> {
+		let program = String::from(
+			"
+output 'h';
+      ",
+		);
+		let input = String::from("");
+		let desired_output = String::from("h");
+
+		let code = compile_program(program, Some(&OPT_ALL))?;
+		println!("{}", code.clone().to_string());
+		assert_eq!(desired_output, run_code(code.to_string(), input));
+
+		Ok(())
+	}
+
+	#[test]
+	fn constant_optimisations_2() -> Result<(), String> {
+		let program = String::from(
+			r#"
+let arr[15] @1;
+let a = 'G';
+let b = a + 45;
+output b;
+b -= 43;
+output b;
+output a + 3;
+      "#,
+		);
+		let input = String::from("");
+		let desired_output = String::from("tIJ");
+
+		let code = compile_program(program, Some(&OPT_ALL))?.to_string();
+		println!("{}", code);
+		assert_eq!(desired_output, run_code(code, input));
+
 		Ok(())
 	}
 }

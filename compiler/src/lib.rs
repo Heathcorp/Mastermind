@@ -7,6 +7,7 @@ mod brainfuck;
 mod brainfuck_optimiser;
 mod builder;
 mod compiler;
+mod constants_optimiser;
 mod misc;
 mod parser;
 mod preprocessor;
@@ -14,7 +15,7 @@ mod tokeniser;
 
 use brainfuck::BVM;
 use brainfuck_optimiser::optimise;
-use builder::{BrainfuckProgram, Builder};
+use builder::{BrainfuckOpcodes, Builder};
 use compiler::Compiler;
 use misc::MastermindConfig;
 use parser::parse;
