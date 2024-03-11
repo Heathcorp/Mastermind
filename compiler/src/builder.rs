@@ -5,7 +5,10 @@
 // this algorithm is responsible for actually allocating physical tape cells as opposed to the parser
 // can introduce optimisations here with some kind of allocation timeline sorting algorithm (hard leetcode style problem)
 
-use std::{collections::HashMap, num::Wrapping};
+use std::{
+	collections::{HashMap, HashSet},
+	num::Wrapping,
+};
 
 use crate::{
 	compiler::{Instruction, MemoryId},
@@ -19,7 +22,7 @@ pub struct Builder<'a> {
 }
 
 type LoopDepth = usize;
-pub type TapeCell = usize;
+pub type TapeCell = i32;
 type TapeValue = u8;
 
 impl Builder<'_> {
@@ -28,15 +31,14 @@ impl Builder<'_> {
 		instructions: Vec<Instruction>,
 		return_to_origin: bool,
 	) -> Result<Vec<Opcode>, String> {
-		let mut alloc_tape = Vec::new();
+		let mut allocator = CellAllocator::new();
 		let mut alloc_map: HashMap<MemoryId, (TapeCell, usize, LoopDepth, Vec<Option<TapeValue>>)> =
 			HashMap::new();
 
 		let mut loop_stack: Vec<TapeCell> = Vec::new();
 		let mut current_loop_depth: LoopDepth = 0;
 		let mut skipped_loop_depth: Option<LoopDepth> = None;
-		let mut head_pos = 0;
-		let mut ops: Vec<Opcode> = Vec::new();
+		let mut ops = BrainfuckCodeBuilder::new();
 
 		for instruction in instructions {
 			if let Some(depth) = skipped_loop_depth {
@@ -59,7 +61,7 @@ impl Builder<'_> {
 				// the ids (indices really) given by the compiler are guaranteed to be unique (at the time of writing)
 				// however they will absolutely not be very efficient
 				Instruction::Allocate(memory, location_specifier) => {
-					let cell = alloc_tape.allocate(location_specifier, memory.len())?;
+					let cell = allocator.allocate(location_specifier, memory.len())?;
 					let old = alloc_map.insert(
 						memory.id(),
 						(
@@ -118,7 +120,7 @@ outside of loop it was allocated"
 						);
 					};
 
-					alloc_tape.free(cell, size)?;
+					allocator.free(cell, size)?;
 				}
 				Instruction::OpenLoop(cell_obj) => {
 					let Some((cell_base, size, alloc_loop_depth, known_values)) =
@@ -134,7 +136,7 @@ outside of loop it was allocated"
 						mem_idx < *size,
 						"Attempted to access memory outside of allocation"
 					);
-					let cell = *cell_base + mem_idx;
+					let cell = *cell_base + mem_idx as i32;
 					let known_value = &mut known_values[mem_idx];
 
 					let mut open = true;
@@ -149,8 +151,9 @@ outside of loop it was allocated"
 						}
 					}
 
+					// skip the loop if the optimisations are turned on and we know the value is 0
 					if open {
-						ops.move_to_cell(&mut head_pos, cell);
+						ops.move_to_cell(cell);
 						ops.push(Opcode::OpenLoop);
 						loop_stack.push(cell);
 						current_loop_depth += 1;
@@ -170,7 +173,7 @@ outside of loop it was allocated"
 						mem_idx < *size,
 						"Attempted to access memory outside of allocation"
 					);
-					let cell = *cell_base + mem_idx;
+					let cell = *cell_base + mem_idx as i32;
 					let known_value = &mut known_values[mem_idx];
 
 					let Some(stack_cell) = loop_stack.pop() else {
@@ -180,7 +183,7 @@ outside of loop it was allocated"
 
 					current_loop_depth -= 1;
 
-					ops.move_to_cell(&mut head_pos, cell);
+					ops.move_to_cell(cell);
 					ops.push(Opcode::CloseLoop);
 
 					// if a loop finishes on a cell then it is guaranteed to be 0 based on brainfuck itself
@@ -201,7 +204,7 @@ outside of loop it was allocated"
 						mem_idx < *size,
 						"Attempted to access memory outside of allocation"
 					);
-					let cell = *cell_base + mem_idx;
+					let cell = *cell_base + mem_idx as i32;
 					let known_value = &mut known_values[mem_idx];
 
 					// TODO: fix bug, if only one multiplication then we can have a value already in the cell, but never otherwise
@@ -212,16 +215,17 @@ outside of loop it was allocated"
 						// TODO: algorithm that finds the best combo of products and constants to make the number to minimise bf code
 						// first we get the closest allocated cell so we can calculate the distance cost of multiplying
 						// TODO: instead find the nearest zero cell, doesn't matter if allocated or not
-						let temp_cell = alloc_tape.allocate_cell_near(cell);
+						let temp_cell = allocator.allocate_temp_cell(cell);
 
-						// TODO: fix this head pos stuff, make a custom struct for this function to borrow here instead
-						let optimised_ops =
-							calculate_optimal_addition(imm as i8, &mut head_pos, cell, temp_cell);
-						ops.extend(optimised_ops);
+						let optimised_ops: BrainfuckCodeBuilder =
+							calculate_optimal_addition(imm as i8, ops.head_pos, cell, temp_cell);
 
-						alloc_tape.free(temp_cell, 1)?;
+						ops.head_pos = optimised_ops.head_pos;
+						ops.extend(optimised_ops.opcodes);
+
+						allocator.free(temp_cell, 1)?;
 					} else {
-						ops.move_to_cell(&mut head_pos, cell);
+						ops.move_to_cell(cell);
 						ops.add_to_current_cell(imm as i8);
 					}
 
@@ -248,10 +252,10 @@ outside of loop it was allocated"
 						mem_idx < *size,
 						"Attempted to access memory outside of allocation"
 					);
-					let cell = *cell_base + mem_idx;
+					let cell = *cell_base + mem_idx as i32;
 					let known_value = &mut known_values[mem_idx];
 
-					ops.move_to_cell(&mut head_pos, cell);
+					ops.move_to_cell(cell);
 					ops.push(Opcode::Input);
 					// no way to know at compile time what the input to the program will be
 					*known_value = None;
@@ -269,10 +273,10 @@ outside of loop it was allocated"
 						mem_idx < *size,
 						"Attempted to access memory outside of allocation"
 					);
-					let cell = *cell_base + mem_idx;
+					let cell = *cell_base + mem_idx as i32;
 					let known_value = &mut known_values[mem_idx];
 
-					ops.move_to_cell(&mut head_pos, cell);
+					ops.move_to_cell(cell);
 
 					let mut clear = true;
 
@@ -317,33 +321,34 @@ outside of loop it was allocated"
 						mem_idx < *size,
 						"Attempted to access memory outside of allocation"
 					);
-					let cell = *cell_base + mem_idx;
+					let cell = *cell_base + mem_idx as i32;
 
-					ops.move_to_cell(&mut head_pos, cell);
+					ops.move_to_cell(cell);
 					ops.push(Opcode::Output);
 				}
 				Instruction::InsertBrainfuckAtCell(operations, location_specifier) => {
-					ops.move_to_cell(
-						&mut head_pos,
-						location_specifier.unwrap_or({
-							// default position to run brainfuck in?
-							// not sure what is best here, probably the last cell in the allocation tape
-							let mut first_unallocated = None;
-							for i in 0..alloc_tape.len() {
-								match (first_unallocated, &alloc_tape[i]) {
-									(None, false) => {
-										first_unallocated = Some(i);
-									}
-									(Some(_), true) => {
-										first_unallocated = None;
-									}
-									_ => (),
-								}
-							}
+					// I don't think this is a good idea (moving to an unallocated cell to run brainfuck)
+					// ops.move_to_cell(location_specifier.unwrap_or({
+					// 	// default position to run brainfuck in?
+					// 	// not sure what is best here, probably the last cell in the allocation tape
+					// 	let mut first_unallocated = None;
+					// 	for i in 0..alloc_tape.len() {
+					// 		match (first_unallocated, &alloc_tape[i]) {
+					// 			(None, false) => {
+					// 				first_unallocated = Some(i);
+					// 			}
+					// 			(Some(_), true) => {
+					// 				first_unallocated = None;
+					// 			}
+					// 			_ => (),
+					// 		}
+					// 	}
 
-							first_unallocated.unwrap_or(alloc_tape.len())
-						}),
-					);
+					// 	first_unallocated.unwrap_or(alloc_tape.len())
+					// }));
+					if let Some(loc) = location_specifier {
+						ops.move_to_cell(loc);
+					}
 					ops.extend(operations);
 				}
 			}
@@ -351,30 +356,32 @@ outside of loop it was allocated"
 
 		// this is used in embedded brainfuck contexts to preserve head position
 		if return_to_origin {
-			ops.move_to_cell(&mut head_pos, 0);
+			ops.move_to_cell(0);
 		}
 
-		Ok(ops)
+		Ok(ops.opcodes)
 	}
 }
 
-trait AllocationArray {
-	fn allocate(&mut self, location: Option<TapeCell>, size: usize) -> Result<TapeCell, String>;
-	fn allocate_cell_near(&mut self, location: TapeCell) -> TapeCell;
-	fn free(&mut self, cell: TapeCell, size: usize) -> Result<(), String>;
+struct CellAllocator {
+	alloc_map: HashSet<i32>,
 }
 
-impl AllocationArray for Vec<bool> {
+// allocator will not automatically allocate negative-index cells
+// but users can
+impl CellAllocator {
+	fn new() -> CellAllocator {
+		CellAllocator {
+			alloc_map: HashSet::new(),
+		}
+	}
+
 	fn allocate(&mut self, location: Option<TapeCell>, size: usize) -> Result<TapeCell, String> {
 		// should the region start at the current tape head?
 		let mut region_start = location.unwrap_or(0);
-		// extend the tape if the location specifier is too big
-		if region_start >= self.len() {
-			self.resize(region_start + 1, false);
-		}
 
-		for i in region_start..self.len() {
-			if self[i] {
+		for i in region_start.. {
+			if self.alloc_map.contains(&i) {
 				// if a specifier was set, it is invalid so throw an error
 				// TODO: not sure if this should throw here or not
 				if let Some(l) = location {
@@ -382,16 +389,15 @@ impl AllocationArray for Vec<bool> {
 				};
 				// reset search to start at next cell
 				region_start = i + 1;
-			} else if i - region_start == (size - 1) {
+			} else if i - region_start == (size as i32 - 1) {
 				break;
 			}
 		}
 
-		for i in region_start..(region_start + size) {
-			if i < self.len() {
-				self[i] = true;
-			} else {
-				self.push(true);
+		// make all cells in the specified region allocated
+		for i in region_start..(region_start + size as i32) {
+			if !self.alloc_map.contains(&i) {
+				self.alloc_map.insert(i);
 			}
 		}
 
@@ -401,10 +407,9 @@ impl AllocationArray for Vec<bool> {
 	// allocate but start looking close to the given cell, used for optimising constants as you need an extra cell to multiply
 	// again not sure if this stuff should be in the builder step or the compiler step ? This seems the simplest for now
 	// but I'm wary that complex systems often evolve from simple ones, and any optimisations introduce complexity
-	fn allocate_cell_near(&mut self, location: TapeCell) -> TapeCell {
+	fn allocate_temp_cell(&mut self, location: TapeCell) -> TapeCell {
 		// this will allocate the given cell if unallocated so beware
-		if !self[location] {
-			self[location] = true;
+		if self.alloc_map.insert(location) {
 			return location;
 		}
 
@@ -414,22 +419,14 @@ impl AllocationArray for Vec<bool> {
 		let mut right_iter = (location + 1)..;
 		loop {
 			if let Some(i) = left_iter.next() {
-				if !self[i] {
-					// unallocated cell, allocate it and return
-					self[i] = true;
+				// unallocated cell, allocate it and return
+				if self.alloc_map.insert(i) {
 					return i;
 				}
 			}
 
 			if let Some(i) = right_iter.next() {
-				if i < self.len() {
-					if !self[i] {
-						// unallocated cell, allocate it and return
-						self[i] = true;
-						return i;
-					}
-				} else {
-					self.push(true);
+				if self.alloc_map.insert(i) {
 					return i;
 				}
 			}
@@ -437,25 +434,14 @@ impl AllocationArray for Vec<bool> {
 	}
 
 	fn free(&mut self, cell: TapeCell, size: usize) -> Result<(), String> {
-		r_assert!(
-			cell + size <= self.len(),
-			"Cannot free cells {cell}..{} as allocation array is not \
-large enough (this should never occur): {self:#?}",
-			cell + size
-		);
-
-		for i in cell..(cell + size) {
-			r_assert!(self[i], "Cannot free cell {i} as it is not allocated.");
-			self[i] = false;
+		for i in cell..(cell + size as i32) {
+			r_assert!(
+				self.alloc_map.contains(&i),
+				"Cannot free cell {i} as it is not allocated."
+			);
+			self.alloc_map.remove(&i);
 		}
 
-		// trim any false values at the end of the array
-		for i in (0..self.len()).rev() {
-			if self[i] {
-				self.truncate(i + 1);
-				break;
-			}
-		}
 		Ok(())
 	}
 }
@@ -473,29 +459,36 @@ pub enum Opcode {
 	Clear,
 }
 
-pub trait BrainfuckProgram {
-	fn move_to_cell(&mut self, head_pos: &mut usize, cell: usize);
-	fn add_to_current_cell(&mut self, imm: i8);
-	fn from_str(s: &str) -> Self;
-	fn to_string(self) -> String;
+pub struct BrainfuckCodeBuilder {
+	opcodes: Vec<Opcode>,
+	pub head_pos: i32,
 }
 
-impl BrainfuckProgram for Vec<Opcode> {
-	fn move_to_cell(&mut self, head_pos: &mut usize, cell: usize) {
-		if *head_pos < cell {
-			for _ in *head_pos..cell {
-				self.push(Opcode::Right);
-			}
-		} else if cell < *head_pos {
-			// theoretically equivalent to cell..head_pos?
-			for _ in ((cell + 1)..=(*head_pos)).rev() {
-				self.push(Opcode::Left);
-			}
-		}
-		*head_pos = cell;
+pub trait BrainfuckOpcodes {
+	fn to_string(self) -> String;
+	fn from_str(s: &str) -> Self;
+}
+
+impl BrainfuckOpcodes for Vec<Opcode> {
+	fn to_string(self) -> String {
+		let mut s = String::new();
+		self.into_iter().for_each(|o| {
+			s.push_str(match o {
+				Opcode::Add => "+",
+				Opcode::Subtract => "-",
+				Opcode::Right => ">",
+				Opcode::Left => "<",
+				Opcode::OpenLoop => "[",
+				Opcode::CloseLoop => "]",
+				Opcode::Output => ".",
+				Opcode::Input => ",",
+				Opcode::Clear => "[-]",
+			})
+		});
+		s
 	}
 
-	fn from_str(s: &str) -> Vec<Opcode> {
+	fn from_str(s: &str) -> Self {
 		let mut ops = Vec::new();
 		let mut i = 0;
 		while i < s.len() {
@@ -521,33 +514,62 @@ impl BrainfuckProgram for Vec<Opcode> {
 
 		ops
 	}
+}
 
+impl BrainfuckOpcodes for BrainfuckCodeBuilder {
 	fn to_string(self) -> String {
-		let mut s = String::new();
-		self.into_iter().for_each(|o| {
-			s.push_str(match o {
-				Opcode::Add => "+",
-				Opcode::Subtract => "-",
-				Opcode::Right => ">",
-				Opcode::Left => "<",
-				Opcode::OpenLoop => "[",
-				Opcode::CloseLoop => "]",
-				Opcode::Output => ".",
-				Opcode::Input => ",",
-				Opcode::Clear => "[-]",
-			})
-		});
-		s
+		self.opcodes.to_string()
 	}
 
-	fn add_to_current_cell(&mut self, imm: i8) {
+	fn from_str(s: &str) -> Self {
+		BrainfuckCodeBuilder {
+			opcodes: BrainfuckOpcodes::from_str(s),
+			head_pos: 0,
+		}
+	}
+}
+
+impl BrainfuckCodeBuilder {
+	pub fn new() -> BrainfuckCodeBuilder {
+		BrainfuckCodeBuilder {
+			opcodes: Vec::new(),
+			head_pos: 0,
+		}
+	}
+	pub fn len(&self) -> usize {
+		self.opcodes.len()
+	}
+	pub fn push(&mut self, op: Opcode) {
+		self.opcodes.push(op);
+	}
+	pub fn extend<T>(&mut self, ops: T)
+	where
+		T: IntoIterator<Item = Opcode>,
+	{
+		self.opcodes.extend(ops);
+	}
+	pub fn move_to_cell(&mut self, cell: i32) {
+		if self.head_pos < cell {
+			for _ in self.head_pos..cell {
+				self.opcodes.push(Opcode::Right);
+			}
+		} else if cell < self.head_pos {
+			// theoretically equivalent to cell..head_pos?
+			for _ in ((cell + 1)..=(self.head_pos)).rev() {
+				self.opcodes.push(Opcode::Left);
+			}
+		}
+		self.head_pos = cell;
+	}
+
+	pub fn add_to_current_cell(&mut self, imm: i8) {
 		if imm > 0 {
 			for _ in 0..imm {
-				self.push(Opcode::Add);
+				self.opcodes.push(Opcode::Add);
 			}
 		} else if imm < 0 {
 			for _ in 0..-imm {
-				self.push(Opcode::Subtract);
+				self.opcodes.push(Opcode::Subtract);
 			}
 		}
 	}

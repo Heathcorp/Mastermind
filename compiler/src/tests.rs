@@ -5,7 +5,7 @@
 pub mod tests {
 	use crate::{
 		brainfuck::tests::run_code,
-		builder::{BrainfuckProgram, Builder, Opcode},
+		builder::{BrainfuckOpcodes, Builder, Opcode},
 		compiler::Compiler,
 		parser::parse,
 		tokeniser::{tokenise, Token},
@@ -18,7 +18,7 @@ pub mod tests {
 		optimise_variable_usage: false,
 		optimise_memory_allocation: false,
 		optimise_unreachable_loops: false,
-		optimise_constants: true,
+		optimise_constants: false,
 		optimise_empty_blocks: false,
 	};
 

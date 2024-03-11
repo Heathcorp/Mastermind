@@ -221,27 +221,27 @@ fn optimise_subset(run: Vec<Opcode>) -> Vec<Opcode> {
 
 #[cfg(test)]
 mod tests {
-	use crate::builder::BrainfuckProgram;
+	use crate::builder::BrainfuckOpcodes;
 
 	use super::*;
 
 	#[test]
 	fn subset_equivalence_test_0() {
-		let v = BrainfuckProgram::from_str("+++>><<++>--->+++<><><><><<<<<+++"); //(3) 0  0 [5] -3 3
+		let v = BrainfuckOpcodes::from_str("+++>><<++>--->+++<><><><><<<<<+++"); //(3) 0  0 [5] -3 3
 		let o = optimise_subset(v).to_string();
 		assert_eq!(o, ">>+++<---<+++++<<<+++");
 	}
 
 	#[test]
 	fn program_equivalence_test_0() {
-		let v = BrainfuckProgram::from_str("<><><>++<+[--++>>+<<-]");
+		let v = BrainfuckOpcodes::from_str("<><><>++<+[--++>>+<<-]");
 		let o: String = optimise(v).to_string();
 		assert_eq!(o, "++<+[->>+<<]");
 	}
 
 	#[test]
 	fn program_equivalence_test_1() {
-		let v = BrainfuckProgram::from_str(
+		let v = BrainfuckOpcodes::from_str(
 			"+++++++++>>+++>---->>>++++--<--++<<hello<++++[-<+>>++<+<->]++--->+",
 		); // [9] 0 (7) -4 0 0 2 // [(0)] 2 // -1 1
 		let o: String = optimise(v).to_string();
@@ -250,28 +250,28 @@ mod tests {
 
 	#[test]
 	fn program_equivalence_test_2() {
-		let v = BrainfuckProgram::from_str(">><.");
+		let v = BrainfuckOpcodes::from_str(">><.");
 		let o: String = optimise(v).to_string();
 		assert_eq!(o, ">.");
 	}
 
 	#[test]
 	fn subset_equivalence_test_1() {
-		let v = BrainfuckProgram::from_str("+++<+++>[-]+++"); //(3) 0  0 [5] -3 3
+		let v = BrainfuckOpcodes::from_str("+++<+++>[-]+++"); //(3) 0  0 [5] -3 3
 		let o = optimise_subset(v).to_string();
 		assert_eq!(o, "<+++>[-]+++");
 	}
 
 	#[test]
 	fn subset_equivalence_test_2() {
-		let v = BrainfuckProgram::from_str("+++<+++>[-]+++[-]<[-]--+>-"); //(3) 0  0 [5] -3 3
+		let v = BrainfuckOpcodes::from_str("+++<+++>[-]+++[-]<[-]--+>-"); //(3) 0  0 [5] -3 3
 		let o = optimise_subset(v).to_string();
 		assert_eq!(o, "<[-]->[-]-");
 	}
 
 	#[test]
 	fn program_equivalence_test_3() {
-		let v = BrainfuckProgram::from_str(
+		let v = BrainfuckOpcodes::from_str(
 			"+++++[-]+++++++++>>+++>---->>>++++--<--++<<hello<++++[[-]<+>>++<+<->]++--->+",
 		); // [9] 0 (7) -4 0 0 2 // [(0)] 2 // -1 1
 		let o: String = optimise(v).to_string();

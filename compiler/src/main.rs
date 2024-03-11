@@ -17,7 +17,7 @@ mod tests;
 
 use brainfuck::BVM;
 use brainfuck_optimiser::optimise;
-use builder::{BrainfuckProgram, Builder};
+use builder::{BrainfuckOpcodes, Builder};
 use compiler::Compiler;
 use misc::MastermindConfig;
 use parser::parse;
