@@ -11,6 +11,9 @@
   --BORDER-1: hsl(201, 48%, 32%);
   --BORDER-2: hsl(195, 60%, 38%);
 
+  --POSITIVE: #89d32f;
+  --NEGATIVE: #bd2857;
+
   --DANGER: #de4f4f;
   --DANGER-TRANSPARENT: #de4f4f40;
 

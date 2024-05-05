@@ -303,10 +303,13 @@ const App: Component = () => {
           const c = popNextInputCharacter();
           if (c) {
             sendInputByte(c.charCodeAt(0));
-          } else {
+          } else if (enableBlockingInput()) {
             // make a blocked waiting-for-input callback
             setStatus("INPUT_BLOCKED");
             setInputCallback(() => sendInputByte);
+          } else {
+            // if there is no input and input blocking is disabled, just send a null-byte
+            sendInputByte(0);
           }
           return;
         }
@@ -374,15 +377,24 @@ const App: Component = () => {
 
   // this side effect is used to detect when input changes for when the BVM is waiting for user input
   const [inputCallback, setInputCallback] = createSignal<(b: number) => void>();
+  const [enableBlockingInput, setEnableBlockingInput] = makePersisted(
+    createSignal(false)
+  );
   createEffect(
-    on([input, inputCallback], () => {
+    on([input, inputCallback, enableBlockingInput], () => {
       const callback = inputCallback();
+      const enableBlocking = enableBlockingInput();
       if (!callback) return;
 
       const c = popNextInputCharacter();
       if (c) {
         // if there is now enough characters in the input, call the callback and remove it so that it only happens once
         callback(c.charCodeAt(0));
+        setStatus("RUNNING");
+        setInputCallback(undefined);
+      } else if (!enableBlocking) {
+        // if there is no input and input blocking is disabled, just send a null-byte
+        callback(0);
         setStatus("RUNNING");
         setInputCallback(undefined);
       }
@@ -411,6 +423,8 @@ const App: Component = () => {
         restartWorker,
         helpOpen,
         setHelpOpen,
+        enableBlockingInput,
+        setEnableBlockingInput,
       }}
     >
       <div id="window">
@@ -458,6 +472,9 @@ interface AppContextProps {
   >;
   input: Accessor<{ text: string; amountRead: number | null }>;
   setInput: Setter<{ text: string; amountRead: number | null }>;
+
+  enableBlockingInput: Accessor<boolean>;
+  setEnableBlockingInput: Setter<boolean>;
 
   reorderFiles: (from: string, to: string | null) => void;
 

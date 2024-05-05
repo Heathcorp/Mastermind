@@ -63,6 +63,15 @@
 
 .button-selected {
   border-color: var(--BORDER-1);
+  background-color: var(--BG-2);
+}
+
+.positive-text {
+  color: var(--POSITIVE);
+}
+
+.negative-text {
+  color: var(--NEGATIVE);
 }
 
 .disabled {

@@ -159,8 +159,6 @@ const SettingsPanel: Component<{ style?: JSX.CSSProperties }> = (props) => {
           <div
             class="row button"
             classList={{
-              row: true,
-              button: true,
               disabled: !app.output(),
             }}
             style={{ cursor: "copy", "align-items": "center" }}
@@ -184,6 +182,20 @@ const SettingsPanel: Component<{ style?: JSX.CSSProperties }> = (props) => {
 
             {/* TODO: convert this to be more correct, <Show/> or something? */}
             {app.output() && ` (${app.output()?.content.length} bytes)`}
+          </div>
+          <div
+            class="row button"
+            style={{ gap: 0 }}
+            classList={{ "button-selected": app.enableBlockingInput() }}
+            onClick={() => app.setEnableBlockingInput((prev) => !prev)}
+          >
+            blocking input [
+            {app.enableBlockingInput() ? (
+              <div class="positive-text">enabled</div>
+            ) : (
+              <div class="negative-text">disabled</div>
+            )}
+            ]
           </div>
         </div>
         <Divider />
