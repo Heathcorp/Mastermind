@@ -6,7 +6,6 @@ on:
       - main
     paths:
       - "**"
-      - "!*.md"
       # - "!./compiler/programs/*.mmi"
 
 jobs:
