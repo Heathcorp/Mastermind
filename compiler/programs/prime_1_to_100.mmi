@@ -1,0 +1,45 @@
+#include "print.mmi"
+
+let N = 99;
+let number = 2;
+
+// a draining loop, loops n times, clearing the variable
+drain N into number {
+  let result1;
+  is_prime<result1, number>;
+  if not result1 {
+    print<number>;
+    output "\n";
+  }
+}
+
+def is_prime<result1, num> {
+    result1 = false;
+    let divisor = num - 1;
+    drain divisor{
+      if divisor - 1 {
+        divisible<result1, num, divisor>;
+      }
+    }
+}
+
+def divisible<result1, dividend, divisor> {
+  // result2 = 0 if dividend % divisor = 0
+  let b = dividend;
+
+  let iterating = true;
+
+  while iterating {
+    // a copying loop, loops n times without modifying the variable
+    copy divisor {
+      b -= 1;
+      if not b {
+        iterating = false;
+      }
+    }
+  }
+  // if there is no remainder then we are divisible
+  if not b {
+    result1 = true;
+  }
+}
