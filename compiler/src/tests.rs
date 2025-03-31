@@ -4,7 +4,7 @@
 #[cfg(test)]
 pub mod tests {
 	use crate::{
-		brainfuck::tests::run_code,
+		brainfuck::tests::run_code_1d,
 		builder::{BrainfuckOpcodes, Builder, Opcode},
 		compiler::Compiler,
 		parser::parse,
@@ -47,7 +47,7 @@ pub mod tests {
 		let bfs = bf_program.to_string();
 		// println!("{}", bfs);
 		// run generated brainfuck with input
-		Ok(run_code(bfs, input))
+		Ok(run_code_1d(bfs, input))
 	}
 
 	fn compile_program(
@@ -102,7 +102,7 @@ pub mod tests {
 
 		let input = String::from("");
 		let desired_output = String::from("");
-		let output = run_code(code, input);
+		let output = run_code_1d(code, input);
 		println!("{output}");
 		assert_eq!(desired_output, output)
 	}
@@ -576,7 +576,7 @@ output 10;
 		let desired_output = String::from("01231\n");
 		let code = compile_program(program, Some(&OPT_NONE))?.to_string();
 		println!("{}", code);
-		let output = run_code(code, input);
+		let output = run_code_1d(code, input);
 		println!("{output}");
 		assert_eq!(desired_output, output);
 
@@ -839,7 +839,7 @@ output foo;
 		println!("{code}");
 
 		let input = String::from("");
-		let output = run_code(code.clone(), input);
+		let output = run_code_1d(code.clone(), input);
 		println!("{output}");
 		assert_eq!(code, ">>>++<<<++++++++++++[->>>++++++++++<<<][-]>>>.");
 		assert_eq!(output, "z");
@@ -932,7 +932,7 @@ bf {
 			",.[-]+[-->-[>>+>-----<<]<--<---]>-.>>>+.>>..+++[.>]<<<<.+++.------.<<-.>>>>+."
 		);
 
-		let output = run_code(code, String::from("~"));
+		let output = run_code_1d(code, String::from("~"));
 		assert_eq!(output, "~Hello, World!");
 		Ok(())
 	}
@@ -956,7 +956,7 @@ bf @3 {
 			">>>,.[-]+[-->-[>>+>-----<<]<--<---]>-.>>>+.>>..+++[.>]<<<<.+++.------.<<-.>>>>+."
 		));
 
-		let output = run_code(code, String::from("~"));
+		let output = run_code_1d(code, String::from("~"));
 		assert_eq!(output, "~Hello, World!");
 		Ok(())
 	}
@@ -989,7 +989,7 @@ assert *str equals 0;
 
 		assert!(code.starts_with(",>,>,<<[+>]<<<[.[-]>]<<<"));
 
-		let output = run_code(code, String::from("HEY"));
+		let output = run_code_1d(code, String::from("HEY"));
 		assert_eq!(output, "IFZ");
 		Ok(())
 	}
@@ -1019,7 +1019,7 @@ bf {
 		let code = compile_program(program, None)?.to_string();
 		println!("{code}");
 
-		let output = run_code(code, String::from("line of input\n"));
+		let output = run_code_1d(code, String::from("line of input\n"));
 		assert_eq!(output, "lmijnoef !opfg !ijnopquvtu");
 		Ok(())
 	}
@@ -1058,7 +1058,7 @@ bf {
 		let code = compile_program(program, None)?.to_string();
 		println!("{code}");
 
-		let output = run_code(code, String::from("hello\n"));
+		let output = run_code_1d(code, String::from("hello\n"));
 		assert_eq!(output, "'h'\n'e'\n'l'\n'l'\n'o'\n");
 		Ok(())
 	}
@@ -1114,7 +1114,7 @@ output 'h';
 
 		let code = compile_program(program, Some(&OPT_ALL))?;
 		println!("{}", code.clone().to_string());
-		assert_eq!(desired_output, run_code(code.to_string(), input));
+		assert_eq!(desired_output, run_code_1d(code.to_string(), input));
 
 		Ok(())
 	}
@@ -1137,7 +1137,7 @@ output a + 3;
 
 		let code = compile_program(program, Some(&OPT_ALL))?.to_string();
 		println!("{}", code);
-		assert_eq!(desired_output, run_code(code, input));
+		assert_eq!(desired_output, run_code_1d(code, input));
 
 		Ok(())
 	}

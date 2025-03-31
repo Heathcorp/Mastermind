@@ -2,6 +2,7 @@
 // this was the first thing added in this project and it has barely changed
 
 use std::{
+	collections::HashMap,
 	fmt,
 	io::{Read, Write},
 	num::Wrapping,
@@ -11,83 +12,46 @@ use wasm_bindgen::{JsCast, JsValue};
 use wasm_bindgen_futures::JsFuture;
 
 struct Tape {
-	positive_array: Vec<Wrapping<u8>>,
-	negative_array: Vec<Wrapping<u8>>,
-
-	head_position: i32,
+	memory_map: HashMap<(i32, i32), Wrapping<u8>>,
+	head_position: (i32, i32),
 }
 
 impl Tape {
 	fn new() -> Self {
 		Tape {
-			positive_array: Vec::new(),
-			negative_array: Vec::new(),
-			head_position: 0,
+			memory_map: HashMap::new(),
+			head_position: (0, 0),
 		}
 	}
-	fn get_cell(&self, index: i32) -> Result<Wrapping<u8>, String> {
-		let array;
-		let i: usize = (match index < 0 {
-			true => {
-				array = &self.negative_array;
-				-index - 1
-			}
-			false => {
-				array = &self.positive_array;
-				index
-			}
-		})
-		.try_into()
-		.or(Err(
-			"Could not read current cell due to integer error, this should never occur.",
-		))?;
-
-		Ok(match i < array.len() {
-			true => array[i],
-			false => Wrapping(0u8),
-		})
-	}
-	fn move_head_position(&mut self, amount: i32) {
-		self.head_position += amount;
-	}
-	fn modify_current_cell(
-		&mut self,
-		amount: Wrapping<u8>,
-		clear: Option<bool>,
-	) -> Result<(), String> {
-		let array;
-		let i: usize = (match self.head_position < 0 {
-			true => {
-				array = &mut self.negative_array;
-				-self.head_position - 1
-			}
-			false => {
-				array = &mut self.positive_array;
-				self.head_position
-			}
-		})
-		.try_into()
-		.or(Err(
-			"Could not modify current cell due to integer error, this should never occur.",
-		))?;
-
-		if i >= array.len() {
-			array.resize(i + 1, Wrapping(0u8));
+	fn get_cell_1d(&self, index: i32) -> Wrapping<u8> {
+		match self.memory_map.get(&(0, index)) {
+			Some(val) => *val,
+			None => Wrapping(0),
 		}
-
-		array[i] = match clear.unwrap_or(false) {
-			true => amount,
-			false => array[i] + amount,
-		};
-
-		Ok(())
 	}
-	fn set_current_cell(&mut self, value: Wrapping<u8>) -> Result<(), String> {
-		Ok(self.modify_current_cell(value, Some(true))?)
+	fn move_head_position_1d(&mut self, amount: i32) {
+		self.head_position.1 += amount;
+	}
+	fn increment_current_cell(&mut self, amount: Wrapping<u8>) {
+		let val = self.memory_map.get_mut(&self.head_position);
+		match val {
+			Some(val) => {
+				*val += amount;
+			}
+			None => {
+				self.memory_map.insert(self.head_position, amount);
+			}
+		}
+	}
+	fn set_current_cell(&mut self, value: Wrapping<u8>) {
+		self.memory_map.insert(self.head_position, value);
 	}
 	// TODO: simplify duplicated code? probably could use an optional mutable reference thing
-	fn get_current_cell(&self) -> Result<Wrapping<u8>, String> {
-		Ok(self.get_cell(self.head_position)?)
+	fn get_current_cell(&self) -> Wrapping<u8> {
+		match self.memory_map.get(&self.head_position) {
+			Some(val) => *val,
+			None => Wrapping(0),
+		}
 	}
 }
 
@@ -107,8 +71,8 @@ impl fmt::Display for Tape {
 		line_3.push('|');
 		line_4.push('|');
 
-		for pos in (self.head_position - 10)..(self.head_position + 10) {
-			let val = self.get_cell(pos).unwrap().0;
+		for pos in (self.head_position.1 - 10)..(self.head_position.1 + 10) {
+			let val = self.get_cell_1d(pos).0;
 			let mut dis = 32u8;
 			if val.is_ascii_alphanumeric() || val.is_ascii_punctuation() {
 				dis = val;
@@ -125,7 +89,7 @@ impl fmt::Display for Tape {
 			line_3.push(' ');
 			line_3.push(dis as char);
 
-			line_4 += match pos == self.head_position {
+			line_4 += match pos == self.head_position.1 {
 				true => "^^^",
 				false => "---",
 			};
@@ -154,7 +118,13 @@ impl fmt::Display for Tape {
 	}
 }
 
+pub struct BVMConfig {
+	pub ENABLE_DEBUG_SYMBOLS: bool,
+	pub ENABLE_2D_GRID: bool,
+}
+
 pub struct BVM {
+	config: BVMConfig,
 	tape: Tape,
 	program: Vec<char>,
 }
@@ -168,8 +138,9 @@ pub trait ByteWriter {
 }
 
 impl BVM {
-	pub fn new(program: Vec<char>) -> Self {
+	pub fn new(config: BVMConfig, program: Vec<char>) -> Self {
 		BVM {
+			config,
 			tape: Tape::new(),
 			program,
 		}
@@ -189,14 +160,14 @@ impl BVM {
 		let mut output_bytes: Vec<u8> = Vec::new();
 
 		while pc < self.program.len() {
-			match self.program[pc] {
-				'+' => {
-					self.tape.modify_current_cell(Wrapping(1), None)?;
-				}
-				'-' => {
-					self.tape.modify_current_cell(Wrapping(-1i8 as u8), None)?;
-				}
-				',' => {
+			match (
+				self.program[pc],
+				self.config.ENABLE_DEBUG_SYMBOLS,
+				self.config.ENABLE_2D_GRID,
+			) {
+				('+', _, _) => self.tape.increment_current_cell(Wrapping(1)),
+				('-', _, _) => self.tape.increment_current_cell(Wrapping(-1i8 as u8)),
+				(',', _, _) => {
 					// https://github.com/rustwasm/wasm-bindgen/issues/2195
 					// let password_jsval: JsValue = func.call1(&this, &JsValue::from_bool(true))?;
 					// let password_promise_res: Result<js_sys::Promise, JsValue> =
@@ -225,11 +196,11 @@ impl BVM {
 						.as_f64()
 						.expect("Could not convert js number into f64 type");
 					let byte: u8 = num as u8; // I have no idea if this works (TODO: test)
-					self.tape.set_current_cell(Wrapping(byte))?;
+					self.tape.set_current_cell(Wrapping(byte));
 				}
-				'.' => {
+				('.', _, _) => {
 					// TODO: handle errors
-					let byte = self.tape.get_current_cell()?.0;
+					let byte = self.tape.get_current_cell().0;
 					let fnum: f64 = byte as f64; // I have no idea if this works (TODO: test again)
 					output_callback
 						.call1(&JsValue::null(), &JsValue::from_f64(fnum))
@@ -237,15 +208,15 @@ impl BVM {
 
 					output_bytes.push(byte);
 				}
-				'>' => {
-					self.tape.move_head_position(1);
+				('>', _, _) => {
+					self.tape.move_head_position_1d(1);
 				}
-				'<' => {
-					self.tape.move_head_position(-1);
+				('<', _, _) => {
+					self.tape.move_head_position_1d(-1);
 				}
-				'[' => {
+				('[', _, _) => {
 					// entering a loop
-					if self.tape.get_current_cell()?.0 == 0 {
+					if self.tape.get_current_cell().0 == 0 {
 						// skip the loop, (advance to the corresponding closing loop brace)
 						// TODO: make this more efficient by pre-computing a loops map
 						let mut loop_count = 1;
@@ -262,8 +233,8 @@ impl BVM {
 						loop_stack.push(pc);
 					}
 				}
-				']' => {
-					if self.tape.get_current_cell()?.0 == 0 {
+				(']', _, _) => {
+					if self.tape.get_current_cell().0 == 0 {
 						// exit the loop
 						loop_stack.pop();
 					} else {
@@ -272,10 +243,12 @@ impl BVM {
 						pc = loop_stack[loop_stack.len() - 1];
 					}
 				}
-				// '#' => {
+				// ('^', _, true) => {}
+				// ('v', _, true) => {}
+				// ('#', true, ) => {
 				// 	println!("{}", self.tape);
 				// }
-				// '@' => {
+				// ('@', true, _) => {
 				// 	print!("{}", self.tape.get_current_cell().0 as i32);
 				// }
 				_ => (),
@@ -300,30 +273,26 @@ impl BVM {
 
 		while pc < self.program.len() {
 			match self.program[pc] {
-				'+' => {
-					self.tape.modify_current_cell(Wrapping(1), None)?;
-				}
-				'-' => {
-					self.tape.modify_current_cell(Wrapping(-1i8 as u8), None)?;
-				}
+				'+' => self.tape.increment_current_cell(Wrapping(1)),
+				'-' => self.tape.increment_current_cell(Wrapping(-1i8 as u8)),
 				',' => {
 					let mut buf = [0; 1];
 					let _ = input.read_exact(&mut buf);
-					self.tape.set_current_cell(Wrapping(buf[0]))?;
+					self.tape.set_current_cell(Wrapping(buf[0]));
 				}
 				'.' => {
-					let buf = [self.tape.get_current_cell()?.0];
+					let buf = [self.tape.get_current_cell().0];
 					let _ = output.write(&buf);
 				}
 				'>' => {
-					self.tape.move_head_position(1);
+					self.tape.move_head_position_1d(1);
 				}
 				'<' => {
-					self.tape.move_head_position(-1);
+					self.tape.move_head_position_1d(-1);
 				}
 				'[' => {
 					// entering a loop
-					if self.tape.get_current_cell()?.0 == 0 {
+					if self.tape.get_current_cell().0 == 0 {
 						// skip the loop, (advance to the corresponding closing loop brace)
 						// TODO: make this more efficient by pre-computing a loops map
 						let mut loop_count = 1;
@@ -341,7 +310,7 @@ impl BVM {
 					}
 				}
 				']' => {
-					if self.tape.get_current_cell()?.0 == 0 {
+					if self.tape.get_current_cell().0 == 0 {
 						// exit the loop
 						loop_stack.pop();
 					} else {
@@ -379,8 +348,12 @@ pub mod tests {
 
 	use std::io::Cursor;
 
-	pub fn run_code(code: String, input: String) -> String {
-		let mut bvm = BVM::new(code.chars().collect());
+	pub fn run_code_1d(code: String, input: String) -> String {
+		let config = BVMConfig {
+			ENABLE_DEBUG_SYMBOLS: false,
+			ENABLE_2D_GRID: false,
+		};
+		let mut bvm = BVM::new(config, code.chars().collect());
 
 		let input_bytes: Vec<u8> = input.bytes().collect();
 		let mut input_stream = Cursor::new(input_bytes);
@@ -397,7 +370,7 @@ pub mod tests {
 		let program = String::from("");
 		let input = String::from("");
 		let desired_output = String::from("");
-		assert_eq!(desired_output, run_code(program, input))
+		assert_eq!(desired_output, run_code_1d(program, input))
 	}
 
 	#[test]
@@ -405,7 +378,7 @@ pub mod tests {
 		let program = String::from("++++++++[>++++[>++>+++>+++>+<<<<-]>+>+>->>+[<]<-]>>.>---.+++++++..+++.>>.<-.<.+++.------.--------.>>+.>++.");
 		let input = String::from("");
 		let desired_output = String::from("Hello World!\n");
-		assert_eq!(desired_output, run_code(program, input))
+		assert_eq!(desired_output, run_code_1d(program, input))
 	}
 
 	#[test]
@@ -415,7 +388,7 @@ pub mod tests {
 		);
 		let input = String::from("");
 		let desired_output = String::from("Hello, World!");
-		assert_eq!(desired_output, run_code(program, input))
+		assert_eq!(desired_output, run_code_1d(program, input))
 	}
 
 	#[test]
@@ -423,6 +396,6 @@ pub mod tests {
 		let program = String::from("+++++[>+++++[>++>++>+++>+++>++++>++++<<<<<<-]<-]+++++[>>[>]<[+.<<]>[++.>>>]<[+.<]>[-.>>]<[-.<<<]>[.>]<[+.<]<-]++++++++++.");
 		let input = String::from("");
 		let desired_output = String::from("eL34NfeOL454KdeJ44JOdefePK55gQ67ShfTL787KegJ77JTeghfUK88iV9:XjgYL:;:KfiJ::JYfijgZK;;k[<=]lh^L=>=KgkJ==J^gklh_K>>m`?@bnicL@A@KhmJ@@JchmnidKAA\n");
-		assert_eq!(desired_output, run_code(program, input))
+		assert_eq!(desired_output, run_code_1d(program, input))
 	}
 }
