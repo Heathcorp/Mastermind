@@ -23,14 +23,15 @@ impl Tape {
 			head_position: (0, 0),
 		}
 	}
-	fn get_cell_1d(&self, index: i32) -> Wrapping<u8> {
-		match self.memory_map.get(&(0, index)) {
+	fn get_cell(&self, position: (i32, i32)) -> Wrapping<u8> {
+		match self.memory_map.get(&position) {
 			Some(val) => *val,
 			None => Wrapping(0),
 		}
 	}
-	fn move_head_position_1d(&mut self, amount: i32) {
-		self.head_position.1 += amount;
+	fn move_head_position(&mut self, amount: (i32, i32)) {
+		self.head_position.0 += amount.0;
+		self.head_position.1 += amount.1;
 	}
 	fn increment_current_cell(&mut self, amount: Wrapping<u8>) {
 		let val = self.memory_map.get_mut(&self.head_position);
@@ -72,7 +73,7 @@ impl fmt::Display for Tape {
 		line_4.push('|');
 
 		for pos in (self.head_position.1 - 10)..(self.head_position.1 + 10) {
-			let val = self.get_cell_1d(pos).0;
+			let val = self.get_cell((pos, 0)).0;
 			let mut dis = 32u8;
 			if val.is_ascii_alphanumeric() || val.is_ascii_punctuation() {
 				dis = val;
@@ -148,6 +149,7 @@ impl BVM {
 
 	// TODO: refactor/rewrite this, can definitely be improved with async read/write traits or similar
 	// I don't love that I duplicated this to make it work with js
+	// TODO: this isn't covered by unit tests
 	pub async fn run_async(
 		&mut self,
 		output_callback: &js_sys::Function,
@@ -209,10 +211,10 @@ impl BVM {
 					output_bytes.push(byte);
 				}
 				('>', _, _) => {
-					self.tape.move_head_position_1d(1);
+					self.tape.move_head_position((1, 0));
 				}
 				('<', _, _) => {
-					self.tape.move_head_position_1d(-1);
+					self.tape.move_head_position((-1, 0));
 				}
 				('[', _, _) => {
 					// entering a loop
@@ -243,8 +245,8 @@ impl BVM {
 						pc = loop_stack[loop_stack.len() - 1];
 					}
 				}
-				// ('^', _, true) => {}
-				// ('v', _, true) => {}
+				('^', _, true) => {}
+				('v', _, true) => {}
 				// ('#', true, ) => {
 				// 	println!("{}", self.tape);
 				// }
@@ -285,10 +287,10 @@ impl BVM {
 					let _ = output.write(&buf);
 				}
 				'>' => {
-					self.tape.move_head_position_1d(1);
+					self.tape.move_head_position((1, 0));
 				}
 				'<' => {
-					self.tape.move_head_position_1d(-1);
+					self.tape.move_head_position((-1, 0));
 				}
 				'[' => {
 					// entering a loop
@@ -343,10 +345,13 @@ impl BVM {
 
 #[cfg(test)]
 pub mod tests {
+	use js_sys::Function;
+	use wasm_bindgen::prelude::Closure;
+
 	// TODO: add unit tests for Tape
 	use super::*;
 
-	use std::io::Cursor;
+	use std::{io::Cursor, rc::Rc};
 
 	pub fn run_code_1d(code: String, input: String) -> String {
 		let config = BVMConfig {
@@ -396,6 +401,23 @@ pub mod tests {
 		let program = String::from("+++++[>+++++[>++>++>+++>+++>++++>++++<<<<<<-]<-]+++++[>>[>]<[+.<<]>[++.>>>]<[+.<]>[-.>>]<[-.<<<]>[.>]<[+.<]<-]++++++++++.");
 		let input = String::from("");
 		let desired_output = String::from("eL34NfeOL454KdeJ44JOdefePK55gQ67ShfTL787KegJ77JTeghfUK88iV9:XjgYL:;:KfiJ::JYfijgZK;;k[<=]lh^L=>=KgkJ==J^gklh_K>>m`?@bnicL@A@KhmJ@@JchmnidKAA\n");
+		assert_eq!(desired_output, run_code_1d(program, input))
+	}
+
+	#[test]
+	fn grid_disabled_1() {
+		let program = String::from("++++++++[->++++++[->+>+<<]<]>>.>^+++.");
+		let input = String::from("");
+		let desired_output = String::from("03");
+		assert_eq!(desired_output, run_code_1d(program, input))
+	}
+
+	#[test]
+	fn grid_disabled_2() {
+		let program =
+			String::from("++++++++[->^^^+++vvvv+++[->^^^^+>+<vvvv<]<]>^^^^^^^^>.>vvvv+++.");
+		let input = String::from("");
+		let desired_output = String::from("03");
 		assert_eq!(desired_output, run_code_1d(program, input))
 	}
 }
