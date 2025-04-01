@@ -245,8 +245,8 @@ impl BVM {
 						pc = loop_stack[loop_stack.len() - 1];
 					}
 				}
-				('^', _, true) => {}
-				('v', _, true) => {}
+				('^', _, true) => self.tape.move_head_position((0, 1)),
+				('v', _, true) => self.tape.move_head_position((0, -1)),
 				// ('#', true, ) => {
 				// 	println!("{}", self.tape);
 				// }
@@ -274,25 +274,29 @@ impl BVM {
 		let mut loop_stack: Vec<usize> = Vec::new();
 
 		while pc < self.program.len() {
-			match self.program[pc] {
-				'+' => self.tape.increment_current_cell(Wrapping(1)),
-				'-' => self.tape.increment_current_cell(Wrapping(-1i8 as u8)),
-				',' => {
+			match (
+				self.program[pc],
+				self.config.ENABLE_DEBUG_SYMBOLS,
+				self.config.ENABLE_2D_GRID,
+			) {
+				('+', _, _) => self.tape.increment_current_cell(Wrapping(1)),
+				('-', _, _) => self.tape.increment_current_cell(Wrapping(-1i8 as u8)),
+				(',', _, _) => {
 					let mut buf = [0; 1];
 					let _ = input.read_exact(&mut buf);
 					self.tape.set_current_cell(Wrapping(buf[0]));
 				}
-				'.' => {
+				('.', _, _) => {
 					let buf = [self.tape.get_current_cell().0];
 					let _ = output.write(&buf);
 				}
-				'>' => {
+				('>', _, _) => {
 					self.tape.move_head_position((1, 0));
 				}
-				'<' => {
+				('<', _, _) => {
 					self.tape.move_head_position((-1, 0));
 				}
-				'[' => {
+				('[', _, _) => {
 					// entering a loop
 					if self.tape.get_current_cell().0 == 0 {
 						// skip the loop, (advance to the corresponding closing loop brace)
@@ -311,7 +315,7 @@ impl BVM {
 						loop_stack.push(pc);
 					}
 				}
-				']' => {
+				(']', _, _) => {
 					if self.tape.get_current_cell().0 == 0 {
 						// exit the loop
 						loop_stack.pop();
@@ -321,6 +325,8 @@ impl BVM {
 						pc = loop_stack[loop_stack.len() - 1];
 					}
 				}
+				('^', _, true) => self.tape.move_head_position((0, 1)),
+				('v', _, true) => self.tape.move_head_position((0, -1)),
 				// '#' => {
 				// 	println!("{}", self.tape);
 				// }
@@ -345,19 +351,12 @@ impl BVM {
 
 #[cfg(test)]
 pub mod tests {
-	use js_sys::Function;
-	use wasm_bindgen::prelude::Closure;
-
 	// TODO: add unit tests for Tape
 	use super::*;
 
-	use std::{io::Cursor, rc::Rc};
+	use std::io::Cursor;
 
-	pub fn run_code_1d(code: String, input: String) -> String {
-		let config = BVMConfig {
-			ENABLE_DEBUG_SYMBOLS: false,
-			ENABLE_2D_GRID: false,
-		};
+	pub fn run_code(config: BVMConfig, code: String, input: String) -> String {
 		let mut bvm = BVM::new(config, code.chars().collect());
 
 		let input_bytes: Vec<u8> = input.bytes().collect();
@@ -369,13 +368,21 @@ pub mod tests {
 		// TODO: fix this unsafe stuff
 		unsafe { String::from_utf8_unchecked(output_stream.into_inner()) }
 	}
+	const BVM_CONFIG_1D: BVMConfig = BVMConfig {
+		ENABLE_DEBUG_SYMBOLS: false,
+		ENABLE_2D_GRID: false,
+	};
+	const BVM_CONFIG_2D: BVMConfig = BVMConfig {
+		ENABLE_DEBUG_SYMBOLS: false,
+		ENABLE_2D_GRID: true,
+	};
 
 	#[test]
 	fn dummy_test() {
 		let program = String::from("");
 		let input = String::from("");
 		let desired_output = String::from("");
-		assert_eq!(desired_output, run_code_1d(program, input))
+		assert_eq!(desired_output, run_code(BVM_CONFIG_1D, program, input))
 	}
 
 	#[test]
@@ -383,7 +390,7 @@ pub mod tests {
 		let program = String::from("++++++++[>++++[>++>+++>+++>+<<<<-]>+>+>->>+[<]<-]>>.>---.+++++++..+++.>>.<-.<.+++.------.--------.>>+.>++.");
 		let input = String::from("");
 		let desired_output = String::from("Hello World!\n");
-		assert_eq!(desired_output, run_code_1d(program, input))
+		assert_eq!(desired_output, run_code(BVM_CONFIG_1D, program, input))
 	}
 
 	#[test]
@@ -393,7 +400,7 @@ pub mod tests {
 		);
 		let input = String::from("");
 		let desired_output = String::from("Hello, World!");
-		assert_eq!(desired_output, run_code_1d(program, input))
+		assert_eq!(desired_output, run_code(BVM_CONFIG_1D, program, input))
 	}
 
 	#[test]
@@ -401,7 +408,7 @@ pub mod tests {
 		let program = String::from("+++++[>+++++[>++>++>+++>+++>++++>++++<<<<<<-]<-]+++++[>>[>]<[+.<<]>[++.>>>]<[+.<]>[-.>>]<[-.<<<]>[.>]<[+.<]<-]++++++++++.");
 		let input = String::from("");
 		let desired_output = String::from("eL34NfeOL454KdeJ44JOdefePK55gQ67ShfTL787KegJ77JTeghfUK88iV9:XjgYL:;:KfiJ::JYfijgZK;;k[<=]lh^L=>=KgkJ==J^gklh_K>>m`?@bnicL@A@KhmJ@@JchmnidKAA\n");
-		assert_eq!(desired_output, run_code_1d(program, input))
+		assert_eq!(desired_output, run_code(BVM_CONFIG_1D, program, input))
 	}
 
 	#[test]
@@ -409,7 +416,7 @@ pub mod tests {
 		let program = String::from("++++++++[->++++++[->+>+<<]<]>>.>^+++.");
 		let input = String::from("");
 		let desired_output = String::from("03");
-		assert_eq!(desired_output, run_code_1d(program, input))
+		assert_eq!(desired_output, run_code(BVM_CONFIG_1D, program, input))
 	}
 
 	#[test]
@@ -418,6 +425,61 @@ pub mod tests {
 			String::from("++++++++[->^^^+++vvvv+++[->^^^^+>+<vvvv<]<]>^^^^^^^^>.>vvvv+++.");
 		let input = String::from("");
 		let desired_output = String::from("03");
-		assert_eq!(desired_output, run_code_1d(program, input))
+		assert_eq!(desired_output, run_code(BVM_CONFIG_1D, program, input))
+	}
+
+	// 2D tests:
+	#[test]
+	fn grid_regression_1() {
+		// hello world
+		let program = String::from("++++++++[>++++[>++>+++>+++>+<<<<-]>+>+>->>+[<]<-]>>.>---.+++++++..+++.>>.<-.<.+++.------.--------.>>+.>++.");
+		let input = String::from("");
+		let desired_output = String::from("Hello World!\n");
+		assert_eq!(desired_output, run_code(BVM_CONFIG_2D, program, input))
+	}
+
+	#[test]
+	fn grid_regression_2() {
+		// random mess
+		let program = String::from("+++++[>+++++[>++>++>+++>+++>++++>++++<<<<<<-]<-]+++++[>>[>]<[+.<<]>[++.>>>]<[+.<]>[-.>>]<[-.<<<]>[.>]<[+.<]<-]++++++++++.");
+		let input = String::from("");
+		let desired_output = String::from("eL34NfeOL454KdeJ44JOdefePK55gQ67ShfTL787KegJ77JTeghfUK88iV9:XjgYL:;:KfiJ::JYfijgZK;;k[<=]lh^L=>=KgkJ==J^gklh_K>>m`?@bnicL@A@KhmJ@@JchmnidKAA\n");
+		assert_eq!(desired_output, run_code(BVM_CONFIG_2D, program, input))
+	}
+
+	#[test]
+	fn grid_basic_1() {
+		let program = String::from("++++++++[-^++++++[->+v+<^]v]>+++++^.v.");
+		let input = String::from("");
+		let desired_output = String::from("05");
+		assert_eq!(desired_output, run_code(BVM_CONFIG_2D, program, input))
+	}
+
+	#[test]
+	fn grid_mover_1() {
+		let program = String::from(
+			"-<<<<<<<<<<<<^^^^^^^^^^^^-<^++++++++[->>vv+[->v+]->v++++++<^<^+[-<^+]-<^]>>vv+[->v+]->v...",
+		);
+		let input = String::from("");
+		let desired_output = String::from("000");
+		assert_eq!(desired_output, run_code(BVM_CONFIG_2D, program, input))
+	}
+
+	#[test]
+	fn grid_bfception_1() {
+		// run a hello world program within a 1d brainfuck interpreter implemented in 2d brainfuck
+		let program = String::from("-v>,[>,]^-<+[-<+]->+[-v------------------------------------------^>+]-<+[-<+]->+[-v[-^+^+vv]^[-v+^]^->+<[>-<->+<[>-<->+<[>-<->+<[>-<-------------->+<[>-<-->+<[>-<----------------------------->+<[>-<-->+<[>-<vv[-]^^[-]]>[[-]<[-]vv[-]++++++v++^^^>]<[-]]>[[-]<[-]vv[-]+++++v+^^^>]<[-]]>[[-]<[-]vv[-]+++^^>]<[-]]>[[-]<[-]vv[-]++++^^>]<[-]]>[[-]<[-]vv[-]+++++++^^>]<[-]]>[[-]<[-]vv[-]++^^>]<[-]]>[[-]<[-]vv[-]++++++++^^>]<[-]]>[[-]<[-]vv[-]+^^>]<vv^>+]-v-v-v-v-^^^^<+[-<+]<->v-v-v<-v->^^^^>vvv+^^^<+>+[-<->+v[-^^+^+vvv]^^[-vv+^^]^>+<-[>[-]<>+<-[>[-]<>+<-[>[-]<>+<-[>[-]<>+<-[>[-]<>+<-[>[-]<>+<-[>[-]<>+<-[>[-]<[-]]>[-<vvvvv+[-<+]->-[+>-]+v,^+[-<+]-<^^^+[->+]->-[+>-]+^^>]<]>[-<vvvvv+[-<+]->-[+>-]+v.^+[-<+]-<^^^+[->+]->-[+>-]+^^>]<]>[-<vvvvv+[-<+]->-[+>-]+v[-v+v+^^]v[-^+v]v[[-]^^^+[-<+]-^^^+[->+]-<+[>>-[+>-]<+vv[-^^^+^+vvvv]^^^[-vvv+^^^]^->+<[>-<->+<[>-<[-]]>[-<vv+[-<+]-<+>>-[+>-]+^^>]<]>[-<vv+[-<+]-<->>-[+>-]+^^>]<vv+[-<+]-<][-]>vvv+[-<+]->-[+>-]+vvv]^^^+[-<+]-<^^^+[->+]->-[+>-]+^^>]<]>[-<vvvvv+[-<+]->-[+>-]+v[-v+v+^^]v[-^+v]v>+<[>-<[-]]>[-<^^^+[-<+]-^^^+[->+]-<+[>>-[+>-]>+vv[-^^^+^+vvvv]^^^[-vvv+^^^]^->+<[>-<->+<[>-<[-]]>[-<vv+[-<+]-<->>-[+>-]+^^>]<]>[-<vv+[-<+]-<+>>-[+>-]+^^>]<vv+[-<+]-<][-]>vvv+[-<+]->-[+>-]+vvv>]<^^^+[-<+]-<^^^+[->+]->-[+>-]+^^>]<]>[-<vvvvv+[-<+]->-[+>-]+<<-v-^>+v+^[<+v+^>-v-^]+>-+[-<+]-<^^^+[->+]->-[+>-]+^^>]<]>[-<vvvvv+[-<+]->-[+>-]+>>-v-^<+v+^[>+v+^<-v-^]+<-+[-<+]-<^^^+[->+]->-[+>-]+^^>]<]>[-<vvvvv+[-<+]->-[+>-]+v-^+[-<+]-<^^^+[->+]->-[+>-]+^^>]<]>[-<vvvvv+[-<+]->-[+>-]+v+^+[-<+]-<^^^+[->+]->-[+>-]+^^>]<vv>+]-");
+		let input = String::from("++++++++[>++++[>++>+++>+++>+<<<<-]>+>+>->>+[<]<-]>>.>---.+++++++..+++.>>.<-.<.+++.------.--------.>>+.>++.\n");
+		let desired_output = String::from("Hello World!\n");
+		assert_eq!(desired_output, run_code(BVM_CONFIG_2D, program, input))
+	}
+
+	#[test]
+	fn grid_bfception_2() {
+		// random mess
+		let program = String::from("-v>,[>,]^-<+[-<+]->+[-v------------------------------------------^>+]-<+[-<+]->+[-v[-^+^+vv]^[-v+^]^->+<[>-<->+<[>-<->+<[>-<->+<[>-<-------------->+<[>-<-->+<[>-<----------------------------->+<[>-<-->+<[>-<vv[-]^^[-]]>[[-]<[-]vv[-]++++++v++^^^>]<[-]]>[[-]<[-]vv[-]+++++v+^^^>]<[-]]>[[-]<[-]vv[-]+++^^>]<[-]]>[[-]<[-]vv[-]++++^^>]<[-]]>[[-]<[-]vv[-]+++++++^^>]<[-]]>[[-]<[-]vv[-]++^^>]<[-]]>[[-]<[-]vv[-]++++++++^^>]<[-]]>[[-]<[-]vv[-]+^^>]<vv^>+]-v-v-v-v-^^^^<+[-<+]<->v-v-v<-v->^^^^>vvv+^^^<+>+[-<->+v[-^^+^+vvv]^^[-vv+^^]^>+<-[>[-]<>+<-[>[-]<>+<-[>[-]<>+<-[>[-]<>+<-[>[-]<>+<-[>[-]<>+<-[>[-]<>+<-[>[-]<[-]]>[-<vvvvv+[-<+]->-[+>-]+v,^+[-<+]-<^^^+[->+]->-[+>-]+^^>]<]>[-<vvvvv+[-<+]->-[+>-]+v.^+[-<+]-<^^^+[->+]->-[+>-]+^^>]<]>[-<vvvvv+[-<+]->-[+>-]+v[-v+v+^^]v[-^+v]v[[-]^^^+[-<+]-^^^+[->+]-<+[>>-[+>-]<+vv[-^^^+^+vvvv]^^^[-vvv+^^^]^->+<[>-<->+<[>-<[-]]>[-<vv+[-<+]-<+>>-[+>-]+^^>]<]>[-<vv+[-<+]-<->>-[+>-]+^^>]<vv+[-<+]-<][-]>vvv+[-<+]->-[+>-]+vvv]^^^+[-<+]-<^^^+[->+]->-[+>-]+^^>]<]>[-<vvvvv+[-<+]->-[+>-]+v[-v+v+^^]v[-^+v]v>+<[>-<[-]]>[-<^^^+[-<+]-^^^+[->+]-<+[>>-[+>-]>+vv[-^^^+^+vvvv]^^^[-vvv+^^^]^->+<[>-<->+<[>-<[-]]>[-<vv+[-<+]-<->>-[+>-]+^^>]<]>[-<vv+[-<+]-<+>>-[+>-]+^^>]<vv+[-<+]-<][-]>vvv+[-<+]->-[+>-]+vvv>]<^^^+[-<+]-<^^^+[->+]->-[+>-]+^^>]<]>[-<vvvvv+[-<+]->-[+>-]+<<-v-^>+v+^[<+v+^>-v-^]+>-+[-<+]-<^^^+[->+]->-[+>-]+^^>]<]>[-<vvvvv+[-<+]->-[+>-]+>>-v-^<+v+^[>+v+^<-v-^]+<-+[-<+]-<^^^+[->+]->-[+>-]+^^>]<]>[-<vvvvv+[-<+]->-[+>-]+v-^+[-<+]-<^^^+[->+]->-[+>-]+^^>]<]>[-<vvvvv+[-<+]->-[+>-]+v+^+[-<+]-<^^^+[->+]->-[+>-]+^^>]<vv>+]-");
+		let input = String::from("+++++[>+++++[>++>++>+++>+++>++++>++++<<<<<<-]<-]+++++[>>[>]<[+.<<]>[++.>>>]<[+.<]>[-.>>]<[-.<<<]>[.>]<[+.<]<-]++++++++++.\n");
+		let desired_output = String::from("eL34NfeOL454KdeJ44JOdefePK55gQ67ShfTL787KegJ77JTeghfUK88iV9:XjgYL:;:KfiJ::JYfijgZK;;k[<=]lh^L=>=KgkJ==J^gklh_K>>m`?@bnicL@A@KhmJ@@JchmnidKAA\n");
+		assert_eq!(desired_output, run_code(BVM_CONFIG_2D, program, input))
 	}
 }
