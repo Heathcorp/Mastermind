@@ -9,25 +9,41 @@ on:
       # - "!./compiler/programs/*.mmi"
 
 jobs:
-  test_build_deploy:
+  pipeline:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v3
+      - uses: actions/checkout@v4
+
       - uses: actions/setup-node@v4
         with:
-          node-version: 18
+          node-version: 20
           cache: "yarn"
-          cache-dependency-path: "yarn.lock"
+
       - uses: jetli/wasm-pack-action@v0.4.0
-      - run: cd compiler && cargo test
-      - run: cd compiler && wasm-pack build --release --target web
-      - run: yarn
-      - run: yarn build:grammar
-      - run: yarn build
-      - uses: FirebaseExtended/action-hosting-deploy@v0
+
+      - name: Test compiler
+        run: cargo test
+        working-directory: compiler
+
+      - name: Build compiler for WASM
+        run: wasm-pack build --release --target web
+        working-directory: compiler
+
+      - name: Node dependencies
+        run: yarn install --frozen-lockfile
+
+      - name: Build grammar
+        run: yarn build:grammar
+
+      - name: Build web app
+        run: yarn build
+
+      - name: Deploy to Firebase
+        uses: FirebaseExtended/action-hosting-deploy@v0
         with:
           repoToken: ${{ secrets.GITHUB_TOKEN }}
           firebaseServiceAccount: ${{ secrets.FIREBASE_SERVICE_ACCOUNT_LOST_PIXELS_PROD }}
           projectId: lost-pixels-prod
+          # "target" is defined in firebase.json and .firebaserc, the latter controlling which firebase site to deploy to
           target: mastermind-prod
           channelId: live

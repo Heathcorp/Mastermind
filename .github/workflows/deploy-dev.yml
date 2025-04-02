@@ -4,12 +4,11 @@ on:
   push:
     branches:
       - dev
-      - dev-staging-SCRUM-44
     paths:
       - "**"
 
 jobs:
-  test-build-deploy:
+  pipeline:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
@@ -44,5 +43,6 @@ jobs:
           repoToken: ${{ secrets.GITHUB_TOKEN }}
           firebaseServiceAccount: ${{ secrets.FIREBASE_SERVICE_ACCOUNT_LOST_PIXELS_PROD }}
           projectId: lost-pixels-prod
+          # "target" is defined in firebase.json and .firebaserc, the latter controlling which firebase site to deploy to
           target: mastermind-staging
           channelId: live
