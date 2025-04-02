@@ -4,6 +4,7 @@ on:
   push:
     branches:
       - dev
+      - dev-staging-SCRUM-44
     paths:
       - "**"
       # - "!./compiler/programs/*.mmi"
