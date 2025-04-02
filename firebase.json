@@ -1,6 +1,5 @@
 {
   "hosting": {
-    "target": "mastermind",
     "public": "dist",
     "ignore": ["firebase.json", "**/.*", "**/node_modules/**"],
     "rewrites": [
