@@ -3,6 +3,7 @@
   "hosting": [
     {
       "target": "mastermind-prod",
+      "site": "lost-pixels-mastermind",
       "public": "dist",
       "ignore": ["firebase.json", "**/.*", "**/node_modules/**"],
       "rewrites": [
@@ -14,6 +15,7 @@
     },
     {
       "target": "mastermind-staging",
+      "site": "mastermind-staging",
       "public": "dist",
       "ignore": ["firebase.json", "**/.*", "**/node_modules/**"],
       "rewrites": [
