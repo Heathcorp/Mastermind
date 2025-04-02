@@ -370,6 +370,43 @@ pub mod tests {
 		unsafe { String::from_utf8_unchecked(output_stream.into_inner()) }
 	}
 
+	// pub async fn run_code_async_1d(code: String, input: String) -> String {
+	// 	let config = BVMConfig {
+	// 		ENABLE_DEBUG_SYMBOLS: false,
+	// 		ENABLE_2D_GRID: true,
+	// 	};
+	// 	let mut bvm = BVM::new(config, code.chars().collect());
+
+	// 	let input_bytes: Vec<u8> = input.bytes().collect();
+	// 	let mut input_stream = Cursor::new(input_bytes);
+	// 	let mut output_stream = Rc::new(Cursor::new(Vec::new()));
+	// 	// fn make_callback<F>(func: F) -> Function
+	// 	// where
+	// 	// 	F: 'static + Fn() -> JsValue,
+	// 	// {
+	// 	// 	let closure = Closure::wrap(Box::new(func) as Box<dyn Fn() -> JsValue>);
+	// 	// 	closure.into_js_value().unchecked_into::<Function>()
+	// 	// }
+
+	// 	let input_callback: Function = Closure::new(move || {
+	// 		let mut buf = [0; 1];
+	// 		let _ = input_stream.read_exact(&mut buf);
+	// 		return JsValue::from_f64(buf[0] as f64);
+	// 	})
+	// 	.into_js_value()
+	// 	.into();
+	// 	let output_callback: Function = Closure::<dyn FnMut() -> ()>::new(|val: f64| {
+	// 		output_stream.write(&[val as u8]);
+	// 	})
+	// 	.into_js_value()
+	// 	.into();
+
+	// 	bvm.run_async(&input_callback, &output_callback).await;
+
+	// 	// TODO: fix this unsafe stuff
+	// 	unsafe { String::from_utf8_unchecked(output_stream.into_inner()) }
+	// }
+
 	#[test]
 	fn dummy_test() {
 		let program = String::from("");
