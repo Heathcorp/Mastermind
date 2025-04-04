@@ -18,6 +18,7 @@ pub fn tokenise(source: &String) -> Result<Vec<Token>, String> {
 		("input", Token::Input),
 		// ("#debug", Token::Debug),
 		("let", Token::Let),
+		("==", Token::Equivalent),
 		("=", Token::EqualsSign),
 		("while", Token::While),
 		("drain", Token::Drain),
@@ -60,6 +61,7 @@ pub fn tokenise(source: &String) -> Result<Vec<Token>, String> {
 		("@", Token::At),
 		("-", Token::Minus),
 		("+", Token::Plus),
+		("!=", Token::NotEquivalent)
 	];
 	// check for numbers and variables
 	let num_re = Regex::new(r#"^[0-9]+"#).unwrap();
@@ -215,4 +217,6 @@ pub enum Token {
 	Plus,
 	EqualsSign,
 	Semicolon,
+	Equivalent,
+	NotEquivalent,
 }

@@ -108,7 +108,9 @@ pub fn parse(tokens: &[Token]) -> Result<Vec<Clause>, String> {
 				| Token::Equals
 				| Token::Unknown
 				| Token::Dot
-				| Token::At,
+				| Token::At
+				| Token::Equivalent
+				| Token::NotEquivalent,
 				_,
 				_,
 			) => r_panic!("Invalid clause: {clause:#?}"),
@@ -322,6 +324,9 @@ fn parse_if_else_clause(clause: &[Token]) -> Result<Clause, String> {
 	while let Some(token) = clause.get(i) {
 		if let Token::OpenBrace = token {
 			break;
+		}
+		if let Token::Equivalent = token {
+			not = !not;
 		}
 		i += 1;
 	}
@@ -801,7 +806,7 @@ impl Expression {
 					current_sign = Some(Sign::Positive);
 					i += 1;
 				}
-				(None, Token::Minus) => {
+				(None, Token::Minus | Token::Equivalent | Token::NotEquivalent) => {
 					current_sign = Some(Sign::Negative);
 					i += 1;
 				}
