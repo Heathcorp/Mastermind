@@ -13,7 +13,7 @@ mod parser;
 mod preprocessor;
 mod tokeniser;
 
-use brainfuck::BVM;
+use brainfuck::{BVMConfig, BVM};
 use brainfuck_optimiser::optimise;
 use builder::{BrainfuckOpcodes, Builder};
 use compiler::Compiler;
@@ -72,7 +72,11 @@ pub async fn wasm_run_bf(
 ) -> Result<String, JsValue> {
 	set_panic_hook();
 
-	let mut bf = BVM::new(code.chars().collect());
+	let config = BVMConfig {
+		ENABLE_DEBUG_SYMBOLS: false,
+		ENABLE_2D_GRID: false,
+	};
+	let mut bf = BVM::new(config, code.chars().collect());
 
 	// hack, TODO: refactor
 	let r = bf.run_async(output_callback, input_callback).await?;
