@@ -152,6 +152,7 @@ impl BVM {
 	// TODO: refactor/rewrite this, can definitely be improved with async read/write traits or similar
 	// I don't love that I duplicated this to make it work with js
 	// TODO: this isn't covered by unit tests
+	// TODO: add a maximum step count
 	pub async fn run_async(
 		&mut self,
 		output_callback: &js_sys::Function,
