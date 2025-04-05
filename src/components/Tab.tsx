@@ -13,7 +13,7 @@ import {
 
 import { useAppContext } from "../App";
 import "../panels/editor.css";
-import { IoDownloadOutline } from "solid-icons/io";
+import downloadBlob from "../utils/downloadBlob";
 
 const Tab: Component<{
   fileId: string;
@@ -46,7 +46,8 @@ const Tab: Component<{
     const fileState = app.fileStates.find((f) => f.id == props.fileId);
     const fileData = fileState?.editorState.doc.toString();
     if (!fileData) return new Blob([]);
-    return new Blob([fileData], { type: "text/plain" });
+    const blobFile = new Blob([fileData], { type: "text/plain" });
+    downloadBlob(blobFile, props.fileLabel);
   };
 
   return (
@@ -92,25 +93,11 @@ const Tab: Component<{
         </form>
       </Show>
       <Show when={app.fileStates.length > 1 && props.fileActive}>
-        <a
-          style={{
-            color: "inherit",
-            display: "contents",
-          }}
-          download={props.fileLabel}
-          target="_blank"
-          rel="noreferrer"
-          href={URL.createObjectURL(fileDownload())}
-        >
-          <AiOutlineDownload
-            class="text-button"
-            style={{
-              "font-size": "1em",
-              "padding-top": "-5px",
-              "margin-left": "0.5rem",
-            }}
-          />
-        </a>
+        <AiOutlineDownload
+          class="text-button"
+          style={{ "margin-left": "0.5rem" }}
+          onClick={() => fileDownload()}
+        />
       </Show>
       <Show when={app.fileStates.length > 1}>
         <AiOutlineDelete
