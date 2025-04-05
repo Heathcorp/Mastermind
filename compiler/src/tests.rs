@@ -228,7 +228,7 @@ output '@' + 256 + 1 + false + true + 'e' - '@';
 		let program = String::from(
 			r#";
 let p = 9 - (true + true -(-7));
-if not p {
+if !p {
 	output "Hi friend!\n";
 }
 
@@ -259,7 +259,7 @@ if 56 - 7 {
 }
 
 let not_a = 'a' + (-1) - (0 - 1);
-if not not_a - 'a' {
+if !(not_a - 'a') {
 	output 'C';
 } else {
 	output 'D';
@@ -392,7 +392,7 @@ if z {
 y -= 1;
 
 z = x - y;
-if not z {
+if  !z {
 	output 'E';
 } else {
 	output 'F';
@@ -424,7 +424,7 @@ if z {
 
 y -= 1;
 
-if not y {output 'H';}
+if !y {output 'H';}
 
 z = x - y;
 if z {
@@ -436,7 +436,7 @@ if z {
 y -= 1;
 
 z = x - y;
-if not z {
+if !z {
 	output 'E';
 } else {
 	output 'F';
@@ -493,7 +493,7 @@ if 0 == false {
 	fn equivalence_exprs_2() {
 		let program = String::from(
 			r#"
-if not (0 == false) {
+if  ! (0 == false) {
 	output 'A';
 } else {
 	output 'B';
