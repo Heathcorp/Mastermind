@@ -5,8 +5,11 @@
   "targets": {
     "lost-pixels-prod": {
       "hosting": {
-        "mastermind": [
+        "mastermind-prod": [
           "lost-pixels-mastermind"
+        ],
+        "mastermind-staging": [
+          "mastermind-staging"
         ]
       }
     }
