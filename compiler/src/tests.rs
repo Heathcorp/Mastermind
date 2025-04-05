@@ -472,6 +472,179 @@ output 10;
 	}
 
 	#[test]
+	fn equivalence_expr_1() {
+		let program = String::from(
+			r#"
+if 0 == false {
+	output 'A';
+} else {
+	output 'B';
+}
+		"#,
+		);
+		let input = String::from("");
+		let desired_output = String::from("A");
+		let output = compile_and_run(program, input).expect("");
+		println!("{output}");
+		assert_eq!(desired_output, output)
+	}
+
+	#[test]
+	fn equivalence_exprs_2() {
+		let program = String::from(
+			r#"
+if not (0 == false) {
+	output 'A';
+} else {
+	output 'B';
+}
+		"#,
+		);
+		let input = String::from("");
+		let desired_output = String::from("B");
+		let output = compile_and_run(program, input).expect("");
+		println!("{output}");
+		assert_eq!(desired_output, output)
+	}
+
+	#[test]
+	fn equivalence_exprs_3() {
+		let program = String::from(
+			r#"
+if (1 == 0) + (1 == 4) {
+	output 'A';
+} else {
+	output 'B';
+}
+		"#,
+		);
+		let input = String::from("");
+		let desired_output = String::from("B");
+		let output = compile_and_run(program, input).expect("");
+		println!("{output}");
+		assert_eq!(desired_output, output)
+	}
+
+	#[test]
+	fn equivalence_exprs_4() {
+		let program = String::from(
+			r#"
+let a = 6;
+let b = 6;
+let c = a != b;
+if c {
+	output 'A';
+} else {
+	output 'B';
+}
+		"#,
+		);
+		let input = String::from("");
+		let desired_output = String::from("B");
+		let output = compile_and_run(program, input).expect("");
+		println!("{output}");
+		assert_eq!(desired_output, output)
+	}
+
+	#[test]
+	fn equivalence_exprs_5() {
+		let program = String::from(
+			r#"
+output '0' + (0 != 1);
+		"#,
+		);
+		let input = String::from("");
+		let desired_output = String::from("1");
+		let output = compile_and_run(program, input).expect("");
+		println!("{output}");
+		assert_eq!(desired_output, output)
+	}
+
+	#[test]
+	fn equivalence_exprs_6() {
+		let program = String::from(
+			r#"
+output '0' + ((((0 == 1) + 5))) - 5;
+		"#,
+		);
+		let input = String::from("");
+		let desired_output = String::from("0");
+		let output = compile_and_run(program, input).expect("");
+		println!("{output}");
+		assert_eq!(desired_output, output)
+	}
+
+	#[test]
+	fn boolean_logic_1() {
+		let program = String::from(
+			r#"
+output '0' + (2 && 5) + (0 && 1);
+		"#,
+		);
+		let input = String::from("");
+		let desired_output = String::from("1");
+		let output = compile_and_run(program, input).expect("");
+		println!("{output}");
+		assert_eq!(desired_output, output)
+	}
+
+	#[test]
+	fn boolean_logic_2() {
+		let program = String::from(
+			r#"
+output '0' + (0 || true) + (true || 5);
+		"#,
+		);
+		let input = String::from("");
+		let desired_output = String::from("2");
+		let output = compile_and_run(program, input).expect("");
+		println!("{output}");
+		assert_eq!(desired_output, output)
+	}
+
+	#[test]
+	fn boolean_logic_3() {
+		let program = String::from(
+			r#"
+output '0' + (-0 || -9) + -(false || 0);
+		"#,
+		);
+		let input = String::from("");
+		let desired_output = String::from("1");
+		let output = compile_and_run(program, input).expect("");
+		println!("{output}");
+		assert_eq!(desired_output, output)
+	}
+
+	#[test]
+	fn boolean_logic_4() {
+		let program = String::from(
+			r#"
+output '0' + ((true && true) && 0);
+		"#,
+		);
+		let input = String::from("");
+		let desired_output = String::from("0");
+		let output = compile_and_run(program, input).expect("");
+		println!("{output}");
+		assert_eq!(desired_output, output)
+	}
+
+	#[test]
+	fn boolean_logic_5() {
+		let program = String::from(
+			r#"
+output '0' + ((false || true) && 0);
+		"#,
+		);
+		let input = String::from("");
+		let desired_output = String::from("0");
+		let output = compile_and_run(program, input).expect("");
+		println!("{output}");
+		assert_eq!(desired_output, output)
+	}
+
+	#[test]
 	fn loops_and_ifs_1() {
 		let program = String::from(
 			"
