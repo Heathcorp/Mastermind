@@ -183,7 +183,11 @@ This error should never occur."
 						),
 					};
 				}
-				Clause::SetVariable { var, value } => match (&var, &value) {
+				Clause::SetVariable {
+					var,
+					value,
+					is_self_referencing,
+				} => match (&var, &value, &is_self_referencing) {
 					(
 						VariableTarget::Single { name: _ },
 						Expression::SumExpression {
@@ -192,13 +196,20 @@ This error should never occur."
 						}
 						| Expression::NaturalNumber(_)
 						| Expression::VariableReference(_),
+						_,
 					) => {
 						let mem = scope.get_memory(&var)?;
 						let cell = Cell {
 							memory_id: mem.id(),
 							index: None,
 						};
-						_add_self_referencing_expr_to_cell(&mut scope, value, cell)?;
+						//Only add a self referencing expression if we know for sure to reduce code complexity
+						if is_self_referencing {
+							_add_self_referencing_expr_to_cell(&mut scope, value, cell, true)?;
+						} else {
+							scope.push_instruction(Instruction::ClearCell(cell.clone()));
+							_add_expr_to_cell(&mut scope, value, cell)?;
+						}
 					}
 					(
 						VariableTarget::MultiCell { name: _, index },
@@ -208,6 +219,7 @@ This error should never occur."
 						}
 						| Expression::NaturalNumber(_)
 						| Expression::VariableReference(_),
+						_,
 					) => {
 						let mem = scope.get_memory(&var)?;
 						let cell = Cell {
@@ -225,17 +237,22 @@ This error should never occur."
 						}
 						| Expression::NaturalNumber(_)
 						| Expression::VariableReference(_),
+						_,
 					) => r_panic!(
 						"Cannot set multi-byte variables using \
 spread syntax, use drain <val> into {var} instead."
 					),
-					(_, Expression::ArrayLiteral(_) | Expression::StringLiteral(_)) => r_panic!(
+					(_, Expression::ArrayLiteral(_) | Expression::StringLiteral(_), _) => r_panic!(
 						"Cannot set multi-byte variables after initialisation\
 , set individual bytes with [] subscript operator instead."
 					),
 					// _ => r_panic!("Cannot set variable \"{var}\" to expression {value:#?}"),
 				},
-				Clause::AddToVariable { var, value } => match (&var, &value) {
+				Clause::AddToVariable {
+					var,
+					value,
+					is_self_referencing,
+				} => match (&var, &value, &is_self_referencing) {
 					(
 						VariableTarget::Single { name: _ }
 						| VariableTarget::MultiCell { name: _, index: _ },
@@ -245,11 +262,17 @@ spread syntax, use drain <val> into {var} instead."
 						}
 						| Expression::NaturalNumber(_)
 						| Expression::VariableReference(_),
+						_,
 					) => {
 						let Some(cell) = scope.get_memory(&var)?.target_cell() else {
 							r_panic!("Unreachable error occurred when adding to {var}");
 						};
-						_add_expr_to_cell(&mut scope, value, cell)?;
+						//Only add a self referencing expression if we know for sure to reduce code complexity
+						if is_self_referencing {
+							_add_self_referencing_expr_to_cell(&mut scope, value, cell, false)?;
+						} else {
+							_add_expr_to_cell(&mut scope, value, cell)?;
+						}
 					}
 					(
 						VariableTarget::MultiSpread { name: _ },
@@ -259,11 +282,12 @@ spread syntax, use drain <val> into {var} instead."
 						}
 						| Expression::NaturalNumber(_)
 						| Expression::VariableReference(_),
+						_,
 					) => r_panic!(
 						"Cannot add to multi-byte variables using \
 spread syntax, use drain <val> into {var} instead."
 					),
-					(_, Expression::ArrayLiteral(_) | Expression::StringLiteral(_)) => r_panic!(
+					(_, Expression::ArrayLiteral(_) | Expression::StringLiteral(_), _) => r_panic!(
 						"Cannot add to multi-byte variables after initialisation\
 , set individual bytes with [] subscript operator instead."
 					),
@@ -1008,7 +1032,12 @@ fn _add_expr_to_cell(scope: &mut Scope, expr: Expression, cell: Cell) -> Result<
 
 //This function allows you to add a self referencing expression to the cell
 //Separate this to ensure that normal expression don't require the overhead of copying
-fn _add_self_referencing_expr_to_cell(scope: &mut Scope, expr: Expression, cell: Cell) -> Result<(), String> {
+fn _add_self_referencing_expr_to_cell(
+	scope: &mut Scope,
+	expr: Expression,
+	cell: Cell,
+	pre_clear: bool,
+) -> Result<(), String> {
 	//Create a new temp cell to store the current cell value
 	let temp_mem_id = scope.create_memory_id();
 	scope.push_instruction(Instruction::Allocate(
@@ -1020,8 +1049,10 @@ fn _add_self_referencing_expr_to_cell(scope: &mut Scope, expr: Expression, cell:
 		index: None,
 	};
 	_copy_cell(scope, cell, temp_cell, 1);
-	// Then Clear the current cell and run the same actions as _add_expr_to_cell
-	scope.push_instruction(Instruction::ClearCell(cell.clone()));
+	// Then if we are doing a += don't pre-clear otherwise Clear the current cell and run the same actions as _add_expr_to_cell
+	if pre_clear {
+		scope.push_instruction(Instruction::ClearCell(cell.clone()));
+	}
 
 	let (imm, adds, subs) = expr.flatten()?;
 
@@ -1070,7 +1101,6 @@ fn _copy_cell(scope: &mut Scope, source_cell: Cell, target_cell: Cell, constant:
 		memory_id: temp_mem_id,
 		index: None,
 	};
-
 	// copy source to target and temp
 	scope.push_instruction(Instruction::OpenLoop(source_cell));
 	scope.push_instruction(Instruction::AddToCell(target_cell, constant as u8));
