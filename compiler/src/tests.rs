@@ -355,10 +355,12 @@ let x = 5;
 output '0' + x;
 x += 1 + x;
 output '0' + x;
+x = x + x + x;
+output '0' + x;
 			"#,
 		);
 		let input = String::from("");
-		let desired_output = String::from("5;");
+		let desired_output = String::from("5;Q");
 		let output = compile_and_run(program, input).expect("");
 		println!("{output}");
 		assert_eq!(desired_output, output)
