@@ -382,6 +382,22 @@ output '0' + x;
 	}
 
 	#[test]
+	fn assignments_5() {
+		let program = String::from(
+			r#";
+let x = 2;
+x = (2 + 3) - ((x + 4) + 1) + 4 - (12) + (3 + 10);
+output '0' + x;
+		"#,
+		);
+		let input = String::from("");
+		let desired_output = String::from("3");
+		let output = compile_and_run(program, input).expect("");
+		println!("{output}");
+		assert_eq!(desired_output, output)
+	}
+
+	#[test]
 	fn loops_1() {
 		let program = String::from(
 			"
