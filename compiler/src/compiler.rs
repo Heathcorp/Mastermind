@@ -198,8 +198,7 @@ This error should never occur."
 							memory_id: mem.id(),
 							index: None,
 						};
-						scope.push_instruction(Instruction::ClearCell(cell.clone()));
-						_add_expr_to_cell(&mut scope, value, cell)?;
+						_add_self_referencing_expr_to_cell(&mut scope, value, cell)?;
 					}
 					(
 						VariableTarget::MultiCell { name: _, index },
@@ -1003,6 +1002,55 @@ fn _add_expr_to_cell(scope: &mut Scope, expr: Expression, cell: Cell) -> Result<
 		};
 		_copy_cell(scope, source_cell, cell.clone(), constant);
 	}
+
+	Ok(())
+}
+
+//This function allows you to add a self referencing expression to the cell
+//Separate this to ensure that normal expression don't require the overhead of copying
+fn _add_self_referencing_expr_to_cell(scope: &mut Scope, expr: Expression, cell: Cell) -> Result<(), String> {
+	//Create a new temp cell to store the current cell value
+	let temp_mem_id = scope.create_memory_id();
+	scope.push_instruction(Instruction::Allocate(
+		Memory::Cell { id: temp_mem_id },
+		None,
+	));
+	let temp_cell = Cell {
+		memory_id: temp_mem_id,
+		index: None,
+	};
+	_copy_cell(scope, cell, temp_cell, 1);
+	// Then Clear the current cell and run the same actions as _add_expr_to_cell
+	scope.push_instruction(Instruction::ClearCell(cell.clone()));
+
+	let (imm, adds, subs) = expr.flatten()?;
+
+	scope.push_instruction(Instruction::AddToCell(cell.clone(), imm));
+
+	let mut adds_set = HashMap::new();
+	for var in adds {
+		let n = adds_set.remove(&var).unwrap_or(0);
+		adds_set.insert(var, n + 1);
+	}
+	for var in subs {
+		let n = adds_set.remove(&var).unwrap_or(0);
+		adds_set.insert(var, n - 1);
+	}
+
+	for (source, constant) in adds_set {
+		let Some(source_cell) = scope.get_memory(&source)?.target_cell() else {
+			r_panic!("Cannot sum variable \"{source}\" in expression");
+		};
+		//If we have an instance of the original cell being added simply use our temp cell value
+		if source_cell.memory_id == cell.memory_id {
+			_copy_cell(scope, temp_cell, cell.clone(), constant);
+		} else {
+			_copy_cell(scope, source_cell, cell.clone(), constant);
+		}
+	}
+	//Cleanup
+	scope.push_instruction(Instruction::ClearCell(temp_cell));
+	scope.push_instruction(Instruction::Free(temp_mem_id));
 
 	Ok(())
 }
