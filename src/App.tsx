@@ -20,7 +20,7 @@ import { v4 as uuidv4 } from "uuid";
 import divisorsExample from "./assets/divisors_example.mmi?raw";
 import printExample from "./assets/print.mmi?raw";
 import primeExample from "./assets/prime_1_to_100.mmi?raw";
-import christmasTreeExample from "./assets/chritmas_trees.mmi?raw";
+import christmasTreeExample from "./assets/christmas_trees.mmi?raw";
 
 import "./App.css";
 import Divider from "./components/Divider";
@@ -110,17 +110,21 @@ const App: Component = () => {
   );
 
   const loadExampleFiles = () => {
-    const newId = uuidv4();
+    const defaultFileId = uuidv4();
     setFileStates((prev) => [
       ...[
         {
-          id: newId,
+          id: defaultFileId,
           label: "divisors_example.mmi",
           rawText: divisorsExample,
         },
         { id: uuidv4(), label: "print.mmi", rawText: printExample },
-        { id: uuidv4(), label: "prime_1_to_100.mmi", rawText: primeExample},
-        { id: uuidv4(), label: "christmas_trees.mmi", rawText: christmasTreeExample}
+        { id: uuidv4(), label: "prime_1_to_100.mmi", rawText: primeExample },
+        {
+          id: uuidv4(),
+          label: "christmas_trees.mmi",
+          rawText: christmasTreeExample,
+        },
       ].map((rawState) => ({
         // This could probably be common function, duplicate code of above deserialization and file creation functions (TODO: refactor)
         id: rawState.id,
@@ -138,7 +142,7 @@ const App: Component = () => {
       })),
       ...prev,
     ]);
-    setEntryFile(newId);
+    setEntryFile(defaultFileId);
   };
 
   const createFile = () => {
