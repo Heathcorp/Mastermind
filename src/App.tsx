@@ -21,6 +21,7 @@ import divisorsExample from "./assets/divisors_example.mmi?raw";
 import printExample from "./assets/print.mmi?raw";
 import primeExample from "./assets/prime_1_to_100.mmi?raw";
 import christmasTreeExample from "./assets/christmas_trees.mmi?raw";
+import brainfuckExample from "./assets/brainfuck.mmi?raw";
 
 import "./App.css";
 import Divider from "./components/Divider";
@@ -124,6 +125,11 @@ const App: Component = () => {
           id: uuidv4(),
           label: "christmas_trees.mmi",
           rawText: christmasTreeExample,
+        },
+        {
+          id: uuidv4(),
+          label: "brainfuck.mmi",
+          rawText: brainfuckExample,
         },
       ].map((rawState) => ({
         // This could probably be common function, duplicate code of above deserialization and file creation functions (TODO: refactor)
