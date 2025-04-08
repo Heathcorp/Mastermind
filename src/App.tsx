@@ -36,7 +36,7 @@ import { createStore } from "solid-js/store";
 const AppContext = createContext<AppContextProps>();
 
 // update this when you want the user to see new syntax
-const MIGRATION_VERSION = 3;
+const MIGRATION_VERSION = 4;
 
 const App: Component = () => {
   const [version, setVersion] = makePersisted(createSignal<number>(), {
