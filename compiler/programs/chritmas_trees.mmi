@@ -1,0 +1,30 @@
+let start = 3;
+let end = 10;
+
+let loops = end - start;
+
+drain loops into start {
+  let num_prints = 1;
+  let spaces = start;
+  // Print The Trees
+  copy start {
+    copy spaces {
+      output " ";
+    }
+    copy num_prints{
+      output "*";
+    }
+    output "\n";
+    num_prints += 2;
+    spaces -= 1;
+  }
+  // Offset the stem
+  copy start{
+    output " ";
+  }
+  // Print the stem
+  output "*";
+  output "\n";
+  // Newline to separate trees
+  output "\n";
+}
