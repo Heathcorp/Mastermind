@@ -3,7 +3,7 @@ import { Component, createSignal, For, createEffect, on } from "solid-js";
 import "./editor.css";
 
 import { EditorView } from "@codemirror/view";
-import { AiOutlinePlus } from "solid-icons/ai";
+import { AiOutlinePlus, AiOutlineUpload } from "solid-icons/ai";
 import {
   DragDropProvider,
   DragDropSensors,
@@ -13,6 +13,8 @@ import {
 
 import { useAppContext } from "../App";
 import Tab from "../components/Tab";
+import { createDropzone } from "@soorria/solid-dropzone";
+import { IconTypes } from "solid-icons";
 
 const EditorPanel: Component = () => {
   const app = useAppContext()!;
@@ -63,6 +65,15 @@ const EditorPanel: Component = () => {
     })
   );
 
+  const onDrop = (acceptedFiles: File[]) => {
+    console.log(acceptedFiles);
+    acceptedFiles.forEach(async (file: File) => {
+      const newId = await app.createFile(file);
+      setEditingFile(newId);
+    });
+  };
+  const dropzone = createDropzone({ onDrop });
+
   return (
     <div class="panel">
       <div class="tab-bar">
@@ -88,11 +99,16 @@ const EditorPanel: Component = () => {
               )}
             </For>
             <TabFiller
-              onAdd={() => {
-                const newId = app.createFile();
+              onClick={async () => {
+                const newId = await app.createFile();
                 setEditingFile(newId);
                 // setEditingLabel(newFile.id);
               }}
+            />
+            <TabFiller
+              onClick={() => {}}
+              iconComponent={AiOutlineUpload}
+              dropzone={dropzone}
             />
           </DragDropSensors>
         </DragDropProvider>
@@ -105,7 +121,11 @@ const EditorPanel: Component = () => {
 export default EditorPanel;
 
 const TAB_END_ID = "end";
-const TabFiller: Component<{ onAdd: () => void }> = (props) => {
+const TabFiller: Component<{
+  onClick: () => void;
+  iconComponent?: IconTypes;
+  dropzone?: any;
+}> = (props) => {
   // for dragging a file to the end of the list
   // had to make this its own component because of dragDrop context issues
   const droppableRef = createDroppable(TAB_END_ID);
@@ -115,12 +135,16 @@ const TabFiller: Component<{ onAdd: () => void }> = (props) => {
   onDragOver(({ droppable }) => setIsUnderDrag(droppable?.id === TAB_END_ID));
   onDragEnd(() => setIsUnderDrag(false));
 
+  const IconComponent = props.iconComponent ?? AiOutlinePlus;
+
   return (
     <div
       ref={droppableRef}
+      class={props.dropzone ? "dropzone-root" : undefined}
       classList={{ "tab-filler": true, "tab-insert-marker": isUnderDrag() }}
+      {...(props.dropzone ? props.dropzone.getRootProps() : {})}
     >
-      <AiOutlinePlus class="text-button" onClick={props.onAdd} />
+      <IconComponent class="text-button" onClick={props.onClick} />
     </div>
   );
 };

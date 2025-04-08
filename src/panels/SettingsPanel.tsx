@@ -10,7 +10,7 @@ import Divider from "../components/Divider";
 import { useAppContext } from "../App";
 import { makePersisted } from "@solid-primitives/storage";
 import { AiFillGithub, AiOutlineStop } from "solid-icons/ai";
-import { FiCopy } from "solid-icons/fi";
+import { FiCopy, FiSave } from "solid-icons/fi";
 import { IoHelpCircle } from "solid-icons/io";
 
 import "./settings.css";
@@ -19,6 +19,8 @@ import { SolidMarkdown } from "solid-markdown";
 import readmeContent from "../../README.md?raw";
 import { IoClose } from "solid-icons/io";
 import remarkGfm from "remark-gfm";
+import JSZip from "jszip";
+import downloadBlob from "../utils/downloadBlob";
 const SettingsPanel: Component<{ style?: JSX.CSSProperties }> = (props) => {
   const app = useAppContext()!;
 
@@ -61,6 +63,19 @@ const SettingsPanel: Component<{ style?: JSX.CSSProperties }> = (props) => {
   createEffect(() => {
     console.log(app.fileStates);
   });
+
+  const zipAndSave = async () => {
+    const zip = new JSZip();
+    app.fileStates.forEach((fileState) => {
+      const blob = new Blob([fileState.editorState.doc.toString()], {
+        type: "text/plain",
+      });
+      zip.file(fileState.label, blob);
+    });
+    await zip.generateAsync({ type: "blob" }).then((x) => {
+      downloadBlob(x);
+    });
+  };
 
   return (
     <div class="panel" style={{ "flex-direction": "row", ...props.style }}>
@@ -196,6 +211,14 @@ const SettingsPanel: Component<{ style?: JSX.CSSProperties }> = (props) => {
               <div class="negative-text">disabled</div>
             )}
             ]
+          </div>
+          <div
+            class="row button"
+            style={{ gap: 0, "text-decoration": "none", color: "inherit" }}
+            onClick={async () => await zipAndSave()}
+          >
+            <FiSave style={{ "margin-right": "8px" }} />
+            Zip All & Save
           </div>
         </div>
         <Divider />

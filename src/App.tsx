@@ -151,14 +151,17 @@ const App: Component = () => {
     setEntryFile(defaultFileId);
   };
 
-  const createFile = () => {
+  const createFile = async (file?: File) => {
     const newId = uuidv4();
+    let rawText: string | undefined;
+    if (file) rawText = await file.text();
     setFileStates((prev) => [
       ...prev,
       {
         id: newId,
-        label: `untitled_${prev.length}`,
+        label: file?.name ?? `untitled_${prev.length}`,
         editorState: EditorState.create({
+          doc: rawText,
           extensions: [
             ...defaultExtensions,
             EditorView.updateListener.of((e) => {
@@ -466,7 +469,7 @@ interface AppContextProps {
   fileStates: FileState[];
   entryFile: Accessor<string | undefined>;
   setEntryFile: Setter<string | undefined>;
-  createFile: () => string;
+  createFile: (file?: File) => Promise<string>;
   deleteFile: (id: string) => void;
   saveFileState: (id: string, state: EditorState) => void;
   setFileLabel: (id: string, label: string) => void;
