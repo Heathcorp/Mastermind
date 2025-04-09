@@ -417,6 +417,26 @@ output *x;
         assert_eq!(desired_output, output)
     }
 
+    #[test]
+    fn assignments_7() {
+        let program = String::from(
+            r#";
+let x[2] = [1, 2];
+x[0] = x[1] + 5; // 7
+x[1] = x[0] + x[1]; // 9
+
+x[0] += '0';
+x[1] += '0';
+output *x;
+        "#,
+        );
+        let input = String::from("");
+        let desired_output = String::from("79");
+        let output = compile_and_run(program, input).expect("");
+        println!("{output}");
+        assert_eq!(desired_output, output)
+    }
+
 	#[test]
 	fn loops_1() {
 		let program = String::from(

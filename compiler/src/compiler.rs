@@ -1077,7 +1077,7 @@ fn _add_self_referencing_expr_to_cell(
 			r_panic!("Cannot sum variable \"{source}\" in expression");
 		};
 		//If we have an instance of the original cell being added simply use our temp cell value
-		if source_cell.memory_id == cell.memory_id {
+		if source_cell.memory_id == cell.memory_id && source_cell.index == cell.index {
 			_copy_cell(scope, temp_cell, cell.clone(), constant);
 		} else {
 			_copy_cell(scope, source_cell, cell.clone(), constant);
