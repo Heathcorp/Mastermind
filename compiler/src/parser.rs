@@ -178,7 +178,7 @@ fn parse_add_clause(clause: &[Token]) -> Result<Vec<Clause>, String> {
 		},
 	};
 	//Check if this add clause self references
-	self_referencing = expr.clone().check_self_referencing(&var);
+	self_referencing = expr.check_self_referencing(&var);
 
 	clauses.push(Clause::AddToVariable {
 		var,
@@ -227,7 +227,7 @@ fn parse_set_clause(clause: &[Token]) -> Result<Vec<Clause>, String> {
 
 	let expr = Expression::parse(&clause[i..(clause.len() - 1)])?;
 	//Check if this set clause self references
-	self_referencing = expr.clone().check_self_referencing(&var);
+	self_referencing = expr.check_self_referencing(&var);
 
 	clauses.push(Clause::SetVariable {
 		var,
@@ -999,7 +999,7 @@ impl Expression {
 	}
 
 	//Recursively Check If This Is Self Referencing
-	pub fn check_self_referencing(self, parent: &VariableTarget) -> bool {
+	pub fn check_self_referencing(&self, parent: &VariableTarget) -> bool {
 		let expr = self;
 		let mut self_referencing = false;
 		//For Expressions Recurse otherwise we only need to check variable references to see if they are self referencing
@@ -1015,7 +1015,7 @@ impl Expression {
 			}
 			//If we are referencing the parent variable return true
 			Expression::VariableReference(var) => {
-				if var == *parent {
+				if *var == *parent {
 					self_referencing = true;
 				}
 			}

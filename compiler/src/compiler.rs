@@ -226,8 +226,12 @@ This error should never occur."
 							memory_id: mem.id(),
 							index: Some(*index),
 						};
-						scope.push_instruction(Instruction::ClearCell(cell.clone()));
-						_add_expr_to_cell(&mut scope, value, cell)?;
+						if is_self_referencing {
+							_add_self_referencing_expr_to_cell(&mut scope, value, cell, true)?;
+						} else {
+							scope.push_instruction(Instruction::ClearCell(cell.clone()));
+							_add_expr_to_cell(&mut scope, value, cell)?;
+						}
 					}
 					(
 						VariableTarget::MultiSpread { name: _ },
