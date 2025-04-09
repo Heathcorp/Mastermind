@@ -37,22 +37,29 @@ pub mod tests {
 		ENABLE_2D_GRID: false,
 	};
 
+	const TESTING_BVM_MAX_STEPS: usize = 100_000_000;
+
 	fn compile_and_run(program: String, input: String) -> Result<String, String> {
 		// println!("{program}");
 		// compile mastermind
 		let tokens: Vec<Token> = tokenise(&program)?;
-		// println!("{tokens:#?}");
+		println!("{tokens:#?}");
 		let clauses = parse(&tokens)?;
-		// println!("{clauses:#?}");
+		println!("{clauses:#?}");
 		let instructions = Compiler { config: &OPT_NONE }
 			.compile(&clauses, None)?
 			.finalise_instructions(false);
-		// println!("{instructions:#?}");
+		println!("{instructions:#?}");
 		let bf_program = Builder { config: &OPT_NONE }.build(instructions, false)?;
 		let bfs = bf_program.to_string();
-		// println!("{}", bfs);
+		println!("{}", bfs);
 		// run generated brainfuck with input
-		Ok(run_code(BVM_CONFIG_1D, bfs, input))
+		Ok(run_code(
+			BVM_CONFIG_1D,
+			bfs,
+			input,
+			Some(TESTING_BVM_MAX_STEPS),
+		))
 	}
 
 	fn compile_program(
@@ -107,7 +114,7 @@ pub mod tests {
 
 		let input = String::from("");
 		let desired_output = String::from("");
-		let output = run_code(BVM_CONFIG_1D, code, input);
+		let output = run_code(BVM_CONFIG_1D, code, input, None);
 		println!("{output}");
 		assert_eq!(desired_output, output)
 	}
@@ -306,6 +313,129 @@ output A;
 		println!("{output}");
 		assert_eq!(desired_output, output)
 	}
+
+	#[test]
+	fn assignments_1() {
+		let program = String::from(
+			r#";
+let x = 5;
+output '0' + x;
+x += 1;
+output '0' + x;
+			"#,
+		);
+		let input = String::from("");
+		let desired_output = String::from("56");
+		let output = compile_and_run(program, input).expect("");
+		println!("{output}");
+		assert_eq!(desired_output, output)
+	}
+
+	#[test]
+	fn assignments_2() {
+		let program = String::from(
+			r#";
+let x = 5;
+output '0' + x;
+x = x + 1;
+output '0' + x;
+			"#,
+		);
+		let input = String::from("");
+		let desired_output = String::from("56");
+		let output = compile_and_run(program, input).expect("");
+		println!("{output}");
+		assert_eq!(desired_output, output)
+	}
+	#[test]
+	fn assignments_3() {
+		let program = String::from(
+			r#";
+let x = 5;
+output '0' + x;
+x += 1 + x;
+output '0' + x;
+			"#,
+		);
+		let input = String::from("");
+		let desired_output = String::from("5;");
+		let output = compile_and_run(program, input).expect("");
+		println!("{output}");
+		assert_eq!(desired_output, output)
+	}
+
+	#[test]
+	fn assignments_4() {
+		let program = String::from(
+			r#";
+let x = 2;
+output '0' + x;
+x = x + x + x;
+output '0' + x;
+			"#,
+		);
+		let input = String::from("");
+		let desired_output = String::from("26");
+		let output = compile_and_run(program, input).expect("");
+		println!("{output}");
+		assert_eq!(desired_output, output)
+	}
+
+	#[test]
+	fn assignments_5() {
+		let program = String::from(
+			r#";
+let x = 2;
+x = (2 + 3) - ((x + 4) + 1) + 4 - (12) + (3 + 10);
+output '0' + x;
+		"#,
+		);
+		let input = String::from("");
+		let desired_output = String::from("3");
+		let output = compile_and_run(program, input).expect("");
+		println!("{output}");
+		assert_eq!(desired_output, output)
+	}
+
+	#[test]
+    fn assignments_6() {
+        let program = String::from(
+            r#";
+let x[2] = [4, 5];
+x[0] = x[0] + 4;
+x[1] = x[1] - 3;
+
+x[0] += '0';
+x[1] += '0';
+output *x;
+        "#,
+        );
+        let input = String::from("");
+        let desired_output = String::from("82");
+        let output = compile_and_run(program, input).expect("");
+        println!("{output}");
+        assert_eq!(desired_output, output)
+    }
+
+    #[test]
+    fn assignments_7() {
+        let program = String::from(
+            r#";
+let x[2] = [1, 2];
+x[0] = x[1] + 5; // 7
+x[1] = x[0] + x[1]; // 9
+
+x[0] += '0';
+x[1] += '0';
+output *x;
+        "#,
+        );
+        let input = String::from("");
+        let desired_output = String::from("79");
+        let output = compile_and_run(program, input).expect("");
+        println!("{output}");
+        assert_eq!(desired_output, output)
+    }
 
 	#[test]
 	fn loops_1() {
@@ -581,7 +711,7 @@ output 10;
 		let desired_output = String::from("01231\n");
 		let code = compile_program(program, Some(&OPT_NONE))?.to_string();
 		println!("{}", code);
-		let output = run_code(BVM_CONFIG_1D, code, input);
+		let output = run_code(BVM_CONFIG_1D, code, input, None);
 		println!("{output}");
 		assert_eq!(desired_output, output);
 
@@ -844,7 +974,7 @@ output foo;
 		println!("{code}");
 
 		let input = String::from("");
-		let output = run_code(BVM_CONFIG_1D, code.clone(), input);
+		let output = run_code(BVM_CONFIG_1D, code.clone(), input, None);
 		println!("{output}");
 		assert_eq!(code, ">>>++<<<++++++++++++[->>>++++++++++<<<][-]>>>.");
 		assert_eq!(output, "z");
@@ -937,7 +1067,7 @@ bf {
 			",.[-]+[-->-[>>+>-----<<]<--<---]>-.>>>+.>>..+++[.>]<<<<.+++.------.<<-.>>>>+."
 		);
 
-		let output = run_code(BVM_CONFIG_1D, code, String::from("~"));
+		let output = run_code(BVM_CONFIG_1D, code, String::from("~"), None);
 		assert_eq!(output, "~Hello, World!");
 		Ok(())
 	}
@@ -961,7 +1091,7 @@ bf @3 {
 			">>>,.[-]+[-->-[>>+>-----<<]<--<---]>-.>>>+.>>..+++[.>]<<<<.+++.------.<<-.>>>>+."
 		));
 
-		let output = run_code(BVM_CONFIG_1D, code, String::from("~"));
+		let output = run_code(BVM_CONFIG_1D, code, String::from("~"), None);
 		assert_eq!(output, "~Hello, World!");
 		Ok(())
 	}
@@ -994,7 +1124,7 @@ assert *str equals 0;
 
 		assert!(code.starts_with(",>,>,<<[+>]<<<[.[-]>]<<<"));
 
-		let output = run_code(BVM_CONFIG_1D, code, String::from("HEY"));
+		let output = run_code(BVM_CONFIG_1D, code, String::from("HEY"), None);
 		assert_eq!(output, "IFZ");
 		Ok(())
 	}
@@ -1024,7 +1154,7 @@ bf {
 		let code = compile_program(program, None)?.to_string();
 		println!("{code}");
 
-		let output = run_code(BVM_CONFIG_1D, code, String::from("line of input\n"));
+		let output = run_code(BVM_CONFIG_1D, code, String::from("line of input\n"), None);
 		assert_eq!(output, "lmijnoef !opfg !ijnopquvtu");
 		Ok(())
 	}
@@ -1063,7 +1193,7 @@ bf {
 		let code = compile_program(program, None)?.to_string();
 		println!("{code}");
 
-		let output = run_code(BVM_CONFIG_1D, code, String::from("hello\n"));
+		let output = run_code(BVM_CONFIG_1D, code, String::from("hello\n"), None);
 		assert_eq!(output, "'h'\n'e'\n'l'\n'l'\n'o'\n");
 		Ok(())
 	}
@@ -1121,7 +1251,7 @@ output 'h';
 		println!("{}", code.clone().to_string());
 		assert_eq!(
 			desired_output,
-			run_code(BVM_CONFIG_1D, code.to_string(), input)
+			run_code(BVM_CONFIG_1D, code.to_string(), input, None)
 		);
 
 		Ok(())
@@ -1145,7 +1275,7 @@ output a + 3;
 
 		let code = compile_program(program, Some(&OPT_ALL))?.to_string();
 		println!("{}", code);
-		assert_eq!(desired_output, run_code(BVM_CONFIG_1D, code, input));
+		assert_eq!(desired_output, run_code(BVM_CONFIG_1D, code, input, None));
 
 		Ok(())
 	}

@@ -126,9 +126,9 @@ fn main() -> Result<(), String> {
 		let mut bvm = BVM::new(config, bf_program.chars().collect());
 
 		if args.input.is_some() {
-			bvm.run(&mut Cursor::new(args.input.unwrap()), &mut stdout())?;
+			bvm.run(&mut Cursor::new(args.input.unwrap()), &mut stdout(), None)?;
 		} else {
-			bvm.run(&mut stdin(), &mut stdout())?;
+			bvm.run(&mut stdin(), &mut stdout(), None)?;
 		}
 	} else {
 		print!("{bf_program}");
