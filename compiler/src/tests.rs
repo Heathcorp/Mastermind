@@ -116,19 +116,19 @@ pub mod tests {
 	fn hello_1() {
 		let program = String::from(
 			"
-let h = 8;
-let e = 5;
-let l = 12;
-let o = 15;
+cell h = 8;
+cell e = 5;
+cell l = 12;
+cell o = 15;
 // comment!
-let a_char = 96;
+cell a_char = 96;
 drain a_char into h e l o;
 output h;
 output e;
 output l;
 output l;
 output o;
-let ten = 10;
+cell ten = 10;
 output ten;
       ",
 		);
@@ -160,7 +160,7 @@ output 10;
 			r#";
 output  'h'  ;;;
 // comment
-let EEL[5] =    "ello\n";
+cell[5] EEL =    "ello\n";
 output EEL[0];
 output EEL[1];
 output EEL[2];
@@ -182,8 +182,8 @@ output 70;
 	fn hello_4() {
 		let program = String::from(
 			r#"
-let str[4] = [5, 12, 12, 15];
-let a = 'a' - 1;
+cell[4] str = [5, 12, 12, 15];
+cell a = 'a' - 1;
 drain a into *str;
 output 'H';
 output *str;
@@ -232,12 +232,12 @@ output '@' + 256 + 1 + false + true + 'e' - '@';
 	fn expressions_2() {
 		let program = String::from(
 			r#";
-let p = 9 - (true + true -(-7));
+cell p = 9 - (true + true -(-7));
 if not p {
 	output "Hi friend!\n";
 }
 
-let q = 8 + p - (4 + p);
+cell q = 8 + p - (4 + p);
 q -= 4;
 if q {
 	output "path a";
@@ -263,7 +263,7 @@ if 56 - 7 {
 	output 'B';
 }
 
-let not_a = 'a' + (-1) - (0 - 1);
+cell not_a = 'a' + (-1) - (0 - 1);
 if not not_a - 'a' {
 	output 'C';
 } else {
@@ -289,8 +289,8 @@ if not_a - 'a' {
 	fn expressions_4() {
 		let program = String::from(
 			r#";
-let x = 5;
-let A = 'A';
+cell x = 5;
+cell A = 'A';
 
 drain 0 + x + 1 into A {
 	output '6';
@@ -311,14 +311,14 @@ output A;
 	fn loops_1() {
 		let program = String::from(
 			"
-let n = '0';
-let a = 10;
-let b = 1;
+cell n = '0';
+cell a = 10;
+cell b = 1;
 drain a {
 	output n;
 	++n;
 	output 'A';
-	let c = b;
+	cell c = b;
 	drain c {
 		output 'B';
 	};
@@ -336,8 +336,8 @@ drain a {
 	fn loops_2() {
 		let program = String::from(
 			"
-let a = 4;
-let b[6] = [65, 65, 65, 65, 65, 1];
+cell a = 4;
+cell[6] b = [65, 65, 65, 65, 65, 1];
 copy a into b[0] b[1] b[4] b[5] {
 	copy b[5] into b[2];
 	
@@ -349,7 +349,7 @@ copy a into b[0] b[1] b[4] b[5] {
 	output 10;
 }a+='a';output a;
 
-let g = 5;
+cell g = 5;
 drain g into a {output a;}
       ",
 		);
@@ -375,10 +375,10 @@ output 'h';
 	fn ifs_1() {
 		let program = String::from(
 			"
-let x = 7;
-let y = 9;
+cell x = 7;
+cell y = 9;
 
-let z = x - y;
+cell z = x - y;
 if z {
 	output 'A';
 } else {
@@ -417,10 +417,10 @@ output 10;
 	fn ifs_2() {
 		let program = String::from(
 			"
-let x = 7;
-let y = 9;
+cell x = 7;
+cell y = 9;
 
-let z = x - y;
+cell z = x - y;
 if z {
 	output 'A';
 } else {
@@ -461,9 +461,9 @@ output 10;
 	fn ifs_3() {
 		let program = String::from(
 			"
-let a = 5;
+cell a = 5;
 if a {
-	let b = a + '0';
+	cell b = a + '0';
 	output b;
 }
 output 10;
@@ -480,16 +480,16 @@ output 10;
 	fn loops_and_ifs_1() {
 		let program = String::from(
 			"
-let n = '0';
-let a = 6;
-let b;
+cell n = '0';
+cell a = 6;
+cell b;
 drain a {
 	output n;++n;
 ;;;;;;
 	output 'A';
 
-	let c;
-	let nt_eq = a - b;
+	cell c;
+	cell nt_eq = a - b;
 
 	if nt_eq {
 		c = 2;
@@ -515,16 +515,16 @@ drain a {
 	fn functions_1() {
 		let program = String::from(
 			"
-let global_var = '0';
+cell global_var = '0';
 
 def func_0<grape> {
-	let n = grape + 1;
+	cell n = grape + 1;
 	output n;
 	n = 0;
 };;
 
 def func_1<grape> {
-	let n = grape + 2;
+	cell n = grape + 2;
 	output n;
 	n = 0;
 }
@@ -552,10 +552,10 @@ output 10;
 	fn functions_2() -> Result<(), String> {
 		let program = String::from(
 			"
-let global_var = '0';
+cell global_var = '0';
 
 def func_0<grape> {
-	let n = grape + 1;
+	cell n = grape + 1;
 	output n;
 
 	def func_1<grape> {
@@ -592,12 +592,12 @@ output 10;
 	fn functions_3() {
 		let program = String::from(
 			"
-let global_var = '0';
+cell global_var = '0';
 
-let global_vars[2] = ['0', 64];
+cell[2] global_vars = ['0', 64];
 
 def func_0<grape> {
-	let n = grape + 1;
+	cell n = grape + 1;
 	output n;
 
 	def func_1<grape> {
@@ -605,8 +605,8 @@ def func_0<grape> {
 		output grape;
 		grape += 1;
 
-		let frog[4];
-		let zero = '0';
+		cell[4] frog;
+		cell zero = '0';
 		drain zero into *frog;
 		frog[1] += 2;
 
@@ -645,7 +645,7 @@ def func_2<think[4], green> {
 	output green;
 	// this originally worked but I realised I don't actually need this
 	// technically green is not declared in this scope because functions are more like templates but I still think removing this functionality is justified
-	// let green = '$';
+	// cell green = '$';
 	// output green;
 	// green = 0;
 };
@@ -681,7 +681,7 @@ output 10;
 	fn input_1() {
 		let program = String::from(
 			"
-let b;
+cell b;
 input b;
 ++b;
 output b;
@@ -698,7 +698,7 @@ output b;
 	fn input_2() {
 		let program = String::from(
 			r#"
-let b[3];
+cell[3] b;
 input b[0];
 input b[1];
 input b[2];
@@ -725,7 +725,7 @@ output b[0];
 	fn memory_1() {
 		let program = String::from(
 			r#"
-let b[3] = "Foo";
+cell[3] b = "Foo";
 
 def inc<h, g> {
 	g += 1;
@@ -738,7 +738,7 @@ output *b;
 
 output 10;
 
-let c = -1;
+cell c = -1;
 inc<c, c>;
 output c;
 "#,
@@ -754,7 +754,7 @@ output c;
 	fn memory_2() {
 		let program = String::from(
 			r#"
-let b[3] = [1, 2, 3];
+cell[3] b = [1, 2, 3];
 
 def drain_h<h> {
 	drain h {
@@ -772,8 +772,8 @@ def drain_into<a, b[5]> {
 	drain a into *b;
 }
 
-let u = 'a' - 1;
-let v[5] = [8, 5, 12, 12, 15];
+cell u = 'a' - 1;
+cell[5] v = [8, 5, 12, 12, 15];
 drain_into<u, v>;
 output *v;
 "#,
@@ -790,7 +790,7 @@ output *v;
 		let program = String::from(
 			r#"
 {{{{{{{
-	let g = 0 + 5 + (-(-5));
+	cell g = 0 + 5 + (-(-5));
 	output "Freidns";
 	{
 		output g;
@@ -809,10 +809,10 @@ output *v;
 	fn blocks_2() {
 		let program = String::from(
 			r#"
-let f = 'f';
+cell f = 'f';
 output f;
 {
-	let f = 'F';
+	cell f = 'F';
 	output f;
 }
 output f;
@@ -829,9 +829,9 @@ output f;
 	fn memory_specifiers_1() -> Result<(), String> {
 		let program = String::from(
 			r#"
-let foo @3 = 2;
+cell foo @3 = 2;
 {
-	let n = 12;
+	cell n = 12;
 	while n {
 		n -= 1;
 		foo += 10;
@@ -855,9 +855,9 @@ output foo;
 	fn memory_specifiers_2() -> Result<(), String> {
 		let program = String::from(
 			r#"
-let a @5 = 4;
-let foo @0 = 2;
-let b = 10;
+cell a @5 = 4;
+cell foo @0 = 2;
+cell b = 10;
 "#,
 		);
 		let code = compile_program(program, None)?.to_string();
@@ -871,9 +871,9 @@ let b = 10;
 	fn memory_specifiers_3() -> Result<(), String> {
 		let program = String::from(
 			r#"
-let a @1 = 1;
-let foo @0 = 2;
-let b = 3;
+cell a @1 = 1;
+cell foo @0 = 2;
+cell b = 3;
 "#,
 		);
 		let code = compile_program(program, None)?.to_string();
@@ -887,7 +887,7 @@ let b = 3;
 	fn assertions_1() -> Result<(), String> {
 		let program = String::from(
 			r#"
-let a @0 = 5;
+cell a @0 = 5;
 output a;
 assert a equals 2;
 a = 0;
@@ -905,7 +905,7 @@ output a;
 	fn assertions_2() -> Result<(), String> {
 		let program = String::from(
 			r#"
-let a @0 = 2;
+cell a @0 = 2;
 output a;
 assert a unknown;
 a = 0;
@@ -946,8 +946,8 @@ bf {
 	fn inline_brainfuck_2() -> Result<(), String> {
 		let program = String::from(
 			r#"
-// let a @0;
-// let b @1;
+// cell a @0;
+// cell b @1;
 bf @3 {
 	,.[-]
 	+[-->-[>>+>-----<<]<--<---]>-.>>>+.>>..+++[.>]<<<<.+++.------.<<-.>>>>+.
@@ -970,7 +970,7 @@ bf @3 {
 	fn inline_brainfuck_3() -> Result<(), String> {
 		let program = String::from(
 			r#"
-let str[3] @0;
+cell[3] str @0;
 
 bf @0 clobbers *str {
 	,>,>,
@@ -1009,7 +1009,7 @@ bf {
 	,----------[
 		++++++++++
 		{
-			let chr @0;
+			cell chr @0;
 			assert chr unknown;
 			output chr;
 			chr += 1;
@@ -1047,8 +1047,7 @@ bf {
 	,----------[
 		++++++++++
 		{
-			// TODO: make sure top level variables aren't cleared automatically
-			let chr @0;
+			cell chr @0;
 			assert chr unknown;
 			quote<chr>;
 			output 10;
@@ -1072,7 +1071,7 @@ bf {
 	fn inline_brainfuck_6() -> Result<(), String> {
 		let program = String::from(
 			r#"
-let b = 4;
+cell b = 4;
 
 bf {
 	++--
@@ -1096,7 +1095,7 @@ bf {
 	bf {
 		,>,>,
 		<<
-		{{{{{{let g @5 = 1;}}}}}}
+		{{{{{{cell g @5 = 1;}}}}}}
 	}
 	"#,
 		);
@@ -1131,9 +1130,9 @@ output 'h';
 	fn constant_optimisations_2() -> Result<(), String> {
 		let program = String::from(
 			r#"
-let arr[15] @1;
-let a = 'G';
-let b = a + 45;
+cell[15] arr @1;
+cell a = 'G';
+cell b = a + 45;
 output b;
 b -= 43;
 output b;
