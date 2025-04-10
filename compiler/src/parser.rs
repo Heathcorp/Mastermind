@@ -1,4 +1,8 @@
-use std::{fmt::Display, mem::discriminant, num::Wrapping};
+use std::{
+	fmt::{Display, Write},
+	mem::discriminant,
+	num::Wrapping,
+};
 
 use crate::{
 	builder::TapeCell,
@@ -18,7 +22,8 @@ pub fn parse(tokens: &[Token]) -> Result<Vec<Clause>, String> {
 			&clause.get(1).unwrap_or(&Token::None),
 			&clause.get(2).unwrap_or(&Token::None),
 		) {
-			(Token::Let, _, _) => {
+			(Token::Struct, Token::Name(_), Token::OpenBrace) => {}
+			(Token::Cell, _, _) | (Token::Struct, Token::Name(_), Token::Name(_)) => {
 				clauses.push(parse_let_clause(clause)?);
 			}
 			(Token::Plus, Token::Plus, _) | (Token::Minus, Token::Minus, _) => {
@@ -108,7 +113,8 @@ pub fn parse(tokens: &[Token]) -> Result<Vec<Clause>, String> {
 				| Token::Equals
 				| Token::Unknown
 				| Token::Dot
-				| Token::At,
+				| Token::At
+				| Token::Struct,
 				_,
 				_,
 			) => r_panic!("Invalid clause: {clause:#?}"),
@@ -120,10 +126,8 @@ pub fn parse(tokens: &[Token]) -> Result<Vec<Clause>, String> {
 }
 
 fn parse_let_clause(clause: &[Token]) -> Result<Clause, String> {
-	// let foo = 9;
-	// let arr[2] = ??;
-	// let g;
-	// let why[9];
+	// cell x = 0;
+	// struct DummyStruct y
 	let mut i = 1usize;
 	// this kind of logic could probably be done with iterators, (TODO for future refactors)
 
@@ -610,88 +614,88 @@ fn parse_function_call_clause(clause: &[Token]) -> Result<Clause, String> {
 
 fn parse_var_target(tokens: &[Token]) -> Result<(VariableTarget, usize), String> {
 	let mut i = 0usize;
-	let spread = if let Token::Asterisk = &tokens[i] {
-		// spread syntax
-		i += 1;
-		true
-	} else {
-		false
-	};
 	let Token::Name(var_name) = &tokens[i] else {
 		r_panic!("Expected identifier in variable identifier: {tokens:#?}");
 	};
 	i += 1;
 
-	if let Some(Token::OpenSquareBracket) = &tokens.get(i) {
-		if spread {
-			r_panic!(
-				"Cannot use spread operator and subscript on the same variable target: {tokens:#?}"
-			);
+	let mut ref_chain = vec![];
+	loop {
+		match &tokens[i] {
+			Token::OpenSquareBracket => {
+				todo!()
+			}
+			Token::Dot => todo!(),
+			_ => {
+				break;
+			}
 		}
-		let subscript = get_braced_tokens(&tokens[i..], SQUARE_BRACKETS)?;
-		let Expression::NaturalNumber(index) = Expression::parse(subscript)? else {
-			r_panic!(
-				"Expected a constant array index specifier in variable identifier: {tokens:#?}"
-			);
-		};
-		i += 2 + subscript.len();
-
-		Ok((
-			VariableTarget::MultiCell {
-				name: var_name.clone(),
-				index,
-			},
-			i,
-		))
-	} else if spread {
-		Ok((
-			VariableTarget::MultiSpread {
-				name: var_name.clone(),
-			},
-			i,
-		))
-	} else {
-		Ok((
-			VariableTarget::Single {
-				name: var_name.clone(),
-			},
-			i,
-		))
 	}
-	// also return the length of tokens read
+
+	Ok((VariableTarget(var_name.clone(), ref_chain), i))
 }
 
+/// convert tokens of a variable definition into data representation, e.g. `cell x`, `struct G g`, `cell[5] x_arr`, `struct H[100] hs`
 fn parse_var_definition(tokens: &[Token]) -> Result<(VariableDefinition, usize), String> {
 	let mut i = 0usize;
+	let mut var_type = match &tokens[i] {
+		Token::Cell => {
+			i += 1;
+
+			VariableType::Cell
+		}
+		Token::Struct => {
+			i += 1;
+
+			let Token::Name(struct_name) = &tokens[i] else {
+				r_panic!("Expected struct type name in variable definition: {tokens:#?}");
+			};
+			i += 1;
+
+			VariableType::Struct(struct_name.clone())
+		}
+		_ => {
+			r_panic!("Unexpected token in variable definition, this should not occur: {tokens:#?}")
+		}
+	};
+
+	// parse array specifiers
+	// TODO: make this work for multi-dimension arrays [5][4]
+	if let Token::OpenSquareBracket = &tokens[i] {
+		let (len, j) = parse_array_length(&tokens[i..])?;
+		i += j;
+
+		var_type = VariableType::Array(Box::new(var_type), len);
+	}
+
 	let Token::Name(var_name) = &tokens[i] else {
 		r_panic!("Expected identifier in variable definition: {tokens:#?}");
 	};
 	i += 1;
 
 	Ok((
-		if let Some(Token::OpenSquareBracket) = &tokens.get(i) {
-			let subscript = get_braced_tokens(&tokens[i..], SQUARE_BRACKETS)?;
-			let Expression::NaturalNumber(len) = Expression::parse(subscript)? else {
-				r_panic!("Expected a constant array length specifier in variable definition: {tokens:#?}");
-			};
-			r_assert!(
-				len > 0,
-				"Multi-byte variable cannot be zero-length: {tokens:#?}"
-			);
-			i += 2 + subscript.len();
-
-			VariableDefinition::Multi {
-				name: var_name.clone(),
-				len,
-			}
-		} else {
-			VariableDefinition::Single {
-				name: var_name.clone(),
-			}
+		VariableDefinition {
+			var_type,
+			name: var_name.clone(),
 		},
-		// also return the length of tokens read
 		i,
 	))
+}
+
+/// parse the subscript of an array definition, e.g. [4] [6]
+/// must be compile-time constant
+/// returns (array length, tokens used)
+/// assumes the first token is an open square bracket
+fn parse_array_length(tokens: &[Token]) -> Result<(usize, usize), String> {
+	let mut i = 0usize;
+	let subscript = get_braced_tokens(&tokens[i..], SQUARE_BRACKETS)?;
+	let Expression::NaturalNumber(len) = Expression::parse(subscript)? else {
+		r_panic!("Expected a constant array length specifier in variable definition: {tokens:#?}");
+	};
+	r_assert!(len > 0, "Array variable cannot be zero-length: {tokens:#?}");
+	i += 2 + subscript.len();
+
+	Ok((len, i))
 }
 
 // get a clause, typically a line, bounded by ;
@@ -1081,68 +1085,80 @@ pub enum ExtendedOpcode {
 	Block(Vec<Clause>),
 }
 
+#[derive(Debug, Clone, Hash, PartialEq, Eq)]
+pub enum VariableType {
+	Cell,
+	Struct(String),
+	Array(Box<VariableType>, usize),
+}
+
 // TODO: refactor to this instead:
 #[derive(Debug, Clone, Hash, PartialEq, Eq)]
-pub enum VariableDefinition {
-	Single { name: String },
-	Multi { name: String, len: usize },
+pub struct VariableDefinition {
+	pub var_type: VariableType,
+	pub name: String,
 	// Infinite {name: String, pattern: ???},
 }
 
-#[derive(Debug, Clone, Hash, PartialEq, Eq)]
-pub enum VariableTarget {
-	Single { name: String },
-	MultiCell { name: String, index: usize },
-	MultiSpread { name: String },
-}
-
 impl VariableDefinition {
-	pub fn name(&self) -> &String {
-		match self {
-			VariableDefinition::Single { name } => name,
-			VariableDefinition::Multi { name, len: _ } => name,
-		}
-	}
 	pub fn len(&self) -> Option<usize> {
-		match self {
-			VariableDefinition::Single { name: _ } => None,
-			VariableDefinition::Multi { name: _, len } => Some(*len),
+		match self.var_type {
+			VariableType::Cell | VariableType::Struct(_) => None,
+			VariableType::Array(_, len) => Some(len),
 		}
 	}
-	// get this variable definition as a variable target, strips length information and defaults to a spread reference
-	pub fn to_target(self) -> VariableTarget {
-		match self {
-			VariableDefinition::Single { name } => VariableTarget::Single { name },
-			VariableDefinition::Multi { name, len: _ } => VariableTarget::MultiSpread { name },
-		}
+	// // get this variable definition as a variable target, strips length information and defaults to a spread reference
+	// pub fn to_target(self) -> VariableTarget {
+	// 	match self {
+	// 		VariableDefinition::Single { name } => VariableTarget::Single { name },
+	// 		VariableDefinition::Multi { name, len: _ } => VariableTarget::MultiSpread { name },
+	// 	}
+	// }
+}
+
+#[derive(Debug, Clone, Hash, PartialEq, Eq)]
+enum Reference {
+	NamedField(String),
+	Index(usize),
+}
+#[derive(Debug, Clone, Hash, PartialEq, Eq)]
+pub struct VariableTarget(pub String, pub Vec<Reference>);
+impl VariableTarget {
+	pub fn name(&self) -> &str {
+		&self.0
 	}
 }
 
-impl VariableTarget {
-	pub fn name(&self) -> &String {
-		match self {
-			VariableTarget::Single { name } => name,
-			VariableTarget::MultiCell { name, index: _ } => name,
-			VariableTarget::MultiSpread { name } => name,
+impl Display for VariableType {
+	fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+		match &self {
+			VariableType::Cell => f.write_str(&format!("cell")),
+			VariableType::Struct(struct_name) => f.write_str(&format!("struct {struct_name}")),
+			VariableType::Array(element_type, len) => {
+				f.write_str(&format!("{element_type}[{len}]"))
+			}
 		}
 	}
 }
 
 impl Display for VariableDefinition {
 	fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-		match self {
-			VariableDefinition::Single { name } => f.write_str(name),
-			VariableDefinition::Multi { name, len } => f.write_str(&format!("{name}[{len}]")),
-		}
+		f.write_str(&format!("{} {}", self.var_type, self.name))
 	}
 }
 
 impl Display for VariableTarget {
 	fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-		match self {
-			VariableTarget::Single { name } => f.write_str(name),
-			VariableTarget::MultiCell { name, index } => f.write_str(&format!("{name}[{index}]")),
-			VariableTarget::MultiSpread { name } => f.write_str(&format!("*{name}")),
+		f.write_str(&self.0);
+		for ref_step in self.1.iter() {
+			match ref_step {
+				Reference::NamedField(subfield_name) => {
+					f.write_str(&format!(".{subfield_name}"))?
+				}
+				Reference::Index(index) => f.write_str(&format!("[{index}]"))?,
+			}
 		}
+
+		Ok(())
 	}
 }
