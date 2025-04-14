@@ -1108,12 +1108,6 @@ pub enum VariableType {
 	Struct(String),
 	Array(Box<VariableType>, usize),
 }
-impl VariableType {
-	/// recursively calculate the size in cells of this variable
-	pub fn size(&self) -> Option<usize> {
-		todo!();
-	}
-}
 
 // TODO: refactor to this instead:
 #[derive(Debug, Clone, Hash, PartialEq, Eq)]
