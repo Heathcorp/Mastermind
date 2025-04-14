@@ -868,6 +868,227 @@ output g[3][2];
 	}
 
 	#[test]
+	fn structs_1() {
+		let program = String::from(
+			r#";
+struct AA {
+  cell green;
+	cell yellow;
+}
+
+struct AA a;
+output '0' + a.green;
+output '0' + a.yellow;
+
+a.green = 6;
+a.yellow = 4;
+output '0' + a.green;
+output '0' + a.yellow;
+			"#,
+		);
+		let input = String::from("");
+		let desired_output = String::from("0064");
+		let output = compile_and_run(program, input).expect("");
+		println!("{output}");
+		assert_eq!(desired_output, output)
+	}
+
+	#[test]
+	fn structs_2() {
+		let program = String::from(
+			r#";
+struct AA {
+  cell green;
+	cell yellow;
+}
+
+struct AA a {green = 3, yellow = 4};
+output '0' + a.green;
+output '0' + a.yellow;
+
+a.green = 5;
+a.yellow = 2;
+output '0' + a.green;
+output '0' + a.yellow;
+			"#,
+		);
+		let input = String::from("");
+		let desired_output = String::from("3452");
+		let output = compile_and_run(program, input).expect("");
+		println!("{output}");
+		assert_eq!(desired_output, output)
+	}
+
+	#[test]
+	fn structs_3() {
+		let program = String::from(
+			r#";
+struct AA {
+  cell green;
+	cell yellow;
+}
+
+struct AA a;
+
+def input_AA<struct AA bbb> {
+  input bbb.green;
+  input bbb.yellow;
+}
+
+input_AA<a>;
+
+output a.yellow;
+output a.green;
+			"#,
+		);
+		let input = String::from("gh");
+		let desired_output = String::from("hg");
+		let output = compile_and_run(program, input).expect("");
+		println!("{output}");
+		assert_eq!(desired_output, output)
+	}
+
+	#[test]
+	fn structs_4() {
+		let program = String::from(
+			r#";
+struct AA {
+  cell green;
+	cell yellow;
+	cell[4] reds;
+}
+
+struct AA a;
+input a.green;
+input a.yellow;
+input a.reds[3];
+input a.reds[0];
+input a.reds[1];
+input a.reds[2];
+
+output a.green;
+output a.yellow;
+output a.reds[0];
+output a.reds[1];
+output a.reds[2];
+output a.reds[3];
+output '\n';
+			"#,
+		);
+		let input = String::from("hellow");
+		let desired_output = String::from("helowl");
+		let output = compile_and_run(program, input).expect("");
+		println!("{output}");
+		assert_eq!(desired_output, output)
+	}
+
+	#[test]
+	fn structs_5() {
+		let program = String::from(
+			r#";
+struct AA {
+  cell green;
+}
+
+struct AA[2] as;
+as[0].green = 5;
+as[1].green = 3;
+
+output '0' + as[0].green;
+output '0' + as[1].green;
+			"#,
+		);
+		let input = String::from("");
+		let desired_output = String::from("53");
+		let output = compile_and_run(program, input).expect("");
+		println!("{output}");
+		assert_eq!(desired_output, output)
+	}
+
+	#[test]
+	fn structs_6() {
+		let program = String::from(
+			r#";
+struct AA {
+  cell green;
+}
+struct BB {
+  cell green;
+}
+
+struct AA[2] as;
+struct BB b {
+  green = 6
+};
+
+def input_AAs<struct AA[2] aaas> {
+  input aaas[0].green;
+  input aaas[1].green;
+	output "HI\n";
+}
+input_AAs<as>;
+
+output '0' + b.green;
+output as[0].green;
+output as[1].green;
+			"#,
+		);
+		let input = String::from("tr");
+		let desired_output = String::from("HI\n6tr");
+		let output = compile_and_run(program, input).expect("");
+		println!("{output}");
+		assert_eq!(desired_output, output)
+	}
+
+	#[test]
+	fn structs_7() {
+		let program = String::from(
+			r#";
+struct BB {
+	cell green;
+}
+struct AA {
+  cell green;
+	struct BB[3] bbb;
+}
+
+struct AA[2] as;
+
+def input_AAs<struct AA[2] aaas> {
+  def input_BB<struct BB b> {
+	  input b.green;
+	}
+	input_BB<aaas[0].bbb[0]>;
+	input_BB<aaas[0].bbb[1]>;
+	input_BB<aaas[0].bbb[2]>;
+  input_BB<aaas[1].bbb[0]>;
+	input_BB<aaas[1].bbb[1]>;
+	input_BB<aaas[1].bbb[2]>;
+ 
+  input aaas[0].green;
+  input aaas[1].green;
+	output "HI\n";
+}
+input_AAs<as>;
+
+output as[0].green;
+output as[0].bbb[0].green;
+output as[0].bbb[1].green;
+output as[0].bbb[2].green;
+output as[1].green;
+output as[1].bbb[0].green;
+output as[1].bbb[1].green;
+output as[1].bbb[2].green;
+			"#,
+		);
+		let input = String::from("abcdefgh");
+		let desired_output = String::from("HI\ngabchdef");
+		let output = compile_and_run(program, input).expect("");
+		println!("{output}");
+		assert_eq!(desired_output, output)
+	}
+
+	#[test]
 	fn memory_specifiers_1() -> Result<(), String> {
 		let program = String::from(
 			r#"

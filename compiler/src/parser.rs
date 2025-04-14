@@ -1,8 +1,4 @@
-use std::{
-	fmt::{Display, Write},
-	mem::discriminant,
-	num::Wrapping,
-};
+use std::{fmt::Display, mem::discriminant, num::Wrapping};
 
 use crate::{
 	builder::TapeCell,
