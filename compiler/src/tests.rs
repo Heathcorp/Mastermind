@@ -756,7 +756,7 @@ output c;
 			r#"
 cell[3] b = [1, 2, 3];
 
-def drain_h<h> {
+def drain_h<cell h> {
 	drain h {
 		output 'h';
 	}
@@ -768,7 +768,7 @@ output ' ';
 drain_h<b[1]>;
 output ' ';
 
-def drain_into<a, b[5]> {
+def drain_into<cell a, cell[5] b> {
 	drain a into *b;
 }
 
@@ -820,6 +820,48 @@ output f;
 		);
 		let input = String::from("");
 		let desired_output = String::from("fFf");
+		let output = compile_and_run(program, input).expect("");
+		println!("{output}");
+		assert_eq!(desired_output, output)
+	}
+
+	#[test]
+	fn dimensional_arrays_1() {
+		let program = String::from(
+			r#"
+cell[4][3] g;
+g[0][0] = 5 + '0';
+g[0][1] = 4 + '0';
+g[0][2] = 3 + '0';
+
+g[1][0] = 1 + '0';
+g[1][1] = 2 + '0';
+g[1][2] = 3 + '0';
+
+g[3][0] = 1 + '0';
+g[3][1] = 2 + '0';
+g[3][2] = 3 + '0';
+
+g[2][0] = 0 + '0';
+g[2][1] = 0 + '0';
+g[2][2] = 0 + '0';
+
+output g[0][0];
+output g[0][1];
+output g[0][2];
+output g[1][0];
+output g[1][1];
+output g[1][2];
+output g[2][0];
+output g[2][1];
+output g[2][2];
+output g[3][0];
+output g[3][1];
+output g[3][2];
+"#,
+		);
+		let input = String::from("");
+		let desired_output = String::from("543123000123");
 		let output = compile_and_run(program, input).expect("");
 		println!("{output}");
 		assert_eq!(desired_output, output)

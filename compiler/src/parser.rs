@@ -128,7 +128,7 @@ pub fn parse(tokens: &[Token]) -> Result<Vec<Clause>, String> {
 fn parse_let_clause(clause: &[Token]) -> Result<Clause, String> {
 	// cell x = 0;
 	// struct DummyStruct y
-	let mut i = 1usize;
+	let mut i = 0usize;
 	// this kind of logic could probably be done with iterators, (TODO for future refactors)
 
 	let (var, len) = parse_var_definition(&clause[i..])?;
@@ -615,17 +615,27 @@ fn parse_function_call_clause(clause: &[Token]) -> Result<Clause, String> {
 fn parse_var_target(tokens: &[Token]) -> Result<(VariableTarget, usize), String> {
 	let mut i = 0usize;
 	let Token::Name(var_name) = &tokens[i] else {
-		r_panic!("Expected identifier in variable identifier: {tokens:#?}");
+		r_panic!("Expected identifier in variable target identifier: {tokens:#?}");
 	};
 	i += 1;
 
 	let mut ref_chain = vec![];
-	loop {
+	while i < tokens.len() {
 		match &tokens[i] {
 			Token::OpenSquareBracket => {
-				todo!()
+				let (index, tokens_used) = parse_subscript(&tokens[i..])?;
+				i += tokens_used;
+				ref_chain.push(Reference::Index(index));
 			}
-			Token::Dot => todo!(),
+			Token::Dot => {
+				i += 1;
+				let Token::Name(subfield_name) = &tokens[i] else {
+					r_panic!("Expected subfield name in variable target identifier: {tokens:#?}");
+				};
+				i += 1;
+
+				ref_chain.push(Reference::NamedField(subfield_name.clone()));
+			}
 			_ => {
 				break;
 			}
@@ -661,7 +671,7 @@ fn parse_var_definition(tokens: &[Token]) -> Result<(VariableDefinition, usize),
 
 	// parse array specifiers
 	// TODO: make this work for multi-dimension arrays [5][4]
-	if let Token::OpenSquareBracket = &tokens[i] {
+	while let Token::OpenSquareBracket = &tokens[i] {
 		let (len, j) = parse_array_length(&tokens[i..])?;
 		i += j;
 
@@ -682,19 +692,26 @@ fn parse_var_definition(tokens: &[Token]) -> Result<(VariableDefinition, usize),
 	))
 }
 
-/// parse the subscript of an array definition, e.g. [4] [6]
+/// parse the subscript of an array variable, e.g. [4] [6]
 /// must be compile-time constant
 /// returns (array length, tokens used)
 /// assumes the first token is an open square bracket
-fn parse_array_length(tokens: &[Token]) -> Result<(usize, usize), String> {
+fn parse_subscript(tokens: &[Token]) -> Result<(usize, usize), String> {
 	let mut i = 0usize;
 	let subscript = get_braced_tokens(&tokens[i..], SQUARE_BRACKETS)?;
 	let Expression::NaturalNumber(len) = Expression::parse(subscript)? else {
-		r_panic!("Expected a constant array length specifier in variable definition: {tokens:#?}");
+		r_panic!("Expected a compile-time constant in subscript: {tokens:#?}");
 	};
-	r_assert!(len > 0, "Array variable cannot be zero-length: {tokens:#?}");
+
 	i += 2 + subscript.len();
 
+	Ok((len, i))
+}
+
+/// parse_array_subscript but with a length check
+fn parse_array_length(tokens: &[Token]) -> Result<(usize, usize), String> {
+	let (len, i) = parse_subscript(tokens)?;
+	r_assert!(len > 0, "Array variable cannot be zero-length: {tokens:#?}");
 	Ok((len, i))
 }
 
@@ -1091,6 +1108,12 @@ pub enum VariableType {
 	Struct(String),
 	Array(Box<VariableType>, usize),
 }
+impl VariableType {
+	/// recursively calculate the size in cells of this variable
+	pub fn size(&self) -> Option<usize> {
+		todo!();
+	}
+}
 
 // TODO: refactor to this instead:
 #[derive(Debug, Clone, Hash, PartialEq, Eq)]
@@ -1107,13 +1130,17 @@ impl VariableDefinition {
 			VariableType::Array(_, len) => Some(len),
 		}
 	}
-	// // get this variable definition as a variable target, strips length information and defaults to a spread reference
-	// pub fn to_target(self) -> VariableTarget {
-	// 	match self {
-	// 		VariableDefinition::Single { name } => VariableTarget::Single { name },
-	// 		VariableDefinition::Multi { name, len: _ } => VariableTarget::MultiSpread { name },
-	// 	}
-	// }
+	/// gets this definition as a cell target for definition clauses (as opposed to declarations)
+	pub fn target_cell(&self) -> Result<VariableTarget, String> {
+		match self.var_type {
+			VariableType::Cell => Ok(VariableTarget(self.name.clone(), vec![])),
+			VariableType::Struct(_) | VariableType::Array(_, _) => {
+				r_panic!(
+					"Cannot get single cell target from a struct or array definition ({self:#?})."
+				)
+			}
+		}
+	}
 }
 
 #[derive(Debug, Clone, Hash, PartialEq, Eq)]
@@ -1122,6 +1149,7 @@ enum Reference {
 	Index(usize),
 }
 #[derive(Debug, Clone, Hash, PartialEq, Eq)]
+// TODO: make the vec reference optional?
 pub struct VariableTarget(pub String, pub Vec<Reference>);
 impl VariableTarget {
 	pub fn name(&self) -> &str {

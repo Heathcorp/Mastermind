@@ -1,6 +1,6 @@
 // compile syntax tree into low-level instructions
 
-use std::{collections::HashMap, iter::zip};
+use std::collections::HashMap;
 
 use crate::{
 	builder::{Builder, Opcode, TapeCell},
@@ -22,7 +22,7 @@ impl Compiler<'_> {
 		&'a self,
 		clauses: &[Clause],
 		outer_scope: Option<&'a Scope>,
-	) -> Result<Scope, String> {
+	) -> Result<Scope<'a>, String> {
 		let mut scope = if let Some(outer) = outer_scope {
 			outer.open_inner()
 		} else {
@@ -57,9 +57,7 @@ impl Compiler<'_> {
 					location_specifier,
 				} => {
 					// create an allocation in the scope
-					let memory = scope.allocate_variable_memory(var)?;
-					// push instruction to allocate cell(s) (the number of cells is stored in the Memory object)
-					scope.push_instruction(Instruction::Allocate(memory, location_specifier));
+					scope.allocate_variable_memory(var, location_specifier)?;
 				}
 				Clause::DefineVariable {
 					var,
@@ -67,95 +65,87 @@ impl Compiler<'_> {
 					value,
 				} => {
 					// same as above except we initialise the variable
-					let memory = scope.allocate_variable_memory(var.clone())?;
-					let memory_id = memory.id();
-					scope.push_instruction(Instruction::Allocate(
-						memory.clone(),
-						location_specifier,
-					));
+					scope.allocate_variable_memory(var.clone(), location_specifier)?;
 
-					match (&var.var_type, &value, memory) {
-						(
-							VariableType::Cell,
-							Expression::SumExpression {
-								sign: _,
-								summands: _,
-							}
-							| Expression::NaturalNumber(_)
-							| Expression::VariableReference(_),
-							Memory::Cell { id: _ },
-						) => {
-							_add_expr_to_cell(
-								&mut scope,
-								value,
-								CellReference {
-									memory_id,
-									index: None,
-								},
-							)?;
-						}
-						(
-							VariableType::Array(inner_type, len),
-							Expression::ArrayLiteral(expressions),
-							Memory::Cells { id: _, len: _ },
-						) => {
-							let VariableType::Cell = **inner_type else {
-								r_panic!(
-									"Variable \"{var}\" cannot be initialised with array literal."
-								);
-							};
-							// for each expression in the array, perform above operations
-							r_assert!(
-								expressions.len() == *len,
-								"Variable \"{var}\" cannot be initialised to array of length {}",
-								expressions.len()
-							);
-							for (i, expr) in zip(0..*len, expressions) {
-								_add_expr_to_cell(
-									&mut scope,
-									expr.clone(),
-									CellReference {
-										memory_id,
-										index: Some(i),
-									},
-								)?;
-							}
-						}
-						(
-							VariableType::Array(inner_type, len),
-							Expression::StringLiteral(s),
-							Memory::Cells { id: _, len: _ },
-						) => {
-							let VariableType::Cell = **inner_type else {
-								r_panic!(
-									"Variable \"{var}\" cannot be initialised with string literal."
-								);
-							};
-							// for each byte of the string, add it to its respective cell
-							r_assert!(
-								s.len() == *len,
-								"Variable \"{var}\" cannot be initialised to string of length {}",
-								s.len()
-							);
-							for (i, c) in zip(0..*len, s.bytes()) {
-								scope.push_instruction(Instruction::AddToCell(
-									CellReference {
-										memory_id,
-										index: Some(i),
-									},
-									c,
-								));
-							}
-						}
-						(VariableType::Cell, _, Memory::Cells { id: _, len: _ })
-						| (VariableType::Array(_, _), _, Memory::Cell { id: _ }) => r_panic!(
-							"Something went wrong when initialising variable \"{var}\". \
-This error should never occur."
-						),
-						_ => r_panic!(
-							"Cannot initialise variable \"{var}\" with expression {value:#?}"
-						),
-					};
+					let cell = scope.get_cell(&var.target_cell()?)?;
+
+					_add_expr_to_cell(&mut scope, value, cell)?;
+
+					// 					match (&var.var_type, &value) {
+					// 						(
+					// 							VariableType::Cell,
+					// 							Expression::SumExpression {
+					// 								sign: _,
+					// 								summands: _,
+					// 							}
+					// 							| Expression::NaturalNumber(_)
+					// 							| Expression::VariableReference(_),
+					// 						) => {
+					// 							_add_expr_to_cell(
+					// 								&mut scope,
+					// 								value,
+					// 								CellReference {
+					// 									memory_id,
+					// 									index: None,
+					// 								},
+					// 							)?;
+					// 						}
+					// 						(
+					// 							VariableType::Array(inner_type, len),
+					// 							Expression::ArrayLiteral(expressions),
+					// 						) => {
+					// 							let VariableType::Cell = **inner_type else {
+					// 								r_panic!(
+					// 									"Variable \"{var}\" cannot be initialised with array literal."
+					// 								);
+					// 							};
+					// 							// for each expression in the array, perform above operations
+					// 							r_assert!(
+					// 								expressions.len() == *len,
+					// 								"Variable \"{var}\" cannot be initialised to array of length {}",
+					// 								expressions.len()
+					// 							);
+					// 							for (i, expr) in zip(0..*len, expressions) {
+					// 								_add_expr_to_cell(
+					// 									&mut scope,
+					// 									expr.clone(),
+					// 									CellReference {
+					// 										memory_id,
+					// 										index: Some(i),
+					// 									},
+					// 								)?;
+					// 							}
+					// 						}
+					// 						(VariableType::Array(inner_type, len), Expression::StringLiteral(s)) => {
+					// 							let VariableType::Cell = **inner_type else {
+					// 								r_panic!(
+					// 									"Variable \"{var}\" cannot be initialised with string literal."
+					// 								);
+					// 							};
+					// 							// for each byte of the string, add it to its respective cell
+					// 							r_assert!(
+					// 								s.len() == *len,
+					// 								"Variable \"{var}\" cannot be initialised to string of length {}",
+					// 								s.len()
+					// 							);
+					// 							for (i, c) in zip(0..*len, s.bytes()) {
+					// 								scope.push_instruction(Instruction::AddToCell(
+					// 									CellReference {
+					// 										memory_id,
+					// 										index: Some(i),
+					// 									},
+					// 									c,
+					// 								));
+					// 							}
+					// 						}
+					// 						(VariableType::Cell, _) | (VariableType::Array(_, _), _) => r_panic!(
+					// 							"Something went wrong when initialising variable \"{var}\". \
+					// This error should never occur."
+					// 						),
+					// 						_ => r_panic!(
+					// 							"Cannot initialise variable \"{var}\" with expression {value:#?}"
+					// 						),
+					// 					};
 				}
 				Clause::SetVariable { var, value } => {
 					let cell = scope.get_cell(&var)?;
@@ -187,7 +177,7 @@ This error should never occur."
 						r_panic!("Invalid target \"{var}\" for add-assign operation, target should be a cell.");
 					};
 
-					_add_expr_to_cell(&mut scope, value, cell);
+					_add_expr_to_cell(&mut scope, value, cell)?;
 				}
 
 				Clause::AssertVariableValue { var, value } => {
@@ -740,7 +730,7 @@ pub struct Scope<'scope_lifetime> {
 	allocations: usize,
 
 	/// Mappings for variable names to memory allocation IDs in current scope
-	variable_memory: HashMap<VariableDefinition, MemoryId>,
+	variable_memory: HashMap<VariableDefinition, Memory>,
 
 	/// Translations from outer scope variables to current scope variables, used for function arguments
 	// used for function arguments, translates an outer scope variable to an inner one, assumed they are the same array length if multi-cell
@@ -869,27 +859,31 @@ impl Scope<'_> {
 	}
 
 	// not sure if this function should create the allocation instruction or not
-	fn allocate_variable_memory(&mut self, var: VariableDefinition) -> Result<Memory, String> {
+	fn allocate_variable_memory(
+		&mut self,
+		var: VariableDefinition,
+		location_specifier: Option<i32>,
+	) -> Result<(), String> {
 		let id = self.create_memory_id();
-		todo!();
-		// let result = Ok(match &var {
-		// 	VariableDefinition::Single { name: _ } => Memory::Cell { id },
-		// 	VariableDefinition::Multi { name: _, len } => Memory::Cells {
-		// 		id,
-		// 		len: *len,
-		// 		target_index: None,
-		// 	},
-		// });
+		let memory = match &var.var_type {
+			VariableType::Cell => Memory::Cell { id },
+			VariableType::Struct(_) | VariableType::Array(_, _) => Memory::Cells {
+				id,
+				len: var.var_type.size().unwrap(),
+			},
+		};
 
-		// let None = self.current_level_get_variable_definition(&var.name()) else {
-		// 	r_panic!("Cannot allocate variable {var} twice in the same scope");
-		// };
+		let None = self.current_level_get_variable_definition(&var.name) else {
+			r_panic!("Cannot allocate variable {var} twice in the same scope");
+		};
 
-		// if let Some(var) = self.variable_memory.insert(var, id) {
-		// 	r_panic!("Unreachable error occurred when allocating {var}");
-		// }
+		if let Some(overwrote_var) = self.variable_memory.insert(var.clone(), memory.clone()) {
+			r_panic!("Unreachable error occurred when allocating {var}");
+		}
 
-		// result
+		self.push_instruction(Instruction::Allocate(memory.clone(), location_specifier));
+
+		Ok(())
 	}
 
 	// fn allocate_unnamed_cell(&mut self) -> Memory {
@@ -903,7 +897,7 @@ impl Scope<'_> {
 		current_scope_relative + self.allocation_offset()
 	}
 
-	// recursively tallies the allocation stack size of the outer scope, does not include this scope
+	/// recursively tally the allocation stack size of the outer scope, does not include this scope
 	fn allocation_offset(&self) -> usize {
 		// little bit of a hack but works for now
 		if self.fn_only {
@@ -939,6 +933,11 @@ impl Scope<'_> {
 		// check current variables, if not here, recurse
 		// if yes, iterate through the target ref chain to find the right memory cell
 		todo!()
+	}
+
+	/// return a list of cell references for an array
+	fn get_array_cells() -> Result<Vec<CellReference>, String> {
+		todo!();
 	}
 
 	/// return a memory allocation id from a variable target
