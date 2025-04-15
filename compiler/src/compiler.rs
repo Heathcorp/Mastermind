@@ -1,6 +1,6 @@
 // compile syntax tree into low-level instructions
 
-use std::collections::HashMap;
+use std::{collections::HashMap, mem};
 
 use crate::{
 	builder::{Builder, Opcode, TapeCell},
@@ -218,7 +218,7 @@ impl Compiler<'_> {
 						}
 						| Expression::NaturalNumber(_) => {
 							// allocate a temporary cell and add the expression to it, output, then clear
-							let temp_mem_id = scope.create_memory_id();
+							let temp_mem_id = scope.push_memory_id();
 							scope.push_instruction(Instruction::Allocate(
 								Memory::Cell { id: temp_mem_id },
 								None,
@@ -236,7 +236,7 @@ impl Compiler<'_> {
 						}
 						Expression::ArrayLiteral(expressions) => {
 							// same as above, except reuse the temporary cell after each output
-							let temp_mem_id = scope.create_memory_id();
+							let temp_mem_id = scope.push_memory_id();
 							scope.push_instruction(Instruction::Allocate(
 								Memory::Cell { id: temp_mem_id },
 								None,
@@ -256,7 +256,7 @@ impl Compiler<'_> {
 						}
 						Expression::StringLiteral(s) => {
 							// same as above, allocate one temporary cell and reuse it for each character
-							let temp_mem_id = scope.create_memory_id();
+							let temp_mem_id = scope.push_memory_id();
 							scope.push_instruction(Instruction::Allocate(
 								Memory::Cell { id: temp_mem_id },
 								None,
@@ -306,7 +306,7 @@ impl Compiler<'_> {
 						}
 						(false, _) => {
 							// any other kind of expression, allocate memory for it automatically
-							let id = scope.create_memory_id();
+							let id = scope.push_memory_id();
 							scope
 								.push_instruction(Instruction::Allocate(Memory::Cell { id }, None));
 							let new_cell = CellReference {
@@ -319,7 +319,7 @@ impl Compiler<'_> {
 						(true, Expression::VariableReference(var)) => {
 							let cell = scope.get_cell(var)?;
 
-							let new_mem_id = scope.create_memory_id();
+							let new_mem_id = scope.push_memory_id();
 							scope.push_instruction(Instruction::Allocate(
 								Memory::Cell { id: new_mem_id },
 								None,
@@ -371,7 +371,7 @@ impl Compiler<'_> {
 					};
 					let mut new_scope = scope.open_inner();
 
-					let condition_mem_id = new_scope.create_memory_id();
+					let condition_mem_id = new_scope.push_memory_id();
 					new_scope.push_instruction(Instruction::Allocate(
 						Memory::Cell {
 							id: condition_mem_id,
@@ -385,7 +385,7 @@ impl Compiler<'_> {
 
 					let else_condition_cell = match else_block {
 						Some(_) => {
-							let else_mem_id = new_scope.create_memory_id();
+							let else_mem_id = new_scope.push_memory_id();
 							new_scope.push_instruction(Instruction::Allocate(
 								Memory::Cell { id: else_mem_id },
 								None,
@@ -651,7 +651,7 @@ fn _copy_cell(
 		return;
 	}
 	// allocate a temporary cell
-	let temp_mem_id = scope.create_memory_id();
+	let temp_mem_id = scope.push_memory_id();
 	scope.push_instruction(Instruction::Allocate(
 		Memory::Cell { id: temp_mem_id },
 		None,
@@ -877,7 +877,7 @@ impl Scope<'_> {
 		var: VariableDefinition,
 		location_specifier: Option<i32>,
 	) -> Result<(), String> {
-		let id = self.create_memory_id();
+		let id = self.push_memory_id();
 		let memory = match &var.var_type {
 			VariableType::Cell => Memory::Cell { id },
 			VariableType::Struct(_) | VariableType::Array(_, _) => Memory::Cells {
@@ -886,11 +886,11 @@ impl Scope<'_> {
 			},
 		};
 
-		let None = self.current_level_get_variable_definition(&var.name) else {
+		let None = self.variable_memory.keys().find(|vd| vd.name == var.name) else {
 			r_panic!("Cannot allocate variable {var} twice in the same scope");
 		};
 
-		if let Some(overwrote_var) = self.variable_memory.insert(var.clone(), memory.clone()) {
+		if let Some(_overwrote_var) = self.variable_memory.insert(var.clone(), memory.clone()) {
 			r_panic!("Unreachable error occurred when allocating {var}");
 		}
 
@@ -904,7 +904,7 @@ impl Scope<'_> {
 	// 	Memory::Cell { id: mem_id }
 	// }
 
-	fn create_memory_id(&mut self) -> MemoryId {
+	fn push_memory_id(&mut self) -> MemoryId {
 		let current_scope_relative = self.allocations;
 		self.allocations += 1;
 		current_scope_relative + self.allocation_offset()
@@ -954,17 +954,32 @@ impl Scope<'_> {
 		todo!();
 	}
 
-	fn current_level_get_variable_definition(&self, var_name: &str) -> Option<&VariableDefinition> {
-		self.variable_memory
-			.keys()
-			.find(|var_def| var_def.name == var_name)
-	}
-
 	/// return a cell reference for a variable target
 	fn get_cell(&self, target: &VariableTarget) -> Result<CellReference, String> {
 		// check current variables, if not here, recurse
 		// if yes, iterate through the target ref chain to find the right memory cell
-		todo!()
+		if let Some((var_def, memory)) = self
+			.variable_memory
+			.iter()
+			.find(|(var_def, memory)| var_def.name == target.name())
+		{
+			let index = var_def.var_type.get_target_cell_index(&target.1);
+			// check that we aren't trying to index a Cell type
+			let ((Memory::Cell { id: _ }, None) | (Memory::Cells { id: _, len: _ }, Some(_))) =
+				(memory, index)
+			else {
+				r_panic!("Unreachable error occurred trying to get target cell: {target}");
+			};
+			Ok(CellReference {
+				memory_id: memory.id(),
+				index,
+			})
+		} else if let Some(outer_scope) = self.outer_scope {
+			// recurse
+			outer_scope.get_cell(target)
+		} else {
+			r_panic!("Variable target {target} could not be found in current scope.")
+		}
 	}
 
 	/// return a list of cell references for an array
@@ -975,95 +990,96 @@ impl Scope<'_> {
 	/// return a memory allocation id from a variable target
 	// unfortunately we also have a little hack to add the length of the variable in here as well because we ended up needing it
 	fn get_memory(&self, var: &VariableTarget) -> Result<Memory, String> {
-		if let Some(var_def) = self.current_level_get_variable_definition(var.name()) {
-			let Some(mem_id) = self.variable_memory.get(var_def) else {
-				r_panic!("Something went wrong when compiling. This error should never occur.");
-			};
-			// base case, variable is defined in this scope level
-			// Ok(match (var_def, var) {
-			// 	(VariableDefinition::Single { name: _ }, VariableTarget::Single { name: _ }) => {
-			// 		Memory::Cell { id: *mem_id }
-			// 	}
-			// 	(
-			// 		VariableDefinition::Multi { name: _, len },
-			// 		VariableTarget::MultiCell { name: _, index },
-			// 	) => {
-			// 		r_assert!(
-			// 			*index < *len,
-			// 			"Memory access attempt: \"{var}\" out of range for variable: \"{var_def}\""
-			// 		);
-			// 		Memory::Cells {
-			// 			id: *mem_id,
-			// 			len: *len,
-			// 			target_index: Some(*index),
-			// 		}
-			// 	}
-			// 	(
-			// 		VariableDefinition::Multi { name: _, len },
-			// 		VariableTarget::MultiSpread { name: _ },
-			// 	) => Memory::Cells {
-			// 		id: *mem_id,
-			// 		len: *len,
-			// 		target_index: None,
-			// 	},
-			// 	_ => {
-			// 		r_panic!("Malformed variable reference {var} to {var_def}")
-			// 	}
-			// })
-			todo!();
-		} else if self.fn_only {
-			r_panic!("Attempted to access variable memory outside of embedded Mastermind context.");
-		} else if let Some(outer_scope) = self.outer_scope {
-			// recursive case
-			if let Some(translation) = self
-				.variable_aliases
-				.iter()
-				.find(|translation| *translation.get_def_name() == *var.name())
-			{
-				todo!();
-				// let alias_var = match (translation, var) {
-				// 	(
-				// 		ArgumentTranslation::SingleFromSingle(_, call_name),
-				// 		VariableTarget::Single { name: _ },
-				// 		// single variable let g;f(g);def f(h){++h;}c
-				// 	) => VariableTarget::Single {
-				// 		name: call_name.clone(),
-				// 	},
-				// 	(
-				// 		ArgumentTranslation::SingleFromMultiCell(_, (call_name, call_index)),
-				// 		VariableTarget::Single { name: _ },
-				// 		// referenced byte passed as single let g[9];f(g[0]);def f(h){++h;}
-				// 	) => VariableTarget::MultiCell {
-				// 		name: call_name.clone(),
-				// 		index: *call_index,
-				// 	},
-				// 	(
-				// 		ArgumentTranslation::MultiFromMulti(_, call_name),
-				// 		VariableTarget::MultiCell { name: _, index },
-				// 		// referenced byte from multi-byte variable let g[9];f(g);def f(h[9]){++h[0];}
-				// 	) => VariableTarget::MultiCell {
-				// 		name: call_name.clone(),
-				// 		index: *index,
-				// 	},
-				// 	(
-				// 		ArgumentTranslation::MultiFromMulti(_, call_name),
-				// 		VariableTarget::MultiSpread { name: _ },
-				// 		// spread from multi-byte variable let g[9];f(g);def f(h[9]){output *h;}
-				// 	) => VariableTarget::MultiSpread {
-				// 		name: call_name.clone(),
-				// 	},
-				// 	_ => r_panic!(
-				// 		"Malformed argument/variable translation {translation:#?}, target: {var}. \
-				// 	I realise this error doesn't tell you much, this error should not occur anyway."
-				// 	),
-				// };
-				// Ok(outer_scope.get_memory(&alias_var)?)
-			} else {
-				// again not sure if Ok + ? is a bad pattern
-				Ok(outer_scope.get_memory(var)?)
-			}
-		} else {
-			r_panic!("No variable {var} found in current scope.");
-		}
+		unimplemented!();
+		// if let Some(var_def) = self.current_level_get_variable_definition(var.name()) {
+		// 	let Some(mem_id) = self.variable_memory.get(var_def) else {
+		// 		r_panic!("Something went wrong when compiling. This error should never occur.");
+		// 	};
+		// 	// base case, variable is defined in this scope level
+		// 	// Ok(match (var_def, var) {
+		// 	// 	(VariableDefinition::Single { name: _ }, VariableTarget::Single { name: _ }) => {
+		// 	// 		Memory::Cell { id: *mem_id }
+		// 	// 	}
+		// 	// 	(
+		// 	// 		VariableDefinition::Multi { name: _, len },
+		// 	// 		VariableTarget::MultiCell { name: _, index },
+		// 	// 	) => {
+		// 	// 		r_assert!(
+		// 	// 			*index < *len,
+		// 	// 			"Memory access attempt: \"{var}\" out of range for variable: \"{var_def}\""
+		// 	// 		);
+		// 	// 		Memory::Cells {
+		// 	// 			id: *mem_id,
+		// 	// 			len: *len,
+		// 	// 			target_index: Some(*index),
+		// 	// 		}
+		// 	// 	}
+		// 	// 	(
+		// 	// 		VariableDefinition::Multi { name: _, len },
+		// 	// 		VariableTarget::MultiSpread { name: _ },
+		// 	// 	) => Memory::Cells {
+		// 	// 		id: *mem_id,
+		// 	// 		len: *len,
+		// 	// 		target_index: None,
+		// 	// 	},
+		// 	// 	_ => {
+		// 	// 		r_panic!("Malformed variable reference {var} to {var_def}")
+		// 	// 	}
+		// 	// })
+		// 	todo!();
+		// } else if self.fn_only {
+		// 	r_panic!("Attempted to access variable memory outside of embedded Mastermind context.");
+		// } else if let Some(outer_scope) = self.outer_scope {
+		// 	// recursive case
+		// 	if let Some(translation) = self
+		// 		.variable_aliases
+		// 		.iter()
+		// 		.find(|translation| *translation.get_def_name() == *var.name())
+		// 	{
+		// 		todo!();
+		// 		// let alias_var = match (translation, var) {
+		// 		// 	(
+		// 		// 		ArgumentTranslation::SingleFromSingle(_, call_name),
+		// 		// 		VariableTarget::Single { name: _ },
+		// 		// 		// single variable let g;f(g);def f(h){++h;}c
+		// 		// 	) => VariableTarget::Single {
+		// 		// 		name: call_name.clone(),
+		// 		// 	},
+		// 		// 	(
+		// 		// 		ArgumentTranslation::SingleFromMultiCell(_, (call_name, call_index)),
+		// 		// 		VariableTarget::Single { name: _ },
+		// 		// 		// referenced byte passed as single let g[9];f(g[0]);def f(h){++h;}
+		// 		// 	) => VariableTarget::MultiCell {
+		// 		// 		name: call_name.clone(),
+		// 		// 		index: *call_index,
+		// 		// 	},
+		// 		// 	(
+		// 		// 		ArgumentTranslation::MultiFromMulti(_, call_name),
+		// 		// 		VariableTarget::MultiCell { name: _, index },
+		// 		// 		// referenced byte from multi-byte variable let g[9];f(g);def f(h[9]){++h[0];}
+		// 		// 	) => VariableTarget::MultiCell {
+		// 		// 		name: call_name.clone(),
+		// 		// 		index: *index,
+		// 		// 	},
+		// 		// 	(
+		// 		// 		ArgumentTranslation::MultiFromMulti(_, call_name),
+		// 		// 		VariableTarget::MultiSpread { name: _ },
+		// 		// 		// spread from multi-byte variable let g[9];f(g);def f(h[9]){output *h;}
+		// 		// 	) => VariableTarget::MultiSpread {
+		// 		// 		name: call_name.clone(),
+		// 		// 	},
+		// 		// 	_ => r_panic!(
+		// 		// 		"Malformed argument/variable translation {translation:#?}, target: {var}. \
+		// 		// 	I realise this error doesn't tell you much, this error should not occur anyway."
+		// 		// 	),
+		// 		// };
+		// 		// Ok(outer_scope.get_memory(&alias_var)?)
+		// 	} else {
+		// 		// again not sure if Ok + ? is a bad pattern
+		// 		Ok(outer_scope.get_memory(var)?)
+		// 	}
+		// } else {
+		// 	r_panic!("No variable {var} found in current scope.");
+		// }
 	}
 }

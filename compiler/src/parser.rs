@@ -1105,6 +1105,12 @@ pub enum VariableType {
 	Array(Box<VariableType>, usize),
 }
 
+impl VariableType {
+	pub fn get_target_cell_index(&self, target_ref_chain: &[Reference]) -> Option<usize> {
+		todo!();
+	}
+}
+
 // TODO: refactor to this instead:
 #[derive(Debug, Clone, Hash, PartialEq, Eq)]
 pub struct VariableDefinition {
@@ -1134,7 +1140,7 @@ impl VariableDefinition {
 }
 
 #[derive(Debug, Clone, Hash, PartialEq, Eq)]
-enum Reference {
+pub enum Reference {
 	NamedField(String),
 	Index(usize),
 }
