@@ -517,13 +517,13 @@ drain a {
 			"
 cell global_var = '0';
 
-def func_0<grape> {
+def func_0<cell grape> {
 	cell n = grape + 1;
 	output n;
 	n = 0;
 };;
 
-def func_1<grape> {
+def func_1<cell grape> {
 	cell n = grape + 2;
 	output n;
 	n = 0;
@@ -554,11 +554,11 @@ output 10;
 			"
 cell global_var = '0';
 
-def func_0<grape> {
+def func_0<cell grape> {
 	cell n = grape + 1;
 	output n;
 
-	def func_1<grape> {
+	def func_1<cell grape> {
 		grape += 1;
 		output grape;
 		grape += 1;
@@ -596,11 +596,11 @@ cell global_var = '0';
 
 cell[2] global_vars = ['0', 64];
 
-def func_0<grape> {
+def func_0<cell grape> {
 	cell n = grape + 1;
 	output n;
 
-	def func_1<grape> {
+	def func_1<cell grape> {
 		grape += 1;
 		output grape;
 		grape += 1;
@@ -633,7 +633,7 @@ output global_vars[0];
 
 output 10;
 
-def func_2<think[4], green> {
+def func_2<cell[4] think, cell green> {
 	think[2] += 7;
 	think[3] += 2;
 
@@ -727,7 +727,7 @@ output b[0];
 			r#"
 cell[3] b = "Foo";
 
-def inc<h, g> {
+def inc<cell h, cell g> {
 	g += 1;
 	if h {h += 1;} else {h = 'Z';}
 }
@@ -1297,7 +1297,7 @@ bf {
 		let program = String::from(
 			r#"
 // external function within the same file, could be tricky to implement
-def quote<n> {
+def quote<cell n> {
 	// H 'H'
 	output 39;
 	output n;

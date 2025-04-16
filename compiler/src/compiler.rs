@@ -811,7 +811,7 @@ impl Scope<'_> {
 
 		// create instructions to free cells
 		let mut clear_instructions = Vec::new();
-		for (var_def, mem_id) in self.variable_memory.iter() {
+		for (var_def, memory) in self.variable_memory.iter() {
 			todo!();
 			// match &var_def {
 			// 	VariableDefinition::Single { name: _ } => {
@@ -940,9 +940,14 @@ impl Scope<'_> {
 		Ok(match var_type {
 			VariableType::Cell => 1,
 			VariableType::Struct(struct_type_name) => {
-				let struct_def = self.get_struct_definition(struct_type_name)?;
-				// TODO: recurse here
-				let total: usize = todo!();
+				let Struct::NamedFields(struct_fields) =
+					self.get_struct_definition(struct_type_name)?;
+
+				let mut total = 0usize;
+				for subfield_type in struct_fields.values() {
+					// recurse
+					total += self.size_of_type(subfield_type)?;
+				}
 				total
 			}
 			VariableType::Array(element_type, len) => self.size_of_type(element_type)? * len,
@@ -950,7 +955,7 @@ impl Scope<'_> {
 	}
 
 	/// recursively find the definition of a struct type by searching up the scope call stack
-	fn get_struct_definition(&self, struct_name: &str) -> Result<Struct, String> {
+	fn get_struct_definition(&self, struct_name: &str) -> Result<&Struct, String> {
 		todo!();
 	}
 
