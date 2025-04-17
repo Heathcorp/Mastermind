@@ -20,6 +20,7 @@ pub mod tests {
 		optimise_unreachable_loops: false,
 		optimise_constants: false,
 		optimise_empty_blocks: false,
+		memory_allocation_method: 0,
 	};
 
 	const OPT_ALL: MastermindConfig = MastermindConfig {
@@ -30,6 +31,7 @@ pub mod tests {
 		optimise_unreachable_loops: true,
 		optimise_constants: true,
 		optimise_empty_blocks: true,
+		memory_allocation_method: 0,
 	};
 
 	const BVM_CONFIG_1D: BVMConfig = BVMConfig {
@@ -1236,7 +1238,27 @@ bf {
 		assert_eq!(code, ",>,>,<<>>>>>+[-]<<<<<");
 		Ok(())
 	}
+	#[test]
+	fn inline_2d_brainfuck() -> Result<(), String> {
+		let program = String::from(
+			r#"
+			bf {
+			,.[-]
+			+[--^-[^^+^-----vv]v--v---]^-.^^^+.^^..+++[.^]vvvv.+++.------.vv-.^^^^+.
+			}
+		"#, );
+		let code = compile_program(program, None)?.to_string();
+		println!("{code}");
 
+		assert_eq!(
+			code,
+			",.[-]+[--^-[^^+^-----vv]v--v---]^-.^^^+.^^..+++[.^]vvvv.+++.------.vv-.^^^^+"
+		);
+
+		let output = run_code(BVM_CONFIG_1D, code, String::from("~"), None);
+		assert_eq!(output, "~Hello, World!");
+		Ok(())
+	}
 	#[test]
 	fn constant_optimisations_1() -> Result<(), String> {
 		let program = String::from(
