@@ -29,7 +29,7 @@ import EditorPanel from "./panels/EditorPanel";
 import InputPanel from "./panels/InputPanel";
 
 import OutputPanel from "./panels/OutputPanel";
-import SettingsPanel, { MastermindConfig } from "./panels/SettingsPanel";
+import SettingsPanel, {MastermindConfig} from "./panels/SettingsPanel";
 import { defaultExtensions } from "./misc";
 import { makePersisted } from "@solid-primitives/storage";
 import { createStore } from "solid-js/store";
@@ -226,7 +226,7 @@ const App: Component = () => {
     setInput((prev) => ({ text: prev.text, amountRead: null }));
   };
 
-  const compile = (entryFileId: string, optimisations: MastermindConfig) => {
+  const compile = (entryFileId: string, config: MastermindConfig) => {
     return new Promise<string>((resolve, reject) => {
       let entryFileName: string | undefined;
       const fileMap = Object.fromEntries(
@@ -272,7 +272,7 @@ const App: Component = () => {
         arguments: {
           fileMap,
           entryFileName,
-          optimisations,
+          config,
         },
       });
 
@@ -497,7 +497,7 @@ interface AppContextProps {
 
   compile: (
     entryFileId: string,
-    optimisations: MastermindConfig
+    settings: MastermindConfig
   ) => Promise<string>;
   run: (code: string) => Promise<string>;
 

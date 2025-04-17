@@ -1,5 +1,5 @@
 import initWasm, { wasm_compile, wasm_run_bf } from "../compiler/pkg";
-import { MastermindConfig } from "./panels/SettingsPanel";
+import {MastermindConfig} from "./panels/SettingsPanel";
 
 import { v4 as uuidv4 } from "uuid";
 
@@ -19,7 +19,7 @@ self.addEventListener("message", ({ data }: MessageEvent<
     arguments: {
       fileMap: Record<string, string>,
       entryFileName: string,
-      optimisations: MastermindConfig
+      config: MastermindConfig
     }
   } |
   {
@@ -51,7 +51,7 @@ self.addEventListener("message", ({ data }: MessageEvent<
         const compiledCode = wasm_compile(
           data.arguments.fileMap,
           data.arguments.entryFileName,
-          data.arguments.optimisations
+          data.arguments.config
         );
 
         postMessage({
