@@ -18,9 +18,11 @@ pub fn parse(tokens: &[Token]) -> Result<Vec<Clause>, String> {
 			&clause.get(1).unwrap_or(&Token::None),
 			&clause.get(2).unwrap_or(&Token::None),
 		) {
-			(Token::Struct, Token::Name(_), Token::OpenBrace) => {}
 			(Token::Cell, _, _) | (Token::Struct, Token::Name(_), Token::Name(_)) => {
 				clauses.push(parse_let_clause(clause)?);
+			}
+			(Token::Struct, Token::Name(_), Token::OpenBrace) => {
+				todo!();
 			}
 			(Token::Plus, Token::Plus, _) | (Token::Minus, Token::Minus, _) => {
 				clauses.push(parse_increment_clause(clause)?);
@@ -648,7 +650,7 @@ fn parse_var_definition(tokens: &[Token]) -> Result<(VariableDefinition, usize),
 		Token::Cell => {
 			i += 1;
 
-			VariableType::Cell
+			VariableTypeReference::Cell
 		}
 		Token::Struct => {
 			i += 1;
@@ -658,7 +660,7 @@ fn parse_var_definition(tokens: &[Token]) -> Result<(VariableDefinition, usize),
 			};
 			i += 1;
 
-			VariableType::Struct(struct_name.clone())
+			VariableTypeReference::Struct(struct_name.clone())
 		}
 		_ => {
 			r_panic!("Unexpected token in variable definition, this should not occur: {tokens:#?}")
@@ -671,7 +673,7 @@ fn parse_var_definition(tokens: &[Token]) -> Result<(VariableDefinition, usize),
 		let (len, j) = parse_array_length(&tokens[i..])?;
 		i += j;
 
-		var_type = VariableType::Array(Box::new(var_type), len);
+		var_type = VariableTypeReference::Array(Box::new(var_type), len);
 	}
 
 	let Token::Name(var_name) = &tokens[i] else {
@@ -1099,22 +1101,18 @@ pub enum ExtendedOpcode {
 }
 
 #[derive(Debug, Clone, Hash, PartialEq, Eq)]
-pub enum VariableType {
+/// the type of a variable according to the user, not validated yet as the parser does not keep track of types
+// maybe it should keep track of types?
+pub enum VariableTypeReference {
 	Cell,
 	Struct(String),
-	Array(Box<VariableType>, usize),
-}
-
-impl VariableType {
-	pub fn get_target_cell_index(&self, target_ref_chain: &[Reference]) -> Option<usize> {
-		todo!();
-	}
+	Array(Box<VariableTypeReference>, usize),
 }
 
 // TODO: refactor to this instead:
 #[derive(Debug, Clone, Hash, PartialEq, Eq)]
 pub struct VariableDefinition {
-	pub var_type: VariableType,
+	pub var_type: VariableTypeReference,
 	pub name: String,
 	// Infinite {name: String, pattern: ???},
 }
@@ -1122,15 +1120,15 @@ pub struct VariableDefinition {
 impl VariableDefinition {
 	pub fn len(&self) -> Option<usize> {
 		match self.var_type {
-			VariableType::Cell | VariableType::Struct(_) => None,
-			VariableType::Array(_, len) => Some(len),
+			VariableTypeReference::Cell | VariableTypeReference::Struct(_) => None,
+			VariableTypeReference::Array(_, len) => Some(len),
 		}
 	}
 	/// gets this definition as a cell target for definition clauses (as opposed to declarations)
 	pub fn target_cell(&self) -> Result<VariableTarget, String> {
 		match self.var_type {
-			VariableType::Cell => Ok(VariableTarget(self.name.clone(), vec![])),
-			VariableType::Struct(_) | VariableType::Array(_, _) => {
+			VariableTypeReference::Cell => Ok(VariableTarget(self.name.clone(), vec![])),
+			VariableTypeReference::Struct(_) | VariableTypeReference::Array(_, _) => {
 				r_panic!(
 					"Cannot get single cell target from a struct or array definition ({self:#?})."
 				)
@@ -1153,12 +1151,14 @@ impl VariableTarget {
 	}
 }
 
-impl Display for VariableType {
+impl Display for VariableTypeReference {
 	fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
 		match &self {
-			VariableType::Cell => f.write_str(&format!("cell")),
-			VariableType::Struct(struct_name) => f.write_str(&format!("struct {struct_name}")),
-			VariableType::Array(element_type, len) => {
+			VariableTypeReference::Cell => f.write_str(&format!("cell")),
+			VariableTypeReference::Struct(struct_name) => {
+				f.write_str(&format!("struct {struct_name}"))
+			}
+			VariableTypeReference::Array(element_type, len) => {
 				f.write_str(&format!("{element_type}[{len}]"))
 			}
 		}
