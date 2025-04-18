@@ -461,26 +461,20 @@ pub mod tests {
 	}
 
 	#[test]
+	#[should_panic(expected = "2D Brainfuck currently disabled")]
 	fn grid_disabled_1() {
 		let program = String::from("++++++++[->++++++[->+>+<<]<]>>.>^+++.");
 		let input = String::from("");
-		let desired_output = String::from("03");
-		assert_eq!(
-			desired_output,
-			run_code(BVM_CONFIG_1D, program, input, None)
-		)
+		run_code(BVM_CONFIG_1D, program, input, None);
 	}
 
 	#[test]
+	#[should_panic(expected = "2D Brainfuck currently disabled")]
 	fn grid_disabled_2() {
 		let program =
 			String::from("++++++++[->^^^+++vvvv+++[->^^^^+>+<vvvv<]<]>^^^^^^^^>.>vvvv+++.");
 		let input = String::from("");
-		let desired_output = String::from("03");
-		assert_eq!(
-			desired_output,
-			run_code(BVM_CONFIG_1D, program, input, None)
-		)
+		run_code(BVM_CONFIG_1D, program, input, None);
 	}
 
 	// 2D tests:
