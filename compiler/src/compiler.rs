@@ -887,6 +887,8 @@ spread syntax, use drain <val> into {var} instead."
 							ExtendedOpcode::CloseLoop => expanded_bf.push(Opcode::CloseLoop),
 							ExtendedOpcode::Output => expanded_bf.push(Opcode::Output),
 							ExtendedOpcode::Input => expanded_bf.push(Opcode::Input),
+							ExtendedOpcode::Up => expanded_bf.push(Opcode::Up),
+							ExtendedOpcode::Down => expanded_bf.push(Opcode::Down),
 						}
 					}
 					scope.push_instruction(Instruction::InsertBrainfuckAtCell(

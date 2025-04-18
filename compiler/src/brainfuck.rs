@@ -542,4 +542,15 @@ pub mod tests {
 			run_code(BVM_CONFIG_2D, program, input, None)
 		)
 	}
+
+	#[test]
+	fn test_bf2d_code() {
+		let program = String::from(",.[-]+[--^-[^^+^-----vv]v--v---]^-.^^^+.^^..+++[.^]vvvv.+++.------.vv-.^^^^+.");
+		let input = String::from("");
+		let desired_output = String::from("\0Hello, World!");
+		assert_eq!(
+			desired_output,
+			run_code(BVM_CONFIG_2D, program, input, None)
+		)
+	}
 }

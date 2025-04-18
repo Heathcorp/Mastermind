@@ -16,7 +16,7 @@ pub fn optimise(program: Vec<Opcode>) -> Vec<Opcode> {
 	while i < program.len() {
 		let op = program[i];
 		match op {
-			Opcode::Add | Opcode::Subtract | Opcode::Right | Opcode::Left | Opcode::Clear => {
+			Opcode::Add | Opcode::Subtract | Opcode::Right | Opcode::Left | Opcode::Clear | Opcode::Up | Opcode::Down => {
 				subset.push(op);
 			}
 			Opcode::OpenLoop | Opcode::CloseLoop | Opcode::Input | Opcode::Output => {
