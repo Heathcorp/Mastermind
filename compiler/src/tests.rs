@@ -1242,21 +1242,29 @@ bf {
 	fn inline_2d_brainfuck() -> Result<(), String> {
 		let program = String::from(
 			r#"
-			bf {
-			,.[-]
-			+[--^-[^^+^-----vv]v--v---]^-.^^^+.^^..+++[.^]vvvv.+++.------.vv-.^^^^+.
-			}
+			bf {,.[-]+[--^-[^^+^-----vv]v--v---]^-.^^^+.^^..+++[.^]vvvv.+++.------.vv-.^^^^+.}
 		"#, );
 		let code = compile_program(program, None)?.to_string();
 		println!("{code}");
 
 		assert_eq!(
 			code,
-			",.[-]+[--^-[^^+^-----vv]v--v---]^-.^^^+.^^..+++[.^]vvvv.+++.------.vv-.^^^^+"
+			",.[-]+[--^-[^^+^-----vv]v--v---]^-.^^^+.^^..+++[.^]vvvv.+++.------.vv-.^^^^+."
 		);
 
 		let output = run_code(BVM_CONFIG_1D, code, String::from("~"), None);
 		assert_eq!(output, "~Hello, World!");
+		Ok(())
+	}
+
+	#[test]
+	fn invalid_inline_2d_brainfuck() -> Result<(), String> {
+		let program = String::from(
+			r#"
+			bf {,.[-]+[--^-[^^+^-----vv]v--v---]^-.^^^+.^^..+++[.^]vvstvv.+++.------.vv-.^^^^+.}
+		"#, );
+		let result = compile_program(program, None);
+		assert!(result.is_err());
 		Ok(())
 	}
 	#[test]
