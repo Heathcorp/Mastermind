@@ -10,6 +10,7 @@ use std::{
 
 use wasm_bindgen::{JsCast, JsValue};
 use wasm_bindgen_futures::JsFuture;
+use crate::macros::macros::r_panic;
 
 struct Tape {
 	memory_map: HashMap<(i32, i32), Wrapping<u8>>,
@@ -250,6 +251,12 @@ impl BVM {
 				}
 				('^', _, true) => self.tape.move_head_position((0, 1)),
 				('v', _, true) => self.tape.move_head_position((0, -1)),
+				('^', _, false) => {
+					r_panic!("2D Brainfuck currently disabled");
+				}
+				('v', _, false) => {
+					r_panic!("2D Brainfuck currently disabled");
+				}
 				// ('#', true, ) => {
 				// 	println!("{}", self.tape);
 				// }
@@ -336,6 +343,12 @@ impl BVM {
 				}
 				('^', _, true) => self.tape.move_head_position((0, 1)),
 				('v', _, true) => self.tape.move_head_position((0, -1)),
+				('^', _, false) => {
+					r_panic!("2D Brainfuck currently disabled");
+				}
+				('v', _, false) => {
+					r_panic!("2D Brainfuck currently disabled");
+				}
 				// '#' => {
 				// 	println!("{}", self.tape);
 				// }
