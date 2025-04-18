@@ -1257,7 +1257,7 @@ bf {
 			",.[-]+[--^-[^^+^-----vv]v--v---]^-.^^^+.^^..+++[.^]vvvv.+++.------.vv-.^^^^+."
 		);
 
-		let output = run_code(BVM_CONFIG_1D, code, String::from("~"), None);
+		let output = run_code(BVM_CONFIG_2D, code, String::from("~"), None);
 		assert_eq!(output, "~Hello, World!");
 		Ok(())
 	}
