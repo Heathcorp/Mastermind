@@ -22,6 +22,7 @@ pub struct MastermindConfig {
 	// '2D Mastermind - Tiles'  2
 	// '2D Mastermind - Nearest' 3
 	pub memory_allocation_method: u8,
+	pub enable_2d_grid: bool,
 }
 
 impl MastermindConfig {
@@ -35,6 +36,7 @@ impl MastermindConfig {
 			optimise_constants: false,
 			optimise_empty_blocks: false,
 			memory_allocation_method: 0,
+			enable_2d_grid: false,
 		}
 	}
 }

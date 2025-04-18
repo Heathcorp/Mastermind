@@ -59,8 +59,7 @@ const SettingsPanel: Component<{ style?: JSX.CSSProperties }> = (props) => {
     // TODO: error handling here? is it needed?
     const output = app.output();
     if (output?.type !== "BF") return;
-
-    await app.run(output.content);
+    await app.run(output.content, settings().enable_2d_grid);
   };
 
   const onCompile = async () => {
@@ -295,7 +294,7 @@ const SettingsPanel: Component<{ style?: JSX.CSSProperties }> = (props) => {
                             setSettings({
                                 ...settings(),
                                 enable_2d_grid: isChecked,
-                                memory_allocation_method: isChecked ? 0 : settings().memory_allocation_method,
+                                memory_allocation_method: !isChecked ? 0 : settings().memory_allocation_method,
                             });
                         }}
                     />
@@ -306,7 +305,7 @@ const SettingsPanel: Component<{ style?: JSX.CSSProperties }> = (props) => {
                 </label>
                 <select
                     value={settings().memory_allocation_method}
-                    disabled={settings().enable_2d_grid}
+                    disabled={!settings().enable_2d_grid}
                     onChange={(event) => {
                         const value = parseInt((event.target as HTMLSelectElement).value, 10);
                         setSettings({...settings(), memory_allocation_method: value});

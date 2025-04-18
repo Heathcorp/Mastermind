@@ -281,7 +281,7 @@ const App: Component = () => {
     });
   };
 
-  const run = (code: string) => {
+  const run = (code: string, enable_2d_grid: boolean) => {
     return new Promise<string>((resolve, reject) => {
       const transaction = uuidv4();
       const callback = (e: {
@@ -355,7 +355,7 @@ const App: Component = () => {
       compilerWorker.postMessage({
         command: "RUN",
         transaction,
-        arguments: { code },
+        arguments: { code, enable_2d_grid },
       });
     });
   };
@@ -499,7 +499,7 @@ interface AppContextProps {
     entryFileId: string,
     settings: MastermindConfig
   ) => Promise<string>;
-  run: (code: string) => Promise<string>;
+  run: (code: string, enable_2d_grid: boolean) => Promise<string>;
 
   busy: Accessor<boolean>;
   status: Accessor<"COMPILING" | "RUNNING" | "INPUT_BLOCKED" | "IDLE">;

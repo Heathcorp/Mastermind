@@ -26,7 +26,8 @@ self.addEventListener("message", ({ data }: MessageEvent<
     transaction: string,
     command: "RUN",
     arguments: {
-      code: string
+      code: string,
+      enable_2d_grid: boolean
     }
   })
 >) => {
@@ -70,8 +71,7 @@ self.addEventListener("message", ({ data }: MessageEvent<
       break;
     case "RUN":
       try {
-
-        _run(data.arguments.code, data.transaction).then(codeOutput => {
+        _run(data.arguments.code, data.arguments.enable_2d_grid, data.transaction).then(codeOutput => {
           console.log(codeOutput);
           postMessage({
             transaction: data.transaction,
@@ -98,8 +98,8 @@ self.addEventListener("message", ({ data }: MessageEvent<
   }
 });
 
-function _run(code: string, runTransaction: string) {
-  const result = wasm_run_bf(code,
+function _run(code: string, enable_2d_grid: boolean, runTransaction: string) {
+  const result = wasm_run_bf(code, enable_2d_grid,
 
     function (byte: number) {
       // output a byte from the BVM

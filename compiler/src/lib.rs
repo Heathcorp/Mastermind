@@ -67,6 +67,7 @@ pub fn wasm_compile(
 #[wasm_bindgen]
 pub async fn wasm_run_bf(
 	code: String,
+	enable_2d_grid: bool,
 	output_callback: &js_sys::Function,
 	input_callback: &js_sys::Function,
 ) -> Result<String, JsValue> {
@@ -74,7 +75,7 @@ pub async fn wasm_run_bf(
 
 	let config = BVMConfig {
 		ENABLE_DEBUG_SYMBOLS: false,
-		ENABLE_2D_GRID: false,
+		ENABLE_2D_GRID: enable_2d_grid,
 	};
 	let mut bf = BVM::new(config, code.chars().collect());
 

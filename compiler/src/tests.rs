@@ -21,6 +21,7 @@ pub mod tests {
 		optimise_constants: false,
 		optimise_empty_blocks: false,
 		memory_allocation_method: 0,
+		enable_2d_grid: false,
 	};
 
 	const OPT_ALL: MastermindConfig = MastermindConfig {
@@ -32,6 +33,7 @@ pub mod tests {
 		optimise_constants: true,
 		optimise_empty_blocks: true,
 		memory_allocation_method: 0,
+		enable_2d_grid: false,
 	};
 
 	const BVM_CONFIG_1D: BVMConfig = BVMConfig {
