@@ -39,6 +39,11 @@ pub mod tests {
 		ENABLE_2D_GRID: false,
 	};
 
+	const BVM_CONFIG_2D: BVMConfig = BVMConfig {
+		ENABLE_DEBUG_SYMBOLS: false,
+		ENABLE_2D_GRID: true,
+	};
+
 	const TESTING_BVM_MAX_STEPS: usize = 100_000_000;
 
 	fn compile_and_run(program: String, input: String) -> Result<String, String> {
