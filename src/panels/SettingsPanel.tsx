@@ -41,7 +41,8 @@ const SettingsPanel: Component<{ style?: JSX.CSSProperties }> = (props) => {
 
   const [settings, setSettings] = makePersisted(
       createSignal<MastermindSettings>({
-        memory_allocation_method: 0
+        memory_allocation_method: 0,
+        enable_2d_grid: false,
       }),
       { name: "mastermind_compiler_settings" }
   );
@@ -284,19 +285,37 @@ const SettingsPanel: Component<{ style?: JSX.CSSProperties }> = (props) => {
           </span>
             <form>
                 <label class="row">
+                    <input
+                        type="checkbox"
+                        name='Enable 2D Brainfuck'
+                        id='enable_2d_grid'
+                        checked={settings().enable_2d_grid}
+                        onChange={(event) => {
+                            const isChecked = event.target.checked;
+                            setSettings({
+                                ...settings(),
+                                enable_2d_grid: isChecked,
+                                memory_allocation_method: isChecked ? 0 : settings().memory_allocation_method,
+                            });
+                        }}
+                    />
+                    Enable 2D Brainfuck
+                </label>
+                <label class="row">
                     Memory Allocation
                 </label>
                 <select
                     value={settings().memory_allocation_method}
+                    disabled={settings().enable_2d_grid}
                     onChange={(event) => {
                         const value = parseInt((event.target as HTMLSelectElement).value, 10);
-                        setSettings({ ...settings(), memory_allocation_method: value });
+                        setSettings({...settings(), memory_allocation_method: value});
                     }}
                 >
                     {MemoryAllocationOptions.map((option, index) => (
-                      <option value={index}>
-                        {option}
-                      </option>
+                        <option value={index}>
+                            {option}
+                        </option>
                     ))}
                 </select>
             </form>
@@ -310,7 +329,7 @@ const SettingsPanel: Component<{ style?: JSX.CSSProperties }> = (props) => {
                 href="https://github.com/Heathcorp/Mastermind"
                 target="_blank"
             >
-                <AiFillGithub title="Git repository"/>
+            <AiFillGithub title="Git repository"/>
         </a>
         <a
             class="socials-icon text-button"
@@ -367,6 +386,7 @@ interface MastermindOptimisations {
 }
 
 interface MastermindSettings {
+  enable_2d_grid: boolean;
   memory_allocation_method: number;
 }
 
