@@ -27,6 +27,7 @@ import "./App.css";
 import Divider from "./components/Divider";
 import EditorPanel from "./panels/EditorPanel";
 import InputPanel from "./panels/InputPanel";
+import SideBar from "./panels/SideBar.tsx";
 
 import OutputPanel from "./panels/OutputPanel";
 import SettingsPanel, {MastermindConfig} from "./panels/SettingsPanel";
@@ -453,6 +454,10 @@ const App: Component = () => {
           <InputPanel style={{ flex: 1 }} />
           <Divider />
           <OutputPanel style={{ flex: 4 }} />
+        </div>
+        <Divider />
+        <div>
+          <SideBar/>
         </div>
       </div>
     </AppContext.Provider>

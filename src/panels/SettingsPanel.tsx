@@ -9,14 +9,12 @@ import {
 import Divider from "../components/Divider";
 import { useAppContext } from "../App";
 import { makePersisted } from "@solid-primitives/storage";
-import { AiFillGithub, AiOutlineStop } from "solid-icons/ai";
+import { AiOutlineStop } from "solid-icons/ai";
 import { FiCopy, FiSave } from "solid-icons/fi";
-import { IoHelpCircle } from "solid-icons/io";
 
 import "./settings.css";
 import JSZip from "jszip";
 import downloadBlob from "../utils/downloadBlob";
-import HelpModal from "../components/Help.tsx";
 
 const MemoryAllocationOptions : string[] = ['1D Mastermind' , '2D Mastermind - Spiral' , '2D Mastermind - Tiles' , '2D Mastermind - Nearest']
 const SettingsPanel: Component<{ style?: JSX.CSSProperties }> = (props) => {
@@ -315,26 +313,6 @@ const SettingsPanel: Component<{ style?: JSX.CSSProperties }> = (props) => {
                 </select>
             </form>
         </div>
-      </div>
-        {/* <Divider /> */}
-        {/* social media links, currently only github */}
-        <div class="socials">
-            <a
-                class="socials-icon text-button"
-                href="https://github.com/Heathcorp/Mastermind"
-                target="_blank"
-            >
-            <AiFillGithub title="Git repository"/>
-        </a>
-        <a
-            class="socials-icon text-button"
-            style={{"font-size": "2.25rem"}}
-            target="_blank"
-            onClick={() => app.setHelpOpen(true)}
-        >
-          <IoHelpCircle title="help"/>
-            <HelpModal></HelpModal>
-        </a>
       </div>
     </div>
   );
