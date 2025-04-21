@@ -14,13 +14,9 @@ import { FiCopy, FiSave } from "solid-icons/fi";
 import { IoHelpCircle } from "solid-icons/io";
 
 import "./settings.css";
-import { Portal } from "solid-js/web";
-import { SolidMarkdown } from "solid-markdown";
-import readmeContent from "../../README.md?raw";
-import { IoClose } from "solid-icons/io";
-import remarkGfm from "remark-gfm";
 import JSZip from "jszip";
 import downloadBlob from "../utils/downloadBlob";
+import HelpModal from "../components/Help.tsx";
 
 const MemoryAllocationOptions : string[] = ['1D Mastermind' , '2D Mastermind - Spiral' , '2D Mastermind - Tiles' , '2D Mastermind - Nearest']
 const SettingsPanel: Component<{ style?: JSX.CSSProperties }> = (props) => {
@@ -337,35 +333,7 @@ const SettingsPanel: Component<{ style?: JSX.CSSProperties }> = (props) => {
             onClick={() => app.setHelpOpen(true)}
         >
           <IoHelpCircle title="help"/>
-
-          <Show when={app.helpOpen()}>
-            {/* The weirdest solid js feature, puts the component into the top level html body */}
-            <Portal>
-              <div
-                  class="readme-modal-container"
-                  onClick={() => app.setHelpOpen(false)}
-              >
-                <div class="readme-modal" onClick={(e) => e.stopPropagation()}>
-                  <div class="markdown-container">
-                    <SolidMarkdown remarkPlugins={[remarkGfm]}>
-                      {readmeContent}
-                    </SolidMarkdown>
-                  </div>
-                  <IoClose
-                      title="close help"
-                      class="text-button"
-                      style={{
-                        "font-size": "1.5rem",
-                        position: "absolute",
-                        right: "1rem",
-                        top: "1rem",
-                      }}
-                      onClick={() => app.setHelpOpen(false)}
-                  />
-                </div>
-              </div>
-            </Portal>
-          </Show>
+            <HelpModal></HelpModal>
         </a>
       </div>
     </div>
