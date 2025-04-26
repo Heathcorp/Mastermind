@@ -617,13 +617,13 @@ fn parse_var_target(tokens: &[Token]) -> Result<(VariableTarget, usize), String>
 	};
 	i += 1;
 
-	let mut ref_chain = vec![];
+	let mut ref_chain = VariableTargetReferenceChain(vec![]);
 	while i < tokens.len() {
 		match &tokens[i] {
 			Token::OpenSquareBracket => {
 				let (index, tokens_used) = parse_subscript(&tokens[i..])?;
 				i += tokens_used;
-				ref_chain.push(Reference::Index(index));
+				ref_chain.0.push(Reference::Index(index));
 			}
 			Token::Dot => {
 				i += 1;
@@ -632,7 +632,9 @@ fn parse_var_target(tokens: &[Token]) -> Result<(VariableTarget, usize), String>
 				};
 				i += 1;
 
-				ref_chain.push(Reference::NamedField(subfield_name.clone()));
+				ref_chain
+					.0
+					.push(Reference::NamedField(subfield_name.clone()));
 			}
 			_ => {
 				break;
@@ -640,7 +642,7 @@ fn parse_var_target(tokens: &[Token]) -> Result<(VariableTarget, usize), String>
 		}
 	}
 
-	Ok((VariableTarget(var_name.clone(), ref_chain), i))
+	Ok((VariableTarget(var_name.clone(), Some(ref_chain)), i))
 }
 
 /// convert tokens of a variable definition into data representation, e.g. `cell x`, `struct G g`, `cell[5] x_arr`, `struct H[100] hs`
@@ -1112,8 +1114,8 @@ pub enum VariableTypeReference {
 // TODO: refactor to this instead:
 #[derive(Debug, Clone, Hash, PartialEq, Eq)]
 pub struct VariableDefinition {
-	pub var_type: VariableTypeReference,
 	pub name: String,
+	pub var_type: VariableTypeReference,
 	// Infinite {name: String, pattern: ???},
 }
 
@@ -1127,7 +1129,7 @@ impl VariableDefinition {
 	/// gets this definition as a cell target for definition clauses (as opposed to declarations)
 	pub fn target_cell(&self) -> Result<VariableTarget, String> {
 		match self.var_type {
-			VariableTypeReference::Cell => Ok(VariableTarget(self.name.clone(), vec![])),
+			VariableTypeReference::Cell => Ok(VariableTarget(self.name.clone(), None)),
 			VariableTypeReference::Struct(_) | VariableTypeReference::Array(_, _) => {
 				r_panic!(
 					"Cannot get single cell target from a struct or array definition ({self:#?})."
@@ -1142,9 +1144,11 @@ pub enum Reference {
 	NamedField(String),
 	Index(usize),
 }
+
 #[derive(Debug, Clone, Hash, PartialEq, Eq)]
-// TODO: make the vec reference optional?
-pub struct VariableTarget(pub String, pub Vec<Reference>);
+pub struct VariableTargetReferenceChain(pub Vec<Reference>);
+#[derive(Debug, Clone, Hash, PartialEq, Eq)]
+pub struct VariableTarget(pub String, pub Option<VariableTargetReferenceChain>);
 impl VariableTarget {
 	pub fn name(&self) -> &str {
 		&self.0
@@ -1174,12 +1178,14 @@ impl Display for VariableDefinition {
 impl Display for VariableTarget {
 	fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
 		f.write_str(&self.0);
-		for ref_step in self.1.iter() {
-			match ref_step {
-				Reference::NamedField(subfield_name) => {
-					f.write_str(&format!(".{subfield_name}"))?
+		if let Some(subfield_refs) = &self.1 {
+			for ref_step in subfield_refs.0.iter() {
+				match ref_step {
+					Reference::NamedField(subfield_name) => {
+						f.write_str(&format!(".{subfield_name}"))?
+					}
+					Reference::Index(index) => f.write_str(&format!("[{index}]"))?,
 				}
-				Reference::Index(index) => f.write_str(&format!("[{index}]"))?,
 			}
 		}
 

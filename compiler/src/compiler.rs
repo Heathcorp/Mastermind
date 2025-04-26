@@ -1,12 +1,12 @@
 // compile syntax tree into low-level instructions
 
-use std::{collections::HashMap, mem};
+use std::collections::HashMap;
 
 use crate::{
 	builder::{Builder, Opcode, TapeCell},
 	macros::macros::{r_assert, r_panic},
 	parser::{
-		Clause, Expression, ExtendedOpcode, VariableDefinition, VariableTarget,
+		Clause, Expression, ExtendedOpcode, Reference, VariableDefinition, VariableTarget,
 		VariableTypeReference,
 	},
 	MastermindConfig,
@@ -695,6 +695,7 @@ pub enum Instruction {
 pub enum Memory {
 	Cell { id: MemoryId },
 	Cells { id: MemoryId, len: usize },
+	// TODO: MappedCells? Maybe hold a list of subfield positions? could be cooked
 	// infinite cell something (TODO?)
 }
 pub type MemoryId = usize;
@@ -780,7 +781,7 @@ struct Function {
 }
 
 #[derive(Clone, Debug)]
-/// a fully qualified definition of a type, as opposed to `VariableTypeReference` which is more of a reference
+/// an absolute definition of a type, as opposed to `VariableTypeReference` which is more of a reference
 enum ValueType {
 	Cell,
 	Array(usize, Box<ValueType>),
@@ -789,13 +790,20 @@ enum ValueType {
 }
 
 #[derive(Clone, Debug)]
-/// equivalent to DictStruct enum variant,
+/// equivalent to ValueType::DictStruct enum variant,
 /// Rust doesn't support enum variants as types yet so need this workaround for struct definitions in scope object
 struct DictStructType(Vec<(String, ValueType)>);
 impl ValueType {
 	fn from_struct(struct_def: DictStructType) -> Self {
 		ValueType::DictStruct(struct_def.0)
 	}
+
+	// /// get the cell index of a specific variable target
+	// pub fn get_target_cell_index(&self, subfield_references: &Vec<Reference>) -> Option<usize> {
+	// 	match self {
+
+	// 	}
+	// }
 }
 
 impl ValueType {
@@ -904,26 +912,34 @@ impl Scope<'_> {
 		var: VariableDefinition,
 		location_specifier: Option<i32>,
 	) -> Result<(), String> {
-		todo!();
-		// let id = self.push_memory_id();
-		// let memory = match &var.var_type {
-		// 	VariableTypeReference::Cell => Memory::Cell { id },
-		// 	VariableTypeReference::Struct(_) | VariableTypeReference::Array(_, _) => {
-		// 		Memory::Cells { id, len: todo!() }
-		// 	}
-		// };
+		r_assert!(
+			!self.variable_memory.contains_key(&var.name),
+			"Cannot allocate variable {var} twice in the same scope"
+		);
 
-		// let None = self.variable_memory.keys().find(|vd| vd.name == var.name) else {
-		// 	r_panic!("Cannot allocate variable {var} twice in the same scope");
-		// };
+		// get absolute type
+		let full_type: ValueType = self.create_absolute_type(&var.var_type)?;
+		// get absolute type size
+		let id = self.push_memory_id();
+		let memory = match &full_type {
+			ValueType::Cell => Memory::Cell { id },
+			_ => Memory::Cells {
+				id,
+				len: full_type.size(),
+			},
+		};
+		// save variable in scope memory
+		let None = self
+			.variable_memory
+			.insert(var.name.clone(), (full_type, memory.clone()))
+		else {
+			r_panic!("Unreachable error occurred when allocating {var}");
+		};
 
-		// if let Some(_overwrote_var) = self.variable_memory.insert(var.clone(), memory.clone()) {
-		// 	r_panic!("Unreachable error occurred when allocating {var}");
-		// }
+		// allocate
+		self.push_instruction(Instruction::Allocate(memory.clone(), location_specifier));
 
-		// self.push_instruction(Instruction::Allocate(memory.clone(), location_specifier));
-
-		// Ok(())
+		Ok(())
 	}
 
 	// fn allocate_unnamed_cell(&mut self) -> Memory {
@@ -974,14 +990,26 @@ impl Scope<'_> {
 		}
 	}
 
-	/// get the cell index of a memory allocation from a specific reference
-	pub fn get_target_cell_index(&self, target: &VariableTarget) -> Option<usize> {
-		todo!();
+	/// construct an absolute type from a type reference
+	fn create_absolute_type(&self, type_ref: &VariableTypeReference) -> Result<ValueType, String> {
+		Ok(match type_ref {
+			VariableTypeReference::Cell => ValueType::Cell,
+			VariableTypeReference::Struct(struct_type_name) => {
+				ValueType::from_struct(self.get_struct_definition(struct_type_name)?.clone())
+			}
+			VariableTypeReference::Array(variable_type_reference, len) => ValueType::Array(
+				*len,
+				Box::new(self.create_absolute_type(variable_type_reference)?),
+			),
+		})
 	}
 
 	/// return a cell reference for a variable target
 	fn get_cell(&self, target: &VariableTarget) -> Result<CellReference, String> {
 		todo!();
+		// get the absolute type of the variable
+		// let full_type = self.get_variable_memory
+
 		// check current variables, if not here, recurse
 		// if yes, iterate through the target ref chain to find the right memory cell
 		// if let Some((var_def, memory)) = self
