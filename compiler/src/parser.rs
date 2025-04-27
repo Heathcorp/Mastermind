@@ -963,7 +963,7 @@ impl Expression {
 	// (constant to add, variables to add, variables to subtract)
 	// currently multiplication is not supported so order of operations and flattening is very trivial
 	// If we add multiplication in future it will likely be constant multiplication only, so no variable on variable multiplication
-	pub fn flatten(self) -> Result<(u8, Vec<VariableTarget>, Vec<VariableTarget>), String> {
+	pub fn flatten(&self) -> Result<(u8, Vec<VariableTarget>, Vec<VariableTarget>), String> {
 		let expr = self;
 		let mut imm_sum = Wrapping(0u8);
 		let mut additions = Vec::new();
@@ -998,10 +998,10 @@ impl Expression {
 				};
 			}
 			Expression::NaturalNumber(number) => {
-				imm_sum += Wrapping(number as u8);
+				imm_sum += Wrapping(*number as u8);
 			}
 			Expression::VariableReference(var) => {
-				additions.push(var);
+				additions.push(var.clone());
 			}
 			Expression::ArrayLiteral(_) | Expression::StringLiteral(_) => {
 				r_panic!("Attempt to flatten an array-like expression: {expr:#?}");
@@ -1134,17 +1134,6 @@ impl VariableDefinition {
 			VariableTypeReference::Array(_, len) => Some(len),
 		}
 	}
-	/// gets this definition as a cell target for definition clauses (as opposed to declarations)
-	pub fn target_cell(&self) -> Result<VariableTarget, String> {
-		match self.var_type {
-			VariableTypeReference::Cell => Ok(VariableTarget(self.name.clone(), None)),
-			VariableTypeReference::Struct(_) | VariableTypeReference::Array(_, _) => {
-				r_panic!(
-					"Cannot get single cell target from a struct or array definition ({self:#?})."
-				)
-			}
-		}
-	}
 }
 
 #[derive(Debug, Clone, Hash, PartialEq, Eq)]
@@ -1162,6 +1151,11 @@ pub struct VariableTarget(pub String, pub Option<VariableTargetReferenceChain>);
 impl VariableTarget {
 	pub fn name(&self) -> &str {
 		&self.0
+	}
+
+	/// converts a definition to a target for use with definition clauses (as opposed to declarations)
+	pub fn from_definition(var_def: &VariableDefinition) -> Self {
+		VariableTarget(var_def.name.clone(), None)
 	}
 }
 
