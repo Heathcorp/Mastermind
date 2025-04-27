@@ -843,26 +843,25 @@ impl Scope<'_> {
 		// TODO: add some optimisations from the builder to here
 
 		// create instructions to free cells
-		let mut clear_instructions = Vec::new();
-		for (var_def, memory) in self.variable_memory.iter() {
-			todo!();
-			// match &var_def {
-			// 	VariableDefinition::Single { name: _ } => {
-			// 		clear_instructions.push(Instruction::ClearCell(CellReference {
-			// 			memory_id: *mem_id,
-			// 			index: None,
-			// 		}))
-			// 	}
-			// 	VariableDefinition::Multi { name: _, len } => {
-			// 		for i in 0..*len {
-			// 			clear_instructions.push(Instruction::ClearCell(CellReference {
-			// 				memory_id: *mem_id,
-			// 				index: Some(i),
-			// 			}))
-			// 		}
-			// 	}
-			// }
-			// clear_instructions.push(Instruction::Free(*mem_id));
+		let mut clear_instructions = vec![];
+		for (_var_name, (_var_type, memory)) in self.variable_memory.iter() {
+			match memory {
+				Memory::Cell { id } => {
+					clear_instructions.push(Instruction::ClearCell(CellReference {
+						memory_id: *id,
+						index: None,
+					}))
+				}
+				Memory::Cells { id, len } => {
+					for i in 0..*len {
+						clear_instructions.push(Instruction::ClearCell(CellReference {
+							memory_id: *id,
+							index: Some(i),
+						}))
+					}
+				}
+			}
+			clear_instructions.push(Instruction::Free(memory.id()));
 		}
 		for instr in clear_instructions {
 			self.push_instruction(instr);
