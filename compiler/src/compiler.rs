@@ -1009,21 +1009,28 @@ impl Scope<'_> {
 		// get the correct index within the memory and return
 		Ok(match (&target.1, full_type, memory) {
 			(None, ValueType::Cell, Memory::Cell { id }) => CellReference {
-				memory_id: id,
+				memory_id: *id,
 				index: None,
 			},
-			(Some(subfield_chain), full_type, Memory::Cells { id, len }) => {
+			(
+				Some(subfield_chain),
+				ValueType::Array(_, _) | ValueType::DictStruct(_),
+				Memory::Cells { id, len },
+			) => {
 				let cell_index = full_type.get_target_cell_index(&subfield_chain.0);
 				let Some(cell_index) = cell_index else {
 					r_panic!("Target cell for {target} malformed? This should not occur.");
 				};
-				r_assert!(cell_index < len, "Cell reference out of bounds on variable target: {target}. This should not occur.");
+				r_assert!(cell_index < *len, "Cell reference out of bounds on variable target: {target}. This should not occur.");
 				CellReference {
-					memory_id: id,
+					memory_id: *id,
 					index: Some(cell_index),
 				}
 			}
-			(Some(_), ValueType::Cell, Memory::Cell { id }) => {
+			(Some(_), ValueType::Cell, Memory::Cell { id: _ }) => {
+				println!("TARGET: {target:#?}");
+				println!("TYPE: {full_type:#?}");
+				println!("MEMORY: {memory:#?}");
 				r_panic!("Cannot get subfields of cell type: {target}.")
 			}
 
@@ -1050,8 +1057,13 @@ impl Scope<'_> {
 	}
 
 	/// return the absolute type and memory allocation for a variable name
-	fn get_variable_memory(&self, var_name: &str) -> Result<(ValueType, Memory), String> {
-		todo!();
+	fn get_variable_memory(&self, var_name: &str) -> Result<(&ValueType, &Memory), String> {
+		// TODO: add function argument translations and embedded bf/mmi scope function restrictions
+		match (self.outer_scope, self.variable_memory.get(var_name)) {
+			(_, Some((value_type, memory))) => Ok((value_type, memory)),
+			(Some(outer_scope), None) => outer_scope.get_variable_memory(var_name),
+			(None, None) => r_panic!("No variable found with name \"{var_name}\"."),
+		}
 		// if let Some(var_def) = self.current_level_get_variable_definition(var.name()) {
 		// 	let Some(mem_id) = self.variable_memory.get(var_def) else {
 		// 		r_panic!("Something went wrong when compiling. This error should never occur.");

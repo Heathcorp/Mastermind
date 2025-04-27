@@ -617,13 +617,13 @@ fn parse_var_target(tokens: &[Token]) -> Result<(VariableTarget, usize), String>
 	};
 	i += 1;
 
-	let mut ref_chain = VariableTargetReferenceChain(vec![]);
+	let mut ref_chain = vec![];
 	while i < tokens.len() {
 		match &tokens[i] {
 			Token::OpenSquareBracket => {
 				let (index, tokens_used) = parse_subscript(&tokens[i..])?;
 				i += tokens_used;
-				ref_chain.0.push(Reference::Index(index));
+				ref_chain.push(Reference::Index(index));
 			}
 			Token::Dot => {
 				i += 1;
@@ -632,9 +632,7 @@ fn parse_var_target(tokens: &[Token]) -> Result<(VariableTarget, usize), String>
 				};
 				i += 1;
 
-				ref_chain
-					.0
-					.push(Reference::NamedField(subfield_name.clone()));
+				ref_chain.push(Reference::NamedField(subfield_name.clone()));
 			}
 			_ => {
 				break;
@@ -642,7 +640,17 @@ fn parse_var_target(tokens: &[Token]) -> Result<(VariableTarget, usize), String>
 		}
 	}
 
-	Ok((VariableTarget(var_name.clone(), Some(ref_chain)), i))
+	Ok((
+		VariableTarget(
+			var_name.clone(),
+			if ref_chain.len() > 0 {
+				Some(VariableTargetReferenceChain(ref_chain))
+			} else {
+				None
+			},
+		),
+		i,
+	))
 }
 
 /// convert tokens of a variable definition into data representation, e.g. `cell x`, `struct G g`, `cell[5] x_arr`, `struct H[100] hs`
@@ -1145,6 +1153,8 @@ pub enum Reference {
 	Index(usize),
 }
 
+/// Represents a list of subfield references after the `.` or `[x]` operators, e.g. `obj.h[6]` would have `['h', '[6]']`
+// a bit verbose, not quite sure about this
 #[derive(Debug, Clone, Hash, PartialEq, Eq)]
 pub struct VariableTargetReferenceChain(pub Vec<Reference>);
 #[derive(Debug, Clone, Hash, PartialEq, Eq)]
