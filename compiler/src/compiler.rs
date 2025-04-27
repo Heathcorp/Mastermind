@@ -873,8 +873,55 @@ impl ValueType {
 	}
 
 	/// get the cell index of a specific variable target
-	pub fn get_target_cell_index(&self, subfield_chain: &[Reference]) -> Option<usize> {
-		todo!()
+	fn _get_target_cell_index(&self, subfield_chain: &[Reference]) -> usize {
+		unimplemented!()
+	}
+
+	/// get a subfield's type as well as memory cell index
+	pub fn get_subfield(
+		&self,
+		subfield_chain: &VariableTargetReferenceChain,
+	) -> Result<(&ValueType, usize), String> {
+		let mut cur_field = self;
+		let mut cur_index = 0;
+		for subfield_ref in subfield_chain.0.iter() {
+			match (cur_field, subfield_ref) {
+				(ValueType::Array(len, element_type), Reference::Index(index)) => {
+					r_assert!(
+						index < len,
+						"Index \"{subfield_ref}\" must be less than array length ({len})."
+					);
+					cur_index += element_type.size() * index;
+					cur_field = element_type;
+				}
+				(ValueType::DictStruct(items), Reference::NamedField(subfield_name)) => {
+					let mut cell_offset_tally = 0;
+					let Some((_, subfield_type)) = items.iter().find(|(item_name, item_type)| {
+						match item_name == subfield_name {
+							true => true,
+							false => {
+								cell_offset_tally += item_type.size();
+								false
+							}
+						}
+					}) else {
+						r_panic!("Could not find subfield \"{subfield_ref}\" in struct type")
+					};
+					cur_field = subfield_type;
+				}
+
+				(ValueType::DictStruct(_), Reference::Index(_)) => {
+					r_panic!("Cannot read index subfield \"{subfield_ref}\" of struct type.")
+				}
+				(ValueType::Array(_, _), Reference::NamedField(_)) => {
+					r_panic!("Cannot read named subfield \"{subfield_ref}\" of array type.")
+				}
+				(ValueType::Cell, subfield_ref) => {
+					r_panic!("Attempted to get subfield \"{subfield_ref}\" of cell type.")
+				}
+			}
+		}
+		Ok((cur_field, cur_index))
 	}
 }
 
@@ -1091,10 +1138,7 @@ impl Scope<'_> {
 				ValueType::Array(_, _) | ValueType::DictStruct(_),
 				Memory::Cells { id, len },
 			) => {
-				let cell_index = full_type.get_target_cell_index(&subfield_chain.0);
-				let Some(cell_index) = cell_index else {
-					r_panic!("Target cell for {target} malformed? This should not occur.");
-				};
+				let (subfield_type, cell_index) = full_type.get_subfield(&subfield_chain)?;
 				r_assert!(cell_index < *len, "Cell reference out of bounds on variable target: {target}. This should not occur.");
 				CellReference {
 					memory_id: *id,
@@ -1102,17 +1146,14 @@ impl Scope<'_> {
 				}
 			}
 			(Some(_), ValueType::Cell, Memory::Cell { id: _ }) => {
-				println!("TARGET: {target:#?}");
-				println!("TYPE: {full_type:#?}");
-				println!("MEMORY: {memory:#?}");
-				r_panic!("Cannot get subfields of cell type: {target}.")
+				r_panic!("Cannot get subfields of cell type: {target}")
 			}
 
 			(None, ValueType::DictStruct(_), Memory::Cells { id: _, len: _ })
 			| (None, ValueType::DictStruct(_), Memory::Cell { id: _ })
 			| (None, ValueType::Array(_, _), Memory::Cells { id: _, len: _ })
 			| (None, ValueType::Array(_, _), Memory::Cell { id: _ }) => {
-				r_panic!("Expected single cell reference in target: {target}.")
+				r_panic!("Expected single cell reference in target: {target}")
 			}
 
 			// variable memory returned the wrong memory allocation type for the value type, unreachable
@@ -1125,9 +1166,53 @@ impl Scope<'_> {
 		})
 	}
 
-	/// return a list of cell references for an array
+	/// return a list of cell references for an array of cells (not an array of structs)
 	fn get_array_cells(&self, target: &VariableTarget) -> Result<Vec<CellReference>, String> {
-		todo!();
+		let (full_type, memory) = self.get_variable_memory(target.name())?;
+		Ok(match (&target.1, full_type, memory) {
+			(
+				None,
+				ValueType::Array(arr_len, element_type),
+				Memory::Cells {
+					id: mem_id,
+					len: mem_len,
+				},
+			) => {
+				let ValueType::Cell = **element_type else {
+					r_panic!("Cannot get array cells of struct array: {target}");
+				};
+				r_assert!(
+					arr_len == mem_len,
+					"Array memory incorrect length {mem_len} for array length {arr_len}."
+				);
+				(0..*mem_len)
+					.map(|i| CellReference {
+						memory_id: *mem_id,
+						index: Some(i),
+					})
+					.collect()
+			}
+			(Some(_), ValueType::Array(_, value_type), Memory::Cells { id, len }) => todo!(),
+			(Some(_), ValueType::DictStruct(items), Memory::Cells { id, len }) => todo!(),
+
+			// not addressing array cells, possibly user error
+			(None, ValueType::DictStruct(_), Memory::Cells { id: _, len: _ })
+			| (None, ValueType::Cell, Memory::Cell { id: _ }) => {
+				r_panic!("Expected cell type in variable target: {target}")
+			}
+
+			// subfield references on a cell, user error
+			(Some(_), ValueType::Cell, Memory::Cell { id }) => {
+				r_panic!("Attempted to retrieve array subfield from cell type: {target}")
+			}
+
+			// fucked up memory allocations, not user error
+			(_, ValueType::Cell, Memory::Cells { id: _, len: _ })
+			| (_, ValueType::Array(_, _), Memory::Cell { id: _ })
+			| (_, ValueType::DictStruct(_), Memory::Cell { id: _ }) => r_panic!(
+				"Unexpected memory type when accessing \"{target}\". This should not occur."
+			),
+		})
 	}
 
 	/// return the absolute type and memory allocation for a variable name
