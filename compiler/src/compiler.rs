@@ -376,10 +376,8 @@ impl Compiler<'_> {
 					// TODO: refactor this, there is duplicate code with copying the source value cell
 					let (source_cell, free_source_cell) = match (is_draining, &source) {
 						// draining loops can drain from an expression or a variable
-						(false, Expression::VariableReference(var)) => {
-							(scope.get_cell(var)?, false)
-						}
-						(false, _) => {
+						(true, Expression::VariableReference(var)) => (scope.get_cell(var)?, false),
+						(true, _) => {
 							// any other kind of expression, allocate memory for it automatically
 							let id = scope.push_memory_id();
 							scope
@@ -391,7 +389,7 @@ impl Compiler<'_> {
 							_add_expr_to_cell(&mut scope, &source, new_cell)?;
 							(new_cell, true)
 						}
-						(true, Expression::VariableReference(var)) => {
+						(false, Expression::VariableReference(var)) => {
 							let cell = scope.get_cell(var)?;
 
 							let new_mem_id = scope.push_memory_id();
@@ -409,7 +407,7 @@ impl Compiler<'_> {
 
 							(new_cell, true)
 						}
-						(true, _) => {
+						(false, _) => {
 							r_panic!("Cannot copy from {source:#?}, use a drain loop instead")
 						}
 					};
