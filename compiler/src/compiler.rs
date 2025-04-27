@@ -7,7 +7,7 @@ use crate::{
 	macros::macros::{r_assert, r_panic},
 	parser::{
 		Clause, Expression, ExtendedOpcode, Reference, VariableDefinition, VariableTarget,
-		VariableTypeReference,
+		VariableTargetReferenceChain, VariableTypeReference,
 	},
 	MastermindConfig,
 };
@@ -798,12 +798,10 @@ impl ValueType {
 		ValueType::DictStruct(struct_def.0)
 	}
 
-	// /// get the cell index of a specific variable target
-	// pub fn get_target_cell_index(&self, subfield_references: &Vec<Reference>) -> Option<usize> {
-	// 	match self {
-
-	// 	}
-	// }
+	/// get the cell index of a specific variable target
+	pub fn get_target_cell_index(&self, subfield_chain: &[Reference]) -> Option<usize> {
+		todo!()
+	}
 }
 
 impl ValueType {
@@ -1006,34 +1004,44 @@ impl Scope<'_> {
 
 	/// return a cell reference for a variable target
 	fn get_cell(&self, target: &VariableTarget) -> Result<CellReference, String> {
-		todo!();
-		// get the absolute type of the variable
-		// let full_type = self.get_variable_memory
+		// get the absolute type of the variable, as well as the memory allocation
+		let (full_type, memory) = self.get_variable_memory(target.name())?;
+		// get the correct index within the memory and return
+		Ok(match (&target.1, full_type, memory) {
+			(None, ValueType::Cell, Memory::Cell { id }) => CellReference {
+				memory_id: id,
+				index: None,
+			},
+			(Some(subfield_chain), full_type, Memory::Cells { id, len }) => {
+				let cell_index = full_type.get_target_cell_index(&subfield_chain.0);
+				let Some(cell_index) = cell_index else {
+					r_panic!("Target cell for {target} malformed? This should not occur.");
+				};
+				r_assert!(cell_index < len, "Cell reference out of bounds on variable target: {target}. This should not occur.");
+				CellReference {
+					memory_id: id,
+					index: Some(cell_index),
+				}
+			}
+			(Some(_), ValueType::Cell, Memory::Cell { id }) => {
+				r_panic!("Cannot get subfields of cell type: {target}.")
+			}
 
-		// check current variables, if not here, recurse
-		// if yes, iterate through the target ref chain to find the right memory cell
-		// if let Some((var_def, memory)) = self
-		// 	.variable_memory
-		// 	.iter()
-		// 	.find(|(var_def, memory)| var_def.name == target.name())
-		// {
-		// 	let index = var_def.var_type.get_target_cell_index(&target.1);
-		// 	// check that we aren't trying to index a Cell type
-		// 	let ((Memory::Cell { id: _ }, None) | (Memory::Cells { id: _, len: _ }, Some(_))) =
-		// 		(memory, index)
-		// 	else {
-		// 		r_panic!("Unreachable error occurred trying to get target cell: {target}");
-		// 	};
-		// 	Ok(CellReference {
-		// 		memory_id: memory.id(),
-		// 		index,
-		// 	})
-		// } else if let Some(outer_scope) = self.outer_scope {
-		// 	// recurse
-		// 	outer_scope.get_cell(target)
-		// } else {
-		// 	r_panic!("Variable target {target} could not be found in current scope.")
-		// }
+			(None, ValueType::DictStruct(_), Memory::Cells { id: _, len: _ })
+			| (None, ValueType::DictStruct(_), Memory::Cell { id: _ })
+			| (None, ValueType::Array(_, _), Memory::Cells { id: _, len: _ })
+			| (None, ValueType::Array(_, _), Memory::Cell { id: _ }) => {
+				r_panic!("Expected single cell reference in target: {target}.")
+			}
+
+			// variable memory returned the wrong memory allocation type for the value type, unreachable
+			(Some(_), ValueType::Cell, Memory::Cells { id: _, len: _ })
+			| (Some(_), ValueType::Array(_, _), Memory::Cell { id: _ })
+			| (Some(_), ValueType::DictStruct(_), Memory::Cell { id: _ })
+			| (None, ValueType::Cell, Memory::Cells { id: _, len: _ }) => r_panic!(
+				"Invalid memory for value type in target: {target}. This should not occur."
+			),
+		})
 	}
 
 	/// return a list of cell references for an array
@@ -1041,10 +1049,9 @@ impl Scope<'_> {
 		unimplemented!();
 	}
 
-	/// return a memory allocation id from a variable target
-	// unfortunately we also have a little hack to add the length of the variable in here as well because we ended up needing it
-	fn get_memory(&self, var: &VariableTarget) -> Result<Memory, String> {
-		unimplemented!();
+	/// return the absolute type and memory allocation for a variable name
+	fn get_variable_memory(&self, var_name: &str) -> Result<(ValueType, Memory), String> {
+		todo!();
 		// if let Some(var_def) = self.current_level_get_variable_definition(var.name()) {
 		// 	let Some(mem_id) = self.variable_memory.get(var_def) else {
 		// 		r_panic!("Something went wrong when compiling. This error should never occur.");

@@ -14,6 +14,8 @@ pub mod macros {
     }};
   }
 
+	// TODO: Add unreachable wrapper
+
 	pub(crate) use r_assert;
 	pub(crate) use r_panic;
 }
