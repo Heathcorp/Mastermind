@@ -1179,17 +1179,23 @@ impl Display for VariableDefinition {
 	}
 }
 
+impl Display for Reference {
+	fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+		match self {
+			Reference::NamedField(subfield_name) => f.write_str(&format!(".{subfield_name}"))?,
+			Reference::Index(index) => f.write_str(&format!("[{index}]"))?,
+		}
+
+		Ok(())
+	}
+}
+
 impl Display for VariableTarget {
 	fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
 		f.write_str(&self.0);
 		if let Some(subfield_refs) = &self.1 {
 			for ref_step in subfield_refs.0.iter() {
-				match ref_step {
-					Reference::NamedField(subfield_name) => {
-						f.write_str(&format!(".{subfield_name}"))?
-					}
-					Reference::Index(index) => f.write_str(&format!("[{index}]"))?,
-				}
+				f.write_str(&format!("{ref_step}"));
 			}
 		}
 
