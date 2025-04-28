@@ -107,3 +107,13 @@ a:active.socials-icon {
   background-color: var(--BG-0);
   border: 1px solid var(--BORDER-0);
 }
+
+.settings-modal {
+  position: relative;
+  max-width: 800px;
+
+  padding: 2rem;
+  background-color: var(--BG-0);
+  border: 1px solid var(--BORDER-0);
+}
+
