@@ -1122,6 +1122,176 @@ bf @2 {
 	}
 
 	#[test]
+	fn structs_bf_2() {
+		let program = String::from(
+			r#";
+struct Green {
+  // no @0 cell
+  cell blue @1;
+}
+struct Green g @4;
+g.blue = '5';
+
+output g.blue;
+bf @4 {
+  >.<
+}
+			"#,
+		);
+		let input = String::from("");
+		let desired_output = String::from("55");
+		let output = compile_and_run(program, input).expect("");
+		println!("{output}");
+		assert_eq!(desired_output, output)
+	}
+
+	#[test]
+	fn sizeof_1() {
+		let program = String::from(
+			r#";
+struct Green {
+  cell blue;
+}
+let s = sizeof(struct Green);
+output '0' + s;
+			"#,
+		);
+		let input = String::from("");
+		let desired_output = String::from("1");
+		let output = compile_and_run(program, input).expect("");
+		println!("{output}");
+		assert_eq!(desired_output, output)
+	}
+
+	#[test]
+	fn sizeof_1a() {
+		let program = String::from(
+			r#";
+struct Green {
+  cell blue;
+}
+let s = sizeof(struct Green[3]);
+output '0' + s;
+			"#,
+		);
+		let input = String::from("");
+		let desired_output = String::from("3");
+		let output = compile_and_run(program, input).expect("");
+		println!("{output}");
+		assert_eq!(desired_output, output)
+	}
+
+	#[test]
+	fn sizeof_1b() {
+		let program = String::from(
+			r#";
+struct Green {
+  cell blue;
+}
+let s = sizeof(struct Green[3][2]);
+output '0' + s;
+			"#,
+		);
+		let input = String::from("");
+		let desired_output = String::from("6");
+		let output = compile_and_run(program, input).expect("");
+		println!("{output}");
+		assert_eq!(desired_output, output)
+	}
+
+	#[test]
+	fn sizeof_2() {
+		let program = String::from(
+			r#";
+struct Green {
+  cell blue;
+	cell red;
+}
+struct Green g;
+output '0' + sizeof(g);
+			"#,
+		);
+		let input = String::from("");
+		let desired_output = String::from("2");
+		let output = compile_and_run(program, input).expect("");
+		println!("{output}");
+		assert_eq!(desired_output, output)
+	}
+
+	#[test]
+	fn sizeof_3() {
+		let program = String::from(
+			r#";
+struct Green {
+  cell blue;
+	cell[5] red;
+	cell yellow;
+}
+struct Green[2] g;
+output '0' + sizeof(g) - 13;
+
+output '0' + sizeof(g[0].blue);
+output '0' + sizeof(g[0].red);
+			"#,
+		);
+		let input = String::from("");
+		let desired_output = String::from("115");
+		let output = compile_and_run(program, input).expect("");
+		println!("{output}");
+		assert_eq!(desired_output, output)
+	}
+
+	#[test]
+	fn sizeof_4() {
+		let program = String::from(
+			r#";
+struct Green {
+  cell blue @2;
+}
+struct Green[3] g;
+output '0' + sizeof(struct Green);
+output '0' + sizeof(g);
+output '0' + sizeof(g[2].blue)
+			"#,
+		);
+		let input = String::from("");
+		let desired_output = String::from("391");
+		let output = compile_and_run(program, input).expect("");
+		println!("{output}");
+		assert_eq!(desired_output, output)
+	}
+
+	#[test]
+	fn sizeof_5() {
+		let program = String::from(
+			r#";
+struct Blue {
+  cell[2] blues;
+}
+struct Red {
+  cell a;
+	struct Blue blues;
+}
+struct Green {
+  cell blue @2;
+  struct Red red;
+}
+output '0' + sizeof(struct Blue);
+output '0' + sizeof(struct Red);
+struct Green[3] g;
+output '0' + sizeof(struct Green);
+output '0' + sizeof(g) - 17;
+output '0' + sizeof(g[2].blue)
+			"#,
+		);
+		let input = String::from("");
+		let desired_output = String::from("23612");
+		let output = compile_and_run(program, input).expect("");
+		println!("{output}");
+		assert_eq!(desired_output, output)
+	}
+
+	#[test]
 	fn memory_specifiers_1() -> Result<(), String> {
 		let program = String::from(
 			r#"
