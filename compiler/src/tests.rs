@@ -838,9 +838,9 @@ g[1][0] = 1 + '0';
 g[1][1] = 2 + '0';
 g[1][2] = 3 + '0';
 
-g[3][0] = 1 + '0';
-g[3][1] = 2 + '0';
-g[3][2] = 3 + '0';
+g[0][3] = 1 + '0';
+g[1][3] = 2 + '0';
+g[2][3] = 3 + '0';
 
 g[2][0] = 0 + '0';
 g[2][1] = 0 + '0';
@@ -849,19 +849,19 @@ g[2][2] = 0 + '0';
 output g[0][0];
 output g[0][1];
 output g[0][2];
+output g[0][3];
 output g[1][0];
 output g[1][1];
 output g[1][2];
+output g[1][3];
 output g[2][0];
 output g[2][1];
 output g[2][2];
-output g[3][0];
-output g[3][1];
-output g[3][2];
+output g[2][3];
 "#,
 		);
 		let input = String::from("");
-		let desired_output = String::from("543123000123");
+		let desired_output = String::from("543112320003");
 		let output = compile_and_run(program, input).expect("");
 		println!("{output}");
 		assert_eq!(desired_output, output)
@@ -1083,6 +1083,39 @@ output as[1].bbb[2].green;
 		);
 		let input = String::from("abcdefgh");
 		let desired_output = String::from("HI\ngabchdef");
+		let output = compile_and_run(program, input).expect("");
+		println!("{output}");
+		assert_eq!(desired_output, output)
+	}
+
+	#[test]
+	fn structs_bf_1() {
+		let program = String::from(
+			r#";
+struct Frame {
+	cell    marker     @3;
+	cell    value      @0;
+	cell[2] temp_cells @1;
+}
+struct Vector {
+	struct Frame[10]  frames @1;
+	cell              marker @0;
+}
+
+struct Vector vec1 @2;
+
+vec1.frames[0].marker = true;
+vec1.frames[0].value = 'j';
+vec1.frames[1].marker = true;
+vec1.frames[1].value = 'k';
+
+bf @2 {
+  >[>.>>>]
+}
+			"#,
+		);
+		let input = String::from("");
+		let desired_output = String::from("jk");
 		let output = compile_and_run(program, input).expect("");
 		println!("{output}");
 		assert_eq!(desired_output, output)
