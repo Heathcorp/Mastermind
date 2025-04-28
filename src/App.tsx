@@ -45,6 +45,7 @@ const App: Component = () => {
     name: "mastermind_version",
   });
   const [helpOpen, setHelpOpen] = createSignal(false);
+  const [settingsOpen, setSettingsOpen] = createSignal(false);
   createEffect(
     on([version], () => {
       const v = version();
@@ -443,6 +444,8 @@ const App: Component = () => {
         setHelpOpen,
         enableBlockingInput,
         setEnableBlockingInput,
+        settingsOpen,
+        setSettingsOpen,
       }}
     >
       <div id="window">
@@ -513,6 +516,9 @@ interface AppContextProps {
 
   helpOpen: Accessor<boolean>;
   setHelpOpen: Setter<boolean>;
+
+  settingsOpen: Accessor<boolean>;
+  setSettingsOpen: Setter<boolean>;
 }
 
 interface FileState {
