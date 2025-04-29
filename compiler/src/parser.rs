@@ -22,12 +22,12 @@ pub fn parse(tokens: &[Token]) -> Result<Vec<Clause>, String> {
 				clauses.push(parse_let_clause(clause)?);
 			}
 			(Token::Struct, Token::Name(_), Token::OpenBrace) => {
-				todo!();
+				clauses.push(parse_struct_clause(clause)?);
 			}
 			(Token::Plus, Token::Plus, _) | (Token::Minus, Token::Minus, _) => {
 				clauses.push(parse_increment_clause(clause)?);
 			}
-			(Token::Name(_), Token::EqualsSign, _) => {
+			(Token::Name(_), Token::EqualsSign | Token::Dot | Token::OpenSquareBracket, _) => {
 				clauses.extend(parse_set_clause(clause)?);
 			}
 			(Token::Drain, _, _) => {
@@ -154,6 +154,55 @@ fn parse_let_clause(clause: &[Token]) -> Result<Clause, String> {
 			location_specifier,
 		})
 	}
+}
+
+/// Parse tokens representing a struct definition into a clause
+fn parse_struct_clause(clause: &[Token]) -> Result<Clause, String> {
+	let mut i = 0usize;
+	let Token::Struct = &clause[i] else {
+		r_panic!("Expected struct keyword in struct clause. This should never occur. {clause:#?}");
+	};
+	i += 1;
+
+	let Token::Name(struct_name) = &clause[i] else {
+		r_panic!("Expected identifier in struct clause. This should never occur. {clause:#?}");
+	};
+	i += 1;
+
+	let Token::OpenBrace = &clause[i] else {
+		r_panic!("Expected open brace in struct clause: {clause:#?}");
+	};
+	let braced_tokens = get_braced_tokens(&clause[i..], BRACES)?;
+
+	let mut fields = vec![];
+
+	let mut j = 0usize;
+	loop {
+		let (field, len) = parse_var_definition(&braced_tokens[j..])?;
+		j += len;
+		fields.push(field);
+		r_assert!(
+			j <= braced_tokens.len(),
+			"Struct definition field exceeded braces. This should never occur. {clause:#?}"
+		);
+		let Token::Semicolon = &braced_tokens[j] else {
+			r_panic!("Expected semicolon in struct definition field: {clause:#?}");
+		};
+		j += 1;
+		if j == braced_tokens.len() {
+			break;
+		}
+	}
+	r_assert!(
+		j == braced_tokens.len(),
+		"Struct definitions exceeded braces. This should never occur. {clause:#?}"
+	);
+	// i += j + 2;
+
+	Ok(Clause::DeclareStructType {
+		name: struct_name.clone(),
+		fields,
+	})
 }
 
 fn parse_add_clause(clause: &[Token]) -> Result<Vec<Clause>, String> {
@@ -766,16 +815,16 @@ const ANGLED_BRACKETS: (Token, Token) = (Token::OpenAngledBracket, Token::Closin
 // find tokens bounded by matching brackets
 // TODO: make an impl for &[Token] and put all these functions in it
 fn get_braced_tokens(tokens: &[Token], braces: (Token, Token)) -> Result<&[Token], String> {
-	let _braces = (discriminant(&braces.0), discriminant(&braces.1));
+	let (open_brace, closing_brace) = (discriminant(&braces.0), discriminant(&braces.1));
 	// find corresponding bracket, the depth check is unnecessary but whatever
 	let len = {
 		let mut i = 1usize;
 		let mut depth = 1;
 		while i < tokens.len() && depth > 0 {
 			let g = discriminant(&tokens[i]);
-			if g == _braces.0 {
+			if g == open_brace {
 				depth += 1;
-			} else if g == _braces.1 {
+			} else if g == closing_brace {
 				depth -= 1;
 			}
 			i += 1;
@@ -784,7 +833,8 @@ fn get_braced_tokens(tokens: &[Token], braces: (Token, Token)) -> Result<&[Token
 	};
 
 	if len >= 2 {
-		if _braces.0 == discriminant(&tokens[0]) && _braces.1 == discriminant(&tokens[len - 1]) {
+		if open_brace == discriminant(&tokens[0]) && closing_brace == discriminant(&tokens[len - 1])
+		{
 			return Ok(&tokens[1..(len - 1)]);
 		}
 	}
@@ -1042,6 +1092,10 @@ pub enum Clause {
 		var: VariableDefinition,
 		location_specifier: Option<TapeCell>,
 		value: Expression,
+	},
+	DeclareStructType {
+		name: String,
+		fields: Vec<VariableDefinition>,
 	},
 	AddToVariable {
 		var: VariableTarget,

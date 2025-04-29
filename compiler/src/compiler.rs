@@ -60,6 +60,9 @@ impl Compiler<'_> {
 					// create an allocation in the scope
 					scope.allocate_variable(var, location_specifier)?;
 				}
+				Clause::DeclareStructType { name, fields } => {
+					scope.register_struct_definition(&name, fields)?;
+				}
 				Clause::DefineVariable {
 					var,
 					location_specifier,
@@ -226,26 +229,6 @@ impl Compiler<'_> {
 					let cell = scope.get_cell(&var)?;
 					scope.push_instruction(Instruction::ClearCell(cell.clone()));
 					_add_expr_to_cell(&mut scope, &value, cell)?;
-
-					// 						(
-					// 							VariableTarget::MultiSpread { name: _ },
-					// 							Expression::SumExpression {
-					// 								sign: _,
-					// 								summands: _,
-					// 							}
-					// 							| Expression::NaturalNumber(_)
-					// 							| Expression::VariableReference(_),
-					// 						) => r_panic!(
-					// 							"Cannot set multi-byte variables using \
-					// spread syntax, use drain <val> into {var} instead."
-					// 						),
-					// 						(_, Expression::ArrayLiteral(_) | Expression::StringLiteral(_)) => {
-					// 							r_panic!(
-					// 								"Cannot set multi-byte variables after initialisation\
-					// , set individual bytes with [] subscript operator instead."
-					// 							)
-					// 						}
-					// _ => r_panic!("Cannot set variable \"{var}\" to expression {value:#?}"),
 				}
 				Clause::AddToVariable { var, value } => {
 					let Ok(cell) = scope.get_cell(&var) else {
@@ -905,6 +888,7 @@ impl ValueType {
 					}) else {
 						r_panic!("Could not find subfield \"{subfield_ref}\" in struct type")
 					};
+					cur_index += cell_offset_tally;
 					cur_field = subfield_type;
 				}
 
@@ -1093,6 +1077,27 @@ impl Scope<'_> {
 		} else {
 			r_panic!("Could not find function \"{name}\" in current scope");
 		}
+	}
+
+	/// define a struct in this scope
+	fn register_struct_definition(
+		&mut self,
+		struct_name: &str,
+		fields: Vec<VariableDefinition>,
+	) -> Result<(), String> {
+		let absolute_fields = fields
+			.into_iter()
+			.map(|f| Ok((f.name, self.create_absolute_type(&f.var_type)?)))
+			.collect::<Result<Vec<(String, ValueType)>, String>>()?;
+
+		let None = self
+			.structs
+			.insert(struct_name.to_string(), DictStructType(absolute_fields))
+		else {
+			r_panic!("Cannot define struct {struct_name} more than once in same scope.");
+		};
+
+		Ok(())
 	}
 
 	/// recursively find the definition of a struct type by searching up the scope call stack

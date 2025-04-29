@@ -1146,6 +1146,52 @@ bf @4 {
 	}
 
 	#[test]
+	fn sizeof_0() {
+		let program = String::from(
+			r#";
+output '0' + sizeof(cell);
+			"#,
+		);
+		let input = String::from("");
+		let desired_output = String::from("1");
+		let output = compile_and_run(program, input).expect("");
+		println!("{output}");
+		assert_eq!(desired_output, output)
+	}
+
+	#[test]
+	fn sizeof_0a() {
+		let program = String::from(
+			r#";
+output '0' + sizeof(cell[5]);
+			"#,
+		);
+		let input = String::from("");
+		let desired_output = String::from("5");
+		let output = compile_and_run(program, input).expect("");
+		println!("{output}");
+		assert_eq!(desired_output, output)
+	}
+
+	#[test]
+	fn sizeof_0b() {
+		let program = String::from(
+			r#";
+cell a;
+cell b[4];
+output '0' + sizeof(a);
+output '0' + sizeof(b);
+output '0' + sizeof(b[2]);
+			"#,
+		);
+		let input = String::from("");
+		let desired_output = String::from("141");
+		let output = compile_and_run(program, input).expect("");
+		println!("{output}");
+		assert_eq!(desired_output, output)
+	}
+
+	#[test]
 	fn sizeof_1() {
 		let program = String::from(
 			r#";
