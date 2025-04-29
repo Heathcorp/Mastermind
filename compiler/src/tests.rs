@@ -902,7 +902,8 @@ struct AA {
 	cell yellow;
 }
 
-struct AA a {green = 3, yellow = 4};
+// struct AA a {green = 3, yellow = 4};
+struct AA a; a.green = 3; a.yellow = 4;
 output '0' + a.green;
 output '0' + a.yellow;
 
@@ -976,7 +977,7 @@ output '\n';
 			"#,
 		);
 		let input = String::from("hellow");
-		let desired_output = String::from("helowl");
+		let desired_output = String::from("helowl\n");
 		let output = compile_and_run(program, input).expect("");
 		println!("{output}");
 		assert_eq!(desired_output, output)

@@ -18,7 +18,8 @@ pub fn parse(tokens: &[Token]) -> Result<Vec<Clause>, String> {
 			&clause.get(1).unwrap_or(&Token::None),
 			&clause.get(2).unwrap_or(&Token::None),
 		) {
-			(Token::Cell, _, _) | (Token::Struct, Token::Name(_), Token::Name(_)) => {
+			(Token::Cell, _, _)
+			| (Token::Struct, Token::Name(_), Token::Name(_) | Token::OpenSquareBracket) => {
 				clauses.push(parse_let_clause(clause)?);
 			}
 			(Token::Struct, Token::Name(_), Token::OpenBrace) => {
