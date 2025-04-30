@@ -1,9 +1,9 @@
 import { Portal } from "solid-js/web";
 import { IoClose } from "solid-icons/io";
-import { Component, createSignal, JSX, Show, For } from "solid-js";
+import { Component, JSX, Show, For } from "solid-js";
 import { useAppContext } from "../App";
-import { makePersisted } from "@solid-primitives/storage";
 
+// TODO: FIX THIS SO WE DON'T HAVE 2 PERSISTED VALUES ONLY ONE
 const SettingsModal: Component<{ style?: JSX.CSSProperties }> = () => {
   const MemoryAllocationOptions: string[] = [
     "1D Mastermind",
@@ -12,26 +12,15 @@ const SettingsModal: Component<{ style?: JSX.CSSProperties }> = () => {
     "2D Mastermind - Nearest",
   ];
 
-  const [enabledOptimisations, setEnabledOptimisations] = makePersisted(
-    createSignal<OptimisationSettings>({
-      optimise_cell_clearing: false,
-      optimise_constants: false,
-      optimise_empty_blocks: false,
-      optimise_generated_code: false,
-      optimise_memory_allocation: false,
-      optimise_unreachable_loops: false,
-      optimise_variable_usage: false,
-    }),
-    { name: "optimisation_settings" }
-  );
-
-  const [twoDimensionalSettings, setTwoDimensionalSettings] = makePersisted(
-    createSignal<TwoDimensionalSettings>({
-      memory_allocation_method: 0,
-      enable_2d_grid: false,
-    }),
-    { name: "two_dimensional_settings" }
-  );
+    const tickboxKeys: (keyof OptimisationSettings)[] = [
+        "optimise_cell_clearing",
+        "optimise_constants",
+        "optimise_empty_blocks",
+        "optimise_generated_code",
+        "optimise_memory_allocation",
+        "optimise_unreachable_loops",
+        "optimise_variable_usage",
+    ];
 
   const app = useAppContext()!;
   return (
@@ -48,15 +37,16 @@ const SettingsModal: Component<{ style?: JSX.CSSProperties }> = () => {
                 <span class="settings-heading">Optimisations:
                     <span
                         class="text-button"
-                        style={{"white-space": "nowrap"}}
+                        style={{ "white-space": "nowrap" }}
                         onClick={() =>
-                            setEnabledOptimisations((prev) => {
-                                const entries = Object.entries(prev);
-                                const b = entries.some(([, v]) => !v);
-                                return Object.fromEntries(
-                                    entries.map(([k]) => [k, b])
-                                ) as unknown as OptimisationSettings;
-                                // trust me on this one typescript
+                            app.setConfig((prev) => {
+                                const b = tickboxKeys.some((key) => !prev[key]);
+                                return {
+                                    ...prev,
+                                    ...Object.fromEntries(
+                                        tickboxKeys.map((key) => [key, b])
+                                    )
+                                } as MastermindConfig;
                             })
                         }
                     >
@@ -66,13 +56,15 @@ const SettingsModal: Component<{ style?: JSX.CSSProperties }> = () => {
                 <form
                     onChange={(e) => {
                         const target = e.target as HTMLInputElement;
-                        setEnabledOptimisations((prev) => ({
+                        app.setConfig((prev) => ({
                             ...prev,
                             [target.name]: !!target.checked,
                         }));
                     }}
                 >
-                    <For each={Object.entries(enabledOptimisations())}>
+                    <For each={Object.entries(app.config()).filter(
+                    ([key]) => tickboxKeys.includes(key as keyof OptimisationSettings)
+                    )}>
                         {([key, enabled]: [string, boolean]) => (
                             <label class="row">
                                 <input
@@ -96,15 +88,15 @@ const SettingsModal: Component<{ style?: JSX.CSSProperties }> = () => {
                             type="checkbox"
                             name="Enable 2D Brainfuck"
                             id="enable_2d_grid"
-                            checked={twoDimensionalSettings().enable_2d_grid}
+                            checked={app.config().enable_2d_grid}
                             onChange={(event) => {
                                 const isChecked = event.target.checked;
-                                setTwoDimensionalSettings({
-                                    ...twoDimensionalSettings(),
+                                app.setConfig({
+                                    ...app.config(),
                                     enable_2d_grid: isChecked,
                                     memory_allocation_method: !isChecked
                                         ? 0
-                                        : twoDimensionalSettings().memory_allocation_method,
+                                        : app.config().memory_allocation_method,
                                 });
                             }}
                         />
@@ -112,15 +104,15 @@ const SettingsModal: Component<{ style?: JSX.CSSProperties }> = () => {
                     </label>
                     <label class="row">Memory Allocation</label>
                     <select
-                        value={twoDimensionalSettings().memory_allocation_method}
-                        disabled={!twoDimensionalSettings().enable_2d_grid}
+                        value={app.config().memory_allocation_method}
+                        disabled={!app.config().enable_2d_grid}
                         onChange={(event) => {
                             const value = parseInt(
                                 (event.target as HTMLSelectElement).value,
                                 10
                             );
-                            setTwoDimensionalSettings({
-                                ...twoDimensionalSettings(),
+                            app.setConfig({
+                                ...app.config(),
                                 memory_allocation_method: value,
                             });
                         }}

@@ -30,10 +30,11 @@ import InputPanel from "./panels/InputPanel";
 import SideBar from "./panels/SideBar.tsx";
 
 import OutputPanel from "./panels/OutputPanel";
-import SettingsPanel, {MastermindConfig} from "./panels/SettingsPanel";
+import CompilerPanel from "./panels/CompilerPanel.tsx";
 import { defaultExtensions } from "./misc";
 import { makePersisted } from "@solid-primitives/storage";
 import { createStore } from "solid-js/store";
+import  { MastermindConfig } from "./components/Settings";
 
 const AppContext = createContext<AppContextProps>();
 
@@ -46,6 +47,18 @@ const App: Component = () => {
   });
   const [helpOpen, setHelpOpen] = createSignal(false);
   const [settingsOpen, setSettingsOpen] = createSignal(false);
+  const [config, setConfig] = makePersisted(
+      createSignal<MastermindConfig>({
+    optimise_cell_clearing: false,
+    optimise_constants: false,
+    optimise_empty_blocks: false,
+    optimise_generated_code: false,
+    optimise_memory_allocation: false,
+    optimise_unreachable_loops: false,
+    optimise_variable_usage: false,
+    memory_allocation_method: 0,
+    enable_2d_grid: false,
+  }), { name:"mastermind_config"});
   createEffect(
     on([version], () => {
       const v = version();
@@ -446,13 +459,15 @@ const App: Component = () => {
         setEnableBlockingInput,
         settingsOpen,
         setSettingsOpen,
+        config,
+        setConfig,
       }}
     >
       <div id="window">
         <EditorPanel />
         <Divider />
         <div class="panel">
-          <SettingsPanel style={{ flex: 3 }} />
+          <CompilerPanel style={{ flex: 3 }} />
           <Divider />
           <InputPanel style={{ flex: 1 }} />
           <Divider />
@@ -519,6 +534,9 @@ interface AppContextProps {
 
   settingsOpen: Accessor<boolean>;
   setSettingsOpen: Setter<boolean>;
+
+  setConfig: Setter<MastermindConfig>;
+  config: Accessor<MastermindConfig>;
 }
 
 interface FileState {
