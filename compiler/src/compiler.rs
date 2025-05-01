@@ -30,29 +30,36 @@ impl Compiler<'_> {
 			Scope::new()
 		};
 
-		// hoist functions to top
-		let mut filtered_clauses: Vec<Clause> = Vec::new();
+		// TODO: fix unnecessary clones, and reimplement this with iterators somehow
+		// hoist structs, then functions to top
+		let mut filtered_clauses_1: Vec<Clause> = vec![];
+		// first stage: structs (these need to be defined before functions, so they can be used as arguments)
 		for clause in clauses {
-			// TODO: fix unnecessary clones
 			match clause {
-				// TODO: fix unnecessary clones
 				Clause::DefineStruct { name, fields } => {
-					scope.register_struct_definition(&name, fields.clone())?;
+					scope.register_struct_definition(name, fields.clone())?;
 				}
+				_ => filtered_clauses_1.push(clause.clone()),
+			}
+		}
+		// second stage: functions
+		let mut filtered_clauses_2: Vec<Clause> = vec![];
+		for clause in filtered_clauses_1 {
+			match clause {
 				Clause::DefineFunction {
 					name,
 					arguments,
 					block,
 				} => {
-					scope.register_function_definition(name, arguments.clone(), block.clone())?;
+					scope.register_function_definition(&name, arguments.clone(), block.clone())?;
 				}
 				_ => {
-					filtered_clauses.push(clause.clone());
+					filtered_clauses_2.push(clause);
 				}
 			}
 		}
 
-		for clause in filtered_clauses {
+		for clause in filtered_clauses_2 {
 			match clause {
 				Clause::DeclareVariable {
 					var,
@@ -1065,7 +1072,6 @@ impl Scope<'_> {
 		struct_name: &str,
 		fields: Vec<VariableDefinition>,
 	) -> Result<(), String> {
-		println!("REGISTERING STRUCT DEFINITION: {struct_name}");
 		let absolute_fields = fields
 			.into_iter()
 			.map(|f| Ok((f.name, self.create_absolute_type(&f.var_type)?)))
@@ -1088,7 +1094,6 @@ impl Scope<'_> {
 		arguments: Vec<VariableDefinition>,
 		block: Vec<Clause>,
 	) -> Result<(), String> {
-		println!("REGISTERING FUNCTION DEFINITION: {function_name}");
 		let absolute_arguments = arguments
 			.into_iter()
 			.map(|f| Ok((f.name, self.create_absolute_type(&f.var_type)?)))
