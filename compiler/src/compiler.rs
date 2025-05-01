@@ -39,13 +39,8 @@ impl Compiler<'_> {
 				block,
 			} = clause
 			{
-				scope.functions.insert(
-					name.clone(),
-					Function {
-						arguments: arguments.clone(),
-						block: block.clone(),
-					},
-				);
+				// TODO: fix unnecessary clones
+				scope.register_function_definition(name, arguments.clone(), block.clone())?;
 			} else {
 				filtered_clauses.push(clause.clone());
 			}
@@ -148,82 +143,6 @@ impl Compiler<'_> {
 							r_panic!("Cannot assign string to single-cell variable \"{var}\".")
 						}
 					}
-
-					// 					match (&var.var_type, &value) {
-					// 						(
-					// 							VariableType::Cell,
-					// 							Expression::SumExpression {
-					// 								sign: _,
-					// 								summands: _,
-					// 							}
-					// 							| Expression::NaturalNumber(_)
-					// 							| Expression::VariableReference(_),
-					// 						) => {
-					// 							_add_expr_to_cell(
-					// 								&mut scope,
-					// 								value,
-					// 								CellReference {
-					// 									memory_id,
-					// 									index: None,
-					// 								},
-					// 							)?;
-					// 						}
-					// 						(
-					// 							VariableType::Array(inner_type, len),
-					// 							Expression::ArrayLiteral(expressions),
-					// 						) => {
-					// 							let VariableType::Cell = **inner_type else {
-					// 								r_panic!(
-					// 									"Variable \"{var}\" cannot be initialised with array literal."
-					// 								);
-					// 							};
-					// 							// for each expression in the array, perform above operations
-					// 							r_assert!(
-					// 								expressions.len() == *len,
-					// 								"Variable \"{var}\" cannot be initialised to array of length {}",
-					// 								expressions.len()
-					// 							);
-					// 							for (i, expr) in zip(0..*len, expressions) {
-					// 								_add_expr_to_cell(
-					// 									&mut scope,
-					// 									expr.clone(),
-					// 									CellReference {
-					// 										memory_id,
-					// 										index: Some(i),
-					// 									},
-					// 								)?;
-					// 							}
-					// 						}
-					// 						(VariableType::Array(inner_type, len), Expression::StringLiteral(s)) => {
-					// 							let VariableType::Cell = **inner_type else {
-					// 								r_panic!(
-					// 									"Variable \"{var}\" cannot be initialised with string literal."
-					// 								);
-					// 							};
-					// 							// for each byte of the string, add it to its respective cell
-					// 							r_assert!(
-					// 								s.len() == *len,
-					// 								"Variable \"{var}\" cannot be initialised to string of length {}",
-					// 								s.len()
-					// 							);
-					// 							for (i, c) in zip(0..*len, s.bytes()) {
-					// 								scope.push_instruction(Instruction::AddToCell(
-					// 									CellReference {
-					// 										memory_id,
-					// 										index: Some(i),
-					// 									},
-					// 									c,
-					// 								));
-					// 							}
-					// 						}
-					// 						(VariableType::Cell, _) | (VariableType::Array(_, _), _) => r_panic!(
-					// 							"Something went wrong when initialising variable \"{var}\". \
-					// This error should never occur."
-					// 						),
-					// 						_ => r_panic!(
-					// 							"Cannot initialise variable \"{var}\" with expression {value:#?}"
-					// 						),
-					// 					};
 				}
 				Clause::SetVariable {
 					var,
@@ -649,62 +568,42 @@ impl Compiler<'_> {
 					// create variable translations and recursively compile the inner variable block
 					let function_definition = scope.get_function(&function_name)?;
 
-					todo!();
+					let mut argument_translation_scope = scope.open_inner();
 
-					// let mut new_scope = scope.open_inner();
-					// let zipped: Result<Vec<ArgumentTranslation>, String> =
-					// 	zip(function_definition.arguments.clone().into_iter(), arguments)
-					// 		.map(|(arg_def, calling_arg)| {
-					// 			Ok(match (arg_def, calling_arg) {
-					// 				(
-					// 					VariableDefinition::Single { name: def_name },
-					// 					VariableTarget::Single { name: call_name },
-					// 				) => ArgumentTranslation::SingleFromSingle(def_name, call_name),
-					// 				(
-					// 					// this is a minor hack, the parser will parse a calling argument as a single even though it is really targeting a multi
-					// 					VariableDefinition::Multi {
-					// 						name: def_name,
-					// 						len: _,
-					// 					},
-					// 					VariableTarget::Single { name: call_name },
-					// 				) => ArgumentTranslation::MultiFromMulti(def_name, call_name),
-					// 				(
-					// 					VariableDefinition::Single { name: def_name },
-					// 					VariableTarget::MultiCell {
-					// 						name: call_name,
-					// 						index,
-					// 					},
-					// 				) => ArgumentTranslation::SingleFromMultiCell(
-					// 					def_name,
-					// 					(call_name, index),
-					// 				),
-					// 				(def_var, call_var) => {
-					// 					r_panic!(
-					// 						"Cannot translate {call_var} as argument {def_var}"
-					// 					)
-					// 				}
-					// 			})
-					// 		})
-					// 		.collect();
-					// new_scope.variable_aliases.extend(zipped?);
+					r_assert!(
+						function_definition.arguments.len() == arguments.len(),
+						"Expected {} arguments in function \"{function_name}\", received {}.",
+						function_definition.arguments.len(),
+						arguments.len()
+					);
+					for (calling_argument, (_arg_name, expected_type)) in
+						zip(arguments, function_definition.arguments.iter())
+					{
+						let argument_type = scope.get_target_type(&calling_argument)?;
+						r_assert!(argument_type == expected_type, "Expected argument of type \"{expected_type:#?}\" in function call \"{function_name}\", received argument of type \"{argument_type:#?}\".");
+						todo!();
+					}
 
-					// // recurse
-					// let loop_scope = self.compile(&function_definition.block, Some(&new_scope))?;
-					// new_scope
-					// 	.instructions
-					// 	.extend(loop_scope.finalise_instructions(true));
+					// recurse
+					let function_scope = self.compile(
+						&function_definition.block,
+						Some(&argument_translation_scope),
+					)?;
+					argument_translation_scope
+						.instructions
+						.extend(function_scope.finalise_instructions(true));
 
-					// // extend the inner scope instructions onto the outer scope
-					// // maybe function call compiling should be its own function?
-					// scope
-					// 	.instructions
-					// 	.extend(new_scope.finalise_instructions(false));
+					// extend the inner scope instructions onto the outer scope
+					// maybe function call compiling should be its own function?
+					scope
+						.instructions
+						.extend(argument_translation_scope.finalise_instructions(false));
 				}
 				Clause::DefineFunction {
 					name: _,
 					arguments: _,
 					block: _,
-				} => (),
+				} => unreachable!(),
 			}
 		}
 
@@ -895,11 +794,6 @@ pub struct Scope<'a> {
 	/// Mappings for variable names to memory allocation IDs in current scope
 	variable_memory: HashMap<String, (ValueType, Memory)>,
 
-	/// Translations from outer scope variables to current scope variables, used for function arguments
-	// used for function arguments, translates an outer scope variable to an inner one, assumed they are the same array length if multi-cell
-	// originally this was just string to string, but we need to be able to map a single-bit variable to a cell of an outer array variable
-	variable_aliases: Vec<ArgumentTranslation>,
-
 	/// Functions accessible by any code within or in the current scope
 	functions: HashMap<String, Function>,
 	/// Struct types definitions
@@ -909,36 +803,13 @@ pub struct Scope<'a> {
 	instructions: Vec<Instruction>,
 }
 
-// TODO: make this work for structs and array and new types
-#[derive(Clone, Debug)]
-enum ArgumentTranslation {
-	SingleFromSingle(String, String),
-	SingleFromMultiCell(String, (String, usize)),
-	MultiFromMulti(String, String),
-}
-impl ArgumentTranslation {
-	fn get_def_name(&self) -> &String {
-		let (ArgumentTranslation::SingleFromSingle(def_name, _)
-		| ArgumentTranslation::SingleFromMultiCell(def_name, _)
-		| ArgumentTranslation::MultiFromMulti(def_name, _)) = self;
-		def_name
-	}
-	fn get_call_name(&self) -> &String {
-		match self {
-			ArgumentTranslation::SingleFromSingle(_, call_name)
-			| ArgumentTranslation::MultiFromMulti(_, call_name) => call_name,
-			ArgumentTranslation::SingleFromMultiCell(_, (call_var, _)) => call_var,
-		}
-	}
-}
-
 #[derive(Clone, Debug)] // probably shouldn't be cloning here but whatever
 struct Function {
-	arguments: Vec<VariableDefinition>,
+	arguments: Vec<(String, ValueType)>,
 	block: Vec<Clause>,
 }
 
-#[derive(Clone, Debug)]
+#[derive(Clone, Debug, PartialEq, Eq)]
 /// an absolute definition of a type, as opposed to `VariableTypeReference` which is more of a reference
 enum ValueType {
 	Cell,
@@ -954,6 +825,18 @@ struct DictStructType(Vec<(String, ValueType)>);
 impl ValueType {
 	fn from_struct(struct_def: DictStructType) -> Self {
 		ValueType::DictStruct(struct_def.0)
+	}
+
+	/// return the type size in cells
+	fn size(&self) -> usize {
+		match self {
+			ValueType::Cell => 1,
+			ValueType::Array(len, value_type) => *len * value_type.size(),
+			ValueType::DictStruct(items) => items
+				.iter()
+				.map(|(_field_name, field_type)| field_type.size())
+				.sum(),
+		}
 	}
 
 	/// get the cell index of a specific variable target
@@ -1010,20 +893,6 @@ impl ValueType {
 	}
 }
 
-impl ValueType {
-	/// return the type size in cells
-	fn size(&self) -> usize {
-		match self {
-			ValueType::Cell => 1,
-			ValueType::Array(len, value_type) => *len * value_type.size(),
-			ValueType::DictStruct(items) => items
-				.iter()
-				.map(|(_field_name, field_type)| field_type.size())
-				.sum(),
-		}
-	}
-}
-
 impl Scope<'_> {
 	pub fn new() -> Scope<'static> {
 		Scope {
@@ -1031,7 +900,6 @@ impl Scope<'_> {
 			fn_only: false,
 			allocations: 0,
 			variable_memory: HashMap::new(),
-			variable_aliases: Vec::new(),
 			functions: HashMap::new(),
 			structs: HashMap::new(),
 			instructions: Vec::new(),
@@ -1080,14 +948,13 @@ impl Scope<'_> {
 		self.instructions.push(instruction);
 	}
 
-	/// open a scope within the current one, any time there is a {} in Mastermind, this is called
+	/// Open a scope within the current one, any time there is a {} in Mastermind, this is called
 	fn open_inner(&self) -> Scope {
 		Scope {
 			outer_scope: Some(self),
 			fn_only: false,
 			allocations: 0,
 			variable_memory: HashMap::new(),
-			variable_aliases: Vec::new(),
 			functions: HashMap::new(),
 			structs: HashMap::new(),
 			instructions: Vec::new(),
@@ -1102,14 +969,13 @@ impl Scope<'_> {
 			fn_only: true,
 			allocations: 0,
 			variable_memory: HashMap::new(),
-			variable_aliases: Vec::new(),
 			functions: HashMap::new(),
 			structs: HashMap::new(),
 			instructions: Vec::new(),
 		}
 	}
 
-	/// get the correct variable type and allocate the right amount of cells for it
+	/// Get the correct variable type and allocate the right amount of cells for it
 	fn allocate_variable(
 		&mut self,
 		var: VariableDefinition,
@@ -1172,22 +1038,22 @@ impl Scope<'_> {
 
 	fn get_function(&self, name: &str) -> Result<&Function, String> {
 		// this function is unaffected by the self.fn_only flag
-		if let Some(func) = self.functions.get(name) {
-			Ok(func)
+		Ok(if let Some(func) = self.functions.get(name) {
+			func
 		} else if let Some(outer_scope) = self.outer_scope {
-			// again not sure if Ok ? is a good pattern
-			Ok(outer_scope.get_function(name)?)
+			outer_scope.get_function(name)?
 		} else {
 			r_panic!("Could not find function \"{name}\" in current scope");
-		}
+		})
 	}
 
-	/// define a struct in this scope
+	/// Define a struct in this scope
 	fn register_struct_definition(
 		&mut self,
 		struct_name: &str,
 		fields: Vec<VariableDefinition>,
 	) -> Result<(), String> {
+		println!("REGISTERING STRUCT DEFINITION: {struct_name}");
 		let absolute_fields = fields
 			.into_iter()
 			.map(|f| Ok((f.name, self.create_absolute_type(&f.var_type)?)))
@@ -1203,19 +1069,45 @@ impl Scope<'_> {
 		Ok(())
 	}
 
-	/// recursively find the definition of a struct type by searching up the scope call stack
-	fn get_struct_definition(&self, struct_name: &str) -> Result<&DictStructType, String> {
-		if let Some(struct_def) = self.structs.get(struct_name) {
-			Ok(struct_def)
-		} else if let Some(outer_scope) = self.outer_scope {
-			// recurse
-			outer_scope.get_struct_definition(struct_name)
-		} else {
-			r_panic!("No definition found for struct \"{struct_name}\".");
-		}
+	/// Define a function in this scope
+	fn register_function_definition(
+		&mut self,
+		function_name: &str,
+		arguments: Vec<VariableDefinition>,
+		block: Vec<Clause>,
+	) -> Result<(), String> {
+		println!("REGISTERING FUNCTION DEFINITION: {function_name}");
+		let absolute_arguments = arguments
+			.into_iter()
+			.map(|f| Ok((f.name, self.create_absolute_type(&f.var_type)?)))
+			.collect::<Result<Vec<(String, ValueType)>, String>>()?;
+
+		let None = self.functions.insert(
+			function_name.to_string(),
+			Function {
+				arguments: absolute_arguments,
+				block,
+			},
+		) else {
+			r_panic!("Cannot define function {function_name} more than once in same scope.");
+		};
+
+		Ok(())
 	}
 
-	/// construct an absolute type from a type reference
+	/// Recursively find the definition of a struct type by searching up the scope call stack
+	fn get_struct_definition(&self, struct_name: &str) -> Result<&DictStructType, String> {
+		Ok(if let Some(struct_def) = self.structs.get(struct_name) {
+			struct_def
+		} else if let Some(outer_scope) = self.outer_scope {
+			// recurse
+			outer_scope.get_struct_definition(struct_name)?
+		} else {
+			r_panic!("No definition found for struct \"{struct_name}\".");
+		})
+	}
+
+	/// Construct an absolute type from a type reference
 	fn create_absolute_type(&self, type_ref: &VariableTypeReference) -> Result<ValueType, String> {
 		Ok(match type_ref {
 			VariableTypeReference::Cell => ValueType::Cell,
@@ -1229,10 +1121,10 @@ impl Scope<'_> {
 		})
 	}
 
-	/// return a cell reference for a variable target
+	/// Return a cell reference for a variable target
 	fn get_cell(&self, target: &VariableTarget) -> Result<CellReference, String> {
 		// get the absolute type of the variable, as well as the memory allocation
-		let (full_type, memory) = self.get_variable_memory(&target.name)?;
+		let (full_type, memory) = self.get_base_variable_memory(&target.name)?;
 		// get the correct index within the memory and return
 		Ok(match (&target.subfields, full_type, memory) {
 			(None, ValueType::Cell, Memory::Cell { id }) => CellReference {
@@ -1275,9 +1167,9 @@ impl Scope<'_> {
 		})
 	}
 
-	/// return a list of cell references for an array of cells (not an array of structs)
+	/// Return a list of cell references for an array of cells (not an array of structs)
 	fn get_array_cells(&self, target: &VariableTarget) -> Result<Vec<CellReference>, String> {
-		let (full_type, memory) = self.get_variable_memory(&target.name)?;
+		let (full_type, memory) = self.get_base_variable_memory(&target.name)?;
 		Ok(match (&target.subfields, full_type, memory) {
 			(
 				None,
@@ -1324,103 +1216,25 @@ impl Scope<'_> {
 		})
 	}
 
-	/// return the absolute type and memory allocation for a variable name
-	fn get_variable_memory(&self, var_name: &str) -> Result<(&ValueType, &Memory), String> {
+	/// Return the absolute type and memory allocation for a variable name
+	fn get_base_variable_memory(&self, var_name: &str) -> Result<(&ValueType, &Memory), String> {
 		// TODO: add function argument translations and embedded bf/mmi scope function restrictions
 		match (self.outer_scope, self.variable_memory.get(var_name)) {
 			(_, Some((value_type, memory))) => Ok((value_type, memory)),
-			(Some(outer_scope), None) => outer_scope.get_variable_memory(var_name),
+			(Some(outer_scope), None) => outer_scope.get_base_variable_memory(var_name),
 			(None, None) => r_panic!("No variable found with name \"{var_name}\"."),
 		}
-		// if let Some(var_def) = self.current_level_get_variable_definition(var.name()) {
-		// 	let Some(mem_id) = self.variable_memory.get(var_def) else {
-		// 		r_panic!("Something went wrong when compiling. This error should never occur.");
-		// 	};
-		// 	// base case, variable is defined in this scope level
-		// 	// Ok(match (var_def, var) {
-		// 	// 	(VariableDefinition::Single { name: _ }, VariableTarget::Single { name: _ }) => {
-		// 	// 		Memory::Cell { id: *mem_id }
-		// 	// 	}
-		// 	// 	(
-		// 	// 		VariableDefinition::Multi { name: _, len },
-		// 	// 		VariableTarget::MultiCell { name: _, index },
-		// 	// 	) => {
-		// 	// 		r_assert!(
-		// 	// 			*index < *len,
-		// 	// 			"Memory access attempt: \"{var}\" out of range for variable: \"{var_def}\""
-		// 	// 		);
-		// 	// 		Memory::Cells {
-		// 	// 			id: *mem_id,
-		// 	// 			len: *len,
-		// 	// 			target_index: Some(*index),
-		// 	// 		}
-		// 	// 	}
-		// 	// 	(
-		// 	// 		VariableDefinition::Multi { name: _, len },
-		// 	// 		VariableTarget::MultiSpread { name: _ },
-		// 	// 	) => Memory::Cells {
-		// 	// 		id: *mem_id,
-		// 	// 		len: *len,
-		// 	// 		target_index: None,
-		// 	// 	},
-		// 	// 	_ => {
-		// 	// 		r_panic!("Malformed variable reference {var} to {var_def}")
-		// 	// 	}
-		// 	// })
-		// 	todo!();
-		// } else if self.fn_only {
-		// 	r_panic!("Attempted to access variable memory outside of embedded Mastermind context.");
-		// } else if let Some(outer_scope) = self.outer_scope {
-		// 	// recursive case
-		// 	if let Some(translation) = self
-		// 		.variable_aliases
-		// 		.iter()
-		// 		.find(|translation| *translation.get_def_name() == *var.name())
-		// 	{
-		// 		todo!();
-		// 		// let alias_var = match (translation, var) {
-		// 		// 	(
-		// 		// 		ArgumentTranslation::SingleFromSingle(_, call_name),
-		// 		// 		VariableTarget::Single { name: _ },
-		// 		// 		// single variable let g;f(g);def f(h){++h;}c
-		// 		// 	) => VariableTarget::Single {
-		// 		// 		name: call_name.clone(),
-		// 		// 	},
-		// 		// 	(
-		// 		// 		ArgumentTranslation::SingleFromMultiCell(_, (call_name, call_index)),
-		// 		// 		VariableTarget::Single { name: _ },
-		// 		// 		// referenced byte passed as single let g[9];f(g[0]);def f(h){++h;}
-		// 		// 	) => VariableTarget::MultiCell {
-		// 		// 		name: call_name.clone(),
-		// 		// 		index: *call_index,
-		// 		// 	},
-		// 		// 	(
-		// 		// 		ArgumentTranslation::MultiFromMulti(_, call_name),
-		// 		// 		VariableTarget::MultiCell { name: _, index },
-		// 		// 		// referenced byte from multi-byte variable let g[9];f(g);def f(h[9]){++h[0];}
-		// 		// 	) => VariableTarget::MultiCell {
-		// 		// 		name: call_name.clone(),
-		// 		// 		index: *index,
-		// 		// 	},
-		// 		// 	(
-		// 		// 		ArgumentTranslation::MultiFromMulti(_, call_name),
-		// 		// 		VariableTarget::MultiSpread { name: _ },
-		// 		// 		// spread from multi-byte variable let g[9];f(g);def f(h[9]){output *h;}
-		// 		// 	) => VariableTarget::MultiSpread {
-		// 		// 		name: call_name.clone(),
-		// 		// 	},
-		// 		// 	_ => r_panic!(
-		// 		// 		"Malformed argument/variable translation {translation:#?}, target: {var}. \
-		// 		// 	I realise this error doesn't tell you much, this error should not occur anyway."
-		// 		// 	),
-		// 		// };
-		// 		// Ok(outer_scope.get_memory(&alias_var)?)
-		// 	} else {
-		// 		// again not sure if Ok + ? is a bad pattern
-		// 		Ok(outer_scope.get_memory(var)?)
-		// 	}
-		// } else {
-		// 	r_panic!("No variable {var} found in current scope.");
-		// }
+	}
+
+	/// Get the absolute type of a full variable target, not just a name like `get_base_variable_memory`
+	fn get_target_type(&self, target: &VariableTarget) -> Result<&ValueType, String> {
+		let (var_type, _memory) = self.get_base_variable_memory(&target.name)?;
+		Ok(match &target.subfields {
+			None => var_type,
+			Some(subfields) => {
+				let (subfield_type, _memory_index) = var_type.get_subfield(subfields)?;
+				subfield_type
+			}
+		})
 	}
 }

@@ -43,16 +43,16 @@ pub mod tests {
 		// println!("{program}");
 		// compile mastermind
 		let tokens: Vec<Token> = tokenise(&program)?;
-		println!("{tokens:#?}");
+		// println!("{tokens:#?}");
 		let clauses = parse(&tokens)?;
-		println!("{clauses:#?}");
+		// println!("{clauses:#?}");
 		let instructions = Compiler { config: &OPT_NONE }
 			.compile(&clauses, None)?
 			.finalise_instructions(false);
-		println!("{instructions:#?}");
+		// println!("{instructions:#?}");
 		let bf_program = Builder { config: &OPT_NONE }.build(instructions, false)?;
 		let bfs = bf_program.to_string();
-		println!("{}", bfs);
+		// println!("{}", bfs);
 		// run generated brainfuck with input
 		Ok(run_code(
 			BVM_CONFIG_1D,

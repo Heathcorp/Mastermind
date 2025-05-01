@@ -597,7 +597,7 @@ fn parse_function_definition_clause(clause: &[Token]) -> Result<Clause, String> 
 	};
 	let mut args = Vec::new();
 	i += 1;
-	let Token::LessThan = &clause[i] else {
+	let Token::OpenParenthesis = &clause[i] else {
 		r_panic!("Expected argument list in function definition clause: {clause:#?}");
 	};
 	let arg_tokens = get_braced_tokens(&clause[i..], PARENTHESES)?;
