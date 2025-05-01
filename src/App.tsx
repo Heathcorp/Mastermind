@@ -35,7 +35,6 @@ import { defaultExtensions } from "./misc";
 import { makePersisted } from "@solid-primitives/storage";
 import { createStore } from "solid-js/store";
 import  { MastermindConfig } from "./components/Settings";
-import PanelHeader from "./components/PanelHeader.tsx";
 
 const AppContext = createContext<AppContextProps>();
 
