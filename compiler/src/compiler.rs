@@ -33,21 +33,27 @@ impl Compiler<'_> {
 		// hoist functions to top
 		let mut filtered_clauses: Vec<Clause> = Vec::new();
 		for clause in clauses {
-			if let Clause::DefineFunction {
-				name,
-				arguments,
-				block,
-			} = clause
-			{
-				scope.functions.insert(
-					name.clone(),
-					Function {
-						arguments: arguments.clone(),
-						block: block.clone(),
-					},
-				);
-			} else {
-				filtered_clauses.push(clause.clone());
+			match clause {
+				// TODO: fix unnecessary clones
+				Clause::DefineStruct { name, fields } => {
+					scope.register_struct_definition(&name, fields.clone())?;
+				}
+				Clause::DefineFunction {
+					name,
+					arguments,
+					block,
+				} => {
+					scope.functions.insert(
+						name.clone(),
+						Function {
+							arguments: arguments.clone(),
+							block: block.clone(),
+						},
+					);
+				}
+				_ => {
+					filtered_clauses.push(clause.clone());
+				}
 			}
 		}
 
@@ -59,9 +65,6 @@ impl Compiler<'_> {
 				} => {
 					// create an allocation in the scope
 					scope.allocate_variable(var, location_specifier)?;
-				}
-				Clause::DeclareStructType { name, fields } => {
-					scope.register_struct_definition(&name, fields)?;
 				}
 				Clause::DefineVariable {
 					var,
@@ -708,11 +711,12 @@ impl Compiler<'_> {
 					// 	.instructions
 					// 	.extend(new_scope.finalise_instructions(false));
 				}
-				Clause::DefineFunction {
+				Clause::DefineStruct { name: _, fields: _ }
+				| Clause::DefineFunction {
 					name: _,
 					arguments: _,
 					block: _,
-				} => (),
+				} => unreachable!(),
 			}
 		}
 
