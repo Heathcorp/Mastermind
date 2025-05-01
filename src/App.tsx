@@ -22,6 +22,8 @@ import printExample from "./assets/print.mmi?raw";
 import primeExample from "./assets/prime_1_to_100.mmi?raw";
 import christmasTreeExample from "./assets/christmas_trees.mmi?raw";
 import brainfuckExample from "./assets/brainfuck.mmi?raw";
+import helloWorldExample from "./assets/hello_world.mmi?raw";
+import basicCalculatorExample from "./assets/basic_calculator.mmi?raw";
 
 import "./App.css";
 import Divider from "./components/Divider";
@@ -37,7 +39,7 @@ import { createStore } from "solid-js/store";
 const AppContext = createContext<AppContextProps>();
 
 // update this when you want the user to see new syntax
-const MIGRATION_VERSION = 4;
+const MIGRATION_VERSION = 5;
 
 const App: Component = () => {
   const [version, setVersion] = makePersisted(createSignal<number>(), {
@@ -114,6 +116,16 @@ const App: Component = () => {
     const defaultFileId = uuidv4();
     setFileStates((prev) => [
       ...[
+        {
+          id: uuidv4(),
+          label: "hello_world.mmi",
+          rawText: helloWorldExample,
+        },
+        {
+          id: uuidv4(),
+          label: "basic_calculator.mmi",
+          rawText: basicCalculatorExample,
+        },
         {
           id: defaultFileId,
           label: "divisors_example.mmi",

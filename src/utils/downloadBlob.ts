@@ -8,7 +8,6 @@ export default function downloadBlob(
 
   a.href = objectUrl;
   a.download = fileName;
-  a.style = "display=none"; // Just to make extra sure it doesn't impact the layout
   document.body.appendChild(a);
   a.click();
 

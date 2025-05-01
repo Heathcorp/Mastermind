@@ -225,12 +225,32 @@ impl Compiler<'_> {
 					// 						),
 					// 					};
 				}
-				Clause::SetVariable { var, value } => {
-					let cell = scope.get_cell(&var)?;
-					scope.push_instruction(Instruction::ClearCell(cell.clone()));
-					_add_expr_to_cell(&mut scope, &value, cell)?;
-				}
-				Clause::AddToVariable { var, value } => {
+				Clause::SetVariable {
+					var,
+					value,
+					self_referencing,
+				} => match (var.is_spread, self_referencing) {
+					(false, false) => {
+						let cell = scope.get_cell(&var)?;
+						scope.push_instruction(Instruction::ClearCell(cell.clone()));
+						_add_expr_to_cell(&mut scope, &value, cell)?;
+					}
+					(false, true) => {
+						let cell = scope.get_cell(&var)?;
+						_add_self_referencing_expr_to_cell(&mut scope, value, cell, true)?;
+					}
+					(true, _) => {
+						r_panic!("Unsupported operation, assigning to spread variable: {var}");
+						// TODO: support spread assigns?
+						// let cells = scope.get_array_cells(&var)?;
+						// etc...
+					}
+				},
+				Clause::AddToVariable {
+					var,
+					value,
+					self_referencing,
+				} => {
 					let Ok(cell) = scope.get_cell(&var) else {
 						r_panic!("Invalid target \"{var}\" for add-assign operation, target should be a cell.");
 					};
@@ -714,7 +734,65 @@ fn _add_expr_to_cell(
 	Ok(())
 }
 
-// another helper function to copy a cell from one to another leaving the original unaffected
+//This function allows you to add a self referencing expression to the cell
+//Separate this to ensure that normal expression don't require the overhead of copying
+fn _add_self_referencing_expr_to_cell(
+	scope: &mut Scope,
+	expr: Expression,
+	cell: CellReference,
+	pre_clear: bool,
+) -> Result<(), String> {
+	//Create a new temp cell to store the current cell value
+	let temp_mem_id = scope.push_memory_id();
+	scope.push_instruction(Instruction::Allocate(
+		Memory::Cell { id: temp_mem_id },
+		None,
+	));
+	let temp_cell = CellReference {
+		memory_id: temp_mem_id,
+		index: None,
+	};
+	// TODO: make this more efficent by not requiring a clear cell after,
+	// i.e. simple move instead of copy by default for set operations (instead of +=)
+	_copy_cell(scope, cell, temp_cell, 1);
+	// Then if we are doing a += don't pre-clear otherwise Clear the current cell and run the same actions as _add_expr_to_cell
+	if pre_clear {
+		scope.push_instruction(Instruction::ClearCell(cell.clone()));
+	}
+
+	let (imm, adds, subs) = expr.flatten()?;
+
+	scope.push_instruction(Instruction::AddToCell(cell.clone(), imm));
+
+	let mut adds_set = HashMap::new();
+	for var in adds {
+		let n = adds_set.remove(&var).unwrap_or(0);
+		adds_set.insert(var, n + 1);
+	}
+	for var in subs {
+		let n = adds_set.remove(&var).unwrap_or(0);
+		adds_set.insert(var, n - 1);
+	}
+
+	for (source, constant) in adds_set {
+		let source_cell = scope.get_cell(&source)?;
+		//If we have an instance of the original cell being added simply use our temp cell value
+		// (crucial special sauce)
+		if source_cell.memory_id == cell.memory_id && source_cell.index == cell.index {
+			_copy_cell(scope, temp_cell, cell.clone(), constant);
+		} else {
+			_copy_cell(scope, source_cell, cell.clone(), constant);
+		}
+	}
+	//Cleanup
+	scope.push_instruction(Instruction::ClearCell(temp_cell));
+	scope.push_instruction(Instruction::Free(temp_mem_id));
+
+	Ok(())
+}
+
+/// Helper function to copy a cell from one to another leaving the original unaffected
+// TODO: make one for draining a cell
 fn _copy_cell(
 	scope: &mut Scope,
 	source_cell: CellReference,
@@ -734,7 +812,6 @@ fn _copy_cell(
 		memory_id: temp_mem_id,
 		index: None,
 	};
-
 	// copy source to target and temp
 	scope.push_instruction(Instruction::OpenLoop(source_cell));
 	scope.push_instruction(Instruction::AddToCell(target_cell, constant as u8));

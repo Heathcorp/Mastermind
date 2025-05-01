@@ -139,6 +139,8 @@ pub trait ByteWriter {
 }
 
 impl BVM {
+	const MAX_STEPS_DEFAULT: usize = (2 << 30) - 2;
+
 	pub fn new(config: BVMConfig, program: Vec<char>) -> Self {
 		BVM {
 			config,
@@ -150,6 +152,7 @@ impl BVM {
 	// TODO: refactor/rewrite this, can definitely be improved with async read/write traits or similar
 	// I don't love that I duplicated this to make it work with js
 	// TODO: this isn't covered by unit tests
+	// TODO: add a maximum step count
 	pub async fn run_async(
 		&mut self,
 		output_callback: &js_sys::Function,
@@ -268,7 +271,13 @@ impl BVM {
 		Ok(unsafe { String::from_utf8_unchecked(output_bytes) })
 	}
 
-	pub fn run(&mut self, input: &mut impl Read, output: &mut impl Write) -> Result<(), String> {
+	pub fn run(
+		&mut self,
+		input: &mut impl Read,
+		output: &mut impl Write,
+		max_steps: Option<usize>,
+	) -> Result<(), String> {
+		let mut steps = 0usize;
 		let mut pc: usize = 0;
 		// this could be more efficient with a pre-computed map
 		let mut loop_stack: Vec<usize> = Vec::new();
@@ -343,6 +352,15 @@ impl BVM {
 			// println!("{s}");
 			// println!("{}", self.tape);
 			pc += 1;
+
+			// cut the program short if it runs forever
+			steps += 1;
+			if steps > max_steps.unwrap_or(Self::MAX_STEPS_DEFAULT) {
+				// not sure if this should error out or just quit silently
+				return Err(String::from(
+					"Max steps reached in BVM, possibly an infinite loop.",
+				));
+			}
 		}
 
 		Ok(())
@@ -356,14 +374,20 @@ pub mod tests {
 
 	use std::io::Cursor;
 
-	pub fn run_code(config: BVMConfig, code: String, input: String) -> String {
+	pub fn run_code(
+		config: BVMConfig,
+		code: String,
+		input: String,
+		max_steps_cutoff: Option<usize>,
+	) -> String {
 		let mut bvm = BVM::new(config, code.chars().collect());
 
 		let input_bytes: Vec<u8> = input.bytes().collect();
 		let mut input_stream = Cursor::new(input_bytes);
 		let mut output_stream = Cursor::new(Vec::new());
 
-		bvm.run(&mut input_stream, &mut output_stream).unwrap();
+		bvm.run(&mut input_stream, &mut output_stream, max_steps_cutoff)
+			.unwrap();
 
 		// TODO: fix this unsafe stuff
 		unsafe { String::from_utf8_unchecked(output_stream.into_inner()) }
@@ -382,7 +406,10 @@ pub mod tests {
 		let program = String::from("");
 		let input = String::from("");
 		let desired_output = String::from("");
-		assert_eq!(desired_output, run_code(BVM_CONFIG_1D, program, input))
+		assert_eq!(
+			desired_output,
+			run_code(BVM_CONFIG_1D, program, input, None)
+		)
 	}
 
 	#[test]
@@ -390,7 +417,10 @@ pub mod tests {
 		let program = String::from("++++++++[>++++[>++>+++>+++>+<<<<-]>+>+>->>+[<]<-]>>.>---.+++++++..+++.>>.<-.<.+++.------.--------.>>+.>++.");
 		let input = String::from("");
 		let desired_output = String::from("Hello World!\n");
-		assert_eq!(desired_output, run_code(BVM_CONFIG_1D, program, input))
+		assert_eq!(
+			desired_output,
+			run_code(BVM_CONFIG_1D, program, input, None)
+		)
 	}
 
 	#[test]
@@ -400,7 +430,10 @@ pub mod tests {
 		);
 		let input = String::from("");
 		let desired_output = String::from("Hello, World!");
-		assert_eq!(desired_output, run_code(BVM_CONFIG_1D, program, input))
+		assert_eq!(
+			desired_output,
+			run_code(BVM_CONFIG_1D, program, input, None)
+		)
 	}
 
 	#[test]
@@ -408,7 +441,10 @@ pub mod tests {
 		let program = String::from("+++++[>+++++[>++>++>+++>+++>++++>++++<<<<<<-]<-]+++++[>>[>]<[+.<<]>[++.>>>]<[+.<]>[-.>>]<[-.<<<]>[.>]<[+.<]<-]++++++++++.");
 		let input = String::from("");
 		let desired_output = String::from("eL34NfeOL454KdeJ44JOdefePK55gQ67ShfTL787KegJ77JTeghfUK88iV9:XjgYL:;:KfiJ::JYfijgZK;;k[<=]lh^L=>=KgkJ==J^gklh_K>>m`?@bnicL@A@KhmJ@@JchmnidKAA\n");
-		assert_eq!(desired_output, run_code(BVM_CONFIG_1D, program, input))
+		assert_eq!(
+			desired_output,
+			run_code(BVM_CONFIG_1D, program, input, None)
+		)
 	}
 
 	#[test]
@@ -416,7 +452,10 @@ pub mod tests {
 		let program = String::from("++++++++[->++++++[->+>+<<]<]>>.>^+++.");
 		let input = String::from("");
 		let desired_output = String::from("03");
-		assert_eq!(desired_output, run_code(BVM_CONFIG_1D, program, input))
+		assert_eq!(
+			desired_output,
+			run_code(BVM_CONFIG_1D, program, input, None)
+		)
 	}
 
 	#[test]
@@ -425,7 +464,10 @@ pub mod tests {
 			String::from("++++++++[->^^^+++vvvv+++[->^^^^+>+<vvvv<]<]>^^^^^^^^>.>vvvv+++.");
 		let input = String::from("");
 		let desired_output = String::from("03");
-		assert_eq!(desired_output, run_code(BVM_CONFIG_1D, program, input))
+		assert_eq!(
+			desired_output,
+			run_code(BVM_CONFIG_1D, program, input, None)
+		)
 	}
 
 	// 2D tests:
@@ -435,7 +477,10 @@ pub mod tests {
 		let program = String::from("++++++++[>++++[>++>+++>+++>+<<<<-]>+>+>->>+[<]<-]>>.>---.+++++++..+++.>>.<-.<.+++.------.--------.>>+.>++.");
 		let input = String::from("");
 		let desired_output = String::from("Hello World!\n");
-		assert_eq!(desired_output, run_code(BVM_CONFIG_2D, program, input))
+		assert_eq!(
+			desired_output,
+			run_code(BVM_CONFIG_2D, program, input, None)
+		)
 	}
 
 	#[test]
@@ -444,7 +489,10 @@ pub mod tests {
 		let program = String::from("+++++[>+++++[>++>++>+++>+++>++++>++++<<<<<<-]<-]+++++[>>[>]<[+.<<]>[++.>>>]<[+.<]>[-.>>]<[-.<<<]>[.>]<[+.<]<-]++++++++++.");
 		let input = String::from("");
 		let desired_output = String::from("eL34NfeOL454KdeJ44JOdefePK55gQ67ShfTL787KegJ77JTeghfUK88iV9:XjgYL:;:KfiJ::JYfijgZK;;k[<=]lh^L=>=KgkJ==J^gklh_K>>m`?@bnicL@A@KhmJ@@JchmnidKAA\n");
-		assert_eq!(desired_output, run_code(BVM_CONFIG_2D, program, input))
+		assert_eq!(
+			desired_output,
+			run_code(BVM_CONFIG_2D, program, input, None)
+		)
 	}
 
 	#[test]
@@ -452,7 +500,10 @@ pub mod tests {
 		let program = String::from("++++++++[-^++++++[->+v+<^]v]>+++++^.v.");
 		let input = String::from("");
 		let desired_output = String::from("05");
-		assert_eq!(desired_output, run_code(BVM_CONFIG_2D, program, input))
+		assert_eq!(
+			desired_output,
+			run_code(BVM_CONFIG_2D, program, input, None)
+		)
 	}
 
 	#[test]
@@ -462,7 +513,10 @@ pub mod tests {
 		);
 		let input = String::from("");
 		let desired_output = String::from("000");
-		assert_eq!(desired_output, run_code(BVM_CONFIG_2D, program, input))
+		assert_eq!(
+			desired_output,
+			run_code(BVM_CONFIG_2D, program, input, None)
+		)
 	}
 
 	#[test]
@@ -471,7 +525,10 @@ pub mod tests {
 		let program = String::from("-v>,[>,]^-<+[-<+]->+[-v------------------------------------------^>+]-<+[-<+]->+[-v[-^+^+vv]^[-v+^]^->+<[>-<->+<[>-<->+<[>-<->+<[>-<-------------->+<[>-<-->+<[>-<----------------------------->+<[>-<-->+<[>-<vv[-]^^[-]]>[[-]<[-]vv[-]++++++v++^^^>]<[-]]>[[-]<[-]vv[-]+++++v+^^^>]<[-]]>[[-]<[-]vv[-]+++^^>]<[-]]>[[-]<[-]vv[-]++++^^>]<[-]]>[[-]<[-]vv[-]+++++++^^>]<[-]]>[[-]<[-]vv[-]++^^>]<[-]]>[[-]<[-]vv[-]++++++++^^>]<[-]]>[[-]<[-]vv[-]+^^>]<vv^>+]-v-v-v-v-^^^^<+[-<+]<->v-v-v<-v->^^^^>vvv+^^^<+>+[-<->+v[-^^+^+vvv]^^[-vv+^^]^>+<-[>[-]<>+<-[>[-]<>+<-[>[-]<>+<-[>[-]<>+<-[>[-]<>+<-[>[-]<>+<-[>[-]<>+<-[>[-]<[-]]>[-<vvvvv+[-<+]->-[+>-]+v,^+[-<+]-<^^^+[->+]->-[+>-]+^^>]<]>[-<vvvvv+[-<+]->-[+>-]+v.^+[-<+]-<^^^+[->+]->-[+>-]+^^>]<]>[-<vvvvv+[-<+]->-[+>-]+v[-v+v+^^]v[-^+v]v[[-]^^^+[-<+]-^^^+[->+]-<+[>>-[+>-]<+vv[-^^^+^+vvvv]^^^[-vvv+^^^]^->+<[>-<->+<[>-<[-]]>[-<vv+[-<+]-<+>>-[+>-]+^^>]<]>[-<vv+[-<+]-<->>-[+>-]+^^>]<vv+[-<+]-<][-]>vvv+[-<+]->-[+>-]+vvv]^^^+[-<+]-<^^^+[->+]->-[+>-]+^^>]<]>[-<vvvvv+[-<+]->-[+>-]+v[-v+v+^^]v[-^+v]v>+<[>-<[-]]>[-<^^^+[-<+]-^^^+[->+]-<+[>>-[+>-]>+vv[-^^^+^+vvvv]^^^[-vvv+^^^]^->+<[>-<->+<[>-<[-]]>[-<vv+[-<+]-<->>-[+>-]+^^>]<]>[-<vv+[-<+]-<+>>-[+>-]+^^>]<vv+[-<+]-<][-]>vvv+[-<+]->-[+>-]+vvv>]<^^^+[-<+]-<^^^+[->+]->-[+>-]+^^>]<]>[-<vvvvv+[-<+]->-[+>-]+<<-v-^>+v+^[<+v+^>-v-^]+>-+[-<+]-<^^^+[->+]->-[+>-]+^^>]<]>[-<vvvvv+[-<+]->-[+>-]+>>-v-^<+v+^[>+v+^<-v-^]+<-+[-<+]-<^^^+[->+]->-[+>-]+^^>]<]>[-<vvvvv+[-<+]->-[+>-]+v-^+[-<+]-<^^^+[->+]->-[+>-]+^^>]<]>[-<vvvvv+[-<+]->-[+>-]+v+^+[-<+]-<^^^+[->+]->-[+>-]+^^>]<vv>+]-");
 		let input = String::from("++++++++[>++++[>++>+++>+++>+<<<<-]>+>+>->>+[<]<-]>>.>---.+++++++..+++.>>.<-.<.+++.------.--------.>>+.>++.\n");
 		let desired_output = String::from("Hello World!\n");
-		assert_eq!(desired_output, run_code(BVM_CONFIG_2D, program, input))
+		assert_eq!(
+			desired_output,
+			run_code(BVM_CONFIG_2D, program, input, None)
+		)
 	}
 
 	#[test]
@@ -480,6 +537,9 @@ pub mod tests {
 		let program = String::from("-v>,[>,]^-<+[-<+]->+[-v------------------------------------------^>+]-<+[-<+]->+[-v[-^+^+vv]^[-v+^]^->+<[>-<->+<[>-<->+<[>-<->+<[>-<-------------->+<[>-<-->+<[>-<----------------------------->+<[>-<-->+<[>-<vv[-]^^[-]]>[[-]<[-]vv[-]++++++v++^^^>]<[-]]>[[-]<[-]vv[-]+++++v+^^^>]<[-]]>[[-]<[-]vv[-]+++^^>]<[-]]>[[-]<[-]vv[-]++++^^>]<[-]]>[[-]<[-]vv[-]+++++++^^>]<[-]]>[[-]<[-]vv[-]++^^>]<[-]]>[[-]<[-]vv[-]++++++++^^>]<[-]]>[[-]<[-]vv[-]+^^>]<vv^>+]-v-v-v-v-^^^^<+[-<+]<->v-v-v<-v->^^^^>vvv+^^^<+>+[-<->+v[-^^+^+vvv]^^[-vv+^^]^>+<-[>[-]<>+<-[>[-]<>+<-[>[-]<>+<-[>[-]<>+<-[>[-]<>+<-[>[-]<>+<-[>[-]<>+<-[>[-]<[-]]>[-<vvvvv+[-<+]->-[+>-]+v,^+[-<+]-<^^^+[->+]->-[+>-]+^^>]<]>[-<vvvvv+[-<+]->-[+>-]+v.^+[-<+]-<^^^+[->+]->-[+>-]+^^>]<]>[-<vvvvv+[-<+]->-[+>-]+v[-v+v+^^]v[-^+v]v[[-]^^^+[-<+]-^^^+[->+]-<+[>>-[+>-]<+vv[-^^^+^+vvvv]^^^[-vvv+^^^]^->+<[>-<->+<[>-<[-]]>[-<vv+[-<+]-<+>>-[+>-]+^^>]<]>[-<vv+[-<+]-<->>-[+>-]+^^>]<vv+[-<+]-<][-]>vvv+[-<+]->-[+>-]+vvv]^^^+[-<+]-<^^^+[->+]->-[+>-]+^^>]<]>[-<vvvvv+[-<+]->-[+>-]+v[-v+v+^^]v[-^+v]v>+<[>-<[-]]>[-<^^^+[-<+]-^^^+[->+]-<+[>>-[+>-]>+vv[-^^^+^+vvvv]^^^[-vvv+^^^]^->+<[>-<->+<[>-<[-]]>[-<vv+[-<+]-<->>-[+>-]+^^>]<]>[-<vv+[-<+]-<+>>-[+>-]+^^>]<vv+[-<+]-<][-]>vvv+[-<+]->-[+>-]+vvv>]<^^^+[-<+]-<^^^+[->+]->-[+>-]+^^>]<]>[-<vvvvv+[-<+]->-[+>-]+<<-v-^>+v+^[<+v+^>-v-^]+>-+[-<+]-<^^^+[->+]->-[+>-]+^^>]<]>[-<vvvvv+[-<+]->-[+>-]+>>-v-^<+v+^[>+v+^<-v-^]+<-+[-<+]-<^^^+[->+]->-[+>-]+^^>]<]>[-<vvvvv+[-<+]->-[+>-]+v-^+[-<+]-<^^^+[->+]->-[+>-]+^^>]<]>[-<vvvvv+[-<+]->-[+>-]+v+^+[-<+]-<^^^+[->+]->-[+>-]+^^>]<vv>+]-");
 		let input = String::from("+++++[>+++++[>++>++>+++>+++>++++>++++<<<<<<-]<-]+++++[>>[>]<[+.<<]>[++.>>>]<[+.<]>[-.>>]<[-.<<<]>[.>]<[+.<]<-]++++++++++.\n");
 		let desired_output = String::from("eL34NfeOL454KdeJ44JOdefePK55gQ67ShfTL787KegJ77JTeghfUK88iV9:XjgYL:;:KfiJ::JYfijgZK;;k[<=]lh^L=>=KgkJ==J^gklh_K>>m`?@bnicL@A@KhmJ@@JchmnidKAA\n");
-		assert_eq!(desired_output, run_code(BVM_CONFIG_2D, program, input))
+		assert_eq!(
+			desired_output,
+			run_code(BVM_CONFIG_2D, program, input, None)
+		)
 	}
 }

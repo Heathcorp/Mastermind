@@ -195,6 +195,7 @@ fn parse_struct_clause(clause: &[Token]) -> Result<Clause, String> {
 fn parse_add_clause(clause: &[Token]) -> Result<Vec<Clause>, String> {
 	let mut clauses: Vec<Clause> = Vec::new();
 	let mut i = 0usize;
+	let mut self_referencing = false;
 	let (var, len) = parse_var_target(&clause[i..])?;
 	i += len;
 
@@ -214,8 +215,14 @@ fn parse_add_clause(clause: &[Token]) -> Result<Vec<Clause>, String> {
 			summands: vec![raw_expr],
 		},
 	};
+	//Check if this add clause self references
+	self_referencing = expr.check_self_referencing(&var);
 
-	clauses.push(Clause::AddToVariable { var, value: expr });
+	clauses.push(Clause::AddToVariable {
+		var,
+		value: expr,
+		self_referencing: self_referencing,
+	});
 
 	Ok(clauses)
 }
@@ -223,15 +230,17 @@ fn parse_add_clause(clause: &[Token]) -> Result<Vec<Clause>, String> {
 // currently just syntax sugar, should make it actually do post/pre increments
 fn parse_increment_clause(clause: &[Token]) -> Result<Clause, String> {
 	let (var, _) = parse_var_target(&clause[2..])?;
-
+	//An increment clause can never be self referencing since it just VAR++
 	Ok(match (&clause[0], &clause[1]) {
 		(Token::Plus, Token::Plus) => Clause::AddToVariable {
 			var,
 			value: Expression::NaturalNumber(1),
+			self_referencing: false,
 		},
 		(Token::Minus, Token::Minus) => Clause::AddToVariable {
 			var,
 			value: Expression::NaturalNumber((-1i8 as u8) as usize),
+			self_referencing: false,
 		},
 		_ => {
 			r_panic!("Invalid pattern in increment clause: {clause:#?}");
@@ -244,6 +253,7 @@ fn parse_set_clause(clause: &[Token]) -> Result<Vec<Clause>, String> {
 	// TODO: what do we do about arrays and strings and structs?
 	let mut clauses: Vec<Clause> = Vec::new();
 	let mut i = 0usize;
+	let mut self_referencing = false;
 	let (var, len) = parse_var_target(&clause[i..])?;
 	i += len;
 
@@ -252,7 +262,12 @@ fn parse_set_clause(clause: &[Token]) -> Result<Vec<Clause>, String> {
 		Token::EqualsSign => {
 			i += 1;
 			let expr = Expression::parse(&clause[i..(clause.len() - 1)])?;
-			clauses.push(Clause::SetVariable { var, value: expr });
+			self_referencing = expr.check_self_referencing(&var);
+			clauses.push(Clause::SetVariable {
+				var,
+				value: expr,
+				self_referencing,
+			});
 		}
 		Token::Plus | Token::Minus => {
 			let is_add = if let Token::Plus = &clause[i] {
@@ -271,7 +286,12 @@ fn parse_set_clause(clause: &[Token]) -> Result<Vec<Clause>, String> {
 				expr = expr.flipped_sign()?;
 			}
 
-			clauses.push(Clause::AddToVariable { var, value: expr });
+			self_referencing = expr.check_self_referencing(&var);
+			clauses.push(Clause::AddToVariable {
+				var,
+				value: expr,
+				self_referencing,
+			});
 		}
 		_ => r_panic!("Expected assignment operator in set clause: {clause:#?}"),
 	}
@@ -1096,6 +1116,35 @@ impl Expression {
 
 		Ok((imm_sum.0, additions, subtractions))
 	}
+
+	//Recursively Check If This Is Self Referencing
+	pub fn check_self_referencing(&self, parent: &VariableTarget) -> bool {
+		let expr = self;
+		let mut self_referencing = false;
+		//For Expressions Recurse otherwise we only need to check variable references to see if they are self referencing
+		match expr {
+			Expression::SumExpression { sign, summands } => {
+				//Loop through sub expressions and check them all recursively if we find a self reference early we can break
+				for summand in summands {
+					if summand.check_self_referencing(parent) {
+						self_referencing = true;
+						break;
+					}
+				}
+			}
+			//If we are referencing the parent variable return true
+			Expression::VariableReference(var) => {
+				if *var == *parent {
+					self_referencing = true;
+				}
+			}
+			//Ignore these since they are not self referencing
+			Expression::ArrayLiteral(_)
+			| Expression::StringLiteral(_)
+			| Expression::NaturalNumber(_) => {}
+		}
+		self_referencing
+	}
 }
 
 // TODO: add multiplication
@@ -1144,10 +1193,12 @@ pub enum Clause {
 	AddToVariable {
 		var: VariableTarget,
 		value: Expression,
+		self_referencing: bool,
 	},
 	SetVariable {
 		var: VariableTarget,
 		value: Expression,
+		self_referencing: bool,
 	},
 	AssertVariableValue {
 		var: VariableTarget,
@@ -1295,6 +1346,9 @@ impl Display for Reference {
 
 impl Display for VariableTarget {
 	fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+		if self.is_spread {
+			f.write_str("*")?;
+		}
 		f.write_str(&self.name)?;
 		if let Some(subfield_refs) = &self.subfields {
 			for ref_step in subfield_refs.0.iter() {
