@@ -58,20 +58,6 @@ pub fn parse(tokens: &[Token]) -> Result<Vec<Clause>, String> {
 			(Token::If, _, _) => {
 				clauses.push(parse_if_else_clause(clause)?);
 			}
-			(Token::Name(_), Token::OpenSquareBracket, _)
-			| (Token::Asterisk, Token::Name(_), _) => {
-				let (_, len) = parse_var_target(clause)?;
-				let remaining = &clause[len..];
-				match (&remaining[0], &remaining[1]) {
-					(Token::EqualsSign, _) => {
-						clauses.extend(parse_set_clause(clause)?);
-					}
-					(Token::Plus | Token::Minus, Token::EqualsSign) => {
-						clauses.extend(parse_add_clause(clause)?);
-					}
-					_ => r_panic!("Invalid clause: {clause:#?}"),
-				}
-			}
 			(Token::OpenBrace, _, _) => {
 				let braced_tokens = get_braced_tokens(clause, BRACES)?;
 				let inner_clauses = parse(braced_tokens)?;
@@ -255,21 +241,40 @@ fn parse_increment_clause(clause: &[Token]) -> Result<Clause, String> {
 }
 
 fn parse_set_clause(clause: &[Token]) -> Result<Vec<Clause>, String> {
-	// TODO: what do we do about arrays and strings?
+	// TODO: what do we do about arrays and strings and structs?
 	let mut clauses: Vec<Clause> = Vec::new();
 	let mut i = 0usize;
 	let (var, len) = parse_var_target(&clause[i..])?;
 	i += len;
 
 	// definitely could use iterators instead (TODO for refactor)
-	let Token::EqualsSign = &clause[i] else {
-		r_panic!("Expected equals sign in set clause: {clause:#?}");
-	};
-	i += 1;
+	match &clause[i] {
+		Token::EqualsSign => {
+			i += 1;
+			let expr = Expression::parse(&clause[i..(clause.len() - 1)])?;
+			clauses.push(Clause::SetVariable { var, value: expr });
+		}
+		Token::Plus | Token::Minus => {
+			let is_add = if let Token::Plus = &clause[i] {
+				true
+			} else {
+				false
+			};
+			i += 1;
+			let Token::EqualsSign = &clause[i] else {
+				r_panic!("Expected equals sign in add-assign operator: {clause:#?}");
+			};
+			i += 1;
 
-	let expr = Expression::parse(&clause[i..(clause.len() - 1)])?;
+			let mut expr = Expression::parse(&clause[i..(clause.len() - 1)])?;
+			if !is_add {
+				expr = expr.flipped_sign()?;
+			}
 
-	clauses.push(Clause::SetVariable { var, value: expr });
+			clauses.push(Clause::AddToVariable { var, value: expr });
+		}
+		_ => r_panic!("Expected assignment operator in set clause: {clause:#?}"),
+	}
 
 	Ok(clauses)
 }
@@ -662,6 +667,13 @@ fn parse_function_call_clause(clause: &[Token]) -> Result<Clause, String> {
 
 fn parse_var_target(tokens: &[Token]) -> Result<(VariableTarget, usize), String> {
 	let mut i = 0usize;
+	let is_spread = if let Token::Asterisk = &tokens[i] {
+		i += 1;
+		true
+	} else {
+		false
+	};
+
 	let Token::Name(var_name) = &tokens[i] else {
 		r_panic!("Expected identifier in variable target identifier: {tokens:#?}");
 	};
@@ -691,14 +703,15 @@ fn parse_var_target(tokens: &[Token]) -> Result<(VariableTarget, usize), String>
 	}
 
 	Ok((
-		VariableTarget(
-			var_name.clone(),
-			if ref_chain.len() > 0 {
+		VariableTarget {
+			name: var_name.clone(),
+			subfields: if ref_chain.len() > 0 {
 				Some(VariableTargetReferenceChain(ref_chain))
 			} else {
 				None
 			},
-		),
+			is_spread,
+		},
 		i,
 	))
 }
@@ -1010,6 +1023,28 @@ impl Expression {
 		}
 	}
 
+	/// flip the sign of an expression, equivalent to `x => -(x)`
+	pub fn flipped_sign(self) -> Result<Self, String> {
+		Ok(match self {
+			Expression::SumExpression { sign, summands } => Expression::SumExpression {
+				sign: sign.flipped(),
+				summands,
+			},
+			Expression::NaturalNumber(_) | Expression::VariableReference(_) => {
+				Expression::SumExpression {
+					sign: Sign::Negative,
+					summands: vec![self],
+				}
+			}
+			Expression::ArrayLiteral(_) | Expression::StringLiteral(_) => {
+				r_panic!(
+					"Attempted to invert sign of array or string literal, \
+	do not use += or -= on arrays or strings."
+				);
+			}
+		})
+	}
+
 	// not sure if this is the compiler's concern or if it should be the parser
 	// (constant to add, variables to add, variables to subtract)
 	// currently multiplication is not supported so order of operations and flattening is very trivial
@@ -1081,6 +1116,14 @@ pub enum Expression {
 pub enum Sign {
 	Positive,
 	Negative,
+}
+impl Sign {
+	fn flipped(self) -> Sign {
+		match self {
+			Sign::Positive => Sign::Negative,
+			Sign::Negative => Sign::Positive,
+		}
+	}
 }
 
 #[derive(Debug, Clone)]
@@ -1201,16 +1244,21 @@ pub enum Reference {
 // a bit verbose, not quite sure about this
 #[derive(Debug, Clone, Hash, PartialEq, Eq)]
 pub struct VariableTargetReferenceChain(pub Vec<Reference>);
+/// Represents a target variable in an expression, this has no type informatino
 #[derive(Debug, Clone, Hash, PartialEq, Eq)]
-pub struct VariableTarget(pub String, pub Option<VariableTargetReferenceChain>);
+pub struct VariableTarget {
+	pub name: String,
+	pub subfields: Option<VariableTargetReferenceChain>,
+	pub is_spread: bool,
+}
 impl VariableTarget {
-	pub fn name(&self) -> &str {
-		&self.0
-	}
-
 	/// converts a definition to a target for use with definition clauses (as opposed to declarations)
 	pub fn from_definition(var_def: &VariableDefinition) -> Self {
-		VariableTarget(var_def.name.clone(), None)
+		VariableTarget {
+			name: var_def.name.clone(),
+			subfields: None,
+			is_spread: false,
+		}
 	}
 }
 
@@ -1247,10 +1295,10 @@ impl Display for Reference {
 
 impl Display for VariableTarget {
 	fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-		f.write_str(&self.0);
-		if let Some(subfield_refs) = &self.1 {
+		f.write_str(&self.name)?;
+		if let Some(subfield_refs) = &self.subfields {
 			for ref_step in subfield_refs.0.iter() {
-				f.write_str(&format!("{ref_step}"));
+				f.write_str(&format!("{ref_step}"))?;
 			}
 		}
 

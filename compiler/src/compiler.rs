@@ -266,10 +266,18 @@ impl Compiler<'_> {
 				}
 				Clause::OutputValue { value } => {
 					match value {
-						Expression::VariableReference(var) => {
-							let cell = scope.get_cell(&var)?;
-							scope.push_instruction(Instruction::OutputCell(cell));
-						}
+						Expression::VariableReference(var) => match var.is_spread {
+							false => {
+								let cell = scope.get_cell(&var)?;
+								scope.push_instruction(Instruction::OutputCell(cell));
+							}
+							true => {
+								let cells = scope.get_array_cells(&var)?;
+								for cell in cells {
+									scope.push_instruction(Instruction::OutputCell(cell));
+								}
+							}
+						},
 						Expression::SumExpression {
 							sign: _,
 							summands: _,
@@ -405,8 +413,18 @@ impl Compiler<'_> {
 
 					// copy into each target and decrement the source
 					for target in targets {
-						let cell = scope.get_cell(&target)?;
-						scope.push_instruction(Instruction::AddToCell(cell, 1));
+						match target.is_spread {
+							false => {
+								let cell = scope.get_cell(&target)?;
+								scope.push_instruction(Instruction::AddToCell(cell, 1));
+							}
+							true => {
+								let cells = scope.get_array_cells(&target)?;
+								for cell in cells {
+									scope.push_instruction(Instruction::AddToCell(cell, 1));
+								}
+							}
+						}
 					}
 
 					scope.push_instruction(Instruction::AddToCell(source_cell, -1i8 as u8)); // 255
@@ -1129,9 +1147,9 @@ impl Scope<'_> {
 	/// return a cell reference for a variable target
 	fn get_cell(&self, target: &VariableTarget) -> Result<CellReference, String> {
 		// get the absolute type of the variable, as well as the memory allocation
-		let (full_type, memory) = self.get_variable_memory(target.name())?;
+		let (full_type, memory) = self.get_variable_memory(&target.name)?;
 		// get the correct index within the memory and return
-		Ok(match (&target.1, full_type, memory) {
+		Ok(match (&target.subfields, full_type, memory) {
 			(None, ValueType::Cell, Memory::Cell { id }) => CellReference {
 				memory_id: *id,
 				index: None,
@@ -1142,6 +1160,9 @@ impl Scope<'_> {
 				Memory::Cells { id, len },
 			) => {
 				let (subfield_type, cell_index) = full_type.get_subfield(&subfield_chain)?;
+				let ValueType::Cell = subfield_type else {
+					r_panic!("Expected cell type in variable target: {target}");
+				};
 				r_assert!(cell_index < *len, "Cell reference out of bounds on variable target: {target}. This should not occur.");
 				CellReference {
 					memory_id: *id,
@@ -1171,8 +1192,8 @@ impl Scope<'_> {
 
 	/// return a list of cell references for an array of cells (not an array of structs)
 	fn get_array_cells(&self, target: &VariableTarget) -> Result<Vec<CellReference>, String> {
-		let (full_type, memory) = self.get_variable_memory(target.name())?;
-		Ok(match (&target.1, full_type, memory) {
+		let (full_type, memory) = self.get_variable_memory(&target.name)?;
+		Ok(match (&target.subfields, full_type, memory) {
 			(
 				None,
 				ValueType::Array(arr_len, element_type),
