@@ -647,25 +647,25 @@ drain a {
 			"
 cell global_var = '0';
 
-def func_0<cell grape> {
+fn func_0(cell grape) {
 	cell n = grape + 1;
 	output n;
 	n = 0;
 };;
 
-def func_1<cell grape> {
+fn func_1(cell grape) {
 	cell n = grape + 2;
 	output n;
 	n = 0;
 }
 
 output global_var;
-func_0<global_var>;
+func_0(global_var);
 output global_var;
 
 global_var += 1;;;
 output global_var;
-;;func_1<global_var>;
+;;func_1(global_var);
 output global_var;
 
 output 10;
@@ -684,24 +684,24 @@ output 10;
 			"
 cell global_var = '0';
 
-def func_0<cell grape> {
+fn func_0(cell grape) {
 	cell n = grape + 1;
 	output n;
 
-	def func_1<cell grape> {
+	fn func_1(cell grape) {
 		grape += 1;
 		output grape;
 		grape += 1;
 	};
 
-	func_1<n>;
+	func_1(n);
 	output n;
 
 	grape += 1;
 };
 
 output global_var;
-func_0<global_var>;
+func_0(global_var);
 output global_var;
 
 output 10;
@@ -726,11 +726,11 @@ cell global_var = '0';
 
 cell[2] global_vars = ['0', 64];
 
-def func_0<cell grape> {
+fn func_0(cell grape) {
 	cell n = grape + 1;
 	output n;
 
-	def func_1<cell grape> {
+	fn func_1(cell grape) {
 		grape += 1;
 		output grape;
 		grape += 1;
@@ -741,29 +741,29 @@ def func_0<cell grape> {
 		frog[1] += 2;
 
 		zero = grape + 3;
-		func_2<frog, zero>;
+		func_2(frog, zero);
 		output zero;
 	};
 
-	func_1<n>;
+	func_1(n);
 	output n;
 
 	grape += 1;
 };
 
 output global_var;
-func_0<global_var>;
+func_0(global_var);
 output global_var;
 
 output 10;
 
 output global_vars[1];
-func_0<global_vars[0]>;
+func_0(global_vars[0]);
 output global_vars[0];
 
 output 10;
 
-def func_2<cell[4] think, cell green> {
+fn func_2(cell[4] think, cell green) {
 	think[2] += 7;
 	think[3] += 2;
 
@@ -792,11 +792,11 @@ def func_2<cell[4] think, cell green> {
 	fn functions_4() {
 		let program = String::from(
 			r#"
-def hello<> {
+fn hello() {
 	output "hello";
 }
 
-hello<>;
+hello();
 output 10;
 		"#,
 		);
@@ -857,19 +857,19 @@ output b[0];
 			r#"
 cell[3] b = "Foo";
 
-def inc<cell h, cell g> {
+fn inc(cell h, cell g) {
 	g += 1;
 	if h {h += 1;} else {h = 'Z';}
 }
 
 output *b;
-inc<b[1], b[2]>;
+inc(b[1], b[2]);
 output *b;
 
 output 10;
 
 cell c = -1;
-inc<c, c>;
+inc(c, c);
 output c;
 "#,
 		);
@@ -886,25 +886,25 @@ output c;
 			r#"
 cell[3] b = [1, 2, 3];
 
-def drain_h<cell h> {
+fn drain_h(cell h) {
 	drain h {
 		output 'h';
 	}
 }
 
-drain_h<b[2]>;
-drain_h<b[2]>;
+drain_h(b[2]);
+drain_h(b[2]);
 output ' ';
-drain_h<b[1]>;
+drain_h(b[1]);
 output ' ';
 
-def drain_into<cell a, cell[5] b> {
+fn drain_into(cell a, cell[5] b) {
 	drain a into *b;
 }
 
 cell u = 'a' - 1;
 cell[5] v = [8, 5, 12, 12, 15];
-drain_into<u, v>;
+drain_into(u, v);
 output *v;
 "#,
 		);
@@ -1061,12 +1061,12 @@ struct AA {
 
 struct AA a;
 
-def input_AA<struct AA bbb> {
+fn input_AA(struct AA bbb) {
   input bbb.green;
   input bbb.yellow;
 }
 
-input_AA<a>;
+input_AA(a);
 
 output a.yellow;
 output a.green;
@@ -1152,12 +1152,12 @@ struct BB b {
   green = 6
 };
 
-def input_AAs<struct AA[2] aaas> {
+fn input_AAs(struct AA[2] aaas) {
   input aaas[0].green;
   input aaas[1].green;
 	output "HI\n";
 }
-input_AAs<as>;
+input_AAs(as);
 
 output '0' + b.green;
 output as[0].green;
@@ -1185,22 +1185,22 @@ struct AA {
 
 struct AA[2] as;
 
-def input_AAs<struct AA[2] aaas> {
-  def input_BB<struct BB b> {
+fn input_AAs(struct AA[2] aaas) {
+  fn input_BB(struct BB b) {
 	  input b.green;
 	}
-	input_BB<aaas[0].bbb[0]>;
-	input_BB<aaas[0].bbb[1]>;
-	input_BB<aaas[0].bbb[2]>;
-  input_BB<aaas[1].bbb[0]>;
-	input_BB<aaas[1].bbb[1]>;
-	input_BB<aaas[1].bbb[2]>;
+	input_BB(aaas[0].bbb[0]);
+	input_BB(aaas[0].bbb[1]);
+	input_BB(aaas[0].bbb[2]);
+  input_BB(aaas[1].bbb[0]);
+	input_BB(aaas[1].bbb[1]);
+	input_BB(aaas[1].bbb[2]);
  
   input aaas[0].green;
   input aaas[1].green;
 	output "HI\n";
 }
-input_AAs<as>;
+input_AAs(as);
 
 output as[0].green;
 output as[0].bbb[0].green;
@@ -1677,7 +1677,7 @@ bf {
 		let program = String::from(
 			r#"
 // external function within the same file, could be tricky to implement
-def quote<cell n> {
+fn quote(cell n) {
 	// H 'H'
 	output 39;
 	output n;
@@ -1692,7 +1692,7 @@ bf {
 		{
 			cell chr @0;
 			assert chr unknown;
-			quote<chr>;
+			quote(chr);
 			output 10;
 			// this time it may be tricky because the compiler needs to return to the start cell
 		}

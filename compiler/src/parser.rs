@@ -46,10 +46,10 @@ pub fn parse(tokens: &[Token]) -> Result<Vec<Clause>, String> {
 			(Token::Input, _, _) => {
 				clauses.push(parse_input_clause(clause)?);
 			}
-			(Token::Name(_), Token::OpenAngledBracket, _) => {
+			(Token::Name(_), Token::OpenParenthesis, _) => {
 				clauses.push(parse_function_call_clause(clause)?);
 			}
-			(Token::Def, _, _) => {
+			(Token::Fn, _, _) => {
 				clauses.push(parse_function_definition_clause(clause)?);
 			}
 			(Token::Name(_), Token::Plus | Token::Minus, Token::EqualsSign) => {
@@ -80,8 +80,8 @@ pub fn parse(tokens: &[Token]) -> Result<Vec<Clause>, String> {
 				| Token::ClosingSquareBracket
 				| Token::OpenParenthesis
 				| Token::ClosingParenthesis
-				| Token::OpenAngledBracket
-				| Token::ClosingAngledBracket
+				| Token::LessThan
+				| Token::MoreThan
 				| Token::Comma
 				| Token::Plus
 				| Token::Minus
@@ -563,8 +563,8 @@ fn parse_brainfuck_clause(clause: &[Token]) -> Result<Clause, String> {
 		match &bf_tokens[j] {
 			Token::Plus => ops.push(ExtendedOpcode::Add),
 			Token::Minus => ops.push(ExtendedOpcode::Subtract),
-			Token::ClosingAngledBracket => ops.push(ExtendedOpcode::Right),
-			Token::OpenAngledBracket => ops.push(ExtendedOpcode::Left),
+			Token::MoreThan => ops.push(ExtendedOpcode::Right),
+			Token::LessThan => ops.push(ExtendedOpcode::Left),
 			Token::OpenSquareBracket => ops.push(ExtendedOpcode::OpenLoop),
 			Token::ClosingSquareBracket => ops.push(ExtendedOpcode::CloseLoop),
 			Token::Dot => ops.push(ExtendedOpcode::Output),
@@ -597,15 +597,15 @@ fn parse_function_definition_clause(clause: &[Token]) -> Result<Clause, String> 
 	};
 	let mut args = Vec::new();
 	i += 1;
-	let Token::OpenAngledBracket = &clause[i] else {
+	let Token::LessThan = &clause[i] else {
 		r_panic!("Expected argument list in function definition clause: {clause:#?}");
 	};
-	let arg_tokens = get_braced_tokens(&clause[i..], ANGLED_BRACKETS)?;
+	let arg_tokens = get_braced_tokens(&clause[i..], PARENTHESES)?;
 	let mut j = 0usize;
 	// parse function argument names
 	while j < arg_tokens.len() {
-		// this used to be in the while condition but moved it here to check for the case of no arguments
-		let Token::Name(_) = &arg_tokens[j] else {
+		// break if no more arguments
+		let (Token::Cell | Token::Struct) = &arg_tokens[j] else {
 			break;
 		};
 		let (var, len) = parse_var_definition(&arg_tokens[j..])?;
@@ -648,10 +648,10 @@ fn parse_function_call_clause(clause: &[Token]) -> Result<Clause, String> {
 	let mut args = Vec::new();
 	i += 1;
 
-	let Token::OpenAngledBracket = &clause[i] else {
+	let Token::OpenParenthesis = &clause[i] else {
 		r_panic!("Expected argument list in function call clause: {clause:#?}");
 	};
-	let arg_tokens = get_braced_tokens(&clause[i..], ANGLED_BRACKETS)?;
+	let arg_tokens = get_braced_tokens(&clause[i..], PARENTHESES)?;
 
 	let mut j = 0usize;
 	while j < arg_tokens.len() {
@@ -844,7 +844,7 @@ fn get_clause_tokens(tokens: &[Token]) -> Result<Option<&[Token]>, String> {
 const SQUARE_BRACKETS: (Token, Token) = (Token::OpenSquareBracket, Token::ClosingSquareBracket);
 const BRACES: (Token, Token) = (Token::OpenBrace, Token::ClosingBrace);
 const PARENTHESES: (Token, Token) = (Token::OpenParenthesis, Token::ClosingParenthesis);
-const ANGLED_BRACKETS: (Token, Token) = (Token::OpenAngledBracket, Token::ClosingAngledBracket);
+const ANGLED_BRACKETS: (Token, Token) = (Token::LessThan, Token::MoreThan);
 // this should be a generic function but rust doesn't support enum variants as type arguments yet
 // find tokens bounded by matching brackets
 // TODO: make an impl for &[Token] and put all these functions in it
