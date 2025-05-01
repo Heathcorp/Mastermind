@@ -8,7 +8,7 @@ import {
 import Divider from "../components/Divider";
 import { useAppContext } from "../App";
 import { AiOutlineStop } from "solid-icons/ai";
-import { FiCopy, FiSave } from "solid-icons/fi";
+import { FiSave } from "solid-icons/fi";
 
 import "./settings.css";
 import JSZip from "jszip";
@@ -150,33 +150,6 @@ const CompilerPanel: Component<{ style?: JSX.CSSProperties }> = (props) => {
             )}
           </div>
           {/* misc options and markers */}
-          <div
-              class="row button"
-              classList={{
-                disabled: !app.output(),
-              }}
-              style={{cursor: "copy", "align-items": "center"}}
-              onClick={() => {
-                const output = app.output();
-                if (!output) return;
-                window.navigator.clipboard
-                    .writeText(output.content)
-                    .then(() => window.alert("Output copied to clipboard!"));
-              }}
-          >
-            <FiCopy/>
-            {
-              {
-                ["BF"]: "compiled code",
-                ["ERROR"]: "error output",
-                ["OUTPUT"]: "code output",
-                ["LIVE_OUTPUT"]: "live output",
-              }[app.output()?.type ?? "OUTPUT"]
-            }
-
-            {/* TODO: convert this to be more correct, <Show/> or something? */}
-            {app.output() && ` (${app.output()?.content.length} bytes)`}
-          </div>
           <div
               class="row button"
               style={{gap: 0}}
