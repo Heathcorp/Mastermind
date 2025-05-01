@@ -318,7 +318,7 @@ output A;
 	fn assignments_1() {
 		let program = String::from(
 			r#";
-let x = 5;
+cell x = 5;
 output '0' + x;
 x += 1;
 output '0' + x;
@@ -335,7 +335,7 @@ output '0' + x;
 	fn assignments_2() {
 		let program = String::from(
 			r#";
-let x = 5;
+cell x = 5;
 output '0' + x;
 x = x + 1;
 output '0' + x;
@@ -351,7 +351,7 @@ output '0' + x;
 	fn assignments_3() {
 		let program = String::from(
 			r#";
-let x = 5;
+cell x = 5;
 output '0' + x;
 x += 1 + x;
 output '0' + x;
@@ -368,7 +368,7 @@ output '0' + x;
 	fn assignments_4() {
 		let program = String::from(
 			r#";
-let x = 2;
+cell x = 2;
 output '0' + x;
 x = x + x + x;
 output '0' + x;
@@ -385,7 +385,7 @@ output '0' + x;
 	fn assignments_5() {
 		let program = String::from(
 			r#";
-let x = 2;
+cell x = 2;
 x = (2 + 3) - ((x + 4) + 1) + 4 - (12) + (3 + 10);
 output '0' + x;
 		"#,
@@ -398,10 +398,10 @@ output '0' + x;
 	}
 
 	#[test]
-    fn assignments_6() {
-        let program = String::from(
-            r#";
-let x[2] = [4, 5];
+	fn assignments_6() {
+		let program = String::from(
+			r#";
+cell[2] x = [4, 5];
 x[0] = x[0] + 4;
 x[1] = x[1] - 3;
 
@@ -409,19 +409,19 @@ x[0] += '0';
 x[1] += '0';
 output *x;
         "#,
-        );
-        let input = String::from("");
-        let desired_output = String::from("82");
-        let output = compile_and_run(program, input).expect("");
-        println!("{output}");
-        assert_eq!(desired_output, output)
-    }
+		);
+		let input = String::from("");
+		let desired_output = String::from("82");
+		let output = compile_and_run(program, input).expect("");
+		println!("{output}");
+		assert_eq!(desired_output, output)
+	}
 
-    #[test]
-    fn assignments_7() {
-        let program = String::from(
-            r#";
-let x[2] = [1, 2];
+	#[test]
+	fn assignments_7() {
+		let program = String::from(
+			r#";
+cell[2] x = [1, 2];
 x[0] = x[1] + 5; // 7
 x[1] = x[0] + x[1]; // 9
 
@@ -429,13 +429,13 @@ x[0] += '0';
 x[1] += '0';
 output *x;
         "#,
-        );
-        let input = String::from("");
-        let desired_output = String::from("79");
-        let output = compile_and_run(program, input).expect("");
-        println!("{output}");
-        assert_eq!(desired_output, output)
-    }
+		);
+		let input = String::from("");
+		let desired_output = String::from("79");
+		let output = compile_and_run(program, input).expect("");
+		println!("{output}");
+		assert_eq!(desired_output, output)
+	}
 
 	#[test]
 	fn loops_1() {

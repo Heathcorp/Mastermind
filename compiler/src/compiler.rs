@@ -250,14 +250,22 @@ impl Compiler<'_> {
 					var,
 					value,
 					self_referencing,
-				} => {
-					let Ok(cell) = scope.get_cell(&var) else {
-						r_panic!("Invalid target \"{var}\" for add-assign operation, target should be a cell.");
-					};
-
-					_add_expr_to_cell(&mut scope, &value, cell)?;
-				}
-
+				} => match (var.is_spread, self_referencing) {
+					(false, false) => {
+						let cell = scope.get_cell(&var)?;
+						_add_expr_to_cell(&mut scope, &value, cell)?;
+					}
+					(false, true) => {
+						let cell = scope.get_cell(&var)?;
+						_add_self_referencing_expr_to_cell(&mut scope, value, cell, false)?;
+					}
+					(true, _) => {
+						r_panic!("Unsupported operation, add-assigning to spread variable: {var}");
+						// TODO: support spread assigns?
+						// let cells = scope.get_array_cells(&var)?;
+						// etc...
+					}
+				},
 				Clause::AssertVariableValue { var, value } => {
 					// unfortunately no array assertions due to a limitation with my data-structure/algorithm design
 					let imm = {
