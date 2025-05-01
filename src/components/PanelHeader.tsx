@@ -1,20 +1,27 @@
 import "./components.css";
 import {FiCopy} from "solid-icons/fi";
+import {createMemo} from "solid-js";
 
-function PanelHeader({title, content} : {title: string, content: string}) {
+function PanelHeader({title, getContent} : {title: string, getContent: () => string}) {
+    const contentLength = createMemo(() => getContent().length);
+
+    const copyToClipboard = () => {
+        const textToCopy = getContent();
+        if (!textToCopy) return;
+
+        window.navigator.clipboard
+            .writeText(textToCopy)
+            .then(() => window.alert("Output copied to clipboard!"));
+    };
+
 
     return <div class="panel-header">
         <p class="panel-text">{title || "Unnamed Panel"}</p>
         <div style={{"display": "flex", "flex-direction": "row", cursor: "copy", "align-self": "flex-end"}}
-             onClick={() => {
-                 if (!content) return;
-                 window.navigator.clipboard
-                     .writeText(content)
-                     .then(() => window.alert("Output copied to clipboard!"));
-             }}
+             onClick={copyToClipboard}
         >
             <FiCopy/>
-            <p class="panel-text"> ({content.length} bytes)</p>
+            <p class="panel-text"> ({contentLength()} bytes)</p>
         </div>
     </div>;
 }

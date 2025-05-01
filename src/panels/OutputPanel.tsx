@@ -13,6 +13,8 @@ const OutputPanel: Component<{ style?: JSX.CSSProperties }> = (props) => {
   // that is why this component even exists
   let editorView: EditorView | undefined;
 
+  const getOutputText = () => app.output()?.content || "";
+
   createEffect(
     on([() => !!editorView, app.output], () => {
       const output = app?.output();
@@ -28,7 +30,7 @@ const OutputPanel: Component<{ style?: JSX.CSSProperties }> = (props) => {
   );
 
   return <div class="panel input-panel" style={props.style}>
-      <PanelHeader title={'Output'} content={app.output()?.content || ''}/>
+      <PanelHeader title={'Output'} getContent={getOutputText}/>
       <Divider/>
       <div class="panel output-panel" style={props.style} ref={e => {
         editorView = new EditorView({

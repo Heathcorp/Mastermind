@@ -20,6 +20,7 @@ const InputPanel: Component<{ style?: JSX.CSSProperties }> = (props) => {
   const app = useAppContext()!;
   // when the compiler is idle, allow the user to edit freely
   // when the compiler is running code, the user can only append
+  const getInputText = () => app.input().text || "";
 
   let editorView: EditorView | undefined;
 
@@ -31,7 +32,7 @@ const InputPanel: Component<{ style?: JSX.CSSProperties }> = (props) => {
   }));
 
   return <div class="panel input-panel" style={props.style}>
-    <PanelHeader title={'Input'} content={app.input()?.text}/>
+    <PanelHeader title={'Input'} getContent={getInputText}/>
     <Divider/>
     <div class="panel input-panel" style={props.style} ref={e => {
       editorView = new EditorView({
@@ -49,7 +50,9 @@ const InputPanel: Component<{ style?: JSX.CSSProperties }> = (props) => {
                 // revert the change if the update affects the readonly portion of the input
                 editorView?.setState(update.startState);
               } else {
-                app.setInput((prev) => ({...prev, text: update.state.doc.toString()}));
+                const newText = update.state.doc.toString();
+                // Update both the app state and local state
+                app.setInput((prev) => ({...prev, text: newText}));
               }
             }),
             layer({
