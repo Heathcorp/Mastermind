@@ -588,6 +588,7 @@ impl Compiler<'_> {
 
 					let mut argument_translation_scope = scope.open_inner();
 
+					// deal with arguments
 					r_assert!(
 						function_definition.arguments.len() == arguments.len(),
 						"Expected {} arguments in function \"{function_name}\", received {}.",
@@ -599,6 +600,7 @@ impl Compiler<'_> {
 					{
 						let argument_type = scope.get_target_type(&calling_argument)?;
 						r_assert!(argument_type == expected_type, "Expected argument of type \"{expected_type:#?}\" in function call \"{function_name}\", received argument of type \"{argument_type:#?}\".");
+						// register an argument translation in the scope
 						todo!();
 					}
 
@@ -769,9 +771,24 @@ pub enum Instruction {
 
 #[derive(Debug, Clone)]
 pub enum Memory {
-	Cell { id: MemoryId },
-	Cells { id: MemoryId, len: usize },
-	// TODO: MappedCells? Maybe hold a list of subfield positions? could be cooked
+	Cell {
+		id: MemoryId,
+	},
+	Cells {
+		id: MemoryId,
+		len: usize,
+	},
+	/// A memory cell that references a previously allocated cell in an outer scope, used for function arguments
+	MappedCell {
+		id: MemoryId,
+		index: Option<usize>,
+	},
+	/// Memory mapped cells, referencing previously allocated cells in an outer scope
+	MappedCells {
+		id: MemoryId,
+		start_index: usize,
+		len: usize,
+	},
 	// infinite cell something (TODO?)
 }
 pub type MemoryId = usize;
@@ -785,14 +802,25 @@ pub struct CellReference {
 impl Memory {
 	pub fn id(&self) -> MemoryId {
 		match self {
-			Memory::Cell { id } => *id,
-			Memory::Cells { id, len: _ } => *id,
+			Memory::Cell { id }
+			| Memory::Cells { id, len: _ }
+			| Memory::MappedCell { id, index: _ }
+			| Memory::MappedCells {
+				id,
+				start_index: _,
+				len: _,
+			} => *id,
 		}
 	}
 	pub fn len(&self) -> usize {
 		match self {
-			Memory::Cell { id: _ } => 1,
-			Memory::Cells { id: _, len } => *len,
+			Memory::Cell { id: _ } | Memory::MappedCell { id: _, index: _ } => 1,
+			Memory::Cells { id: _, len }
+			| Memory::MappedCells {
+				id: _,
+				start_index: _,
+				len,
+			} => *len,
 		}
 	}
 }
@@ -805,7 +833,7 @@ pub struct Scope<'a> {
 	outer_scope: Option<&'a Scope<'a>>,
 	/// fn_only: true if syntactic context instead of normal context.
 	/// Used for embedded mm so that the inner mm can use outer functions but not variables.
-	fn_only: bool,
+	types_only: bool,
 
 	/// Number of memory allocations in current scope
 	allocations: usize,
@@ -916,7 +944,7 @@ impl Scope<'_> {
 	pub fn new() -> Scope<'static> {
 		Scope {
 			outer_scope: None,
-			fn_only: false,
+			types_only: false,
 			allocations: 0,
 			variable_memory: HashMap::new(),
 			functions: HashMap::new(),
@@ -943,7 +971,8 @@ impl Scope<'_> {
 					clear_instructions.push(Instruction::ClearCell(CellReference {
 						memory_id: *id,
 						index: None,
-					}))
+					}));
+					clear_instructions.push(Instruction::Free(*id));
 				}
 				Memory::Cells { id, len } => {
 					for i in 0..*len {
@@ -952,9 +981,15 @@ impl Scope<'_> {
 							index: Some(i),
 						}))
 					}
+					clear_instructions.push(Instruction::Free(*id));
 				}
+				Memory::MappedCell { id: _, index: _ }
+				| Memory::MappedCells {
+					id: _,
+					start_index: _,
+					len: _,
+				} => (),
 			}
-			clear_instructions.push(Instruction::Free(memory.id()));
 		}
 		for instr in clear_instructions {
 			self.push_instruction(instr);
@@ -971,7 +1006,7 @@ impl Scope<'_> {
 	fn open_inner(&self) -> Scope {
 		Scope {
 			outer_scope: Some(self),
-			fn_only: false,
+			types_only: false,
 			allocations: 0,
 			variable_memory: HashMap::new(),
 			functions: HashMap::new(),
@@ -985,7 +1020,7 @@ impl Scope<'_> {
 	fn open_inner_templates_only(&self) -> Scope {
 		Scope {
 			outer_scope: Some(self),
-			fn_only: true,
+			types_only: true,
 			allocations: 0,
 			variable_memory: HashMap::new(),
 			functions: HashMap::new(),
@@ -1045,7 +1080,7 @@ impl Scope<'_> {
 	/// recursively tally the allocation stack size of the outer scope, does not include this scope
 	fn allocation_offset(&self) -> usize {
 		// little bit of a hack but works for now
-		if self.fn_only {
+		if self.types_only {
 			return 0;
 		}
 		if let Some(outer_scope) = self.outer_scope {
@@ -1140,7 +1175,7 @@ impl Scope<'_> {
 
 	/// Return a cell reference for a variable target
 	fn get_cell(&self, target: &VariableTarget) -> Result<CellReference, String> {
-		// get the absolute type of the variable, as well as the memory allocation
+		// get the absolute type of the variable, as well as the memory allocations
 		let (full_type, memory) = self.get_base_variable_memory(&target.name)?;
 		// get the correct index within the memory and return
 		Ok(match (&target.subfields, full_type, memory) {
@@ -1148,10 +1183,19 @@ impl Scope<'_> {
 				memory_id: *id,
 				index: None,
 			},
+			(None, ValueType::Cell, Memory::MappedCell { id, index }) => CellReference {
+				memory_id: *id,
+				index: *index,
+			},
 			(
 				Some(subfield_chain),
 				ValueType::Array(_, _) | ValueType::DictStruct(_),
-				Memory::Cells { id, len },
+				Memory::Cells { id, len }
+				| Memory::MappedCells {
+					id,
+					start_index: _,
+					len,
+				},
 			) => {
 				let (subfield_type, cell_index) = full_type.get_subfield(&subfield_chain)?;
 				let ValueType::Cell = subfield_type else {
@@ -1160,25 +1204,49 @@ impl Scope<'_> {
 				r_assert!(cell_index < *len, "Cell reference out of bounds on variable target: {target}. This should not occur.");
 				CellReference {
 					memory_id: *id,
-					index: Some(cell_index),
+					index: Some(match memory {
+						Memory::Cells { id: _, len: _ } => cell_index,
+						Memory::MappedCells {
+							id: _,
+							start_index,
+							len: _,
+						} => *start_index + cell_index,
+						_ => unreachable!(),
+					}),
 				}
 			}
-			(Some(_), ValueType::Cell, Memory::Cell { id: _ }) => {
-				r_panic!("Cannot get subfields of cell type: {target}")
-			}
-
-			(None, ValueType::DictStruct(_), Memory::Cells { id: _, len: _ })
-			| (None, ValueType::DictStruct(_), Memory::Cell { id: _ })
-			| (None, ValueType::Array(_, _), Memory::Cells { id: _, len: _ })
-			| (None, ValueType::Array(_, _), Memory::Cell { id: _ }) => {
-				r_panic!("Expected single cell reference in target: {target}")
-			}
-
-			// variable memory returned the wrong memory allocation type for the value type, unreachable
-			(Some(_), ValueType::Cell, Memory::Cells { id: _, len: _ })
-			| (Some(_), ValueType::Array(_, _), Memory::Cell { id: _ })
-			| (Some(_), ValueType::DictStruct(_), Memory::Cell { id: _ })
-			| (None, ValueType::Cell, Memory::Cells { id: _, len: _ }) => r_panic!(
+			// valid states, user error
+			(
+				Some(_),
+				ValueType::Cell,
+				Memory::Cell { id: _ } | Memory::MappedCell { id: _, index: _ },
+			) => r_panic!("Cannot get subfields of cell type: {target}"),
+			(
+				None,
+				ValueType::Array(_, _) | ValueType::DictStruct(_),
+				Memory::Cells { id: _, len: _ }
+				| Memory::MappedCells {
+					id: _,
+					start_index: _,
+					len: _,
+				},
+			) => r_panic!("Expected single cell reference in target: {target}"),
+			// invalid states, indicating an internal compiler issue (akin to 5xx error)
+			(
+				_,
+				ValueType::Cell,
+				Memory::Cells { id: _, len: _ }
+				| Memory::MappedCells {
+					id: _,
+					start_index: _,
+					len: _,
+				},
+			)
+			| (
+				_,
+				ValueType::Array(_, _) | ValueType::DictStruct(_),
+				Memory::Cell { id: _ } | Memory::MappedCell { id: _, index: _ },
+			) => r_panic!(
 				"Invalid memory for value type in target: {target}. This should not occur."
 			),
 		})
@@ -1191,44 +1259,113 @@ impl Scope<'_> {
 			(
 				None,
 				ValueType::Array(arr_len, element_type),
-				Memory::Cells {
-					id: mem_id,
-					len: mem_len,
+				Memory::Cells { id, len }
+				| Memory::MappedCells {
+					id,
+					start_index: _,
+					len,
 				},
 			) => {
 				let ValueType::Cell = **element_type else {
 					r_panic!("Cannot get array cells of struct array: {target}");
 				};
 				r_assert!(
-					arr_len == mem_len,
-					"Array memory incorrect length {mem_len} for array length {arr_len}."
+					*arr_len == *len,
+					"Array memory incorrect length {len} for array length {arr_len}."
 				);
-				(0..*mem_len)
-					.map(|i| CellReference {
-						memory_id: *mem_id,
-						index: Some(i),
-					})
-					.collect()
+				(match memory {
+					Memory::Cells { id: _, len } => 0..*len,
+					Memory::MappedCells {
+						id: _,
+						start_index,
+						len,
+					} => *start_index..(*start_index + *len),
+					_ => unreachable!(),
+				})
+				.map(|i| CellReference {
+					memory_id: *id,
+					index: Some(i),
+				})
+				.collect()
 			}
-			(Some(_), ValueType::Array(_, value_type), Memory::Cells { id, len }) => todo!(),
-			(Some(_), ValueType::DictStruct(items), Memory::Cells { id, len }) => todo!(),
+			(
+				Some(subfields),
+				ValueType::Array(_, _) | ValueType::DictStruct(_),
+				Memory::Cells { id, len }
+				| Memory::MappedCells {
+					id,
+					start_index: _,
+					len,
+				},
+			) => {
+				let (subfield_type, offset_index) = full_type.get_subfield(subfields)?;
+				let ValueType::Array(arr_len, element_type) = subfield_type else {
+					r_panic!("Expected array type in subfield variable target \"{target}\".");
+				};
+				let ValueType::Cell = **element_type else {
+					r_panic!("Expected cell array in subfield variable target \"{target}\".");
+				};
+				r_assert!(
+					*arr_len == *len,
+					"Array memory incorrect length {len} for array length {arr_len}."
+				);
+				// TODO: any more assertions needed here?
 
-			// not addressing array cells, possibly user error
-			(None, ValueType::DictStruct(_), Memory::Cells { id: _, len: _ })
-			| (None, ValueType::Cell, Memory::Cell { id: _ }) => {
-				r_panic!("Expected cell type in variable target: {target}")
+				(match memory {
+					Memory::Cells { id: _, len } => 0..*len,
+					Memory::MappedCells {
+						id: _,
+						start_index,
+						len,
+					} => *start_index..(*start_index + *len),
+					_ => unreachable!(),
+				})
+				.map(|i| CellReference {
+					memory_id: *id,
+					index: Some(i),
+				})
+				.collect()
 			}
-
-			// subfield references on a cell, user error
-			(Some(_), ValueType::Cell, Memory::Cell { id }) => {
+			(
+				None,
+				ValueType::DictStruct(_),
+				Memory::Cells { id: _, len: _ }
+				| Memory::MappedCells {
+					id: _,
+					start_index: _,
+					len: _,
+				},
+			)
+			| (
+				None,
+				ValueType::Cell,
+				Memory::Cell { id: _ } | Memory::MappedCell { id: _, index: _ },
+			) => {
+				r_panic!("Expected cell array type in variable target: {target}")
+			}
+			(
+				Some(_),
+				ValueType::Cell,
+				Memory::Cell { id: _ } | Memory::MappedCell { id: _, index: _ },
+			) => {
 				r_panic!("Attempted to retrieve array subfield from cell type: {target}")
 			}
-
-			// fucked up memory allocations, not user error
-			(_, ValueType::Cell, Memory::Cells { id: _, len: _ })
-			| (_, ValueType::Array(_, _), Memory::Cell { id: _ })
-			| (_, ValueType::DictStruct(_), Memory::Cell { id: _ }) => r_panic!(
-				"Unexpected memory type when accessing \"{target}\". This should not occur."
+			(
+				_,
+				ValueType::Cell,
+				Memory::Cells { id: _, len: _ }
+				| Memory::MappedCells {
+					id: _,
+					start_index: _,
+					len: _,
+				},
+			)
+			| (
+				_,
+				ValueType::Array(_, _) | ValueType::DictStruct(_),
+				Memory::Cell { id: _ } | Memory::MappedCell { id: _, index: _ },
+			) => r_panic!(
+				"Invalid memory for value type in target: {target}. This should not occur."
 			),
 		})
 	}
