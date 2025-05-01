@@ -267,7 +267,7 @@ const App: Component = () => {
         setBusy(false);
         if (e.data.success) {
           setBrainfuck({ text: e.data.message, amountRead: null });
-          setOutput({ type: "OUTPUT", content: "Program Compiled Successfully"});
+          setOutput({ type: "OUTPUT", content: "Successfully Compiled Program"});
           setStatus("IDLE");
           resolve(e.data.message);
         } else {
