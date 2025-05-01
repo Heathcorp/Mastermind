@@ -1080,15 +1080,42 @@ output a.green;
 	}
 
 	#[test]
-	fn structs_4() {
+	fn structs_3a() {
 		let program = String::from(
 			r#";
+struct AA a;
+
+def input_AA<struct AA bbb> {
+  input bbb.green;
+  input bbb.yellow;
+
+  struct AA {
+    cell[10] g;
+  }
+}
+
+input_AA<a>;
+
+output a.yellow;
+output a.green;
+
 struct AA {
   cell green;
 	cell yellow;
-	cell[4] reds;
 }
+			"#,
+		);
+		let input = String::from("gh");
+		let desired_output = String::from("hg");
+		let output = compile_and_run(program, input).expect("");
+		println!("{output}");
+		assert_eq!(desired_output, output)
+	}
 
+	#[test]
+	fn structs_4a() {
+		let program = String::from(
+			r#";
 struct AA a;
 input a.green;
 input a.yellow;
@@ -1096,6 +1123,12 @@ input a.reds[3];
 input a.reds[0];
 input a.reds[1];
 input a.reds[2];
+
+struct AA {
+  cell green;
+  cell yellow;
+  cell[4] reds;
+}
 
 output a.green;
 output a.yellow;
@@ -1128,6 +1161,29 @@ as[1].green = 3;
 output '0' + as[0].green;
 output '0' + as[1].green;
 			"#,
+		);
+		let input = String::from("");
+		let desired_output = String::from("53");
+		let output = compile_and_run(program, input).expect("");
+		println!("{output}");
+		assert_eq!(desired_output, output)
+	}
+
+	#[test]
+	fn structs_5a() {
+		let program = String::from(
+			r#"
+struct AAA[2] as;
+as[0].green = 5;
+as[1].green = 3;
+
+output '0' + as[0].green;
+output '0' + as[1].green;
+
+struct AAA {
+  cell green;
+}
+"#,
 		);
 		let input = String::from("");
 		let desired_output = String::from("53");

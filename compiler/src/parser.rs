@@ -186,7 +186,7 @@ fn parse_struct_clause(clause: &[Token]) -> Result<Clause, String> {
 	);
 	// i += j + 2;
 
-	Ok(Clause::DeclareStructType {
+	Ok(Clause::DefineStruct {
 		name: struct_name.clone(),
 		fields,
 	})
@@ -1186,7 +1186,7 @@ pub enum Clause {
 		location_specifier: Option<TapeCell>,
 		value: Expression,
 	},
-	DeclareStructType {
+	DefineStruct {
 		name: String,
 		fields: Vec<VariableDefinition>,
 	},

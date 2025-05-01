@@ -33,16 +33,22 @@ impl Compiler<'_> {
 		// hoist functions to top
 		let mut filtered_clauses: Vec<Clause> = Vec::new();
 		for clause in clauses {
-			if let Clause::DefineFunction {
-				name,
-				arguments,
-				block,
-			} = clause
-			{
+			// TODO: fix unnecessary clones
+			match clause {
 				// TODO: fix unnecessary clones
-				scope.register_function_definition(name, arguments.clone(), block.clone())?;
-			} else {
-				filtered_clauses.push(clause.clone());
+				Clause::DefineStruct { name, fields } => {
+					scope.register_struct_definition(&name, fields.clone())?;
+				}
+				Clause::DefineFunction {
+					name,
+					arguments,
+					block,
+				} => {
+					scope.register_function_definition(name, arguments.clone(), block.clone())?;
+				}
+				_ => {
+					filtered_clauses.push(clause.clone());
+				}
 			}
 		}
 
@@ -54,9 +60,6 @@ impl Compiler<'_> {
 				} => {
 					// create an allocation in the scope
 					scope.allocate_variable(var, location_specifier)?;
-				}
-				Clause::DeclareStructType { name, fields } => {
-					scope.register_struct_definition(&name, fields)?;
 				}
 				Clause::DefineVariable {
 					var,
@@ -203,8 +206,18 @@ impl Compiler<'_> {
 						}
 					};
 
-					let cell = scope.get_cell(&var)?;
-					scope.push_instruction(Instruction::AssertCellValue(cell, imm));
+					match var.is_spread {
+						false => {
+							let cell = scope.get_cell(&var)?;
+							scope.push_instruction(Instruction::AssertCellValue(cell, imm));
+						}
+						true => {
+							let cells = scope.get_array_cells(&var)?;
+							for cell in cells {
+								scope.push_instruction(Instruction::AssertCellValue(cell, imm));
+							}
+						}
+					}
 				}
 				Clause::InputVariable { var } => {
 					let cell = scope.get_cell(&var)?;
@@ -496,13 +509,11 @@ impl Compiler<'_> {
 									.compile(&mm_clauses, Some(&functions_scope))?
 									.finalise_instructions(false);
 								// compile without cleaning up top level variables, this is the brainfuck programmer's responsibility
-								// TODO: figure out how to make the compiler return to the initial head position before building and re-adding?
-								// IMPORTANT!!!!!!!!!!!!
+								// it is also the brainfuck programmer's responsibility to return to the start position
 								let builder = Builder {
 									config: &self.config,
 								};
 								let built_code = builder.build(instructions, true)?;
-								// IMPORTANT TODO: MAKE SURE IT RETURNS TO THE SAME POSITION
 								expanded_bf.extend(built_code);
 							}
 							ExtendedOpcode::Add => expanded_bf.push(Opcode::Add),
@@ -599,7 +610,8 @@ impl Compiler<'_> {
 						.instructions
 						.extend(argument_translation_scope.finalise_instructions(false));
 				}
-				Clause::DefineFunction {
+				Clause::DefineStruct { name: _, fields: _ }
+				| Clause::DefineFunction {
 					name: _,
 					arguments: _,
 					block: _,
