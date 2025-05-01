@@ -8,11 +8,12 @@ import {
 import Divider from "../components/Divider";
 import { useAppContext } from "../App";
 import { AiOutlineStop } from "solid-icons/ai";
-import { FiSave } from "solid-icons/fi";
+// import { FiSave } from "solid-icons/fi";
+// import downloadBlob from "../utils/downloadBlob";
+// import JSZip from "jszip";
 
 import "./settings.css";
-import JSZip from "jszip";
-import downloadBlob from "../utils/downloadBlob";
+
 
 const CompilerPanel: Component<{ style?: JSX.CSSProperties }> = (props) => {
   const app = useAppContext()!;
@@ -43,18 +44,18 @@ const CompilerPanel: Component<{ style?: JSX.CSSProperties }> = (props) => {
     console.log(app.fileStates);
   });
 
-  const zipAndSave = async () => {
-    const zip = new JSZip();
-    app.fileStates.forEach((fileState) => {
-      const blob = new Blob([fileState.editorState.doc.toString()], {
-        type: "text/plain",
-      });
-      zip.file(fileState.label, blob);
-    });
-    await zip.generateAsync({ type: "blob" }).then((x) => {
-      downloadBlob(x);
-    });
-  };
+  // const zipAndSave = async () => {
+  //   const zip = new JSZip();
+  //   app.fileStates.forEach((fileState) => {
+  //     const blob = new Blob([fileState.editorState.doc.toString()], {
+  //       type: "text/plain",
+  //     });
+  //     zip.file(fileState.label, blob);
+  //   });
+  //   await zip.generateAsync({ type: "blob" }).then((x) => {
+  //     downloadBlob(x);
+  //   });
+  // };
 
   return (
     <div class="panel" style={{ "flex-direction": "row", ...props.style }}>
@@ -164,14 +165,14 @@ const CompilerPanel: Component<{ style?: JSX.CSSProperties }> = (props) => {
             )}
             ]
           </div>
-          <div
-              class="row button"
-              style={{gap: 0, "text-decoration": "none", color: "inherit"}}
-              onClick={async () => await zipAndSave()}
-          >
-            <FiSave style={{"margin-right": "8px"}}/>
-            Zip All & Save
-          </div>
+          {/*<div*/}
+          {/*    class="row button"*/}
+          {/*    style={{gap: 0, "text-decoration": "none", color: "inherit"}}*/}
+          {/*    onClick={async () => await zipAndSave()}*/}
+          {/*>*/}
+          {/*  <FiSave style={{"margin-right": "8px"}}/>*/}
+          {/*  Zip All & Save*/}
+          {/*</div>*/}
         </div>
         <Divider/>
       </div>
