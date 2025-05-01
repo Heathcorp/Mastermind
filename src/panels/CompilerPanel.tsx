@@ -62,8 +62,8 @@ const CompilerPanel: Component<{ style?: JSX.CSSProperties }> = (props) => {
       <div class="panel settings-panel">
         <div class="row settings-container">
           {/* entry file selection */}
-          <label class="row">
-            entry file:
+          <label class="top-label">
+            Entry File:
             <select
                 value={app.entryFile()}
                 onChange={(e) => app.setEntryFile(e.target.value)}
@@ -74,6 +74,8 @@ const CompilerPanel: Component<{ style?: JSX.CSSProperties }> = (props) => {
               </For>
             </select>
           </label>
+        </div>
+        <div>
           {/* button with 3 options (compile, run, or both) */}
           <div style={{position: "relative"}}>
             <div
@@ -89,7 +91,7 @@ const CompilerPanel: Component<{ style?: JSX.CSSProperties }> = (props) => {
                     style={{padding: "0.5rem"}}
                     onClick={!app.busy() ? onCompile : undefined}
                 >
-                  compile program
+                  Compile Brainfuck
                 </div>
                 <Divider/>
                 <div
@@ -106,7 +108,7 @@ const CompilerPanel: Component<{ style?: JSX.CSSProperties }> = (props) => {
                           : undefined
                     }
                 >
-                  run code
+                  Run Brainfuck
                 </div>
               </div>
               <Divider/>
@@ -150,14 +152,16 @@ const CompilerPanel: Component<{ style?: JSX.CSSProperties }> = (props) => {
                 </div>
             )}
           </div>
+        </div>
+        <div>
           {/* misc options and markers */}
           <div
-              class="row button"
+              class="button"
               style={{gap: 0}}
               classList={{"button-selected": app.enableBlockingInput()}}
               onClick={() => app.setEnableBlockingInput((prev) => !prev)}
           >
-            blocking input [
+            Blocking Input [
             {app.enableBlockingInput() ? (
                 <div class="positive-text">enabled</div>
             ) : (
@@ -174,7 +178,6 @@ const CompilerPanel: Component<{ style?: JSX.CSSProperties }> = (props) => {
           {/*  Zip All & Save*/}
           {/*</div>*/}
         </div>
-        <Divider/>
       </div>
     </div>
   );

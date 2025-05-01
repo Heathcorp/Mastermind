@@ -1,5 +1,5 @@
 import initWasm, { wasm_compile, wasm_run_bf } from "../compiler/pkg";
-import {MastermindConfig} from "./panels/CompilerPanel.tsx";
+import {MastermindConfig} from "./components/Settings";
 
 import { v4 as uuidv4 } from "uuid";
 

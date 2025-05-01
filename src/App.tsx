@@ -481,6 +481,7 @@ const App: Component = () => {
           <CompilerPanel style={{ flex: 2 }} />
           <Divider />
           <BrainfuckPanel style={{flex: 2}}/>
+          <Divider />
           <InputPanel style={{ flex: 2 }} />
           <Divider />
           <OutputPanel style={{ flex: 3 }} />
