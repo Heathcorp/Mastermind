@@ -266,8 +266,8 @@ const App: Component = () => {
         removeCallback();
         setBusy(false);
         if (e.data.success) {
-          setOutput({ type: "BF", content: e.data.message });
           setBrainfuck({ text: e.data.message, amountRead: null });
+          setOutput({ type: "OUTPUT", content: "Program Compiled Successfully"});
           setStatus("IDLE");
           resolve(e.data.message);
         } else {

@@ -28,9 +28,9 @@ const CompilerPanel: Component<{ style?: JSX.CSSProperties }> = (props) => {
 
   const onRun = async () => {
     // TODO: error handling here? is it needed?
-    const output = app.output();
-    if (output?.type !== "BF") return;
-    await app.run(output.content, app.config().enable_2d_grid);
+    const code = app.brainfuck();
+    if (!code.text) return;
+    await app.run(code.text, app.config().enable_2d_grid);
   };
 
   const onCompile = async () => {

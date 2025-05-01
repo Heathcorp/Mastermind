@@ -24,11 +24,16 @@ const BrainfuckPanel: Component<{ style?: JSX.CSSProperties }> = (props) => {
 
   let editorView: EditorView | undefined;
 
-  createEffect(on([() => editorView, app.input], () => {
+  createEffect(on([() => editorView, app.brainfuck], () => {
     if (!editorView) return;
-
     // update the editorView when the input changes so that the layers re-render
-    editorView.dispatch();
+    editorView.dispatch({
+      changes: {
+        from: 0,
+        to: editorView.state.doc.length,
+        insert: app.brainfuck().text,
+      },
+    });
   }));
 
   return <div class="panel input-panel" style={props.style}>
