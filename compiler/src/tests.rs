@@ -20,6 +20,8 @@ pub mod tests {
 		optimise_unreachable_loops: false,
 		optimise_constants: false,
 		optimise_empty_blocks: false,
+		memory_allocation_method: 0,
+		enable_2d_grid: false,
 	};
 
 	const OPT_ALL: MastermindConfig = MastermindConfig {
@@ -30,11 +32,18 @@ pub mod tests {
 		optimise_unreachable_loops: true,
 		optimise_constants: true,
 		optimise_empty_blocks: true,
+		memory_allocation_method: 0,
+		enable_2d_grid: false,
 	};
 
 	const BVM_CONFIG_1D: BVMConfig = BVMConfig {
 		ENABLE_DEBUG_SYMBOLS: false,
 		ENABLE_2D_GRID: false,
+	};
+
+	const BVM_CONFIG_2D: BVMConfig = BVMConfig {
+		ENABLE_DEBUG_SYMBOLS: false,
+		ENABLE_2D_GRID: true,
 	};
 
 	const TESTING_BVM_MAX_STEPS: usize = 100_000_000;
@@ -1236,7 +1245,38 @@ bf {
 		assert_eq!(code, ",>,>,<<>>>>>+[-]<<<<<");
 		Ok(())
 	}
+	#[test]
+	fn inline_2d_brainfuck() -> Result<(), String> {
+		let program = String::from(
+			r#"
+			bf {,.[-]+[--^-[^^+^-----vv]v--v---]^-.^^^+.^^..+++[.^]vvvv.+++.------.vv-.^^^^+.}
+		"#, );
+		let code = compile_program(program, None)?.to_string();
 
+		assert_eq!(
+			code,
+			",.[-]+[--^-[^^+^-----vv]v--v---]^-.^^^+.^^..+++[.^]vvvv.+++.------.vv-.^^^^+."
+		);
+
+		let output = run_code(BVM_CONFIG_2D, code, String::from("~"), None);
+		assert_eq!(output, "~Hello, World!");
+		Ok(())
+	}
+	#[test]
+	#[should_panic(expected = "Invalid Inline Brainfuck Characters in vvstvv")]
+	fn invalid_inline_2d_brainfuck() {
+		let program = String::from(
+			r#"
+			bf {,.[-]+[--^-[^^+^-----vv]v--v---]^-.^^^+.^^..+++[.^]vvstvv.+++.------.vv-.^^^^+.}
+		"#, );
+		let result = compile_program(program, None);
+	}
+
+	#[test]
+	#[should_panic(expected = "2D Brainfuck currently disabled")]
+	fn inline_2d_brainfuck_disabled() {
+		run_code(BVM_CONFIG_1D, String::from(",.[-]+[--^-[^^+^-----vv]v--v---]^-.^^^+.^^..+++[.^]vvvv.+++.------.vv-.^^^^+."), String::from("~"), None);
+	}
 	#[test]
 	fn constant_optimisations_1() -> Result<(), String> {
 		let program = String::from(

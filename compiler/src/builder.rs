@@ -457,6 +457,8 @@ pub enum Opcode {
 	Output,
 	Input,
 	Clear,
+	Up,
+	Down,
 }
 
 pub struct BrainfuckCodeBuilder {
@@ -483,6 +485,8 @@ impl BrainfuckOpcodes for Vec<Opcode> {
 				Opcode::Output => ".",
 				Opcode::Input => ",",
 				Opcode::Clear => "[-]",
+				Opcode::Up => "^",
+				Opcode::Down => "v",
 			})
 		});
 		s
@@ -506,6 +510,8 @@ impl BrainfuckOpcodes for Vec<Opcode> {
 					']' => ops.push(Opcode::CloseLoop),
 					'.' => ops.push(Opcode::Output),
 					',' => ops.push(Opcode::Input),
+					'^' => ops.push(Opcode::Up),
+					'v' => ops.push(Opcode::Down),
 					_ => (), // could put a little special opcode in for other characters
 				}
 				i += 1;

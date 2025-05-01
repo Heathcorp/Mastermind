@@ -108,7 +108,8 @@ pub fn parse(tokens: &[Token]) -> Result<Vec<Clause>, String> {
 				| Token::Equals
 				| Token::Unknown
 				| Token::Dot
-				| Token::At,
+				| Token::At
+				| Token::UpToken,
 				_,
 				_,
 			) => r_panic!("Invalid clause: {clause:#?}"),
@@ -504,10 +505,20 @@ fn parse_brainfuck_clause(clause: &[Token]) -> Result<Clause, String> {
 			Token::Minus => ops.push(ExtendedOpcode::Subtract),
 			Token::ClosingAngledBracket => ops.push(ExtendedOpcode::Right),
 			Token::OpenAngledBracket => ops.push(ExtendedOpcode::Left),
+			Token::UpToken => ops.push(ExtendedOpcode::Up),
 			Token::OpenSquareBracket => ops.push(ExtendedOpcode::OpenLoop),
 			Token::ClosingSquareBracket => ops.push(ExtendedOpcode::CloseLoop),
 			Token::Dot => ops.push(ExtendedOpcode::Output),
 			Token::Comma => ops.push(ExtendedOpcode::Input),
+			Token::Name(s) => {
+				for c in s.chars() {
+					if c == 'v' {
+						ops.push(ExtendedOpcode::Down);
+					} else {
+						panic!("Invalid Inline Brainfuck Characters in {s}");
+					}
+				}
+			}
 			Token::OpenBrace => {
 				// embedded mastermind
 				let block_tokens = get_braced_tokens(&bf_tokens[j..], BRACES)?;
@@ -1126,6 +1137,8 @@ pub enum ExtendedOpcode {
 	Output,
 	Input,
 	Block(Vec<Clause>),
+	Up,
+	Down,
 }
 
 // TODO: refactor to this instead:
