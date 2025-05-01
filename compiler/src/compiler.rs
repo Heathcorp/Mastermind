@@ -284,8 +284,18 @@ impl Compiler<'_> {
 						}
 					};
 
-					let cell = scope.get_cell(&var)?;
-					scope.push_instruction(Instruction::AssertCellValue(cell, imm));
+					match var.is_spread {
+						false => {
+							let cell = scope.get_cell(&var)?;
+							scope.push_instruction(Instruction::AssertCellValue(cell, imm));
+						}
+						true => {
+							let cells = scope.get_array_cells(&var)?;
+							for cell in cells {
+								scope.push_instruction(Instruction::AssertCellValue(cell, imm));
+							}
+						}
+					}
 				}
 				Clause::InputVariable { var } => {
 					let cell = scope.get_cell(&var)?;
@@ -577,13 +587,11 @@ impl Compiler<'_> {
 									.compile(&mm_clauses, Some(&functions_scope))?
 									.finalise_instructions(false);
 								// compile without cleaning up top level variables, this is the brainfuck programmer's responsibility
-								// TODO: figure out how to make the compiler return to the initial head position before building and re-adding?
-								// IMPORTANT!!!!!!!!!!!!
+								// it is also the brainfuck programmer's responsibility to return to the start position
 								let builder = Builder {
 									config: &self.config,
 								};
 								let built_code = builder.build(instructions, true)?;
-								// IMPORTANT TODO: MAKE SURE IT RETURNS TO THE SAME POSITION
 								expanded_bf.extend(built_code);
 							}
 							ExtendedOpcode::Add => expanded_bf.push(Opcode::Add),
