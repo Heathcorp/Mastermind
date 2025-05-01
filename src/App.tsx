@@ -379,7 +379,7 @@ const App: Component = () => {
 
   const [output, setOutput] = makePersisted(
     createSignal<{
-      type: "BF" | "ERROR" | "OUTPUT" | "LIVE_OUTPUT";
+      type: "ERROR" | "OUTPUT" | "LIVE_OUTPUT";
       content: string;
     }>(),
     { name: "mastermind_output" }
@@ -510,14 +510,14 @@ interface AppContextProps {
   setFileLabel: (id: string, label: string) => void;
   setOutput: Setter<
     | {
-        type: "BF" | "ERROR" | "OUTPUT" | "LIVE_OUTPUT";
+        type: "ERROR" | "OUTPUT" | "LIVE_OUTPUT";
         content: string;
       }
     | undefined
   >;
   output: Accessor<
     | {
-        type: "BF" | "ERROR" | "OUTPUT" | "LIVE_OUTPUT";
+        type: "ERROR" | "OUTPUT" | "LIVE_OUTPUT";
         content: string;
       }
     | undefined

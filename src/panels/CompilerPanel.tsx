@@ -97,11 +97,11 @@ const CompilerPanel: Component<{ style?: JSX.CSSProperties }> = (props) => {
                       "text-button": true,
                       "text-button-disabled":
                       // TODO: make a specific compiled code signal like we used to, basically store the last successful compilation
-                          app.busy() || app.output()?.type !== "BF",
+                          app.busy() || !app.brainfuck().text,
                     }}
                     style={{padding: "0.5rem"}}
                     onClick={
-                      !app.busy() && app.output()?.type === "BF"
+                      !app.busy && app.brainfuck().text
                           ? onRun
                           : undefined
                     }
