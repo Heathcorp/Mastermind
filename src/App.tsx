@@ -27,6 +27,7 @@ import "./App.css";
 import Divider from "./components/Divider";
 import EditorPanel from "./panels/EditorPanel";
 import InputPanel from "./panels/InputPanel";
+import BrainfuckPanel from "./panels/BrainfuckPanel.tsx";
 import SideBar from "./panels/SideBar.tsx";
 
 import OutputPanel from "./panels/OutputPanel";
@@ -266,6 +267,7 @@ const App: Component = () => {
         setBusy(false);
         if (e.data.success) {
           setOutput({ type: "BF", content: e.data.message });
+          setBrainfuck({ text: e.data.message, amountRead: null });
           setStatus("IDLE");
           resolve(e.data.message);
         } else {
@@ -390,6 +392,13 @@ const App: Component = () => {
     }),
     { name: "mastermind_input" }
   );
+  const [brainfuck, setBrainfuck] = makePersisted(
+      createSignal<{ text: string; amountRead: number | null }>({
+        text: "Brainfuck goes here...",
+        amountRead: null,
+      }),
+      { name: "bvm_input" }
+  );
   // to fix a bug for when the program starts and it saved the amount read in the state:
   onMount(() => setInput((prev) => ({ ...prev, amountRead: null })));
   const popNextInputCharacter = (): string | undefined => {
@@ -461,14 +470,17 @@ const App: Component = () => {
         setSettingsOpen,
         config,
         setConfig,
+        brainfuck,
+        setBrainfuck,
       }}
     >
       <div id="window">
         <EditorPanel />
         <Divider />
         <div class="panel">
-          <CompilerPanel style={{ flex: 3 }} />
+          <CompilerPanel style={{ flex: 2 }} />
           <Divider />
+          <BrainfuckPanel style={{flex: 2}}/>
           <InputPanel style={{ flex: 2 }} />
           <Divider />
           <OutputPanel style={{ flex: 3 }} />
@@ -512,6 +524,9 @@ interface AppContextProps {
   >;
   input: Accessor<{ text: string; amountRead: number | null }>;
   setInput: Setter<{ text: string; amountRead: number | null }>;
+  //Not Needed yet but we might want to do stopping and starting
+  brainfuck: Accessor<{ text: string; amountRead: number | null }>;
+  setBrainfuck: Setter<{ text: string; amountRead: number | null }>;
 
   enableBlockingInput: Accessor<boolean>;
   setEnableBlockingInput: Setter<boolean>;
