@@ -35,6 +35,7 @@ import { defaultExtensions } from "./misc";
 import { makePersisted } from "@solid-primitives/storage";
 import { createStore } from "solid-js/store";
 import  { MastermindConfig } from "./components/Settings";
+import PanelHeader from "./components/PanelHeader.tsx";
 
 const AppContext = createContext<AppContextProps>();
 
@@ -469,9 +470,9 @@ const App: Component = () => {
         <div class="panel">
           <CompilerPanel style={{ flex: 3 }} />
           <Divider />
-          <InputPanel style={{ flex: 1 }} />
+          <InputPanel style={{ flex: 2 }} />
           <Divider />
-          <OutputPanel style={{ flex: 4 }} />
+          <OutputPanel style={{ flex: 3 }} />
         </div>
         <Divider />
         <div>

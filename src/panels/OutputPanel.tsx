@@ -4,6 +4,8 @@ import { EditorView, drawSelection } from "@codemirror/view";
 import { EditorState } from "@codemirror/state";
 
 import { useAppContext } from "../App";
+import PanelHeader from "../components/PanelHeader.tsx";
+import Divider from "../components/Divider.tsx";
 
 const OutputPanel: Component<{ style?: JSX.CSSProperties }> = (props) => {
   const app = useAppContext()!;
@@ -25,18 +27,23 @@ const OutputPanel: Component<{ style?: JSX.CSSProperties }> = (props) => {
     })
   );
 
-  return <div class="panel output-panel" style={props.style} ref={e => {
-    editorView = new EditorView({
-      parent: e,
-      state: EditorState.create({
-        extensions: [
-          drawSelection(),
-          EditorView.lineWrapping,
-          EditorView.editable.of(false),
-        ],
-      }),
-    });
-  }} />;
-};
+  return <div class="panel input-panel" style={props.style}>
+      <PanelHeader title={'Output'} content={app.output()?.content || ''}/>
+      <Divider/>
+      <div class="panel output-panel" style={props.style} ref={e => {
+        editorView = new EditorView({
+          parent: e,
+          state: EditorState.create({
+            extensions: [
+              drawSelection(),
+              EditorView.lineWrapping,
+              EditorView.editable.of(false),
+            ],
+          }),
+        });
+      }}/>
+  </div>
+    ;
+    };
 
-export default OutputPanel;
+    export default OutputPanel;
