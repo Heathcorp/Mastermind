@@ -45,6 +45,7 @@ const BrainfuckPanel: Component<{ style?: JSX.CSSProperties }> = (props) => {
         state: EditorState.create({
           doc: app.brainfuck().text,
           extensions: [
+            EditorView.lineWrapping,
             drawSelection(),
             keymap.of(defaultKeymap),
             EditorView.updateListener.of((update) => {

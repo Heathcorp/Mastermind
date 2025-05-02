@@ -40,6 +40,7 @@ const InputPanel: Component<{ style?: JSX.CSSProperties }> = (props) => {
         state: EditorState.create({
           doc: app.input().text,
           extensions: [
+            EditorView.lineWrapping,
             drawSelection(),
             keymap.of(defaultKeymap),
             EditorView.updateListener.of((update) => {

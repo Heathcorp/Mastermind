@@ -478,13 +478,13 @@ const App: Component = () => {
         <EditorPanel />
         <Divider />
         <div class="panel">
-          <CompilerPanel style={{ flex: 2 }} />
+          <CompilerPanel style={{ flex: 0.8 }} />
           <Divider />
-          <BrainfuckPanel style={{flex: 2}}/>
+          <BrainfuckPanel style={{flex: 2.2}}/>
           <Divider />
           <InputPanel style={{ flex: 2 }} />
           <Divider />
-          <OutputPanel style={{ flex: 3 }} />
+          <OutputPanel style={{ flex: 4 }} />
         </div>
         <Divider />
         <div>

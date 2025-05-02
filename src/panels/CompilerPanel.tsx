@@ -3,11 +3,10 @@ import {
   For,
   createEffect,
   JSX,
-  Show,
 } from "solid-js";
-import Divider from "../components/Divider";
 import { useAppContext } from "../App";
 import { AiOutlineStop } from "solid-icons/ai";
+import { FaSolidPlay } from 'solid-icons/fa'
 // import { FiSave } from "solid-icons/fi";
 // import downloadBlob from "../utils/downloadBlob";
 // import JSZip from "jszip";
@@ -30,6 +29,7 @@ const CompilerPanel: Component<{ style?: JSX.CSSProperties }> = (props) => {
     // TODO: error handling here? is it needed?
     const code = app.brainfuck();
     if (!code.text) return;
+    app.setOutput({ type: "OUTPUT", content: ""})
     await app.run(code.text, app.config().enable_2d_grid);
   };
 
@@ -62,8 +62,8 @@ const CompilerPanel: Component<{ style?: JSX.CSSProperties }> = (props) => {
       <div class="panel settings-panel">
         <div class="row settings-container">
           {/* entry file selection */}
-          <label class="top-label">
-            Entry File:
+          <label class="top-label" style={{"padding-top": "0.5rem"}}>
+            File:
             <select
                 value={app.entryFile()}
                 onChange={(e) => app.setEntryFile(e.target.value)}
@@ -76,88 +76,57 @@ const CompilerPanel: Component<{ style?: JSX.CSSProperties }> = (props) => {
           </label>
         </div>
         <div>
-          {/* button with 3 options (compile, run, or both) */}
-          <div style={{position: "relative"}}>
             <div
                 classList={{button: true, disabled: app.busy()}}
                 style={{padding: 0}}
             >
-              <div class="row" style={{gap: 0, "align-items": "stretch"}}>
                 <div
                     classList={{
                       "text-button": true,
+                      "run-button" : true,
                       "text-button-disabled": app.busy(),
                     }}
-                    style={{padding: "0.5rem"}}
+                    style={{padding: "0.5rem", "max-width": "6rem", "min-width": "5.5rem"}}
                     onClick={!app.busy() ? onCompile : undefined}
                 >
-                  Compile Brainfuck
+                  Compile File
                 </div>
-                <Divider/>
-                <div
-                    classList={{
-                      "text-button": true,
-                      "text-button-disabled":
-                      // TODO: make a specific compiled code signal like we used to, basically store the last successful compilation
-                          app.busy() || !app.brainfuck().text,
-                    }}
-                    style={{padding: "0.5rem"}}
-                    onClick={
-                      !app.busy && app.brainfuck().text
-                          ? onRun
-                          : undefined
-                    }
-                >
-                  Run Brainfuck
-                </div>
-              </div>
-              <Divider/>
-              <div
-                  style={{"text-align": "center", padding: "0.5rem"}}
-                  onClick={
-                    !app.busy()
-                        ? async () => {
-                          await onCompile();
-                          // technically this second await is pointless
-                          await onRun();
-                        }
-                        : undefined
-                  }
-              >
-                compile & run
-              </div>
             </div>
-            {/* status overlay on the button */}
-            {app.status() !== "IDLE" && (
-                <div class="button-status-overlay">
-                  <div class="button-status-text">
-                    {
-                      {
-                        ["COMPILING"]: "compiling program",
-                        ["RUNNING"]: "running code",
-                        ["INPUT_BLOCKED"]: "waiting for input",
-                        ["IDLE"]: null,
-                      }[app.status()]
-                    }
-                    <Show when={app.status() !== "IDLE"}>
-                      <div
-                          onClick={() => app.restartWorker()}
-                          title="kill brainfuck process"
-                          class="stop-button"
-                      >
-                        <AiOutlineStop/>
-                      </div>
-                    </Show>
-                  </div>
+        </div>
+        <div>
+            {app.busy() ? (
+                <div
+                    classList={{"run-button": true,
+                                "button": true}}
+                    onClick={() => {
+                        app.restartWorker()
+                    }}
+                    title="kill brainfuck process"
+                >
+                    <div class="stop-button">
+                        <AiOutlineStop style={{"margin-right": "8px"}}/>
+                    </div>
+                        Stop Code
+                </div>
+            ) : (
+                <div
+                    classList={{"run-button": true,
+                      "button": true}}
+                    style={{}}
+                    onClick={onRun}
+                >
+                    <div class="start-button">
+                        <FaSolidPlay style={{"margin-right": "8px", "padding-top": "0.2rem"}}/>
+                    </div>
+                    Run Code
                 </div>
             )}
-          </div>
         </div>
         <div>
           {/* misc options and markers */}
           <div
-              class="button"
-              style={{gap: 0}}
+              class="row button"
+              style={{gap: 0, "font-size": "0.9rem", "min-height": "1.5rem", "min-width": "11rem", "text-align": "center"}}
               classList={{"button-selected": app.enableBlockingInput()}}
               onClick={() => app.setEnableBlockingInput((prev) => !prev)}
           >
