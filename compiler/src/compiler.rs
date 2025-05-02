@@ -595,13 +595,16 @@ impl Compiler<'_> {
 						function_definition.arguments.len(),
 						arguments.len()
 					);
-					for (calling_argument, (_arg_name, expected_type)) in
+					for (calling_argument, (arg_name, expected_type)) in
 						zip(arguments, function_definition.arguments.iter())
 					{
+						// TODO: fix this duplicate call, get_target_type() internally gets the memory allocation details
+						// 	then these are gotten again in create_mapped_variable()
 						let argument_type = scope.get_target_type(&calling_argument)?;
 						r_assert!(argument_type == expected_type, "Expected argument of type \"{expected_type:#?}\" in function call \"{function_name}\", received argument of type \"{argument_type:#?}\".");
 						// register an argument translation in the scope
-						todo!();
+						argument_translation_scope
+							.create_mapped_variable(arg_name.clone(), &calling_argument)?;
 					}
 
 					// recurse
@@ -1390,5 +1393,83 @@ impl Scope<'_> {
 				subfield_type
 			}
 		})
+	}
+
+	/// Create memory mapping between a pre-existing variable and a new one, used for function arguments
+	fn create_mapped_variable(
+		&mut self,
+		mapped_var_name: String,
+		target: &VariableTarget,
+	) -> Result<(), String> {
+		let (base_var_type, base_var_memory) = self.get_base_variable_memory(&target.name)?;
+		let (var_type, mapped_memory) = match &target.subfields {
+			None => (
+				base_var_type,
+				match base_var_memory {
+					Memory::Cell { id } => Memory::MappedCell {
+						id: *id,
+						index: None,
+					},
+					Memory::Cells { id, len } => Memory::MappedCells {
+						id: *id,
+						start_index: 0,
+						len: *len,
+					},
+					Memory::MappedCell { id, index } => Memory::MappedCell {
+						id: *id,
+						index: *index,
+					},
+					Memory::MappedCells {
+						id,
+						start_index,
+						len,
+					} => Memory::MappedCells {
+						id: *id,
+						start_index: *start_index,
+						len: *len,
+					},
+				},
+			),
+			Some(subfields) => {
+				let (subfield_type, offset_index) = base_var_type.get_subfield(subfields)?;
+				let subfield_size = subfield_type.size();
+				(
+					subfield_type,
+					match base_var_memory {
+						Memory::Cells { id, len } => {
+							r_assert!((offset_index + subfield_size) <= *len, "Subfield \"{target}\" size and offset out of memory bounds. This should never occur.");
+							Memory::MappedCells {
+								id: *id,
+								start_index: offset_index,
+								len: subfield_type.size(),
+							}
+						}
+						Memory::MappedCells {
+							id,
+							start_index,
+							len,
+						} => {
+							r_assert!((offset_index + subfield_size) <= *len, "Subfield \"{target}\" size and offset out of memory bounds. This should never occur.");
+							Memory::MappedCells {
+								id: *id,
+								start_index: *start_index + offset_index,
+								len: subfield_type.size(),
+							}
+						}
+
+						Memory::Cell { id: _ } | Memory::MappedCell { id: _, index: _ } => {
+							r_panic!(
+								"Attempted to map a subfield of a single cell in \
+mapping: {mapped_var_name} -> {target}"
+							)
+						}
+					},
+				)
+			}
+		};
+
+		self.variable_memory
+			.insert(mapped_var_name, (var_type.clone(), mapped_memory));
+		Ok(())
 	}
 }
