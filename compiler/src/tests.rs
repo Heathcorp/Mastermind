@@ -1446,7 +1446,6 @@ bf @4 {
 		assert_eq!(desired_output, output)
 	}
 
-	#[ignore]
 	#[test]
 	fn sizeof_0() {
 		let program = String::from(
@@ -1461,7 +1460,6 @@ output '0' + sizeof(cell);
 		assert_eq!(desired_output, output)
 	}
 
-	#[ignore]
 	#[test]
 	fn sizeof_0a() {
 		let program = String::from(
@@ -1476,7 +1474,6 @@ output '0' + sizeof(cell[5]);
 		assert_eq!(desired_output, output)
 	}
 
-	#[ignore]
 	#[test]
 	fn sizeof_0b() {
 		let program = String::from(
@@ -1495,7 +1492,6 @@ output '0' + sizeof(b[2]);
 		assert_eq!(desired_output, output)
 	}
 
-	#[ignore]
 	#[test]
 	fn sizeof_1() {
 		let program = String::from(
@@ -1514,7 +1510,6 @@ output '0' + s;
 		assert_eq!(desired_output, output)
 	}
 
-	#[ignore]
 	#[test]
 	fn sizeof_1a() {
 		let program = String::from(
@@ -1533,7 +1528,6 @@ output '0' + s;
 		assert_eq!(desired_output, output)
 	}
 
-	#[ignore]
 	#[test]
 	fn sizeof_1b() {
 		let program = String::from(
@@ -1552,7 +1546,6 @@ output '0' + s;
 		assert_eq!(desired_output, output)
 	}
 
-	#[ignore]
 	#[test]
 	fn sizeof_2() {
 		let program = String::from(
@@ -1572,7 +1565,6 @@ output '0' + sizeof(g);
 		assert_eq!(desired_output, output)
 	}
 
-	#[ignore]
 	#[test]
 	fn sizeof_3() {
 		let program = String::from(
@@ -1596,7 +1588,6 @@ output '0' + sizeof(g[0].red);
 		assert_eq!(desired_output, output)
 	}
 
-	#[ignore]
 	#[test]
 	fn sizeof_4() {
 		let program = String::from(
@@ -1617,7 +1608,6 @@ output '0' + sizeof(g[2].blue)
 		assert_eq!(desired_output, output)
 	}
 
-	#[ignore]
 	#[test]
 	fn sizeof_5() {
 		let program = String::from(

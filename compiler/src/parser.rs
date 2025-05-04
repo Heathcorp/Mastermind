@@ -99,7 +99,8 @@ pub fn parse(tokens: &[Token]) -> Result<Vec<Clause>, String> {
 				| Token::Unknown
 				| Token::Dot
 				| Token::At
-				| Token::Struct,
+				| Token::Struct
+				| Token::SizeOf,
 				_,
 				_,
 			) => r_panic!("Invalid clause: {clause:#?}"),
@@ -1147,8 +1148,6 @@ impl Expression {
 	}
 }
 
-// TODO: add multiplication
-// yes, but no variable * variable multiplication or division
 #[derive(Debug, Clone)]
 pub enum Expression {
 	SumExpression {
@@ -1159,6 +1158,8 @@ pub enum Expression {
 	VariableReference(VariableTarget),
 	ArrayLiteral(Vec<Expression>),
 	StringLiteral(String),
+	SizeOfExpr(Box<Expression>),
+	SizeOfType(VariableTypeReference),
 }
 
 #[derive(Debug, Clone)]
