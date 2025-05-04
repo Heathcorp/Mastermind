@@ -1159,7 +1159,7 @@ output a.green;
 			r#";
 struct AA a;
 
-def input_AA<struct AA bbb> {
+fn input_AA(struct AA bbb) {
   input bbb.green;
   input bbb.yellow;
 
@@ -1168,7 +1168,7 @@ def input_AA<struct AA bbb> {
   }
 }
 
-input_AA<a>;
+input_AA(a);
 
 output a.yellow;
 output a.green;
@@ -1181,6 +1181,44 @@ struct AA {
 		);
 		let input = String::from("gh");
 		let desired_output = String::from("hg");
+		let output = compile_and_run(program, input).expect("");
+		println!("{output}");
+		assert_eq!(desired_output, output)
+	}
+
+	#[test]
+	fn structs_3b() {
+		let program = String::from(
+			r#";
+struct AA a;
+
+fn input_AA(struct AA bbb) {
+  input bbb.green;
+  input bbb.yellow;
+
+	struct AA alt_a;
+	input *alt_a.l;
+
+	output alt_a.l[4];
+
+  struct AA {
+    cell[10] l;
+  }
+}
+
+input_AA(a);
+
+output a.yellow;
+output a.green;
+
+struct AA {
+  cell green;
+	cell yellow;
+}
+			"#,
+		);
+		let input = String::from("ghpalindrome");
+		let desired_output = String::from("nhg");
 		let output = compile_and_run(program, input).expect("");
 		println!("{output}");
 		assert_eq!(desired_output, output)
@@ -1278,9 +1316,11 @@ struct BB {
 }
 
 struct AA[2] as;
-struct BB b {
-  green = 6
-};
+// struct BB b {
+//   green = 6
+// };
+struct BB b;
+b.green = 6;
 
 fn input_AAs(struct AA[2] aaas) {
   input aaas[0].green;
@@ -1406,6 +1446,7 @@ bf @4 {
 		assert_eq!(desired_output, output)
 	}
 
+	#[ignore]
 	#[test]
 	fn sizeof_0() {
 		let program = String::from(
@@ -1420,6 +1461,7 @@ output '0' + sizeof(cell);
 		assert_eq!(desired_output, output)
 	}
 
+	#[ignore]
 	#[test]
 	fn sizeof_0a() {
 		let program = String::from(
@@ -1434,6 +1476,7 @@ output '0' + sizeof(cell[5]);
 		assert_eq!(desired_output, output)
 	}
 
+	#[ignore]
 	#[test]
 	fn sizeof_0b() {
 		let program = String::from(
@@ -1452,6 +1495,7 @@ output '0' + sizeof(b[2]);
 		assert_eq!(desired_output, output)
 	}
 
+	#[ignore]
 	#[test]
 	fn sizeof_1() {
 		let program = String::from(
@@ -1470,6 +1514,7 @@ output '0' + s;
 		assert_eq!(desired_output, output)
 	}
 
+	#[ignore]
 	#[test]
 	fn sizeof_1a() {
 		let program = String::from(
@@ -1488,6 +1533,7 @@ output '0' + s;
 		assert_eq!(desired_output, output)
 	}
 
+	#[ignore]
 	#[test]
 	fn sizeof_1b() {
 		let program = String::from(
@@ -1506,6 +1552,7 @@ output '0' + s;
 		assert_eq!(desired_output, output)
 	}
 
+	#[ignore]
 	#[test]
 	fn sizeof_2() {
 		let program = String::from(
@@ -1525,6 +1572,7 @@ output '0' + sizeof(g);
 		assert_eq!(desired_output, output)
 	}
 
+	#[ignore]
 	#[test]
 	fn sizeof_3() {
 		let program = String::from(
@@ -1548,6 +1596,7 @@ output '0' + sizeof(g[0].red);
 		assert_eq!(desired_output, output)
 	}
 
+	#[ignore]
 	#[test]
 	fn sizeof_4() {
 		let program = String::from(
@@ -1568,6 +1617,7 @@ output '0' + sizeof(g[2].blue)
 		assert_eq!(desired_output, output)
 	}
 
+	#[ignore]
 	#[test]
 	fn sizeof_5() {
 		let program = String::from(

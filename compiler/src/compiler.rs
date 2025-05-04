@@ -226,11 +226,18 @@ impl Compiler<'_> {
 						}
 					}
 				}
-				Clause::InputVariable { var } => {
-					let cell = scope.get_cell(&var)?;
-					// TODO: support spread operations here again
-					scope.push_instruction(Instruction::InputToCell(cell))
-				}
+				Clause::InputVariable { var } => match var.is_spread {
+					false => {
+						let cell = scope.get_cell(&var)?;
+						scope.push_instruction(Instruction::InputToCell(cell));
+					}
+					true => {
+						let cells = scope.get_array_cells(&var)?;
+						for cell in cells {
+							scope.push_instruction(Instruction::InputToCell(cell));
+						}
+					}
+				},
 				Clause::OutputValue { value } => {
 					match value {
 						Expression::VariableReference(var) => match var.is_spread {
@@ -863,11 +870,6 @@ impl ValueType {
 				.map(|(_field_name, field_type)| field_type.size())
 				.sum(),
 		}
-	}
-
-	/// get the cell index of a specific variable target
-	fn _get_target_cell_index(&self, subfield_chain: &[Reference]) -> usize {
-		unimplemented!()
 	}
 
 	/// get a subfield's type as well as memory cell index
