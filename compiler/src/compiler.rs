@@ -540,43 +540,19 @@ impl Compiler<'_> {
 					// assert that we clobbered the variables
 					// not sure whether this should go before or after the actual bf code
 					for var in clobbered_variables {
-						todo!();
-						// let mem = scope.get_memory(&var)?;
-						// // little bit of duplicate code from the copyloop clause here:
-						// match mem {
-						// 	Memory::Cell { id } => {
-						// 		scope.push_instruction(Instruction::AssertCellValue(
-						// 			CellReference {
-						// 				memory_id: id,
-						// 				index: None,
-						// 			},
-						// 			None,
-						// 		))
-						// 	}
-						// 	Memory::Cells { id, len } => match target_index {
-						// 		None => {
-						// 			// should only happen if the spread operator is used, ideally this should be obvious with the code
-						// 			for i in 0..len {
-						// 				scope.push_instruction(Instruction::AssertCellValue(
-						// 					CellReference {
-						// 						memory_id: id,
-						// 						index: Some(i),
-						// 					},
-						// 					None,
-						// 				));
-						// 			}
-						// 		}
-						// 		Some(index) => {
-						// 			scope.push_instruction(Instruction::AssertCellValue(
-						// 				CellReference {
-						// 					memory_id: id,
-						// 					index: Some(index),
-						// 				},
-						// 				None,
-						// 			))
-						// 		}
-						// 	},
-						// }
+						match var.is_spread {
+							false => {
+								let cell = scope.get_cell(&var)?;
+								scope.push_instruction(Instruction::AssertCellValue(cell, None));
+							}
+							true => {
+								let cells = scope.get_array_cells(&var)?;
+								for cell in cells {
+									scope
+										.push_instruction(Instruction::AssertCellValue(cell, None));
+								}
+							}
+						}
 					}
 				}
 				Clause::CallFunction {
