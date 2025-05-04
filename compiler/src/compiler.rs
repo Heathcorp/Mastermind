@@ -1435,29 +1435,46 @@ impl Scope<'_> {
 				let subfield_size = subfield_type.size();
 				(
 					subfield_type,
-					match base_var_memory {
-						Memory::Cells { id, len } => {
-							r_assert!((offset_index + subfield_size) <= *len, "Subfield \"{target}\" size and offset out of memory bounds. This should never occur.");
-							Memory::MappedCells {
+					match (subfield_type, base_var_memory) {
+						(ValueType::Cell, Memory::Cells { id, len }) => {
+							// r_assert!((offset_index + subfield_size) <= *len, "Subfield \"{target}\" size and offset out of memory bounds. This should never occur.");
+							Memory::MappedCell {
 								id: *id,
-								start_index: offset_index,
-								len: subfield_type.size(),
+								index: Some(offset_index),
 							}
 						}
-						Memory::MappedCells {
-							id,
-							start_index,
-							len,
-						} => {
-							r_assert!((offset_index + subfield_size) <= *len, "Subfield \"{target}\" size and offset out of memory bounds. This should never occur.");
+						(
+							ValueType::Cell,
 							Memory::MappedCells {
-								id: *id,
-								start_index: *start_index + offset_index,
-								len: subfield_type.size(),
-							}
-						}
-
-						Memory::Cell { id: _ } | Memory::MappedCell { id: _, index: _ } => {
+								id,
+								start_index,
+								len,
+							},
+						) => Memory::MappedCell {
+							id: *id,
+							index: Some(*start_index + offset_index),
+						},
+						(
+							ValueType::Array(_, _) | ValueType::DictStruct(_),
+							Memory::Cells { id, len: _ },
+						) => Memory::MappedCells {
+							id: *id,
+							start_index: offset_index,
+							len: subfield_type.size(),
+						},
+						(
+							ValueType::Array(_, _) | ValueType::DictStruct(_),
+							Memory::MappedCells {
+								id,
+								start_index,
+								len: _,
+							},
+						) => Memory::MappedCells {
+							id: *id,
+							start_index: *start_index + offset_index,
+							len: subfield_type.size(),
+						},
+						(_, Memory::Cell { id: _ } | Memory::MappedCell { id: _, index: _ }) => {
 							r_panic!(
 								"Attempted to map a subfield of a single cell in \
 mapping: {mapped_var_name} -> {target}"

@@ -789,6 +789,80 @@ fn func_2(cell[4] think, cell green) {
 	}
 
 	#[test]
+	fn functions_3a() {
+		let program = String::from(
+			r#"
+cell[4] a = "AACD";
+add_one(a[1]);
+output *a;
+
+fn add_one(cell cel) {
+  ++cel;
+}
+"#,
+		);
+		let input = String::from("");
+		let desired_output = String::from("ABCD");
+		let output = compile_and_run(program, input).expect("");
+		println!("{output}");
+		assert_eq!(desired_output, output)
+	}
+
+	#[test]
+	fn functions_3b() {
+		let program = String::from(
+			r#"
+struct A {cell[3] arr;};
+struct A a;
+a.arr[0] = '0';
+a.arr[1] = '0';
+a.arr[2] = '0';
+
+add_one_to_three(a.arr);
+output *a.arr;
+
+fn add_one_to_three(cell[3] t) {
+  t[0] += 1;
+  t[1] += 1;
+  t[2] += 1;
+}
+"#,
+		);
+		let input = String::from("");
+		let desired_output = String::from("111");
+		let output = compile_and_run(program, input).expect("");
+		println!("{output}");
+		assert_eq!(desired_output, output)
+	}
+
+	#[test]
+	fn functions_3c() {
+		let program = String::from(
+			r#"
+struct A {cell b; cell c;};
+struct A a;
+a.b = '0';
+a.c = '0';
+
+add_one(a.b);
+add_one(a.c);
+add_one(a.c);
+output a.b;
+output a.c;
+
+fn add_one(cell t) {
+  ++t;
+}
+"#,
+		);
+		let input = String::from("");
+		let desired_output = String::from("12");
+		let output = compile_and_run(program, input).expect("");
+		println!("{output}");
+		assert_eq!(desired_output, output)
+	}
+
+	#[test]
 	fn functions_4() {
 		let program = String::from(
 			r#"
