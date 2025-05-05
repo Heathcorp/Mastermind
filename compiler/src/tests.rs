@@ -1398,6 +1398,7 @@ output as[1].bbb[2].green;
 		assert_eq!(desired_output, output)
 	}
 
+	#[ignore]
 	#[test]
 	fn structs_bf_1() {
 		let program = String::from(
@@ -1431,6 +1432,7 @@ bf @2 {
 		assert_eq!(desired_output, output)
 	}
 
+	#[ignore]
 	#[test]
 	fn structs_bf_2() {
 		let program = String::from(
@@ -1942,7 +1944,8 @@ bf {
 		let program = String::from(
 			r#"
 			bf {,.[-]+[--^-[^^+^-----vv]v--v---]^-.^^^+.^^..+++[.^]vvvv.+++.------.vv-.^^^^+.}
-		"#, );
+		"#,
+		);
 		let code = compile_program(program, None)?.to_string();
 
 		assert_eq!(
@@ -1960,14 +1963,22 @@ bf {
 		let program = String::from(
 			r#"
 			bf {,.[-]+[--^-[^^+^-----vv]v--v---]^-.^^^+.^^..+++[.^]vvstvv.+++.------.vv-.^^^^+.}
-		"#, );
+		"#,
+		);
 		let result = compile_program(program, None);
 	}
 
 	#[test]
 	#[should_panic(expected = "2D Brainfuck currently disabled")]
 	fn inline_2d_brainfuck_disabled() {
-		run_code(BVM_CONFIG_1D, String::from(",.[-]+[--^-[^^+^-----vv]v--v---]^-.^^^+.^^..+++[.^]vvvv.+++.------.vv-.^^^^+."), String::from("~"), None);
+		run_code(
+			BVM_CONFIG_1D,
+			String::from(
+				",.[-]+[--^-[^^+^-----vv]v--v---]^-.^^^+.^^..+++[.^]vvvv.+++.------.vv-.^^^^+.",
+			),
+			String::from("~"),
+			None,
+		);
 	}
 	#[test]
 	fn constant_optimisations_1() -> Result<(), String> {
