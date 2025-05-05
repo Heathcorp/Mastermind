@@ -1398,7 +1398,6 @@ output as[1].bbb[2].green;
 		assert_eq!(desired_output, output)
 	}
 
-	#[ignore]
 	#[test]
 	fn structs_bf_1() {
 		let program = String::from(
@@ -1432,7 +1431,6 @@ bf @2 {
 		assert_eq!(desired_output, output)
 	}
 
-	#[ignore]
 	#[test]
 	fn structs_bf_2() {
 		let program = String::from(
