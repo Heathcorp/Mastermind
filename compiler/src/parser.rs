@@ -434,7 +434,9 @@ fn parse_assert_clause(clause: &[Token]) -> Result<Clause, String> {
 }
 
 // parse any memory location specifiers
-// let g @4 = 68;
+// let g @4,2 = 68;
+// or
+// let p @3 = 68;
 fn parse_location_specifier(tokens: &[Token]) -> Result<(Option<i32>, usize), String> {
 	if let Token::At = &tokens[0] {
 		let mut i = 1;

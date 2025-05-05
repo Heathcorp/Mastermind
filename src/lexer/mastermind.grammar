@@ -43,6 +43,8 @@
     BfMinus { "-" }
     BfRight { ">" }
     BfLeft { "<" }
+    BfUp { "^" }
+    BfDown { "v" }
     BfOpenLoop { "[" }
     BfCloseLoop { "]" }
     BfOutput { "." }
@@ -67,7 +69,7 @@ VariableTarget {
     Asterisk Name
 }
 
-LocationSpecifier { At Number }
+LocationSpecifier { At commaSep<Number> }
 
 Constant {
     Number | Boolean | Character
@@ -89,6 +91,8 @@ EBrainfuck {
         BfMinus |
         BfRight |
         BfLeft |
+        BfUp |
+        BfDown |
         BfOpenLoop |
         BfCloseLoop |
         BfOutput |
