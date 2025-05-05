@@ -10,6 +10,7 @@ use std::{
 
 use wasm_bindgen::{JsCast, JsValue};
 use wasm_bindgen_futures::JsFuture;
+use crate::macros::macros::r_panic;
 
 struct Tape {
 	memory_map: HashMap<(i32, i32), Wrapping<u8>>,
@@ -250,6 +251,12 @@ impl BVM {
 				}
 				('^', _, true) => self.tape.move_head_position((0, 1)),
 				('v', _, true) => self.tape.move_head_position((0, -1)),
+				('^', _, false) => {
+					r_panic!("2D Brainfuck currently disabled");
+				}
+				('v', _, false) => {
+					r_panic!("2D Brainfuck currently disabled");
+				}
 				// ('#', true, ) => {
 				// 	println!("{}", self.tape);
 				// }
@@ -336,6 +343,12 @@ impl BVM {
 				}
 				('^', _, true) => self.tape.move_head_position((0, 1)),
 				('v', _, true) => self.tape.move_head_position((0, -1)),
+				('^', _, false) => {
+					r_panic!("2D Brainfuck currently disabled");
+				}
+				('v', _, false) => {
+					r_panic!("2D Brainfuck currently disabled");
+				}
 				// '#' => {
 				// 	println!("{}", self.tape);
 				// }
@@ -448,26 +461,20 @@ pub mod tests {
 	}
 
 	#[test]
+	#[should_panic(expected = "2D Brainfuck currently disabled")]
 	fn grid_disabled_1() {
 		let program = String::from("++++++++[->++++++[->+>+<<]<]>>.>^+++.");
 		let input = String::from("");
-		let desired_output = String::from("03");
-		assert_eq!(
-			desired_output,
-			run_code(BVM_CONFIG_1D, program, input, None)
-		)
+		run_code(BVM_CONFIG_1D, program, input, None);
 	}
 
 	#[test]
+	#[should_panic(expected = "2D Brainfuck currently disabled")]
 	fn grid_disabled_2() {
 		let program =
 			String::from("++++++++[->^^^+++vvvv+++[->^^^^+>+<vvvv<]<]>^^^^^^^^>.>vvvv+++.");
 		let input = String::from("");
-		let desired_output = String::from("03");
-		assert_eq!(
-			desired_output,
-			run_code(BVM_CONFIG_1D, program, input, None)
-		)
+		run_code(BVM_CONFIG_1D, program, input, None);
 	}
 
 	// 2D tests:
@@ -537,6 +544,17 @@ pub mod tests {
 		let program = String::from("-v>,[>,]^-<+[-<+]->+[-v------------------------------------------^>+]-<+[-<+]->+[-v[-^+^+vv]^[-v+^]^->+<[>-<->+<[>-<->+<[>-<->+<[>-<-------------->+<[>-<-->+<[>-<----------------------------->+<[>-<-->+<[>-<vv[-]^^[-]]>[[-]<[-]vv[-]++++++v++^^^>]<[-]]>[[-]<[-]vv[-]+++++v+^^^>]<[-]]>[[-]<[-]vv[-]+++^^>]<[-]]>[[-]<[-]vv[-]++++^^>]<[-]]>[[-]<[-]vv[-]+++++++^^>]<[-]]>[[-]<[-]vv[-]++^^>]<[-]]>[[-]<[-]vv[-]++++++++^^>]<[-]]>[[-]<[-]vv[-]+^^>]<vv^>+]-v-v-v-v-^^^^<+[-<+]<->v-v-v<-v->^^^^>vvv+^^^<+>+[-<->+v[-^^+^+vvv]^^[-vv+^^]^>+<-[>[-]<>+<-[>[-]<>+<-[>[-]<>+<-[>[-]<>+<-[>[-]<>+<-[>[-]<>+<-[>[-]<>+<-[>[-]<[-]]>[-<vvvvv+[-<+]->-[+>-]+v,^+[-<+]-<^^^+[->+]->-[+>-]+^^>]<]>[-<vvvvv+[-<+]->-[+>-]+v.^+[-<+]-<^^^+[->+]->-[+>-]+^^>]<]>[-<vvvvv+[-<+]->-[+>-]+v[-v+v+^^]v[-^+v]v[[-]^^^+[-<+]-^^^+[->+]-<+[>>-[+>-]<+vv[-^^^+^+vvvv]^^^[-vvv+^^^]^->+<[>-<->+<[>-<[-]]>[-<vv+[-<+]-<+>>-[+>-]+^^>]<]>[-<vv+[-<+]-<->>-[+>-]+^^>]<vv+[-<+]-<][-]>vvv+[-<+]->-[+>-]+vvv]^^^+[-<+]-<^^^+[->+]->-[+>-]+^^>]<]>[-<vvvvv+[-<+]->-[+>-]+v[-v+v+^^]v[-^+v]v>+<[>-<[-]]>[-<^^^+[-<+]-^^^+[->+]-<+[>>-[+>-]>+vv[-^^^+^+vvvv]^^^[-vvv+^^^]^->+<[>-<->+<[>-<[-]]>[-<vv+[-<+]-<->>-[+>-]+^^>]<]>[-<vv+[-<+]-<+>>-[+>-]+^^>]<vv+[-<+]-<][-]>vvv+[-<+]->-[+>-]+vvv>]<^^^+[-<+]-<^^^+[->+]->-[+>-]+^^>]<]>[-<vvvvv+[-<+]->-[+>-]+<<-v-^>+v+^[<+v+^>-v-^]+>-+[-<+]-<^^^+[->+]->-[+>-]+^^>]<]>[-<vvvvv+[-<+]->-[+>-]+>>-v-^<+v+^[>+v+^<-v-^]+<-+[-<+]-<^^^+[->+]->-[+>-]+^^>]<]>[-<vvvvv+[-<+]->-[+>-]+v-^+[-<+]-<^^^+[->+]->-[+>-]+^^>]<]>[-<vvvvv+[-<+]->-[+>-]+v+^+[-<+]-<^^^+[->+]->-[+>-]+^^>]<vv>+]-");
 		let input = String::from("+++++[>+++++[>++>++>+++>+++>++++>++++<<<<<<-]<-]+++++[>>[>]<[+.<<]>[++.>>>]<[+.<]>[-.>>]<[-.<<<]>[.>]<[+.<]<-]++++++++++.\n");
 		let desired_output = String::from("eL34NfeOL454KdeJ44JOdefePK55gQ67ShfTL787KegJ77JTeghfUK88iV9:XjgYL:;:KfiJ::JYfijgZK;;k[<=]lh^L=>=KgkJ==J^gklh_K>>m`?@bnicL@A@KhmJ@@JchmnidKAA\n");
+		assert_eq!(
+			desired_output,
+			run_code(BVM_CONFIG_2D, program, input, None)
+		)
+	}
+
+	#[test]
+	fn test_bf2d_code() {
+		let program = String::from(",.[-]+[--^-[^^+^-----vv]v--v---]^-.^^^+.^^..+++[.^]vvvv.+++.------.vv-.^^^^+.");
+		let input = String::from("");
+		let desired_output = String::from("\0Hello, World!");
 		assert_eq!(
 			desired_output,
 			run_code(BVM_CONFIG_2D, program, input, None)

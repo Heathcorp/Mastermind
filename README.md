@@ -268,6 +268,16 @@ bf @4 {
 // compiled: >>>><><><>
 ```
 
+Alternatively if using the 2D enhancements you can use a comma seperated list with 2 values for a 2D location
+
+```
+
+bf @4,3 {
+   <><><>
+}
+// compiled: >>>>^^^<><><>
+```
+
 #### Clobbering and Assertions
 
 Mastermind will try to predict the value of cells at compile-time, so it can prevent unnecessary cell clean-ups and unreachable code (with optimisations turned on). If your in-line Brainfuck affects existing Mastermind variables, you should tell the compiler using the `clobbers` keyword, the syntax is similar to the `drain into` list:

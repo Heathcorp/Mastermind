@@ -99,7 +99,8 @@ pub fn parse(tokens: &[Token]) -> Result<Vec<Clause>, String> {
 				| Token::Unknown
 				| Token::Dot
 				| Token::At
-				| Token::Struct,
+				| Token::Struct
+				| Token::UpToken,
 				_,
 				_,
 			) => r_panic!("Invalid clause: {clause:#?}"),
@@ -494,7 +495,9 @@ fn parse_assert_clause(clause: &[Token]) -> Result<Clause, String> {
 }
 
 // parse any memory location specifiers
-// let g @4 = 68;
+// let g @4,2 = 68;
+// or
+// let p @3 = 68;
 fn parse_location_specifier(tokens: &[Token]) -> Result<(Option<i32>, usize), String> {
 	if let Token::At = &tokens[0] {
 		let mut i = 1;
@@ -565,10 +568,20 @@ fn parse_brainfuck_clause(clause: &[Token]) -> Result<Clause, String> {
 			Token::Minus => ops.push(ExtendedOpcode::Subtract),
 			Token::MoreThan => ops.push(ExtendedOpcode::Right),
 			Token::LessThan => ops.push(ExtendedOpcode::Left),
+			Token::UpToken => ops.push(ExtendedOpcode::Up),
 			Token::OpenSquareBracket => ops.push(ExtendedOpcode::OpenLoop),
 			Token::ClosingSquareBracket => ops.push(ExtendedOpcode::CloseLoop),
 			Token::Dot => ops.push(ExtendedOpcode::Output),
 			Token::Comma => ops.push(ExtendedOpcode::Input),
+			Token::Name(s) => {
+				for c in s.chars() {
+					if c == 'v' {
+						ops.push(ExtendedOpcode::Down);
+					} else {
+						panic!("Invalid Inline Brainfuck Characters in {s}");
+					}
+				}
+			}
 			Token::OpenBrace => {
 				// embedded mastermind
 				let block_tokens = get_braced_tokens(&bf_tokens[j..], BRACES)?;
@@ -1257,6 +1270,8 @@ pub enum ExtendedOpcode {
 	Output,
 	Input,
 	Block(Vec<Clause>),
+	Up,
+	Down,
 }
 
 #[derive(Debug, Clone, Hash, PartialEq, Eq)]
