@@ -1016,7 +1016,7 @@ impl Scope<'_> {
 	fn allocate_variable(
 		&mut self,
 		var: VariableDefinition,
-		location_specifier: Option<i32>,
+		location_specifier: Option<(i32, i32)>,
 	) -> Result<&ValueType, String> {
 		r_assert!(
 			!self.variable_memory.contains_key(&var.name),

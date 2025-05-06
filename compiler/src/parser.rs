@@ -1,5 +1,5 @@
 use std::{fmt::Display, mem::discriminant, num::Wrapping};
-
+use std::any::type_name;
 use crate::{
 	builder::TapeCell,
 	macros::macros::{r_assert, r_panic},
@@ -121,6 +121,8 @@ fn parse_let_clause(clause: &[Token]) -> Result<Clause, String> {
 	i += len;
 
 	let (location_specifier, len) = parse_location_specifier(&clause[i..])?;
+	println!("location specifier: {location_specifier:#?}");
+	println!("location specifier len: {len}");
 	i += len;
 
 	if let Token::EqualsSign = &clause[i] {
@@ -498,27 +500,48 @@ fn parse_assert_clause(clause: &[Token]) -> Result<Clause, String> {
 // let g @4,2 = 68;
 // or
 // let p @3 = 68;
-fn parse_location_specifier(tokens: &[Token]) -> Result<(Option<i32>, usize), String> {
+fn parse_location_specifier(tokens: &[Token]) -> Result<(Option<TapeCell>, usize), String> {
+	println!("parse_location_specifier: {tokens:#?}");
 	if let Token::At = &tokens[0] {
 		let mut i = 1;
-		let positive = if let Token::Minus = &tokens[i] {
+		let mut offsety = 0;
+		let positivex = if let Token::Minus = &tokens[i] {
 			i += 1;
 			false
 		} else {
 			true
 		};
 
-		let Token::Digits(raw) = &tokens[i] else {
+		let Token::Digits(rawx) = &tokens[i] else {
 			r_panic!("Expected constant number in memory location specifier: {tokens:#?}");
 		};
 		i += 1;
+		if let Token::Comma = &tokens[i] {
+			i += 1;
+			let positivey = if let Token::Minus = &tokens[i] {
+				i += 1;
+				false
+			} else {
+				true
+			};
+			let Token::Digits(rawy) = &tokens[i] else {
+				r_panic!("Expected constant number in memory location specifier: {tokens:#?}");
+			};
+			offsety = rawy.parse().unwrap();
+			if !positivey {
+				offsety = -offsety;
+			}
+			i += 1;
+		}
 
 		// TODO: error handling
-		let mut offset: i32 = raw.parse().unwrap();
-		if !positive {
-			offset = -offset;
+		let mut offsetx: i32 = rawx.parse().unwrap();
+		if !positivex {
+			offsetx = -offsetx;
 		}
-		Ok((Some(offset), i))
+		println!("offsetx: {offsetx}");
+		println!("offsety: {offsety}");
+		Ok((Some((offsetx, offsety)), i))
 	} else {
 		Ok((None, 0))
 	}
