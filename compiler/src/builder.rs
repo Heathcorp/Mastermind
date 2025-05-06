@@ -59,10 +59,10 @@ impl Builder<'_> {
 			}
 			match instruction {
 				// the ids (indices really) given by the compiler are guaranteed to be unique (at the time of writing)
-				// however they will absolutely not be very efficient
+				// however they will absolutely not be very efficient if used directly as cell locations
 				Instruction::Allocate(memory, location_specifier) => {
 					let cell = allocator.allocate(location_specifier, memory.len())?;
-					let old = alloc_map.insert(
+					let None = alloc_map.insert(
 						memory.id(),
 						(
 							cell,
@@ -70,9 +70,7 @@ impl Builder<'_> {
 							current_loop_depth,
 							vec![Some(0); memory.len()],
 						),
-					);
-
-					let None = old else {
+					) else {
 						r_panic!("Attempted to reallocate memory {memory:#?}");
 					};
 				}

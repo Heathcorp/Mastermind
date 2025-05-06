@@ -52,16 +52,16 @@ pub mod tests {
 		// println!("{program}");
 		// compile mastermind
 		let tokens: Vec<Token> = tokenise(&program)?;
-		println!("{tokens:#?}");
+		// println!("{tokens:#?}");
 		let clauses = parse(&tokens)?;
-		println!("{clauses:#?}");
+		// println!("{clauses:#?}");
 		let instructions = Compiler { config: &OPT_NONE }
 			.compile(&clauses, None)?
 			.finalise_instructions(false);
-		println!("{instructions:#?}");
+		// println!("{instructions:#?}");
 		let bf_program = Builder { config: &OPT_NONE }.build(instructions, false)?;
 		let bfs = bf_program.to_string();
-		println!("{}", bfs);
+		// println!("{}", bfs);
 		// run generated brainfuck with input
 		Ok(run_code(
 			BVM_CONFIG_1D,
@@ -132,19 +132,19 @@ pub mod tests {
 	fn hello_1() {
 		let program = String::from(
 			"
-let h = 8;
-let e = 5;
-let l = 12;
-let o = 15;
+cell h = 8;
+cell e = 5;
+cell l = 12;
+cell o = 15;
 // comment!
-let a_char = 96;
+cell a_char = 96;
 drain a_char into h e l o;
 output h;
 output e;
 output l;
 output l;
 output o;
-let ten = 10;
+cell ten = 10;
 output ten;
       ",
 		);
@@ -176,7 +176,7 @@ output 10;
 			r#";
 output  'h'  ;;;
 // comment
-let EEL[5] =    "ello\n";
+cell[5] EEL =    "ello\n";
 output EEL[0];
 output EEL[1];
 output EEL[2];
@@ -198,8 +198,8 @@ output 70;
 	fn hello_4() {
 		let program = String::from(
 			r#"
-let str[4] = [5, 12, 12, 15];
-let a = 'a' - 1;
+cell[4] str = [5, 12, 12, 15];
+cell a = 'a' - 1;
 drain a into *str;
 output 'H';
 output *str;
@@ -248,12 +248,12 @@ output '@' + 256 + 1 + false + true + 'e' - '@';
 	fn expressions_2() {
 		let program = String::from(
 			r#";
-let p = 9 - (true + true -(-7));
+cell p = 9 - (true + true -(-7));
 if not p {
 	output "Hi friend!\n";
 }
 
-let q = 8 + p - (4 + p);
+cell q = 8 + p - (4 + p);
 q -= 4;
 if q {
 	output "path a";
@@ -279,7 +279,7 @@ if 56 - 7 {
 	output 'B';
 }
 
-let not_a = 'a' + (-1) - (0 - 1);
+cell not_a = 'a' + (-1) - (0 - 1);
 if not not_a - 'a' {
 	output 'C';
 } else {
@@ -305,8 +305,8 @@ if not_a - 'a' {
 	fn expressions_4() {
 		let program = String::from(
 			r#";
-let x = 5;
-let A = 'A';
+cell x = 5;
+cell A = 'A';
 
 drain 0 + x + 1 into A {
 	output '6';
@@ -327,7 +327,7 @@ output A;
 	fn assignments_1() {
 		let program = String::from(
 			r#";
-let x = 5;
+cell x = 5;
 output '0' + x;
 x += 1;
 output '0' + x;
@@ -344,7 +344,7 @@ output '0' + x;
 	fn assignments_2() {
 		let program = String::from(
 			r#";
-let x = 5;
+cell x = 5;
 output '0' + x;
 x = x + 1;
 output '0' + x;
@@ -360,7 +360,7 @@ output '0' + x;
 	fn assignments_3() {
 		let program = String::from(
 			r#";
-let x = 5;
+cell x = 5;
 output '0' + x;
 x += 1 + x;
 output '0' + x;
@@ -377,7 +377,7 @@ output '0' + x;
 	fn assignments_4() {
 		let program = String::from(
 			r#";
-let x = 2;
+cell x = 2;
 output '0' + x;
 x = x + x + x;
 output '0' + x;
@@ -394,7 +394,7 @@ output '0' + x;
 	fn assignments_5() {
 		let program = String::from(
 			r#";
-let x = 2;
+cell x = 2;
 x = (2 + 3) - ((x + 4) + 1) + 4 - (12) + (3 + 10);
 output '0' + x;
 		"#,
@@ -407,10 +407,10 @@ output '0' + x;
 	}
 
 	#[test]
-    fn assignments_6() {
-        let program = String::from(
-            r#";
-let x[2] = [4, 5];
+	fn assignments_6() {
+		let program = String::from(
+			r#";
+cell[2] x = [4, 5];
 x[0] = x[0] + 4;
 x[1] = x[1] - 3;
 
@@ -418,19 +418,19 @@ x[0] += '0';
 x[1] += '0';
 output *x;
         "#,
-        );
-        let input = String::from("");
-        let desired_output = String::from("82");
-        let output = compile_and_run(program, input).expect("");
-        println!("{output}");
-        assert_eq!(desired_output, output)
-    }
+		);
+		let input = String::from("");
+		let desired_output = String::from("82");
+		let output = compile_and_run(program, input).expect("");
+		println!("{output}");
+		assert_eq!(desired_output, output)
+	}
 
-    #[test]
-    fn assignments_7() {
-        let program = String::from(
-            r#";
-let x[2] = [1, 2];
+	#[test]
+	fn assignments_7() {
+		let program = String::from(
+			r#";
+cell[2] x = [1, 2];
 x[0] = x[1] + 5; // 7
 x[1] = x[0] + x[1]; // 9
 
@@ -438,26 +438,26 @@ x[0] += '0';
 x[1] += '0';
 output *x;
         "#,
-        );
-        let input = String::from("");
-        let desired_output = String::from("79");
-        let output = compile_and_run(program, input).expect("");
-        println!("{output}");
-        assert_eq!(desired_output, output)
-    }
+		);
+		let input = String::from("");
+		let desired_output = String::from("79");
+		let output = compile_and_run(program, input).expect("");
+		println!("{output}");
+		assert_eq!(desired_output, output)
+	}
 
 	#[test]
 	fn loops_1() {
 		let program = String::from(
 			"
-let n = '0';
-let a = 10;
-let b = 1;
+cell n = '0';
+cell a = 10;
+cell b = 1;
 drain a {
 	output n;
 	++n;
 	output 'A';
-	let c = b;
+	cell c = b;
 	drain c {
 		output 'B';
 	};
@@ -475,8 +475,8 @@ drain a {
 	fn loops_2() {
 		let program = String::from(
 			"
-let a = 4;
-let b[6] = [65, 65, 65, 65, 65, 1];
+cell a = 4;
+cell[6] b = [65, 65, 65, 65, 65, 1];
 copy a into b[0] b[1] b[4] b[5] {
 	copy b[5] into b[2];
 	
@@ -488,7 +488,7 @@ copy a into b[0] b[1] b[4] b[5] {
 	output 10;
 }a+='a';output a;
 
-let g = 5;
+cell g = 5;
 drain g into a {output a;}
       ",
 		);
@@ -514,10 +514,10 @@ output 'h';
 	fn ifs_1() {
 		let program = String::from(
 			"
-let x = 7;
-let y = 9;
+cell x = 7;
+cell y = 9;
 
-let z = x - y;
+cell z = x - y;
 if z {
 	output 'A';
 } else {
@@ -556,10 +556,10 @@ output 10;
 	fn ifs_2() {
 		let program = String::from(
 			"
-let x = 7;
-let y = 9;
+cell x = 7;
+cell y = 9;
 
-let z = x - y;
+cell z = x - y;
 if z {
 	output 'A';
 } else {
@@ -600,9 +600,9 @@ output 10;
 	fn ifs_3() {
 		let program = String::from(
 			"
-let a = 5;
+cell a = 5;
 if a {
-	let b = a + '0';
+	cell b = a + '0';
 	output b;
 }
 output 10;
@@ -619,16 +619,16 @@ output 10;
 	fn loops_and_ifs_1() {
 		let program = String::from(
 			"
-let n = '0';
-let a = 6;
-let b;
+cell n = '0';
+cell a = 6;
+cell b;
 drain a {
 	output n;++n;
 ;;;;;;
 	output 'A';
 
-	let c;
-	let nt_eq = a - b;
+	cell c;
+	cell nt_eq = a - b;
 
 	if nt_eq {
 		c = 2;
@@ -654,27 +654,27 @@ drain a {
 	fn functions_1() {
 		let program = String::from(
 			"
-let global_var = '0';
+cell global_var = '0';
 
-def func_0<grape> {
-	let n = grape + 1;
+fn func_0(cell grape) {
+	cell n = grape + 1;
 	output n;
 	n = 0;
 };;
 
-def func_1<grape> {
-	let n = grape + 2;
+fn func_1(cell grape) {
+	cell n = grape + 2;
 	output n;
 	n = 0;
 }
 
 output global_var;
-func_0<global_var>;
+func_0(global_var);
 output global_var;
 
 global_var += 1;;;
 output global_var;
-;;func_1<global_var>;
+;;func_1(global_var);
 output global_var;
 
 output 10;
@@ -691,26 +691,26 @@ output 10;
 	fn functions_2() -> Result<(), String> {
 		let program = String::from(
 			"
-let global_var = '0';
+cell global_var = '0';
 
-def func_0<grape> {
-	let n = grape + 1;
+fn func_0(cell grape) {
+	cell n = grape + 1;
 	output n;
 
-	def func_1<grape> {
+	fn func_1(cell grape) {
 		grape += 1;
 		output grape;
 		grape += 1;
 	};
 
-	func_1<n>;
+	func_1(n);
 	output n;
 
 	grape += 1;
 };
 
 output global_var;
-func_0<global_var>;
+func_0(global_var);
 output global_var;
 
 output 10;
@@ -731,48 +731,48 @@ output 10;
 	fn functions_3() {
 		let program = String::from(
 			"
-let global_var = '0';
+cell global_var = '0';
 
-let global_vars[2] = ['0', 64];
+cell[2] global_vars = ['0', 64];
 
-def func_0<grape> {
-	let n = grape + 1;
+fn func_0(cell grape) {
+	cell n = grape + 1;
 	output n;
 
-	def func_1<grape> {
+	fn func_1(cell grape) {
 		grape += 1;
 		output grape;
 		grape += 1;
 
-		let frog[4];
-		let zero = '0';
+		cell[4] frog;
+		cell zero = '0';
 		drain zero into *frog;
 		frog[1] += 2;
 
 		zero = grape + 3;
-		func_2<frog, zero>;
+		func_2(frog, zero);
 		output zero;
 	};
 
-	func_1<n>;
+	func_1(n);
 	output n;
 
 	grape += 1;
 };
 
 output global_var;
-func_0<global_var>;
+func_0(global_var);
 output global_var;
 
 output 10;
 
 output global_vars[1];
-func_0<global_vars[0]>;
+func_0(global_vars[0]);
 output global_vars[0];
 
 output 10;
 
-def func_2<think[4], green> {
+fn func_2(cell[4] think, cell green) {
 	think[2] += 7;
 	think[3] += 2;
 
@@ -784,7 +784,7 @@ def func_2<think[4], green> {
 	output green;
 	// this originally worked but I realised I don't actually need this
 	// technically green is not declared in this scope because functions are more like templates but I still think removing this functionality is justified
-	// let green = '$';
+	// cell green = '$';
 	// output green;
 	// green = 0;
 };
@@ -798,14 +798,88 @@ def func_2<think[4], green> {
 	}
 
 	#[test]
+	fn functions_3a() {
+		let program = String::from(
+			r#"
+cell[4] a = "AACD";
+add_one(a[1]);
+output *a;
+
+fn add_one(cell cel) {
+  ++cel;
+}
+"#,
+		);
+		let input = String::from("");
+		let desired_output = String::from("ABCD");
+		let output = compile_and_run(program, input).expect("");
+		println!("{output}");
+		assert_eq!(desired_output, output)
+	}
+
+	#[test]
+	fn functions_3b() {
+		let program = String::from(
+			r#"
+struct A {cell[3] arr;};
+struct A a;
+a.arr[0] = '0';
+a.arr[1] = '0';
+a.arr[2] = '0';
+
+add_one_to_three(a.arr);
+output *a.arr;
+
+fn add_one_to_three(cell[3] t) {
+  t[0] += 1;
+  t[1] += 1;
+  t[2] += 1;
+}
+"#,
+		);
+		let input = String::from("");
+		let desired_output = String::from("111");
+		let output = compile_and_run(program, input).expect("");
+		println!("{output}");
+		assert_eq!(desired_output, output)
+	}
+
+	#[test]
+	fn functions_3c() {
+		let program = String::from(
+			r#"
+struct A {cell b; cell c;};
+struct A a;
+a.b = '0';
+a.c = '0';
+
+add_one(a.b);
+add_one(a.c);
+add_one(a.c);
+output a.b;
+output a.c;
+
+fn add_one(cell t) {
+  ++t;
+}
+"#,
+		);
+		let input = String::from("");
+		let desired_output = String::from("12");
+		let output = compile_and_run(program, input).expect("");
+		println!("{output}");
+		assert_eq!(desired_output, output)
+	}
+
+	#[test]
 	fn functions_4() {
 		let program = String::from(
 			r#"
-def hello<> {
+fn hello() {
 	output "hello";
 }
 
-hello<>;
+hello();
 output 10;
 		"#,
 		);
@@ -820,7 +894,7 @@ output 10;
 	fn input_1() {
 		let program = String::from(
 			"
-let b;
+cell b;
 input b;
 ++b;
 output b;
@@ -837,7 +911,7 @@ output b;
 	fn input_2() {
 		let program = String::from(
 			r#"
-let b[3];
+cell[3] b;
 input b[0];
 input b[1];
 input b[2];
@@ -864,21 +938,21 @@ output b[0];
 	fn memory_1() {
 		let program = String::from(
 			r#"
-let b[3] = "Foo";
+cell[3] b = "Foo";
 
-def inc<h, g> {
+fn inc(cell h, cell g) {
 	g += 1;
 	if h {h += 1;} else {h = 'Z';}
 }
 
 output *b;
-inc<b[1], b[2]>;
+inc(b[1], b[2]);
 output *b;
 
 output 10;
 
-let c = -1;
-inc<c, c>;
+cell c = -1;
+inc(c, c);
 output c;
 "#,
 		);
@@ -893,27 +967,27 @@ output c;
 	fn memory_2() {
 		let program = String::from(
 			r#"
-let b[3] = [1, 2, 3];
+cell[3] b = [1, 2, 3];
 
-def drain_h<h> {
+fn drain_h(cell h) {
 	drain h {
 		output 'h';
 	}
 }
 
-drain_h<b[2]>;
-drain_h<b[2]>;
+drain_h(b[2]);
+drain_h(b[2]);
 output ' ';
-drain_h<b[1]>;
+drain_h(b[1]);
 output ' ';
 
-def drain_into<a, b[5]> {
+fn drain_into(cell a, cell[5] b) {
 	drain a into *b;
 }
 
-let u = 'a' - 1;
-let v[5] = [8, 5, 12, 12, 15];
-drain_into<u, v>;
+cell u = 'a' - 1;
+cell[5] v = [8, 5, 12, 12, 15];
+drain_into(u, v);
 output *v;
 "#,
 		);
@@ -929,7 +1003,7 @@ output *v;
 		let program = String::from(
 			r#"
 {{{{{{{
-	let g = 0 + 5 + (-(-5));
+	cell g = 0 + 5 + (-(-5));
 	output "Freidns";
 	{
 		output g;
@@ -948,10 +1022,10 @@ output *v;
 	fn blocks_2() {
 		let program = String::from(
 			r#"
-let f = 'f';
+cell f = 'f';
 output f;
 {
-	let f = 'F';
+	cell f = 'F';
 	output f;
 }
 output f;
@@ -965,12 +1039,633 @@ output f;
 	}
 
 	#[test]
+	fn dimensional_arrays_1() {
+		let program = String::from(
+			r#"
+cell[4][3] g;
+g[0][0] = 5 + '0';
+g[0][1] = 4 + '0';
+g[0][2] = 3 + '0';
+
+g[1][0] = 1 + '0';
+g[1][1] = 2 + '0';
+g[1][2] = 3 + '0';
+
+g[0][3] = 1 + '0';
+g[1][3] = 2 + '0';
+g[2][3] = 3 + '0';
+
+g[2][0] = 0 + '0';
+g[2][1] = 0 + '0';
+g[2][2] = 0 + '0';
+
+output g[0][0];
+output g[0][1];
+output g[0][2];
+output g[0][3];
+output g[1][0];
+output g[1][1];
+output g[1][2];
+output g[1][3];
+output g[2][0];
+output g[2][1];
+output g[2][2];
+output g[2][3];
+"#,
+		);
+		let input = String::from("");
+		let desired_output = String::from("543112320003");
+		let output = compile_and_run(program, input).expect("");
+		println!("{output}");
+		assert_eq!(desired_output, output)
+	}
+
+	#[test]
+	fn structs_1() {
+		let program = String::from(
+			r#";
+struct AA {
+  cell green;
+	cell yellow;
+}
+
+struct AA a;
+output '0' + a.green;
+output '0' + a.yellow;
+
+a.green = 6;
+a.yellow = 4;
+output '0' + a.green;
+output '0' + a.yellow;
+			"#,
+		);
+		let input = String::from("");
+		let desired_output = String::from("0064");
+		let output = compile_and_run(program, input).expect("");
+		println!("{output}");
+		assert_eq!(desired_output, output)
+	}
+
+	#[test]
+	fn structs_2() {
+		let program = String::from(
+			r#";
+struct AA {
+  cell green;
+	cell yellow;
+}
+
+// struct AA a {green = 3, yellow = 4};
+struct AA a; a.green = 3; a.yellow = 4;
+output '0' + a.green;
+output '0' + a.yellow;
+
+a.green = 5;
+a.yellow = 2;
+output '0' + a.green;
+output '0' + a.yellow;
+			"#,
+		);
+		let input = String::from("");
+		let desired_output = String::from("3452");
+		let output = compile_and_run(program, input).expect("");
+		println!("{output}");
+		assert_eq!(desired_output, output)
+	}
+
+	#[test]
+	fn structs_3() {
+		let program = String::from(
+			r#";
+struct AA {
+  cell green;
+	cell yellow;
+}
+
+struct AA a;
+
+fn input_AA(struct AA bbb) {
+  input bbb.green;
+  input bbb.yellow;
+}
+
+input_AA(a);
+
+output a.yellow;
+output a.green;
+			"#,
+		);
+		let input = String::from("gh");
+		let desired_output = String::from("hg");
+		let output = compile_and_run(program, input).expect("");
+		println!("{output}");
+		assert_eq!(desired_output, output)
+	}
+
+	#[test]
+	fn structs_3a() {
+		let program = String::from(
+			r#";
+struct AA a;
+
+fn input_AA(struct AA bbb) {
+  input bbb.green;
+  input bbb.yellow;
+
+  struct AA {
+    cell[10] g;
+  }
+}
+
+input_AA(a);
+
+output a.yellow;
+output a.green;
+
+struct AA {
+  cell green;
+	cell yellow;
+}
+			"#,
+		);
+		let input = String::from("gh");
+		let desired_output = String::from("hg");
+		let output = compile_and_run(program, input).expect("");
+		println!("{output}");
+		assert_eq!(desired_output, output)
+	}
+
+	#[test]
+	fn structs_3b() {
+		let program = String::from(
+			r#";
+struct AA a;
+
+fn input_AA(struct AA bbb) {
+  input bbb.green;
+  input bbb.yellow;
+
+	struct AA alt_a;
+	input *alt_a.l;
+
+	output alt_a.l[4];
+
+  struct AA {
+    cell[10] l;
+  }
+}
+
+input_AA(a);
+
+output a.yellow;
+output a.green;
+
+struct AA {
+  cell green;
+	cell yellow;
+}
+			"#,
+		);
+		let input = String::from("ghpalindrome");
+		let desired_output = String::from("nhg");
+		let output = compile_and_run(program, input).expect("");
+		println!("{output}");
+		assert_eq!(desired_output, output)
+	}
+
+	#[test]
+	fn structs_4a() {
+		let program = String::from(
+			r#";
+struct AA a;
+input a.green;
+input a.yellow;
+input a.reds[3];
+input a.reds[0];
+input a.reds[1];
+input a.reds[2];
+
+struct AA {
+  cell green;
+  cell yellow;
+  cell[4] reds;
+}
+
+output a.green;
+output a.yellow;
+output a.reds[0];
+output a.reds[1];
+output a.reds[2];
+output a.reds[3];
+output '\n';
+			"#,
+		);
+		let input = String::from("hellow");
+		let desired_output = String::from("helowl\n");
+		let output = compile_and_run(program, input).expect("");
+		println!("{output}");
+		assert_eq!(desired_output, output)
+	}
+
+	#[test]
+	fn structs_5() {
+		let program = String::from(
+			r#";
+struct AA {
+  cell green;
+}
+
+struct AA[2] as;
+as[0].green = 5;
+as[1].green = 3;
+
+output '0' + as[0].green;
+output '0' + as[1].green;
+			"#,
+		);
+		let input = String::from("");
+		let desired_output = String::from("53");
+		let output = compile_and_run(program, input).expect("");
+		println!("{output}");
+		assert_eq!(desired_output, output)
+	}
+
+	#[test]
+	fn structs_5a() {
+		let program = String::from(
+			r#"
+struct AAA[2] as;
+as[0].green = 5;
+as[1].green = 3;
+
+output '0' + as[0].green;
+output '0' + as[1].green;
+
+struct AAA {
+  cell green;
+}
+"#,
+		);
+		let input = String::from("");
+		let desired_output = String::from("53");
+		let output = compile_and_run(program, input).expect("");
+		println!("{output}");
+		assert_eq!(desired_output, output)
+	}
+
+	#[test]
+	fn structs_6() {
+		let program = String::from(
+			r#";
+struct AA {
+  cell green;
+}
+struct BB {
+  cell green;
+}
+
+struct AA[2] as;
+// struct BB b {
+//   green = 6
+// };
+struct BB b;
+b.green = 6;
+
+fn input_AAs(struct AA[2] aaas) {
+  input aaas[0].green;
+  input aaas[1].green;
+	output "HI\n";
+}
+input_AAs(as);
+
+output '0' + b.green;
+output as[0].green;
+output as[1].green;
+			"#,
+		);
+		let input = String::from("tr");
+		let desired_output = String::from("HI\n6tr");
+		let output = compile_and_run(program, input).expect("");
+		println!("{output}");
+		assert_eq!(desired_output, output)
+	}
+
+	#[test]
+	fn structs_7() {
+		let program = String::from(
+			r#";
+struct BB {
+	cell green;
+}
+struct AA {
+  cell green;
+	struct BB[3] bbb;
+}
+
+struct AA[2] as;
+
+fn input_AAs(struct AA[2] aaas) {
+  fn input_BB(struct BB b) {
+	  input b.green;
+	}
+	input_BB(aaas[0].bbb[0]);
+	input_BB(aaas[0].bbb[1]);
+	input_BB(aaas[0].bbb[2]);
+  input_BB(aaas[1].bbb[0]);
+	input_BB(aaas[1].bbb[1]);
+	input_BB(aaas[1].bbb[2]);
+ 
+  input aaas[0].green;
+  input aaas[1].green;
+	output "HI\n";
+}
+input_AAs(as);
+
+output as[0].green;
+output as[0].bbb[0].green;
+output as[0].bbb[1].green;
+output as[0].bbb[2].green;
+output as[1].green;
+output as[1].bbb[0].green;
+output as[1].bbb[1].green;
+output as[1].bbb[2].green;
+			"#,
+		);
+		let input = String::from("abcdefgh");
+		let desired_output = String::from("HI\ngabchdef");
+		let output = compile_and_run(program, input).expect("");
+		println!("{output}");
+		assert_eq!(desired_output, output)
+	}
+
+	#[ignore]
+	#[test]
+	fn structs_bf_1() {
+		let program = String::from(
+			r#";
+struct Frame {
+	cell    marker     @3;
+	cell    value      @0;
+	cell[2] temp_cells @1;
+}
+struct Vector {
+	struct Frame[10]  frames @1;
+	cell              marker @0;
+}
+
+struct Vector vec1 @2;
+
+vec1.frames[0].marker = true;
+vec1.frames[0].value = 'j';
+vec1.frames[1].marker = true;
+vec1.frames[1].value = 'k';
+
+bf @2 {
+  >[>.>>>]
+}
+			"#,
+		);
+		let input = String::from("");
+		let desired_output = String::from("jk");
+		let output = compile_and_run(program, input).expect("");
+		println!("{output}");
+		assert_eq!(desired_output, output)
+	}
+
+	#[ignore]
+	#[test]
+	fn structs_bf_2() {
+		let program = String::from(
+			r#";
+struct Green {
+  // no @0 cell
+  cell blue @1;
+}
+struct Green g @4;
+g.blue = '5';
+
+output g.blue;
+bf @4 {
+  >.<
+}
+			"#,
+		);
+		let input = String::from("");
+		let desired_output = String::from("55");
+		let output = compile_and_run(program, input).expect("");
+		println!("{output}");
+		assert_eq!(desired_output, output)
+	}
+
+	#[ignore]
+	#[test]
+	fn sizeof_0() {
+		let program = String::from(
+			r#";
+output '0' + sizeof(cell);
+			"#,
+		);
+		let input = String::from("");
+		let desired_output = String::from("1");
+		let output = compile_and_run(program, input).expect("");
+		println!("{output}");
+		assert_eq!(desired_output, output)
+	}
+
+	#[ignore]
+	#[test]
+	fn sizeof_0a() {
+		let program = String::from(
+			r#";
+output '0' + sizeof(cell[5]);
+			"#,
+		);
+		let input = String::from("");
+		let desired_output = String::from("5");
+		let output = compile_and_run(program, input).expect("");
+		println!("{output}");
+		assert_eq!(desired_output, output)
+	}
+
+	#[ignore]
+	#[test]
+	fn sizeof_0b() {
+		let program = String::from(
+			r#";
+cell a;
+cell b[4];
+output '0' + sizeof(a);
+output '0' + sizeof(b);
+output '0' + sizeof(b[2]);
+			"#,
+		);
+		let input = String::from("");
+		let desired_output = String::from("141");
+		let output = compile_and_run(program, input).expect("");
+		println!("{output}");
+		assert_eq!(desired_output, output)
+	}
+
+	#[ignore]
+	#[test]
+	fn sizeof_1() {
+		let program = String::from(
+			r#";
+struct Green {
+  cell blue;
+}
+let s = sizeof(struct Green);
+output '0' + s;
+			"#,
+		);
+		let input = String::from("");
+		let desired_output = String::from("1");
+		let output = compile_and_run(program, input).expect("");
+		println!("{output}");
+		assert_eq!(desired_output, output)
+	}
+
+	#[ignore]
+	#[test]
+	fn sizeof_1a() {
+		let program = String::from(
+			r#";
+struct Green {
+  cell blue;
+}
+let s = sizeof(struct Green[3]);
+output '0' + s;
+			"#,
+		);
+		let input = String::from("");
+		let desired_output = String::from("3");
+		let output = compile_and_run(program, input).expect("");
+		println!("{output}");
+		assert_eq!(desired_output, output)
+	}
+
+	#[ignore]
+	#[test]
+	fn sizeof_1b() {
+		let program = String::from(
+			r#";
+struct Green {
+  cell blue;
+}
+let s = sizeof(struct Green[3][2]);
+output '0' + s;
+			"#,
+		);
+		let input = String::from("");
+		let desired_output = String::from("6");
+		let output = compile_and_run(program, input).expect("");
+		println!("{output}");
+		assert_eq!(desired_output, output)
+	}
+
+	#[ignore]
+	#[test]
+	fn sizeof_2() {
+		let program = String::from(
+			r#";
+struct Green {
+  cell blue;
+	cell red;
+}
+struct Green g;
+output '0' + sizeof(g);
+			"#,
+		);
+		let input = String::from("");
+		let desired_output = String::from("2");
+		let output = compile_and_run(program, input).expect("");
+		println!("{output}");
+		assert_eq!(desired_output, output)
+	}
+
+	#[ignore]
+	#[test]
+	fn sizeof_3() {
+		let program = String::from(
+			r#";
+struct Green {
+  cell blue;
+	cell[5] red;
+	cell yellow;
+}
+struct Green[2] g;
+output '0' + sizeof(g) - 13;
+
+output '0' + sizeof(g[0].blue);
+output '0' + sizeof(g[0].red);
+			"#,
+		);
+		let input = String::from("");
+		let desired_output = String::from("115");
+		let output = compile_and_run(program, input).expect("");
+		println!("{output}");
+		assert_eq!(desired_output, output)
+	}
+
+	#[ignore]
+	#[test]
+	fn sizeof_4() {
+		let program = String::from(
+			r#";
+struct Green {
+  cell blue @2;
+}
+struct Green[3] g;
+output '0' + sizeof(struct Green);
+output '0' + sizeof(g);
+output '0' + sizeof(g[2].blue)
+			"#,
+		);
+		let input = String::from("");
+		let desired_output = String::from("391");
+		let output = compile_and_run(program, input).expect("");
+		println!("{output}");
+		assert_eq!(desired_output, output)
+	}
+
+	#[ignore]
+	#[test]
+	fn sizeof_5() {
+		let program = String::from(
+			r#";
+struct Blue {
+  cell[2] blues;
+}
+struct Red {
+  cell a;
+	struct Blue blues;
+}
+struct Green {
+  cell blue @2;
+  struct Red red;
+}
+output '0' + sizeof(struct Blue);
+output '0' + sizeof(struct Red);
+struct Green[3] g;
+output '0' + sizeof(struct Green);
+output '0' + sizeof(g) - 17;
+output '0' + sizeof(g[2].blue)
+			"#,
+		);
+		let input = String::from("");
+		let desired_output = String::from("23612");
+		let output = compile_and_run(program, input).expect("");
+		println!("{output}");
+		assert_eq!(desired_output, output)
+	}
+
+	#[test]
 	fn memory_specifiers_1() -> Result<(), String> {
 		let program = String::from(
 			r#"
-let foo @3 = 2;
+cell foo @3 = 2;
 {
-	let n = 12;
+	cell n = 12;
 	while n {
 		n -= 1;
 		foo += 10;
@@ -994,9 +1689,9 @@ output foo;
 	fn memory_specifiers_2() -> Result<(), String> {
 		let program = String::from(
 			r#"
-let a @5 = 4;
-let foo @0 = 2;
-let b = 10;
+cell a @5 = 4;
+cell foo @0 = 2;
+cell b = 10;
 "#,
 		);
 		let code = compile_program(program, None)?.to_string();
@@ -1010,9 +1705,9 @@ let b = 10;
 	fn memory_specifiers_3() -> Result<(), String> {
 		let program = String::from(
 			r#"
-let a @1 = 1;
-let foo @0 = 2;
-let b = 3;
+cell a @1 = 1;
+cell foo @0 = 2;
+cell b = 3;
 "#,
 		);
 		let code = compile_program(program, None)?.to_string();
@@ -1026,7 +1721,7 @@ let b = 3;
 	fn assertions_1() -> Result<(), String> {
 		let program = String::from(
 			r#"
-let a @0 = 5;
+cell a @0 = 5;
 output a;
 assert a equals 2;
 a = 0;
@@ -1044,7 +1739,7 @@ output a;
 	fn assertions_2() -> Result<(), String> {
 		let program = String::from(
 			r#"
-let a @0 = 2;
+cell a @0 = 2;
 output a;
 assert a unknown;
 a = 0;
@@ -1085,8 +1780,8 @@ bf {
 	fn inline_brainfuck_2() -> Result<(), String> {
 		let program = String::from(
 			r#"
-// let a @0;
-// let b @1;
+// cell a @0;
+// cell b @1;
 bf @3 {
 	,.[-]
 	+[-->-[>>+>-----<<]<--<---]>-.>>>+.>>..+++[.>]<<<<.+++.------.<<-.>>>>+.
@@ -1109,7 +1804,7 @@ bf @3 {
 	fn inline_brainfuck_3() -> Result<(), String> {
 		let program = String::from(
 			r#"
-let str[3] @0;
+cell[3] str @0;
 
 bf @0 clobbers *str {
 	,>,>,
@@ -1148,7 +1843,7 @@ bf {
 	,----------[
 		++++++++++
 		{
-			let chr @0;
+			cell chr @0;
 			assert chr unknown;
 			output chr;
 			chr += 1;
@@ -1173,7 +1868,7 @@ bf {
 		let program = String::from(
 			r#"
 // external function within the same file, could be tricky to implement
-def quote<n> {
+fn quote(cell n) {
 	// H 'H'
 	output 39;
 	output n;
@@ -1186,10 +1881,9 @@ bf {
 	,----------[
 		++++++++++
 		{
-			// TODO: make sure top level variables aren't cleared automatically
-			let chr @0;
+			cell chr @0;
 			assert chr unknown;
-			quote<chr>;
+			quote(chr);
 			output 10;
 			// this time it may be tricky because the compiler needs to return to the start cell
 		}
@@ -1211,7 +1905,7 @@ bf {
 	fn inline_brainfuck_6() -> Result<(), String> {
 		let program = String::from(
 			r#"
-let b = 4;
+cell b = 4;
 
 bf {
 	++--
@@ -1235,7 +1929,7 @@ bf {
 	bf {
 		,>,>,
 		<<
-		{{{{{{let g @5 = 1;}}}}}}
+		{{{{{{cell g @5 = 1;}}}}}}
 	}
 	"#,
 		);
@@ -1250,7 +1944,8 @@ bf {
 		let program = String::from(
 			r#"
 			bf {,.[-]+[--^-[^^+^-----vv]v--v---]^-.^^^+.^^..+++[.^]vvvv.+++.------.vv-.^^^^+.}
-		"#, );
+		"#,
+		);
 		let code = compile_program(program, None)?.to_string();
 
 		assert_eq!(
@@ -1268,14 +1963,22 @@ bf {
 		let program = String::from(
 			r#"
 			bf {,.[-]+[--^-[^^+^-----vv]v--v---]^-.^^^+.^^..+++[.^]vvstvv.+++.------.vv-.^^^^+.}
-		"#, );
+		"#,
+		);
 		let result = compile_program(program, None);
 	}
 
 	#[test]
 	#[should_panic(expected = "2D Brainfuck currently disabled")]
 	fn inline_2d_brainfuck_disabled() {
-		run_code(BVM_CONFIG_1D, String::from(",.[-]+[--^-[^^+^-----vv]v--v---]^-.^^^+.^^..+++[.^]vvvv.+++.------.vv-.^^^^+."), String::from("~"), None);
+		run_code(
+			BVM_CONFIG_1D,
+			String::from(
+				",.[-]+[--^-[^^+^-----vv]v--v---]^-.^^^+.^^..+++[.^]vvvv.+++.------.vv-.^^^^+.",
+			),
+			String::from("~"),
+			None,
+		);
 	}
 	#[test]
 	fn constant_optimisations_1() -> Result<(), String> {
@@ -1301,9 +2004,9 @@ output 'h';
 	fn constant_optimisations_2() -> Result<(), String> {
 		let program = String::from(
 			r#"
-let arr[15] @1;
-let a = 'G';
-let b = a + 45;
+cell[15] arr @1;
+cell a = 'G';
+cell b = a + 45;
 output b;
 b -= 43;
 output b;
