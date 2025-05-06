@@ -121,8 +121,6 @@ fn parse_let_clause(clause: &[Token]) -> Result<Clause, String> {
 	i += len;
 
 	let (location_specifier, len) = parse_location_specifier(&clause[i..])?;
-	println!("location specifier: {location_specifier:#?}");
-	println!("location specifier len: {len}");
 	i += len;
 
 	if let Token::EqualsSign = &clause[i] {
@@ -501,7 +499,6 @@ fn parse_assert_clause(clause: &[Token]) -> Result<Clause, String> {
 // or
 // let p @3 = 68;
 fn parse_location_specifier(tokens: &[Token]) -> Result<(Option<TapeCell>, usize), String> {
-	println!("parse_location_specifier: {tokens:#?}");
 	if let Token::At = &tokens[0] {
 		let mut i = 1;
 		let mut offsety = 0;
@@ -539,8 +536,6 @@ fn parse_location_specifier(tokens: &[Token]) -> Result<(Option<TapeCell>, usize
 		if !positivex {
 			offsetx = -offsetx;
 		}
-		println!("offsetx: {offsetx}");
-		println!("offsety: {offsety}");
 		Ok((Some((offsetx, offsety)), i))
 	} else {
 		Ok((None, 0))
