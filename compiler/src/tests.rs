@@ -75,12 +75,12 @@ pub mod tests {
 		program: String,
 		config: Option<&MastermindConfig>,
 	) -> Result<Vec<Opcode>, String> {
-		println!("{program}");
+		// println!("{program}");
 		// compile mastermind
 		let tokens: Vec<Token> = tokenise(&program)?;
-		println!("{tokens:#?}");
+		// println!("{tokens:#?}");
 		let clauses = parse(&tokens)?;
-		println!("{clauses:#?}");
+		// println!("{clauses:#?}");
 		let instructions = Compiler {
 			config: config.unwrap_or(&OPT_NONE),
 		}
@@ -1768,6 +1768,48 @@ output a;
 
 		assert!(code.starts_with("+++++.--."));
 		Ok(())
+	}
+
+	#[test]
+	fn memory_specifiers_6() {
+		let program = String::from(
+			r#"
+cell a @1 = 1;
+cell foo @1 = 2;
+cell b = 3;
+"#,
+		);
+		let code = compile_program(program, None);
+		assert!(code.is_err());
+		assert!(code.unwrap_err().to_string().contains("Location specifier @1,0 conflicts with another allocation"));
+	}
+
+	#[test]
+	fn memory_specifiers_7() {
+		let program = String::from(
+			r#"
+cell a @1,3 = 1;
+cell foo @1,3 = 2;
+cell b = 3;
+"#,
+		);
+		let code = compile_program(program, None);
+		assert!(code.is_err());
+		assert!(code.unwrap_err().to_string().contains("Location specifier @1,3 conflicts with another allocation"));
+	}
+
+	#[test]
+	fn memory_specifiers_8() {
+		let program = String::from(
+			r#"
+cell a @2 = 1;
+cell foo @2,0 = 2;
+cell b = 3;
+"#,
+		);
+		let code = compile_program(program, None);
+		assert!(code.is_err());
+		assert!(code.unwrap_err().to_string().contains("Location specifier @2,0 conflicts with another allocation"));
 	}
 
 	#[test]
