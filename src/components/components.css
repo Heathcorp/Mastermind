@@ -2,3 +2,17 @@
   border-left: var(--default-border);
   border-top: var(--default-border);
 }
+
+.panel-header {
+  display: flex;
+  flex-direction: row;
+  justify-content: space-between;
+  padding: 2px 5px;
+  background-color: var(--BG-0);
+}
+
+.panel-text {
+  padding: 0;
+  margin: 0;
+  border: 0;
+}
