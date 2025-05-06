@@ -1753,24 +1753,6 @@ cell b = 3;
 	}
 
 	#[test]
-	fn assertions_1() -> Result<(), String> {
-		let program = String::from(
-			r#"
-cell a @0 = 5;
-output a;
-assert a equals 2;
-a = 0;
-output a;
-"#,
-		);
-		let code = compile_program(program, Some(&OPT_ALL))?.to_string();
-		println!("{code}");
-
-		assert!(code.starts_with("+++++.--."));
-		Ok(())
-	}
-
-	#[test]
 	fn memory_specifiers_6() {
 		let program = String::from(
 			r#"
@@ -1810,6 +1792,37 @@ cell b = 3;
 		let code = compile_program(program, None);
 		assert!(code.is_err());
 		assert!(code.unwrap_err().to_string().contains("Location specifier @2,0 conflicts with another allocation"));
+	}
+
+	#[test]
+	fn memory_specifiers_9() {
+		let program = String::from(
+			r#"
+cell a @2,4 = 1;
+cell[4] b @0,4;
+"#,
+		);
+		let code = compile_program(program, None);
+		assert!(code.is_err());
+		assert!(code.unwrap_err().to_string().contains("Location specifier @0,4 conflicts with another allocation"));
+	}
+
+	#[test]
+	fn assertions_1() -> Result<(), String> {
+		let program = String::from(
+			r#"
+cell a @0 = 5;
+output a;
+assert a equals 2;
+a = 0;
+output a;
+"#,
+		);
+		let code = compile_program(program, Some(&OPT_ALL))?.to_string();
+		println!("{code}");
+
+		assert!(code.starts_with("+++++.--."));
+		Ok(())
 	}
 
 	#[test]
