@@ -1734,6 +1734,25 @@ cell b = 3;
 	}
 
 	#[test]
+	fn memory_specifiers_5() -> Result<(), String> {
+		let program = String::from(
+			r#"
+cell[4][3] g @1,2;
+g[0][0] = 1;
+g[1][1] = 2;
+g[2][2] = 3;
+cell foo @0 = 2;
+cell b = 3;
+"#,
+		);
+		let code = compile_program(program, None)?.to_string();
+		println!("{code}");
+
+		assert!(code.starts_with(">^^[-]+>>>>>[-]++>>>>>[-]+++<<<<<<<<<<<vv++>+++"));
+		Ok(())
+	}
+
+	#[test]
 	fn assertions_1() -> Result<(), String> {
 		let program = String::from(
 			r#"
