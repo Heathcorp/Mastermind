@@ -44,7 +44,7 @@ const OutputPanel: Component<{ style?: JSX.CSSProperties }> = (props) => {
     })
   );
 
-  return <div class="panel input-panel" style={props.style}>
+  return <div class="panel output-panel" style={props.style}>
       <PanelHeader title={'Output'} getContent={getOutputText}/>
       <Divider/>
       <div class="panel output-panel" style={styles()} ref={e => {
