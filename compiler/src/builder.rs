@@ -61,7 +61,7 @@ impl Builder<'_> {
 				// the ids (indices really) given by the compiler are guaranteed to be unique (at the time of writing)
 				// however they will absolutely not be very efficient if used directly as cell locations
 				Instruction::Allocate(memory, location_specifier) => {
-					let cell = allocator.allocate(location_specifier, memory.len())?;
+					let cell = allocator.allocate(location_specifier, memory.len(), self.config.memory_allocation_method)?;
 					let None = alloc_map.insert(
 						memory.id(),
 						(
@@ -374,22 +374,49 @@ impl CellAllocator {
 		}
 	}
 
-	fn allocate(&mut self, location: Option<TapeCell>, size: usize) -> Result<TapeCell, String> {
+	fn allocate(&mut self, location: Option<TapeCell>, size: usize, method: u8) -> Result<TapeCell, String> {
 		// should the region start at the current tape head?
 		let mut region_start = location.unwrap_or((0,0));
-
-		for i in region_start.0.. {
-			if self.alloc_map.contains(&(i, region_start.1)) {
-				// if a specifier was set, it is invalid so throw an error
-				// TODO: not sure if this should throw here or not
-				if let Some(l) = location {
-					r_panic!("Location specifier @{0},{1} conflicts with another allocation", l.0, l.1);
-				};
-				// reset search to start at next cell
-				region_start = (i + 1, region_start.1);
-			} else if i - region_start.0 == (size as i32 - 1) {
-				break;
+		if method == 0 {
+			for i in region_start.0.. {
+				if self.alloc_map.contains(&(i, region_start.1)) {
+					// if a specifier was set, it is invalid so throw an error
+					// TODO: not sure if this should throw here or not
+					if let Some(l) = location {
+						r_panic!("Location specifier @{0},{1} conflicts with another allocation", l.0, l.1);
+					};
+					// reset search to start at next cell
+					region_start = (i + 1, region_start.1);
+				} else if i - region_start.0 == (size as i32 - 1) {
+					break;
+				}
 			}
+		} else if method == 2 {
+			let mut found = false;
+			let mut loops = 0;
+			while !found {
+				for i in -loops..=loops {
+					for j in -loops..=loops {
+						if self.alloc_map.contains(&(region_start.0 + i, region_start.1 + j)) {
+							if let Some(l) = location {
+								r_panic!("Location specifier @{0},{1} conflicts with another allocation", l.0, l.1);
+							};
+						} else {
+							found = true;
+							region_start = (region_start.0 + i, region_start.1 + j);
+							break;
+						}
+					}
+					if found {
+						break;
+					}
+
+				}
+				loops += 1;
+			}
+		}
+		else {
+			panic!("Method not implemented");
 		}
 
 		// make all cells in the specified region allocated
