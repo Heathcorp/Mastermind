@@ -416,7 +416,7 @@ impl CellAllocator {
 			}
 		}
 		else {
-			panic!("Method not implemented");
+			panic!("Memory Allocation Method not implemented");
 		}
 
 		// make all cells in the specified region allocated
