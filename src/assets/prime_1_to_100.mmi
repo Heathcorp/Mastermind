@@ -13,7 +13,7 @@ drain N into number {
   }
 }
 
-fn is_prime(result1, num) {
+fn is_prime(cell result1, cell num) {
     result1 = false;
     cell divisor = num - 1;
     drain divisor{
