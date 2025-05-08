@@ -16,35 +16,40 @@ import PanelHeader from "../components/PanelHeader.tsx";
 import Divider from "../components/Divider.tsx";
 // import { defaultExtensions } from "../misc";
 
-const InputPanel: Component<{ style?: JSX.CSSProperties }> = (props) => {
+const BrainfuckPanel: Component<{ style?: JSX.CSSProperties }> = (props) => {
   const app = useAppContext()!;
   // when the compiler is idle, allow the user to edit freely
   // when the compiler is running code, the user can only append
-  const getInputText = () => app.input().text || "";
+  const getBrainfuckText = () => app.brainfuck().text || "";
 
   let editorView: EditorView | undefined;
 
-  createEffect(on([() => editorView, app.input], () => {
+  createEffect(on([() => !!editorView, app.output], () => {
     if (!editorView) return;
-
     // update the editorView when the input changes so that the layers re-render
-    editorView.dispatch();
+    editorView.dispatch({
+      changes: {
+        from: 0,
+        to: editorView.state.doc.length,
+        insert: app.brainfuck().text || '',
+      },
+    });
   }));
 
   return <div class="panel input-panel" style={props.style}>
-    <PanelHeader title={'Input'} getContent={getInputText}/>
+    <PanelHeader title={'Brainfuck'} getContent={getBrainfuckText}/>
     <Divider/>
     <div class="panel input-panel" style={props.style} ref={e => {
       editorView = new EditorView({
         parent: e,
         state: EditorState.create({
-          doc: app.input().text,
+          doc: app.brainfuck().text,
           extensions: [
             EditorView.lineWrapping,
             drawSelection(),
             keymap.of(defaultKeymap),
             EditorView.updateListener.of((update) => {
-              const {amountRead} = app.input();
+              const {amountRead} = app.brainfuck();
               if (!update.docChanged) return;
 
               if (amountRead && update.changes.touchesRange(0, amountRead - 1)) {
@@ -53,12 +58,12 @@ const InputPanel: Component<{ style?: JSX.CSSProperties }> = (props) => {
               } else {
                 const newText = update.state.doc.toString();
                 // Update both the app state and local state
-                app.setInput((prev) => ({...prev, text: newText}));
+                app.setBrainfuck((prev) => ({...prev, text: newText}));
               }
             }),
             layer({
               above: true, class: "input-marker-layer", markers(view) {
-                const {text, amountRead} = app.input();
+                const {text, amountRead} = app.brainfuck();
 
                 const markers = [];
                 if (amountRead) markers.push(...RectangleMarker.forRange(view, 'input-readonly-marker', EditorSelection.single(0, amountRead).main));
@@ -79,4 +84,4 @@ const InputPanel: Component<{ style?: JSX.CSSProperties }> = (props) => {
   </div>;
 };
 
-export default InputPanel;
+export default BrainfuckPanel;

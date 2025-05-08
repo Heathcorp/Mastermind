@@ -29,12 +29,15 @@ import "./App.css";
 import Divider from "./components/Divider";
 import EditorPanel from "./panels/EditorPanel";
 import InputPanel from "./panels/InputPanel";
+import BrainfuckPanel from "./panels/BrainfuckPanel.tsx";
+import SideBar from "./panels/SideBar.tsx";
 
 import OutputPanel from "./panels/OutputPanel";
-import SettingsPanel, {MastermindConfig} from "./panels/SettingsPanel";
+import CompilerPanel from "./panels/CompilerPanel.tsx";
 import { defaultExtensions } from "./misc";
 import { makePersisted } from "@solid-primitives/storage";
 import { createStore } from "solid-js/store";
+import  { MastermindConfig } from "./components/Settings";
 
 const AppContext = createContext<AppContextProps>();
 
@@ -46,6 +49,19 @@ const App: Component = () => {
     name: "mastermind_version",
   });
   const [helpOpen, setHelpOpen] = createSignal(false);
+  const [settingsOpen, setSettingsOpen] = createSignal(false);
+  const [config, setConfig] = makePersisted(
+      createSignal<MastermindConfig>({
+    optimise_cell_clearing: false,
+    optimise_constants: false,
+    optimise_empty_blocks: false,
+    optimise_generated_code: false,
+    optimise_memory_allocation: false,
+    optimise_unreachable_loops: false,
+    optimise_variable_usage: false,
+    memory_allocation_method: 0,
+    enable_2d_grid: false,
+  }), { name:"mastermind_config"});
   createEffect(
     on([version], () => {
       const v = version();
@@ -262,7 +278,8 @@ const App: Component = () => {
         removeCallback();
         setBusy(false);
         if (e.data.success) {
-          setOutput({ type: "BF", content: e.data.message });
+          setBrainfuck({ text: e.data.message, amountRead: null });
+          setOutput({ type: "OUTPUT", content: "Successfully Compiled Program"});
           setStatus("IDLE");
           resolve(e.data.message);
         } else {
@@ -374,7 +391,7 @@ const App: Component = () => {
 
   const [output, setOutput] = makePersisted(
     createSignal<{
-      type: "BF" | "ERROR" | "OUTPUT" | "LIVE_OUTPUT";
+      type: "ERROR" | "OUTPUT" | "LIVE_OUTPUT";
       content: string;
     }>(),
     { name: "mastermind_output" }
@@ -386,6 +403,13 @@ const App: Component = () => {
       amountRead: null,
     }),
     { name: "mastermind_input" }
+  );
+  const [brainfuck, setBrainfuck] = makePersisted(
+      createSignal<{ text: string; amountRead: number | null }>({
+        text: "Brainfuck goes here...",
+        amountRead: null,
+      }),
+      { name: "bvm_input" }
   );
   // to fix a bug for when the program starts and it saved the amount read in the state:
   onMount(() => setInput((prev) => ({ ...prev, amountRead: null })));
@@ -454,17 +478,29 @@ const App: Component = () => {
         setHelpOpen,
         enableBlockingInput,
         setEnableBlockingInput,
+        settingsOpen,
+        setSettingsOpen,
+        config,
+        setConfig,
+        brainfuck,
+        setBrainfuck,
       }}
     >
       <div id="window">
         <EditorPanel />
         <Divider />
         <div class="panel">
-          <SettingsPanel style={{ flex: 3 }} />
+          <CompilerPanel style={{ flex: 0.8 }} />
           <Divider />
-          <InputPanel style={{ flex: 1 }} />
+          <BrainfuckPanel style={{flex: 2.2}}/>
+          <Divider />
+          <InputPanel style={{ flex: 2 }} />
           <Divider />
           <OutputPanel style={{ flex: 4 }} />
+        </div>
+        <Divider />
+        <div>
+          <SideBar/>
         </div>
       </div>
     </AppContext.Provider>
@@ -487,20 +523,23 @@ interface AppContextProps {
   setFileLabel: (id: string, label: string) => void;
   setOutput: Setter<
     | {
-        type: "BF" | "ERROR" | "OUTPUT" | "LIVE_OUTPUT";
+        type: "ERROR" | "OUTPUT" | "LIVE_OUTPUT";
         content: string;
       }
     | undefined
   >;
   output: Accessor<
     | {
-        type: "BF" | "ERROR" | "OUTPUT" | "LIVE_OUTPUT";
+        type: "ERROR" | "OUTPUT" | "LIVE_OUTPUT";
         content: string;
       }
     | undefined
   >;
   input: Accessor<{ text: string; amountRead: number | null }>;
   setInput: Setter<{ text: string; amountRead: number | null }>;
+  //Not Needed yet but we might want to do stopping and starting
+  brainfuck: Accessor<{ text: string; amountRead: number | null }>;
+  setBrainfuck: Setter<{ text: string; amountRead: number | null }>;
 
   enableBlockingInput: Accessor<boolean>;
   setEnableBlockingInput: Setter<boolean>;
@@ -520,6 +559,12 @@ interface AppContextProps {
 
   helpOpen: Accessor<boolean>;
   setHelpOpen: Setter<boolean>;
+
+  settingsOpen: Accessor<boolean>;
+  setSettingsOpen: Setter<boolean>;
+
+  setConfig: Setter<MastermindConfig>;
+  config: Accessor<MastermindConfig>;
 }
 
 interface FileState {
