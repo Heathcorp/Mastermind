@@ -1493,6 +1493,8 @@ struct Frame {
 	cell    value      @0;
 	cell[2] temp_cells @1;
 }
+
+struct Frame f;
 			"#,
 		);
 		let input = String::from("");
@@ -1514,10 +1516,37 @@ struct Frame {
 	cell    value      @0;
 	cell[2] temp_cells @1;
 }
+
+struct Frame f;
 			"#,
 		);
 		let input = String::from("");
 		let desired_output = String::from("");
+		let output = compile_and_run(program, input).expect("");
+		println!("{output}");
+		assert_eq!(desired_output, output)
+	}
+
+	#[test]
+	#[should_panic]
+	fn structs_bf_1c() {
+		let program = String::from(
+			r#";
+struct G {
+	cell a @1;
+	cell b @1;
+}
+
+struct G g;
+g.a = 'a';
+g.b = 'b';
+
+output g.a;
+output g.b;
+			"#,
+		);
+		let input = String::from("");
+		let desired_output = String::from("ab");
 		let output = compile_and_run(program, input).expect("");
 		println!("{output}");
 		assert_eq!(desired_output, output)

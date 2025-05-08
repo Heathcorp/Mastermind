@@ -186,7 +186,6 @@ fn parse_struct_clause(clause: &[Token]) -> Result<Clause, String> {
 fn parse_add_clause(clause: &[Token]) -> Result<Vec<Clause>, String> {
 	let mut clauses: Vec<Clause> = Vec::new();
 	let mut i = 0usize;
-	let mut self_referencing = false;
 	let (var, len) = parse_var_target(&clause[i..])?;
 	i += len;
 
@@ -207,7 +206,7 @@ fn parse_add_clause(clause: &[Token]) -> Result<Vec<Clause>, String> {
 		},
 	};
 	//Check if this add clause self references
-	self_referencing = expr.check_self_referencing(&var);
+	let self_referencing = expr.check_self_referencing(&var);
 
 	clauses.push(Clause::AddToVariable {
 		var,
