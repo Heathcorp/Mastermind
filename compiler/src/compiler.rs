@@ -61,20 +61,13 @@ impl Compiler<'_> {
 
 		for clause in filtered_clauses_2 {
 			match clause {
-				Clause::DeclareVariable {
-					var,
-					location_specifier,
-				} => {
+				Clause::DeclareVariable { var } => {
 					// create an allocation in the scope
-					scope.allocate_variable(var, location_specifier)?;
+					scope.allocate_variable(var)?;
 				}
-				Clause::DefineVariable {
-					var,
-					location_specifier,
-					value,
-				} => {
+				Clause::DefineVariable { var, value } => {
 					// same as above except we initialise the variable
-					let absolute_type = scope.allocate_variable(var.clone(), location_specifier)?;
+					let absolute_type = scope.allocate_variable(var.clone())?;
 
 					match (absolute_type, &value) {
 						(
@@ -1013,11 +1006,7 @@ impl Scope<'_> {
 	}
 
 	/// Get the correct variable type and allocate the right amount of cells for it
-	fn allocate_variable(
-		&mut self,
-		var: VariableDefinition,
-		location_specifier: Option<i32>,
-	) -> Result<&ValueType, String> {
+	fn allocate_variable(&mut self, var: VariableDefinition) -> Result<&ValueType, String> {
 		r_assert!(
 			!self.variable_memory.contains_key(&var.name),
 			"Cannot allocate variable {var} twice in the same scope"
@@ -1043,7 +1032,10 @@ impl Scope<'_> {
 		};
 
 		// allocate
-		self.push_instruction(Instruction::Allocate(memory.clone(), location_specifier));
+		self.push_instruction(Instruction::Allocate(
+			memory.clone(),
+			var.location_specifier,
+		));
 
 		// return a reference to the created full type
 		Ok(&self.variable_memory.get(&var.name).unwrap().0)
@@ -1114,7 +1106,13 @@ impl Scope<'_> {
 	) -> Result<(), String> {
 		let absolute_arguments = arguments
 			.into_iter()
-			.map(|f| Ok((f.name, self.create_absolute_type(&f.var_type)?)))
+			.map(|f| {
+				r_assert!(
+					f.location_specifier.is_none(),
+					"Cannot specify variable location in function argument \"{f}\"."
+				);
+				Ok((f.name, self.create_absolute_type(&f.var_type)?))
+			})
 			.collect::<Result<Vec<(String, ValueType)>, String>>()?;
 
 		let None = self.functions.insert(
