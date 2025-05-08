@@ -1336,7 +1336,12 @@ impl Display for VariableTypeReference {
 
 impl Display for VariableDefinition {
 	fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-		f.write_str(&format!("{} {}", self.var_type, self.name))
+		f.write_str(&format!("{} {}", self.var_type, self.name))?;
+		if let Some(l) = self.location_specifier {
+			f.write_str(&format!(" @{}", l))?;
+		}
+
+		Ok(())
 	}
 }
 
