@@ -61,10 +61,12 @@ commaSepList<content> {
 
 Boolean { kw<"true" | "false"> }
 
+Struct { kw<"struct"> }
+
 VariableType {
     (
         Cell { kw<"cell"> } |
-        (Struct { kw<"struct"> } Name)
+        (Struct Name)
     ) SquareBrackets<Number>?
 }
 
@@ -128,11 +130,11 @@ SquareBrackets<contents> {
     "]"
 }
 
-AngledBrackets<contents> {
-    "<"
-        contents
-    ">"
-}
+// AngledBrackets<contents> {
+//     "<"
+//         contents
+//     ">"
+// }
 
 Braces<contents> {
     "{"
@@ -142,6 +144,12 @@ Braces<contents> {
 
 Clause {
     Empty { "" Semicolon} |
+
+    StructClause {
+        Struct Name Braces<(
+            VariableDefinition LocationSpecifier? Semicolon
+        )*>
+    } |
 
     FnClause {
         Fn { kw<"fn"> } Name Parentheses<commaSepList<VariableDefinition>> Block

@@ -82,6 +82,9 @@ function mastermindLanguageSupport() {
             "VariableType/Name": tags.className,
             "VariableDefinition/Name": tags.variableName,
 
+            "StructClause/Struct": tags.definitionKeyword,
+            "StructClause/Name": tags.className,
+
             "OutputClause/Output": tags.controlKeyword,
             "InputClause/Input": tags.controlKeyword,
             "DrainCopyClause/DrainCopy DrainCopyClause/Into":
