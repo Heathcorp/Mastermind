@@ -55,21 +55,31 @@
 kw<word> { @specialize<Name, word> }
 
 
-commaSep<content> {
-    "" | content (Comma content?)*
+commaSepList<content> {
+    "" | content (Comma content)*
 }
 
 Boolean { kw<"true" | "false"> }
 
-VariableDefinition {
-    Name SquareBrackets<Number>?
-}
-VariableTarget {
-    Name SquareBrackets<Number>? |
-    Asterisk Name
+VariableType {
+    (
+        Cell { kw<"cell"> } |
+        (Struct { kw<"struct"> } Name)
+    ) SquareBrackets<Number>?
 }
 
-LocationSpecifier { At commaSep<Number> }
+VariableDefinition { VariableType Name }
+
+VariableTarget {
+    Asterisk?
+    Name
+    VariableSubfieldTarget {
+        (Dot { "." } Name) |
+        SquareBrackets<Number>
+    }*
+}
+
+LocationSpecifier { At (Number | (Number Comma Number)) }
 
 Constant {
     Number | Boolean | Character
@@ -79,7 +89,7 @@ Expression {
     VariableTarget |
     Constant |
     String |
-    Array { SquareBrackets<commaSep<Expression>> } |
+    Array { SquareBrackets<commaSepList<Expression>> } |
     Parentheses<Expression> |
     (Expression AddOp !summation Expression)
 }
@@ -133,16 +143,16 @@ Braces<contents> {
 Clause {
     Empty { "" Semicolon} |
 
-    DefClause {
-        Def { kw<"def"> } Name AngledBrackets<commaSep<VariableDefinition>> Block
+    FnClause {
+        Fn { kw<"fn"> } Name Parentheses<commaSepList<VariableDefinition>> Block
     } |
 
     CallClause {
-        Name AngledBrackets<commaSep<VariableTarget>> Semicolon
+        Name Parentheses<commaSepList<VariableTarget>> Semicolon
     } |
 
     LetClause {
-        Let { kw<"let"> } VariableDefinition LocationSpecifier? (EqualOp Expression)? Semicolon
+        VariableDefinition LocationSpecifier? (EqualOp Expression)? Semicolon
     } |
 
     SetClause {
