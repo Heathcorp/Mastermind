@@ -78,10 +78,36 @@ a:active.socials-icon {
   border: 1px solid transparent;
 }
 
-.stop-button:hover {
-  background-color: var(--DANGER-TRANSPARENT);
-  border: 1px solid var(--DANGER);
+.start-button {
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  color: var(--POSITIVE);
+  font-size: 1.25rem;
+  padding: 0.25rem;
+  border-radius: 0.25rem;
+  cursor: pointer;
+  border: 1px solid transparent;
 }
+
+.run-button {
+  display: flex;
+  flex-direction: row;
+  align-items: center;
+  max-height: 1.5rem;
+  min-height: 1.5rem;
+  min-width: 8rem;
+  font-size: 0.9rem;
+}
+
+.top-label {
+
+}
+
+/*.stop-button:hover {*/
+/*  background-color: var(--DANGER-TRANSPARENT);*/
+/*  border: 1px solid var(--DANGER);*/
+/*}*/
 
 .readme-modal-container {
   position: absolute;
@@ -107,3 +133,13 @@ a:active.socials-icon {
   background-color: var(--BG-0);
   border: 1px solid var(--BORDER-0);
 }
+
+.settings-modal {
+  position: relative;
+  max-width: 800px;
+
+  padding: 2rem;
+  background-color: var(--BG-0);
+  border: 1px solid var(--BORDER-0);
+}
+

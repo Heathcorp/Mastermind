@@ -7,16 +7,16 @@
 
 #include "print.mmi"
 
-let n1;
+cell n1;
 input n1;
 
-let operator;
+cell operator;
 input operator;
 
-let n2;
+cell n2;
 input n2;
 
-let result;
+cell result;
 
 // Checking if character is equal to the operator we need
 if not operator - '+' {
@@ -36,4 +36,4 @@ output n2;
 output " ";
 output '=';
 output " ";
-print<result>;
+print(result);

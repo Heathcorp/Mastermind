@@ -18,8 +18,8 @@
 // @14: 
 // @15: 
 
-let initial_tape_boundary @2 = 1;
-let initial_tape_head @3 = 1;
+cell initial_tape_boundary @2 = 1;
+cell initial_tape_head @3 = 1;
 
 bf @16 {
   >,[< +>>>>>>>>>>>>>>>> >,]<- <<<<<<<<<<<<<<<<[<<<<<<<<<<<<<<<<]>>>>>>>>>>>>>>>>
@@ -29,21 +29,21 @@ bf @16 {
     // start by finding the current instruction, marked as -1 in the bf_instr_marker
     [<<<<<<<<<<<<<<<<]+[->>>>>>>>>>>>>>>>+]-
     {
-      let bf_instr_marker @0; assert bf_instr_marker equals -1;
-      let bf_instr @1; assert bf_instr unknown;
-      let tape_boundary @2; assert tape_boundary unknown;
-      let tape_head @3; assert tape_head unknown;
-      let tape_value @4; assert tape_value unknown;
+      cell bf_instr_marker @0; assert bf_instr_marker equals -1;
+      cell bf_instr @1; assert bf_instr unknown;
+      cell tape_boundary @2; assert tape_boundary unknown;
+      cell tape_head @3; assert tape_head unknown;
+      cell tape_value @4; assert tape_value unknown;
 
-      let loop_count @10; assert loop_count unknown;
-      let loop_reversed @11; assert loop_reversed unknown;
+      cell loop_count @10; assert loop_count unknown;
+      cell loop_reversed @11; assert loop_reversed unknown;
 
-      let right_bf_marker @16; assert right_bf_marker unknown;
-      let right_bf_instr @17; assert right_bf_instr unknown;
+      cell right_bf_marker @16; assert right_bf_marker unknown;
+      cell right_bf_instr @17; assert right_bf_instr unknown;
 
       {
         // tape value copy should be cleared automatically so we open a new scope
-        let tape_value_copy @5;
+        cell tape_value_copy @5;
         // copy current virtual cell value to current frame
         bf @0 {
           >>-[+<<<<<<<<<<<<<<<<-]+ // boundary

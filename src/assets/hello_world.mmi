@@ -10,7 +10,7 @@ output '\n';
 
 // Printing a number variable
 // Requires 'print' module
-let number = 123;
+cell number = 123;
 output "The number is: ";
-print<number>;
+print(number);
 output '\n';
