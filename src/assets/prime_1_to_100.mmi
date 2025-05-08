@@ -1,33 +1,33 @@
 #include "print.mmi"
 
-let N = 99;
-let number = 2;
+cell N = 99;
+cell number = 2;
 
 // a draining loop, loops n times, clearing the variable
 drain N into number {
-  let result1;
-  is_prime<result1, number>;
+  cell result1;
+  is_prime(result1, number);
   if not result1 {
-    print<number>;
+    print(number);
     output "\n";
   }
 }
 
-def is_prime<result1, num> {
+fn is_prime(cell result1, cell num) {
     result1 = false;
-    let divisor = num - 1;
+    cell divisor = num - 1;
     drain divisor{
       if divisor - 1 {
-        divisible<result1, num, divisor>;
+        divisible(result1, num, divisor);
       }
     }
 }
 
-def divisible<result1, dividend, divisor> {
+fn divisible(cell result1, cell dividend, cell divisor) {
   // result2 = 0 if dividend % divisor = 0
-  let b = dividend;
+  cell b = dividend;
 
-  let iterating = true;
+  cell iterating = true;
 
   while iterating {
     // a copying loop, loops n times without modifying the variable

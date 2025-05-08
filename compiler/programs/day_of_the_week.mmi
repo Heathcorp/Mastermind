@@ -1,14 +1,14 @@
 // 1 = Sunday
 // 7 = Saturday
-let count;
-let left;
-let right;
-let iterating = 1;
+cell count;
+cell left;
+cell right;
+cell iterating = 1;
 //Keep looping until we get 2 null characters in a row
 while iterating {
-  let day = 7;
+  cell day = 7;
   // Since days are cyclical we can just loop from 1 to 7 and overflow back to 1
-  def iterate<day> {
+  fn iterate(day) {
     if not day - 7 {
       day = 1;
     } else {
@@ -16,14 +16,14 @@ while iterating {
     }
   }
   //Iterate days 1 by 1
-  def drain_days<count, day> {
+  fn drain_days(cell count, cell day) {
     drain count {
-      iterate<day>;
+      iterate(day);
     }
   }
   //Since we know how many days in each month we can skip any multiple of 7 and only do the modulo iteration
-  def drain_months<count, day>{
-    let iterates;
+  fn drain_months(cell count, cell day) {
+    cell iterates;
     // Loop from current month to jan and add that many days skip leap year logic since that is year dependent
     drain count {
       iterates = 0;
@@ -61,18 +61,18 @@ while iterating {
         iterates += 3;
       }
       drain iterates {
-        iterate<day>;
+        iterate(day);
       }
     }
   }
 
   // This function is the most complex part of the code it is required to handle the leap years
-  def drain_years<left, right, day, m2>{
+  fn drain_years(cell left, cell right, cell day, cell m2) {
     // Since we know we only run from 1583 to 9999 we can setup our leap year logic from that date
     // We then loop through each year and add 1 day since 365 % 7 = 1 and then any extra leap years
-    let hun_years = 4;
-    let years = 83;
-    let leap = 3;
+    cell hun_years = 4;
+    cell years = 83;
+    cell leap = 3;
     left -= 15;
     if left{
       right += 100;
@@ -85,19 +85,19 @@ while iterating {
         right += 100;
       }
       drain right {
-        iterate<day>;
+        iterate(day);
         //Leap year logic add a day every year that is a multiple of 4 unless it is also a multiple of 100
         // but not a multiple of 400
         if not leap - 4 {
           if not years - 100 {
             if not hun_years - 4 {
-              iterate<day>;
+              iterate(day);
               hun_years = 0;
             }
             hun_years += 1;
             years = 0;
           } else {
-            iterate<day>;
+            iterate(day);
           }
           leap = 0;
         }
@@ -111,25 +111,25 @@ while iterating {
         if not leap - 4 {
           if not years - 100 {
             if not hun_years - 4 {
-              iterate<day>;
+              iterate(day);
             }
           } else {
-            iterate<day>;
+            iterate(day);
           }
         }
       }
     }
   }
   //Accept our input
-  let y1;
-  let y2;
-  let y3;
-  let y4;
-  let m1;
-  let m2;
-  let d1;
-  let d2;
-  let waiting = 1;
+  cell y1;
+  cell y2;
+  cell y3;
+  cell y4;
+  cell m1;
+  cell m2;
+  cell d1;
+  cell d2;
+  cell waiting = 1;
   //Check if to see if we get a null character and if so skip it and if the next is also null break the loop
   while waiting {
     input y1;
@@ -169,7 +169,7 @@ while iterating {
       count += 10;
     }
     day -= 1;
-    drain_days<count, day>;
+    drain_days(count, day);
     // iterate Day Of The Week For Each Month m1 = 10s and m2 = 1s
     count = m2;
     drain m1 {
@@ -177,7 +177,7 @@ while iterating {
     }
     m2 = count;
     count -= 1;
-    drain_months<count, day>;
+    drain_months(count, day);
     // Now iterate through years since 4 places is to big we split left and right so eg 1999 = 19 99
     left = y2;
     right = y4;
@@ -187,7 +187,7 @@ while iterating {
     drain y3 {
       right += 10;
     }
-    drain_years<left, right, day, m2>;
+    drain_years(left, right, day, m2);
     //Then output based on the day value
     if not day - 7 {
         output "Saturday";

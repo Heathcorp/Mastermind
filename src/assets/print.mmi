@@ -1,10 +1,10 @@
-def print<num> {
-  let digits[3] = [-1, -1, num];
+fn print(cell num) {
+  cell[3] digits = [-1, -1, num];
 
   // scoping "iterating" to the loop only for memory allocation efficiency
   {
     // find hundreds
-    let iterating = true;
+    cell iterating = true;
     while iterating {
       digits[0] += 1;
       drain (100) {
@@ -21,7 +21,7 @@ def print<num> {
 
   {
     // find tens
-    let iterating = true;
+    cell iterating = true;
     while iterating {
       digits[1] += 1;
       drain 10 {
@@ -39,7 +39,7 @@ def print<num> {
   // ones digits are the remainder
 
   // this is a semi-efficient way of defining chars[3] = "000"
-  let chars[3];
+  cell[3] chars;
   // equivalent to [>+>+>+<<<-]
   drain '0' into *chars;
 

@@ -42,7 +42,7 @@ import  { MastermindConfig } from "./components/Settings";
 const AppContext = createContext<AppContextProps>();
 
 // update this when you want the user to see new syntax
-const MIGRATION_VERSION = 5;
+const MIGRATION_VERSION = 7;
 
 const App: Component = () => {
   const [version, setVersion] = makePersisted(createSignal<number>(), {
@@ -130,51 +130,57 @@ const App: Component = () => {
 
   const loadExampleFiles = () => {
     const defaultFileId = uuidv4();
+    const newFiles = [
+      {
+        id: uuidv4(),
+        label: "hello_world.mmi",
+        rawText: helloWorldExample,
+      },
+      {
+        id: uuidv4(),
+        label: "basic_calculator.mmi",
+        rawText: basicCalculatorExample,
+      },
+      {
+        id: defaultFileId,
+        label: "divisors_example.mmi",
+        rawText: divisorsExample,
+      },
+      { id: uuidv4(), label: "print.mmi", rawText: printExample },
+      { id: uuidv4(), label: "prime_1_to_100.mmi", rawText: primeExample },
+      {
+        id: uuidv4(),
+        label: "christmas_trees.mmi",
+        rawText: christmasTreeExample,
+      },
+      {
+        id: uuidv4(),
+        label: "brainfuck.mmi",
+        rawText: brainfuckExample,
+      },
+    ].map((rawState) => ({
+      // This could probably be common function, duplicate code of above deserialization and file creation functions (TODO: refactor)
+      id: rawState.id,
+      label: rawState.label,
+      editorState: EditorState.create({
+        doc: rawState.rawText,
+        extensions: [
+          ...defaultExtensions,
+          EditorView.updateListener.of((e) => {
+            // this basically saves the editor every time it updates, this may be inefficient
+            saveFileState(rawState.id, e.state);
+          }),
+        ],
+      }),
+    }));
     setFileStates((prev) => [
-      ...[
-        {
-          id: uuidv4(),
-          label: "hello_world.mmi",
-          rawText: helloWorldExample,
-        },
-        {
-          id: uuidv4(),
-          label: "basic_calculator.mmi",
-          rawText: basicCalculatorExample,
-        },
-        {
-          id: defaultFileId,
-          label: "divisors_example.mmi",
-          rawText: divisorsExample,
-        },
-        { id: uuidv4(), label: "print.mmi", rawText: printExample },
-        { id: uuidv4(), label: "prime_1_to_100.mmi", rawText: primeExample },
-        {
-          id: uuidv4(),
-          label: "christmas_trees.mmi",
-          rawText: christmasTreeExample,
-        },
-        {
-          id: uuidv4(),
-          label: "brainfuck.mmi",
-          rawText: brainfuckExample,
-        },
-      ].map((rawState) => ({
-        // This could probably be common function, duplicate code of above deserialization and file creation functions (TODO: refactor)
-        id: rawState.id,
-        label: rawState.label,
-        editorState: EditorState.create({
-          doc: rawState.rawText,
-          extensions: [
-            ...defaultExtensions,
-            EditorView.updateListener.of((e) => {
-              // this basically saves the editor every time it updates, this may be inefficient
-              saveFileState(rawState.id, e.state);
-            }),
-          ],
-        }),
+      ...newFiles,
+      ...prev.map((oldFile) => ({
+        ...oldFile,
+        label: newFiles.find((newFile) => newFile.label == oldFile.label)
+          ? `old_${oldFile.label}`
+          : oldFile.label,
       })),
-      ...prev,
     ]);
     setEntryFile(defaultFileId);
   };
@@ -279,7 +285,10 @@ const App: Component = () => {
         setBusy(false);
         if (e.data.success) {
           setBrainfuck({ text: e.data.message, amountRead: null });
-          setOutput({ type: "OUTPUT", content: "Successfully Compiled Program"});
+          setOutput({
+            type: "OUTPUT",
+            content: "Successfully Compiled Program",
+          });
           setStatus("IDLE");
           resolve(e.data.message);
         } else {
@@ -405,11 +414,11 @@ const App: Component = () => {
     { name: "mastermind_input" }
   );
   const [brainfuck, setBrainfuck] = makePersisted(
-      createSignal<{ text: string; amountRead: number | null }>({
-        text: "Brainfuck goes here...",
-        amountRead: null,
-      }),
-      { name: "bvm_input" }
+    createSignal<{ text: string; amountRead: number | null }>({
+      text: "Brainfuck goes here...",
+      amountRead: null,
+    }),
+    { name: "bvm_input" }
   );
   // to fix a bug for when the program starts and it saved the amount read in the state:
   onMount(() => setInput((prev) => ({ ...prev, amountRead: null })));
@@ -492,7 +501,7 @@ const App: Component = () => {
         <div class="panel">
           <CompilerPanel style={{ flex: 0.8 }} />
           <Divider />
-          <BrainfuckPanel style={{flex: 2.2}}/>
+          <BrainfuckPanel style={{ flex: 2.2 }} />
           <Divider />
           <InputPanel style={{ flex: 2 }} />
           <Divider />
@@ -500,7 +509,7 @@ const App: Component = () => {
         </div>
         <Divider />
         <div>
-          <SideBar/>
+          <SideBar />
         </div>
       </div>
     </AppContext.Provider>
@@ -546,10 +555,7 @@ interface AppContextProps {
 
   reorderFiles: (from: string, to: string | null) => void;
 
-  compile: (
-    entryFileId: string,
-    settings: MastermindConfig
-  ) => Promise<string>;
+  compile: (entryFileId: string, settings: MastermindConfig) => Promise<string>;
   run: (code: string, enable_2d_grid: boolean) => Promise<string>;
 
   busy: Accessor<boolean>;
