@@ -391,17 +391,97 @@ impl CellAllocator {
 					break;
 				}
 			}
+		} else if method == 1 {
+			//Zig Zag
+			let mut found = false;
+			let mut loops = 0;
+			let mut i;
+			let mut j;
+			while !found {
+				i = region_start.0 + loops;
+				j = region_start.1;
+				for _ in 0..=loops {
+					if !self.alloc_map.contains(&(i, j)) {
+						found = true;
+						region_start = (i, j);
+						break;
+					}
+					i = i - 1;
+					j = j + 1;
+				}
+				loops += 1;
+			}
 		} else if method == 2 {
+			//Spiral
+			let mut found = false;
+			let mut loops = 1;
+			let mut directions = ['N','E','S','W'];
+			let mut i = region_start.0;
+			let mut j = region_start.1;
+			while !found {
+				for dir in directions {
+					match dir {
+						'N' => {
+							for _ in 0..loops {
+								j += 1;
+								if !self.alloc_map.contains(&(i, j)) {
+									found = true;
+									region_start = (i, j);
+									break;
+								}
+							}
+						}
+						'E' => {
+							for _ in 0..loops {
+								i += 1;
+								if !self.alloc_map.contains(&(i, j)) {
+									found = true;
+									region_start = (i, j);
+									break;
+								}
+							}
+						}
+						'S' => {
+							for _ in 0..loops {
+								j -= 1;
+								if !self.alloc_map.contains(&(i, j)) {
+									found = true;
+									region_start = (i, j);
+									break;
+								}
+							}
+						}
+						'W' => {
+							for _ in 0..loops {
+								i -= 1;
+								if !self.alloc_map.contains(&(i, j)) {
+									found = true;
+									region_start = (i, j);
+									break;
+								}
+							}
+						}
+						_ => {}
+					}
+					if found {
+						break;
+					}
+				}
+				if found {
+					break
+				}
+				i -= 1;
+				j -= 1;
+				loops += 2;
+			}
+		} else if method == 3 {
+			//Tiles
 			let mut found = false;
 			let mut loops = 0;
 			while !found {
 				for i in -loops..=loops {
 					for j in -loops..=loops {
-						if self.alloc_map.contains(&(region_start.0 + i, region_start.1 + j)) {
-							if let Some(l) = location {
-								r_panic!("Location specifier @{0},{1} conflicts with another allocation", l.0, l.1);
-							};
-						} else {
+						if !self.alloc_map.contains(&(region_start.0 + i, region_start.1 + j)) {
 							found = true;
 							region_start = (region_start.0 + i, region_start.1 + j);
 							break;
@@ -447,6 +527,8 @@ impl CellAllocator {
 				// unallocated cell, allocate it and return
 				if self.alloc_map.insert((i, location.1)) {
 					return (i, location.1);
+				} else {
+
 				}
 			}
 

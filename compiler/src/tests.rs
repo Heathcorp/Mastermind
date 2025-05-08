@@ -36,17 +36,41 @@ pub mod tests {
 		enable_2d_grid: false,
 	};
 
+	const OPT_NONE_TILES:MastermindConfig = MastermindConfig {
+		optimise_generated_code: false,
+		optimise_cell_clearing: false,
+		optimise_variable_usage: false,
+		optimise_memory_allocation: false,
+		optimise_unreachable_loops: false,
+		optimise_constants: false,
+		optimise_empty_blocks: false,
+		memory_allocation_method: 3,
+		enable_2d_grid: false,
+	};
+
 	const OPT_NONE_SPIRAL:MastermindConfig = MastermindConfig {
-	optimise_generated_code: false,
-	optimise_cell_clearing: false,
-	optimise_variable_usage: false,
-	optimise_memory_allocation: false,
-	optimise_unreachable_loops: false,
-	optimise_constants: false,
-	optimise_empty_blocks: false,
-	memory_allocation_method: 2,
-	enable_2d_grid: false,
-};
+		optimise_generated_code: false,
+		optimise_cell_clearing: false,
+		optimise_variable_usage: false,
+		optimise_memory_allocation: false,
+		optimise_unreachable_loops: false,
+		optimise_constants: false,
+		optimise_empty_blocks: false,
+		memory_allocation_method: 2,
+		enable_2d_grid: false,
+	};
+
+	const OPT_NONE_ZIG_ZAG:MastermindConfig = MastermindConfig {
+		optimise_generated_code: false,
+		optimise_cell_clearing: false,
+		optimise_variable_usage: false,
+		optimise_memory_allocation: false,
+		optimise_unreachable_loops: false,
+		optimise_constants: false,
+		optimise_empty_blocks: false,
+		memory_allocation_method: 1,
+		enable_2d_grid: false,
+	};
 
 	const BVM_CONFIG_1D: BVMConfig = BVMConfig {
 		ENABLE_DEBUG_SYMBOLS: false,
@@ -2146,7 +2170,7 @@ output a + 3;
 		let code = compile_program(program, Some(&cfg));
 	}
 	#[test]
-	fn spiral_memory_allocation_1() -> Result<(), String> {
+	fn tiles_memory_allocation_1() -> Result<(), String> {
 		let program = String::from(
 			r#"
 cell a = 1;
@@ -2161,6 +2185,118 @@ cell j = 1;
       "#,
 		);
 		let desired_output = String::from("+<v+^+^+>vv+^^+>vv+^+^+");
+
+		let code = compile_program(program, Some(&OPT_NONE_TILES))?.to_string();
+		assert_eq!(desired_output, code);
+
+		Ok(())
+	}
+	#[test]
+	fn tiles_memory_allocation_2() -> Result<(), String> {
+		let program = String::from(
+			r#"
+cell a = '1';
+cell b = '2';
+cell c = '3';
+cell d = '4';
+cell e = '5';
+cell f = '6';
+cell g = '7';
+cell h = '8';
+cell i = '9';
+output a;
+output b;
+output c;
+output d;
+output e;
+output f;
+output g;
+output h;
+output i;
+      "#,
+		);
+		let input = String::from("");
+		let desired_output = String::from("123456789");
+
+		let code = compile_program(program, Some(&OPT_NONE_TILES))?.to_string();
+		println!("{}", code);
+		assert_eq!(desired_output, run_code(BVM_CONFIG_2D, code, input, None));
+
+		Ok(())
+	}
+
+	#[test]
+	fn zig_zag_memory_allocation_1() -> Result<(), String> {
+		let program = String::from(
+			r#"
+cell a = 1;
+cell b = 1;
+cell c = 1;
+cell d = 1;
+cell e = 1;
+cell f = 1;
+cell h = 1;
+cell i = 1;
+cell j = 1;
+      "#,
+		);
+		let desired_output = String::from("+>+<^+>>v+<^+<^+>>>vv+<^+<^+");
+
+		let code = compile_program(program, Some(&OPT_NONE_ZIG_ZAG))?.to_string();
+		assert_eq!(desired_output, code);
+
+		Ok(())
+	}
+	#[test]
+	fn zig_zag_memory_allocation_2() -> Result<(), String> {
+		let program = String::from(
+			r#"
+cell a = '1';
+cell b = '2';
+cell c = '3';
+cell d = '4';
+cell e = '5';
+cell f = '6';
+cell g = '7';
+cell h = '8';
+cell i = '9';
+output a;
+output b;
+output c;
+output d;
+output e;
+output f;
+output g;
+output h;
+output i;
+      "#,
+		);
+		let input = String::from("");
+		let desired_output = String::from("123456789");
+
+		let code = compile_program(program, Some(&OPT_NONE_ZIG_ZAG))?.to_string();
+		println!("{}", code);
+		assert_eq!(desired_output, run_code(BVM_CONFIG_2D, code, input, None));
+
+		Ok(())
+	}
+
+	#[test]
+	fn spiral_memory_allocation_1() -> Result<(), String> {
+		let program = String::from(
+			r#"
+cell a = 1;
+cell b = 1;
+cell c = 1;
+cell d = 1;
+cell e = 1;
+cell f = 1;
+cell h = 1;
+cell i = 1;
+cell j = 1;
+      "#,
+		);
+		let desired_output = String::from("^+>+v+<+<+^+^+>+>+");
 
 		let code = compile_program(program, Some(&OPT_NONE_SPIRAL))?.to_string();
 		assert_eq!(desired_output, code);
