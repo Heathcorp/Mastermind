@@ -3,7 +3,12 @@ import { Component, createSignal, For, createEffect, on } from "solid-js";
 import "./editor.css";
 
 import { EditorView } from "@codemirror/view";
-import { AiOutlinePlus, AiOutlineUpload } from "solid-icons/ai";
+import {
+  AiOutlineFile,
+  AiOutlineFolder,
+  AiOutlinePlus,
+  AiOutlineUpload,
+} from "solid-icons/ai";
 import {
   DragDropProvider,
   DragDropSensors,
@@ -15,6 +20,7 @@ import { useAppContext } from "../App";
 import Tab from "../components/Tab";
 import { createDropzone } from "@soorria/solid-dropzone";
 import { IconTypes } from "solid-icons";
+import FileBrowserModal from "../components/FileBrowser";
 
 const EditorPanel: Component = () => {
   const app = useAppContext()!;
@@ -76,42 +82,63 @@ const EditorPanel: Component = () => {
 
   return (
     <div class="panel">
-      <div class="tab-bar">
-        {/* tab rearranging logic for filestates in global file array */}
-        <DragDropProvider
-          onDragEnd={({ draggable, droppable }) =>
-            droppable &&
-            app.reorderFiles(
-              draggable.id as string,
-              droppable.id === TAB_END_ID ? null : (droppable.id as string)
-            )
-          }
-        >
-          <DragDropSensors>
-            <For each={app.fileStates}>
-              {(fileState) => (
-                <Tab
-                  fileId={fileState.id}
-                  fileLabel={fileState.label}
-                  fileActive={fileState.id === editingFile()}
-                  onSelect={() => setEditingFile(fileState.id)}
-                />
-              )}
-            </For>
-            <TabFiller
+      <div class="tab-container">
+        <div class="tab-bar">
+          {/* tab rearranging logic for filestates in global file array */}
+          <DragDropProvider
+            onDragEnd={({ draggable, droppable }) =>
+              droppable &&
+              app.reorderFiles(
+                draggable.id as string,
+                droppable.id === TAB_END_ID ? null : (droppable.id as string)
+              )
+            }
+          >
+            <DragDropSensors>
+              <For each={app.fileStates}>
+                {(fileState) => (
+                  <Tab
+                    fileId={fileState.id}
+                    fileLabel={fileState.label}
+                    fileActive={fileState.id === editingFile()}
+                    onSelect={() => setEditingFile(fileState.id)}
+                  />
+                )}
+              </For>
+              <TabFiller
+                onClick={async () => {
+                  const newId = await app.createFile();
+                  setEditingFile(newId);
+                  // setEditingLabel(newFile.id);
+                }}
+                iconComponent={AiOutlineFolder}
+              />
+              {/* <TabFiller
               onClick={async () => {
                 const newId = await app.createFile();
                 setEditingFile(newId);
                 // setEditingLabel(newFile.id);
               }}
-            />
-            <TabFiller
+            /> */}
+              {/* <TabFiller
               onClick={() => {}}
               iconComponent={AiOutlineUpload}
               dropzone={dropzone}
-            />
-          </DragDropSensors>
-        </DragDropProvider>
+            /> */}
+            </DragDropSensors>
+          </DragDropProvider>
+        </div>
+        <div class="tab-controller">
+          <AiOutlineFolder
+            size={24}
+            class="text-button"
+            onClick={() => {
+              app.setFileBrowserOpen(true);
+            }}
+          />
+
+          <FileBrowserModal />
+        </div>
       </div>
       <div class="code-panel" ref={editorRef} />
     </div>
