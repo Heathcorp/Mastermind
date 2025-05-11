@@ -1840,6 +1840,128 @@ bf @f {[.>]}
 	}
 
 	#[test]
+	fn variable_location_specifiers_4() -> Result<(), String> {
+		let program = String::from(
+			r#"
+fn func(cell g) {
+  bf @g {+.-}
+}
+
+cell a = '5';
+func(a);
+"#,
+		);
+		let code = compile_program(program, None)?.to_string();
+		println!("{code}");
+
+		let input = String::from("");
+		let output = run_code(BVM_CONFIG_1D, code.clone(), input, None);
+		println!("{output}");
+		assert_eq!(output, "6");
+		Ok(())
+	}
+
+	#[test]
+	fn variable_location_specifiers_4a() -> Result<(), String> {
+		let program = String::from(
+			r#"
+fn func(cell g) {
+  bf @g {+.-}
+}
+
+cell[3] a = "456";
+func(a[1]);
+"#,
+		);
+		let code = compile_program(program, None)?.to_string();
+		println!("{code}");
+
+		let input = String::from("");
+		let output = run_code(BVM_CONFIG_1D, code.clone(), input, None);
+		println!("{output}");
+		assert_eq!(output, "6");
+		Ok(())
+	}
+
+	#[test]
+	fn variable_location_specifiers_4b() -> Result<(), String> {
+		let program = String::from(
+			r#"
+fn func(cell g) {
+  bf @g {+.-}
+}
+
+struct H {cell[3] r;}
+struct H a;
+a.r[0] = '4';
+a.r[1] = '5';
+a.r[2] = '6';
+func(a.r[1]);
+"#,
+		);
+		let code = compile_program(program, None)?.to_string();
+		println!("{code}");
+
+		let input = String::from("");
+		let output = run_code(BVM_CONFIG_1D, code.clone(), input, None);
+		println!("{output}");
+		assert_eq!(output, "6");
+		Ok(())
+	}
+
+	#[test]
+	fn variable_location_specifiers_4c() -> Result<(), String> {
+		let program = String::from(
+			r#"
+fn func(struct H h) {
+  bf @h {+.-}
+}
+
+struct H {cell[3] r @0;}
+struct H a;
+a.r[0] = '4';
+a.r[1] = '5';
+a.r[2] = '6';
+func(a);
+"#,
+		);
+		let code = compile_program(program, None)?.to_string();
+		println!("{code}");
+
+		let input = String::from("");
+		let output = run_code(BVM_CONFIG_1D, code.clone(), input, None);
+		println!("{output}");
+		assert_eq!(output, "5");
+		Ok(())
+	}
+
+	#[test]
+	fn variable_location_specifiers_4d() -> Result<(), String> {
+		let program = String::from(
+			r#"
+fn func(cell[2] g) {
+  bf @g {+.-}
+}
+
+struct J {cell[2] j;}
+struct H {cell[20] a; struct J jj @1;}
+struct H a;
+a.jj.j[0] = '3';
+a.jj.j[1] = '4';
+func(a.jj.j);
+"#,
+		);
+		let code = compile_program(program, None)?.to_string();
+		println!("{code}");
+
+		let input = String::from("");
+		let output = run_code(BVM_CONFIG_1D, code.clone(), input, None);
+		println!("{output}");
+		assert_eq!(output, "4");
+		Ok(())
+	}
+
+	#[test]
 	fn assertions_1() -> Result<(), String> {
 		let program = String::from(
 			r#"
