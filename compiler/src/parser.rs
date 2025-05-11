@@ -1251,7 +1251,7 @@ pub enum Clause {
 	},
 	Block(Vec<Clause>),
 	InlineBrainfuck {
-		location_specifier: Option<TapeCell>,
+		location_specifier: LocationSpecifier,
 		clobbered_variables: Vec<VariableTarget>,
 		// TODO: make this support embedded mastermind
 		operations: Vec<ExtendedOpcode>,
@@ -1284,10 +1284,17 @@ pub enum VariableTypeReference {
 }
 
 #[derive(Debug, Clone, Hash, PartialEq, Eq)]
+pub enum LocationSpecifier {
+	None,
+	Cell(TapeCell),
+	Variable(VariableTarget),
+}
+
+#[derive(Debug, Clone, Hash, PartialEq, Eq)]
 pub struct VariableDefinition {
 	pub name: String,
 	pub var_type: VariableTypeReference,
-	pub location_specifier: Option<TapeCell>,
+	pub location_specifier: LocationSpecifier,
 	// Infinite {name: String, pattern: ???},
 }
 
@@ -1336,8 +1343,24 @@ impl Display for VariableTypeReference {
 impl Display for VariableDefinition {
 	fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
 		f.write_str(&format!("{} {}", self.var_type, self.name))?;
-		if let Some(l) = self.location_specifier {
-			f.write_str(&format!(" @{}", l))?;
+		match &self.location_specifier {
+			LocationSpecifier::Cell(_) | LocationSpecifier::Variable(_) => {
+				f.write_str(&format!(" {}", self.location_specifier))?
+			}
+			LocationSpecifier::None => (),
+		}
+
+		Ok(())
+	}
+}
+
+impl Display for LocationSpecifier {
+	fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+		f.write_str("@")?;
+		match self {
+			LocationSpecifier::Cell(cell) => f.write_str(&format!("{}", cell))?,
+			LocationSpecifier::Variable(var) => f.write_str(&format!("{}", var))?,
+			LocationSpecifier::None => (),
 		}
 
 		Ok(())
