@@ -117,10 +117,7 @@ fn parse_let_clause(clause: &[Token]) -> Result<Clause, String> {
 	let mut i = 0usize;
 	// this kind of logic could probably be done with iterators, (TODO for future refactors)
 
-	let (var, len) = parse_var_definition(&clause[i..])?;
-	i += len;
-
-	let (location_specifier, len) = parse_location_specifier(&clause[i..])?;
+	let (var, len) = parse_var_definition(&clause[i..], true)?;
 	i += len;
 
 	if let Token::EqualsSign = &clause[i] {
@@ -129,18 +126,11 @@ fn parse_let_clause(clause: &[Token]) -> Result<Clause, String> {
 		let expr = Expression::parse(remaining)?;
 		// equivalent to set clause stuff
 		// except we need to convert a variable definition to a variable target
-		Ok(Clause::DefineVariable {
-			var,
-			location_specifier,
-			value: expr,
-		})
+		Ok(Clause::DefineVariable { var, value: expr })
 	} else if i < (clause.len() - 1) {
 		r_panic!("Invalid token in let clause: {clause:#?}");
 	} else {
-		Ok(Clause::DeclareVariable {
-			var,
-			location_specifier,
-		})
+		Ok(Clause::DeclareVariable { var })
 	}
 }
 
@@ -166,7 +156,7 @@ fn parse_struct_clause(clause: &[Token]) -> Result<Clause, String> {
 
 	let mut j = 0usize;
 	loop {
-		let (field, len) = parse_var_definition(&braced_tokens[j..])?;
+		let (field, len) = parse_var_definition(&braced_tokens[j..], true)?;
 		j += len;
 		fields.push(field);
 		r_assert!(
@@ -196,7 +186,6 @@ fn parse_struct_clause(clause: &[Token]) -> Result<Clause, String> {
 fn parse_add_clause(clause: &[Token]) -> Result<Vec<Clause>, String> {
 	let mut clauses: Vec<Clause> = Vec::new();
 	let mut i = 0usize;
-	let mut self_referencing = false;
 	let (var, len) = parse_var_target(&clause[i..])?;
 	i += len;
 
@@ -217,7 +206,7 @@ fn parse_add_clause(clause: &[Token]) -> Result<Vec<Clause>, String> {
 		},
 	};
 	//Check if this add clause self references
-	self_referencing = expr.check_self_referencing(&var);
+	let self_referencing = expr.check_self_referencing(&var);
 
 	clauses.push(Clause::AddToVariable {
 		var,
@@ -499,6 +488,9 @@ fn parse_assert_clause(clause: &[Token]) -> Result<Clause, String> {
 // or
 // let p @3 = 68;
 fn parse_location_specifier(tokens: &[Token]) -> Result<(Option<i32>, usize), String> {
+	if tokens.len() == 0 {
+		return Ok((None, 0));
+	}
 	if let Token::At = &tokens[0] {
 		let mut i = 1;
 		let positive = if let Token::Minus = &tokens[i] {
@@ -518,10 +510,10 @@ fn parse_location_specifier(tokens: &[Token]) -> Result<(Option<i32>, usize), St
 		if !positive {
 			offset = -offset;
 		}
-		Ok((Some(offset), i))
-	} else {
-		Ok((None, 0))
+		return Ok((Some(offset), i));
 	}
+
+	Ok((None, 0))
 }
 
 fn parse_brainfuck_clause(clause: &[Token]) -> Result<Clause, String> {
@@ -621,7 +613,7 @@ fn parse_function_definition_clause(clause: &[Token]) -> Result<Clause, String> 
 		let (Token::Cell | Token::Struct) = &arg_tokens[j] else {
 			break;
 		};
-		let (var, len) = parse_var_definition(&arg_tokens[j..])?;
+		let (var, len) = parse_var_definition(&arg_tokens[j..], false)?;
 		j += len;
 
 		args.push(var);
@@ -750,7 +742,10 @@ fn parse_var_target(tokens: &[Token]) -> Result<(VariableTarget, usize), String>
 }
 
 /// convert tokens of a variable definition into data representation, e.g. `cell x`, `struct G g`, `cell[5] x_arr`, `struct H[100] hs`
-fn parse_var_definition(tokens: &[Token]) -> Result<(VariableDefinition, usize), String> {
+fn parse_var_definition(
+	tokens: &[Token],
+	allow_location: bool,
+) -> Result<(VariableDefinition, usize), String> {
 	let mut i = 0usize;
 	let mut var_type = match &tokens[i] {
 		Token::Cell => {
@@ -774,7 +769,6 @@ fn parse_var_definition(tokens: &[Token]) -> Result<(VariableDefinition, usize),
 	};
 
 	// parse array specifiers
-	// TODO: make this work for multi-dimension arrays [5][4]
 	while let Token::OpenSquareBracket = &tokens[i] {
 		let (len, j) = parse_array_length(&tokens[i..])?;
 		i += j;
@@ -787,10 +781,18 @@ fn parse_var_definition(tokens: &[Token]) -> Result<(VariableDefinition, usize),
 	};
 	i += 1;
 
+	let (location_specifier, len) = parse_location_specifier(&tokens[i..])?;
+	r_assert!(
+		location_specifier.is_none() || allow_location,
+		"Unexpected location specifier in variable definition: {tokens:#?}"
+	);
+	i += len;
+
 	Ok((
 		VariableDefinition {
 			var_type,
 			name: var_name.clone(),
+			location_specifier,
 		},
 		i,
 	))
@@ -1192,11 +1194,9 @@ impl Sign {
 pub enum Clause {
 	DeclareVariable {
 		var: VariableDefinition,
-		location_specifier: Option<TapeCell>,
 	},
 	DefineVariable {
 		var: VariableDefinition,
-		location_specifier: Option<TapeCell>,
 		value: Expression,
 	},
 	DefineStruct {
@@ -1283,21 +1283,12 @@ pub enum VariableTypeReference {
 	Array(Box<VariableTypeReference>, usize),
 }
 
-// TODO: refactor to this instead:
 #[derive(Debug, Clone, Hash, PartialEq, Eq)]
 pub struct VariableDefinition {
 	pub name: String,
 	pub var_type: VariableTypeReference,
+	pub location_specifier: Option<TapeCell>,
 	// Infinite {name: String, pattern: ???},
-}
-
-impl VariableDefinition {
-	pub fn len(&self) -> Option<usize> {
-		match self.var_type {
-			VariableTypeReference::Cell | VariableTypeReference::Struct(_) => None,
-			VariableTypeReference::Array(_, len) => Some(len),
-		}
-	}
 }
 
 #[derive(Debug, Clone, Hash, PartialEq, Eq)]
@@ -1344,7 +1335,12 @@ impl Display for VariableTypeReference {
 
 impl Display for VariableDefinition {
 	fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-		f.write_str(&format!("{} {}", self.var_type, self.name))
+		f.write_str(&format!("{} {}", self.var_type, self.name))?;
+		if let Some(l) = self.location_specifier {
+			f.write_str(&format!(" @{}", l))?;
+		}
+
+		Ok(())
 	}
 }
 
