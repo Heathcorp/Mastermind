@@ -1718,6 +1718,128 @@ cell b = 3;
 	}
 
 	#[test]
+	fn variable_location_specifiers_1() -> Result<(), String> {
+		let program = String::from(
+			r#"
+cell a = 'h';
+bf @a {.}
+"#,
+		);
+		let code = compile_program(program, None)?.to_string();
+		println!("{code}");
+
+		let input = String::from("wxy");
+		let output = run_code(BVM_CONFIG_1D, code.clone(), input, None);
+		println!("{output}");
+		assert_eq!(output, "h");
+		Ok(())
+	}
+
+	#[test]
+	fn variable_location_specifiers_1a() -> Result<(), String> {
+		let program = String::from(
+			r#"
+cell _[100];
+cell a = 'h';
+cell b[4];
+bf @a {.}
+"#,
+		);
+		let code = compile_program(program, None)?.to_string();
+		println!("{code}");
+
+		let input = String::from("wxy");
+		let output = run_code(BVM_CONFIG_1D, code.clone(), input, None);
+		println!("{output}");
+		assert_eq!(output, "h");
+		Ok(())
+	}
+
+	#[test]
+	fn variable_location_specifiers_2() -> Result<(), String> {
+		let program = String::from(
+			r#"
+struct Test {cell[3] a @0; cell b;}
+struct Test t;
+input *t.a;
+bf @t.a {
+[+.>]
+}
+"#,
+		);
+		let code = compile_program(program, None)?.to_string();
+		println!("{code}");
+
+		let input = String::from("wxy");
+		let output = run_code(BVM_CONFIG_1D, code.clone(), input, None);
+		println!("{output}");
+		assert_eq!(code, ",>,>,<<[+.>]");
+		assert_eq!(output, "xyz");
+		Ok(())
+	}
+
+	#[test]
+	fn variable_location_specifiers_2a() -> Result<(), String> {
+		let program = String::from(
+			r#"
+struct Test {cell[3] a @0; cell b;}
+struct Test t;
+input *t.a;
+bf @t {
+[+.>]
+}
+"#,
+		);
+		let code = compile_program(program, None)?.to_string();
+		println!("{code}");
+
+		let input = String::from("wxy");
+		let output = run_code(BVM_CONFIG_1D, code.clone(), input, None);
+		println!("{output}");
+		assert_eq!(code, ",>,>,<<[+.>]");
+		assert_eq!(output, "xyz");
+		Ok(())
+	}
+
+	#[test]
+	fn variable_location_specifiers_3() -> Result<(), String> {
+		let program = String::from(
+			r#"
+cell[5] f @6 = "abcde";
+bf @f[2] clobbers *f {.+++.}
+output 10;
+output *f;
+"#,
+		);
+		let code = compile_program(program, None)?.to_string();
+		println!("{code}");
+
+		let input = String::from("");
+		let output = run_code(BVM_CONFIG_1D, code.clone(), input, None);
+		println!("{output}");
+		assert_eq!(output, "cf\nabfde");
+		Ok(())
+	}
+
+	#[test]
+	fn variable_location_specifiers_3a() -> Result<(), String> {
+		let program = String::from(
+			r#"
+cell[4] f @8 = "xyz ";
+bf @f {[.>]}
+"#,
+		);
+		let code = compile_program(program, None)?.to_string();
+		println!("{code}");
+
+		let input = String::from("");
+		let output = run_code(BVM_CONFIG_1D, code.clone(), input, None);
+		println!("{output}");
+		assert_eq!(output, "xyz ");
+		Ok(())
+	}
+
+	#[test]
 	fn assertions_1() -> Result<(), String> {
 		let program = String::from(
 			r#"
