@@ -105,14 +105,14 @@ const EditorPanel: Component = () => {
                   />
                 )}
               </For>
-              <TabFiller
+              {/* <TabFiller
                 onClick={async () => {
                   const newId = await app.createFile();
                   setEditingFile(newId);
                   // setEditingLabel(newFile.id);
                 }}
                 iconComponent={AiOutlineFolder}
-              />
+              /> */}
               {/* <TabFiller
               onClick={async () => {
                 const newId = await app.createFile();

@@ -37,7 +37,7 @@
 
 .tab {
   background-color: var(--BG-1);
-  border-right: var(--default-border);
+  border-left: var(--default-border);
   border-bottom: var(--default-border);
 
   display: flex;
