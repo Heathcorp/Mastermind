@@ -61,20 +61,13 @@ impl Compiler<'_> {
 
 		for clause in filtered_clauses_2 {
 			match clause {
-				Clause::DeclareVariable {
-					var,
-					location_specifier,
-				} => {
+				Clause::DeclareVariable { var } => {
 					// create an allocation in the scope
-					scope.allocate_variable(var, location_specifier)?;
+					scope.allocate_variable(var)?;
 				}
-				Clause::DefineVariable {
-					var,
-					location_specifier,
-					value,
-				} => {
+				Clause::DefineVariable { var, value } => {
 					// same as above except we initialise the variable
-					let absolute_type = scope.allocate_variable(var.clone(), location_specifier)?;
+					let absolute_type = scope.allocate_variable(var.clone())?;
 
 					match (absolute_type, &value) {
 						(
@@ -849,29 +842,87 @@ struct Function {
 enum ValueType {
 	Cell,
 	Array(usize, Box<ValueType>),
-	DictStruct(Vec<(String, ValueType)>),
+	DictStruct(Vec<(String, ValueType, Option<usize>)>),
 	// TupleStruct(Vec<ValueType>),
 }
 
 #[derive(Clone, Debug)]
 /// equivalent to ValueType::DictStruct enum variant,
 /// Rust doesn't support enum variants as types yet so need this workaround for struct definitions in scope object
-struct DictStructType(Vec<(String, ValueType)>);
+struct DictStructType(Vec<(String, ValueType, Option<usize>)>);
 impl ValueType {
 	fn from_struct(struct_def: DictStructType) -> Self {
 		ValueType::DictStruct(struct_def.0)
 	}
 
+	// TODO: make size() and get_and_validate_subfield_cell_map() more efficient,
+	//  currently these two recurse back and forth and are a bit of a monster combo
+
 	/// return the type size in cells
-	fn size(&self) -> usize {
-		match self {
+	fn size(&self) -> Result<usize, String> {
+		Ok(match self {
 			ValueType::Cell => 1,
-			ValueType::Array(len, value_type) => *len * value_type.size(),
-			ValueType::DictStruct(items) => items
-				.iter()
-				.map(|(_field_name, field_type)| field_type.size())
-				.sum(),
+			ValueType::Array(len, value_type) => *len * value_type.size()?,
+			ValueType::DictStruct(fields) => Self::get_and_validate_subfield_cell_map(fields)?.1,
+		})
+	}
+
+	/// deterministically place all struct subfields on a non-negative cell, return the positions of each and the total length
+	/// return Err() if location specified subfields overlap
+	fn get_and_validate_subfield_cell_map(
+		fields: &Vec<(String, ValueType, Option<usize>)>,
+	) -> Result<(HashMap<&String, (usize, &ValueType)>, usize), String> {
+		// (set of cells, max cell)
+		let mut cell_map = HashMap::new();
+
+		// map of field names and their starting cells
+		let mut subfield_map = HashMap::new();
+		let mut max_cell = 0usize;
+		let mut unfixed_fields = vec![];
+		// handle the cells with specified locations
+		for (field_name, field_type, field_location) in fields {
+			match field_location {
+				Some(location) => {
+					subfield_map.insert(field_name, (*location, field_type));
+					for cell_index in *location..(*location + field_type.size()?) {
+						// this assumes the field locations have been validated
+						if let Some(other_name) = cell_map.insert(cell_index, field_name) {
+							r_panic!(
+									"Subfields \"{other_name}\" and \"{field_name}\" overlap in struct."
+								);
+						};
+						max_cell = max_cell.max(cell_index);
+					}
+				}
+				None => {
+					unfixed_fields.push((field_name, field_type));
+				}
+			}
 		}
+
+		for (field_name, field_type) in unfixed_fields {
+			let field_size = field_type.size()?;
+			// repeatedly try to insert the fields into leftover memory locations
+			let mut start_index = 0usize;
+			for cur_index in 0.. {
+				if cell_map.contains_key(&cur_index) {
+					start_index = cur_index + 1;
+				} else if (cur_index - start_index + 1) >= field_size {
+					// found a run with the right amount of cells free
+					break;
+				}
+			}
+			subfield_map.insert(field_name, (start_index, field_type));
+			for cell_index in start_index..(start_index + field_size) {
+				// inefficient but whatever, this insert is not necessary
+				cell_map.insert(cell_index, field_name);
+				max_cell = max_cell.max(cell_index);
+			}
+		}
+
+		let size = max_cell + 1;
+
+		Ok((subfield_map, size))
 	}
 
 	/// get a subfield's type as well as memory cell index
@@ -888,23 +939,17 @@ impl ValueType {
 						index < len,
 						"Index \"{subfield_ref}\" must be less than array length ({len})."
 					);
-					cur_index += element_type.size() * index;
+					cur_index += element_type.size()? * index;
 					cur_field = element_type;
 				}
-				(ValueType::DictStruct(items), Reference::NamedField(subfield_name)) => {
-					let mut cell_offset_tally = 0;
-					let Some((_, subfield_type)) = items.iter().find(|(item_name, item_type)| {
-						match item_name == subfield_name {
-							true => true,
-							false => {
-								cell_offset_tally += item_type.size();
-								false
-							}
-						}
-					}) else {
+				(ValueType::DictStruct(fields), Reference::NamedField(subfield_name)) => {
+					let (subfield_map, _size) = Self::get_and_validate_subfield_cell_map(fields)?;
+					let Some((subfield_cell_offset, subfield_type)) =
+						subfield_map.get(subfield_name)
+					else {
 						r_panic!("Could not find subfield \"{subfield_ref}\" in struct type")
 					};
-					cur_index += cell_offset_tally;
+					cur_index += subfield_cell_offset;
 					cur_field = subfield_type;
 				}
 
@@ -1013,25 +1058,21 @@ impl Scope<'_> {
 	}
 
 	/// Get the correct variable type and allocate the right amount of cells for it
-	fn allocate_variable(
-		&mut self,
-		var: VariableDefinition,
-		location_specifier: Option<i32>,
-	) -> Result<&ValueType, String> {
+	fn allocate_variable(&mut self, var: VariableDefinition) -> Result<&ValueType, String> {
 		r_assert!(
 			!self.variable_memory.contains_key(&var.name),
 			"Cannot allocate variable {var} twice in the same scope"
 		);
 
 		// get absolute type
-		let full_type: ValueType = self.create_absolute_type(&var.var_type)?;
+		let full_type = self.create_absolute_type(&var.var_type)?;
 		// get absolute type size
 		let id = self.push_memory_id();
 		let memory = match &full_type {
 			ValueType::Cell => Memory::Cell { id },
 			_ => Memory::Cells {
 				id,
-				len: full_type.size(),
+				len: full_type.size()?,
 			},
 		};
 		// save variable in scope memory
@@ -1043,7 +1084,10 @@ impl Scope<'_> {
 		};
 
 		// allocate
-		self.push_instruction(Instruction::Allocate(memory.clone(), location_specifier));
+		self.push_instruction(Instruction::Allocate(
+			memory.clone(),
+			var.location_specifier,
+		));
 
 		// return a reference to the created full type
 		Ok(&self.variable_memory.get(&var.name).unwrap().0)
@@ -1090,10 +1134,22 @@ impl Scope<'_> {
 		struct_name: &str,
 		fields: Vec<VariableDefinition>,
 	) -> Result<(), String> {
-		let absolute_fields = fields
-			.into_iter()
-			.map(|f| Ok((f.name, self.create_absolute_type(&f.var_type)?)))
-			.collect::<Result<Vec<(String, ValueType)>, String>>()?;
+		let mut absolute_fields = vec![];
+
+		for var_def in fields {
+			let absolute_type = self.create_absolute_type(&var_def.var_type)?;
+			let non_neg_location_specifier = match &var_def.location_specifier {
+				None => None,
+				Some(l) => {
+					r_assert!(
+						*l >= 0,
+						"Struct field location specifiers must be non-negative: {var_def}"
+					);
+					Some(*l as usize)
+				}
+			};
+			absolute_fields.push((var_def.name, absolute_type, non_neg_location_specifier));
+		}
 
 		let None = self
 			.structs
@@ -1114,7 +1170,13 @@ impl Scope<'_> {
 	) -> Result<(), String> {
 		let absolute_arguments = arguments
 			.into_iter()
-			.map(|f| Ok((f.name, self.create_absolute_type(&f.var_type)?)))
+			.map(|f| {
+				r_assert!(
+					f.location_specifier.is_none(),
+					"Cannot specify variable location in function argument \"{f}\"."
+				);
+				Ok((f.name, self.create_absolute_type(&f.var_type)?))
+			})
 			.collect::<Result<Vec<(String, ValueType)>, String>>()?;
 
 		let None = self.functions.insert(
@@ -1281,7 +1343,7 @@ impl Scope<'_> {
 					len,
 				},
 			) => {
-				let (subfield_type, offset_index) = full_type.get_subfield(subfields)?;
+				let (subfield_type, _offset_index) = full_type.get_subfield(subfields)?;
 				let ValueType::Array(arr_len, element_type) = subfield_type else {
 					r_panic!("Expected array type in subfield variable target \"{target}\".");
 				};
@@ -1412,11 +1474,11 @@ impl Scope<'_> {
 			),
 			Some(subfields) => {
 				let (subfield_type, offset_index) = base_var_type.get_subfield(subfields)?;
-				let subfield_size = subfield_type.size();
+				// let subfield_size = subfield_type.size();
 				(
 					subfield_type,
 					match (subfield_type, base_var_memory) {
-						(ValueType::Cell, Memory::Cells { id, len }) => {
+						(ValueType::Cell, Memory::Cells { id, len: _ }) => {
 							// r_assert!((offset_index + subfield_size) <= *len, "Subfield \"{target}\" size and offset out of memory bounds. This should never occur.");
 							Memory::MappedCell {
 								id: *id,
@@ -1428,7 +1490,7 @@ impl Scope<'_> {
 							Memory::MappedCells {
 								id,
 								start_index,
-								len,
+								len: _,
 							},
 						) => Memory::MappedCell {
 							id: *id,
@@ -1440,7 +1502,7 @@ impl Scope<'_> {
 						) => Memory::MappedCells {
 							id: *id,
 							start_index: offset_index,
-							len: subfield_type.size(),
+							len: subfield_type.size()?,
 						},
 						(
 							ValueType::Array(_, _) | ValueType::DictStruct(_),
@@ -1452,7 +1514,7 @@ impl Scope<'_> {
 						) => Memory::MappedCells {
 							id: *id,
 							start_index: *start_index + offset_index,
-							len: subfield_type.size(),
+							len: subfield_type.size()?,
 						},
 						(_, Memory::Cell { id: _ } | Memory::MappedCell { id: _, index: _ }) => {
 							r_panic!(

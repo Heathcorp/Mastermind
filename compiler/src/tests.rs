@@ -1398,7 +1398,54 @@ output as[1].bbb[2].green;
 		assert_eq!(desired_output, output)
 	}
 
-	#[ignore]
+	#[test]
+	fn structs_7a() {
+		let program = String::from(
+			r#";
+struct BB {
+	cell green @2;
+}
+struct AA {
+  cell green @10;
+	struct BB[3] bbb @1;
+}
+
+struct AA[2] as @-9;
+
+fn input_AAs(struct AA[2] aaas) {
+  fn input_BB(struct BB b) {
+	  input b.green;
+	}
+	input_BB(aaas[0].bbb[0]);
+	input_BB(aaas[0].bbb[1]);
+	input_BB(aaas[0].bbb[2]);
+  input_BB(aaas[1].bbb[0]);
+	input_BB(aaas[1].bbb[1]);
+	input_BB(aaas[1].bbb[2]);
+ 
+  input aaas[0].green;
+  input aaas[1].green;
+	output "HI\n";
+}
+input_AAs(as);
+
+output as[0].green;
+output as[0].bbb[0].green;
+output as[0].bbb[1].green;
+output as[0].bbb[2].green;
+output as[1].green;
+output as[1].bbb[0].green;
+output as[1].bbb[1].green;
+output as[1].bbb[2].green;
+			"#,
+		);
+		let input = String::from("abcdefgh");
+		let desired_output = String::from("HI\ngabchdef");
+		let output = compile_and_run(program, input).expect("");
+		println!("{output}");
+		assert_eq!(desired_output, output)
+	}
+
 	#[test]
 	fn structs_bf_1() {
 		let program = String::from(
@@ -1414,25 +1461,97 @@ struct Vector {
 }
 
 struct Vector vec1 @2;
+vec1.marker = true;
 
 vec1.frames[0].marker = true;
 vec1.frames[0].value = 'j';
 vec1.frames[1].marker = true;
 vec1.frames[1].value = 'k';
+vec1.frames[2].value = 'l';
 
 bf @2 {
-  >[>.>>>]
+  [>.>>>]
 }
 			"#,
 		);
 		let input = String::from("");
-		let desired_output = String::from("jk");
+		let desired_output = String::from("jkl");
 		let output = compile_and_run(program, input).expect("");
 		println!("{output}");
 		assert_eq!(desired_output, output)
 	}
 
-	#[ignore]
+	#[test]
+	// TODO: fix the r_panic macro that makes this error have unescaped quotes in it (weird)
+	// #[should_panic(expected = r#"Subfields "marker" and "temp_cells" overlap in struct."#)]
+	#[should_panic]
+	fn structs_bf_1a() {
+		let program = String::from(
+			r#";
+struct Frame {
+	cell    marker     @2;
+	cell    value      @0;
+	cell[2] temp_cells @1;
+}
+
+struct Frame f;
+			"#,
+		);
+		let input = String::from("");
+		let desired_output = String::from("");
+		let output = compile_and_run(program, input).expect("");
+		println!("{output}");
+		assert_eq!(desired_output, output)
+	}
+
+	#[test]
+	// TODO: fix the r_panic macro that makes this error have unescaped quotes in it (weird)
+	// #[should_panic(expected = r#"Subfields "marker" and "temp_cells" overlap in struct."#)]
+	#[should_panic]
+	fn structs_bf_1b() {
+		let program = String::from(
+			r#";
+struct Frame {
+	cell    marker     @-2;
+	cell    value      @0;
+	cell[2] temp_cells @1;
+}
+
+struct Frame f;
+			"#,
+		);
+		let input = String::from("");
+		let desired_output = String::from("");
+		let output = compile_and_run(program, input).expect("");
+		println!("{output}");
+		assert_eq!(desired_output, output)
+	}
+
+	#[test]
+	#[should_panic]
+	fn structs_bf_1c() {
+		let program = String::from(
+			r#";
+struct G {
+	cell a @1;
+	cell b @1;
+}
+
+struct G g;
+g.a = 'a';
+g.b = 'b';
+
+output g.a;
+output g.b;
+			"#,
+		);
+		let input = String::from("");
+		let desired_output = String::from("ab");
+		let output = compile_and_run(program, input).expect("");
+		println!("{output}");
+		assert_eq!(desired_output, output)
+	}
+
 	#[test]
 	fn structs_bf_2() {
 		let program = String::from(
