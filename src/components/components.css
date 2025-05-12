@@ -21,7 +21,6 @@
   display: flex;
   flex-wrap: wrap;
   gap: 10px;
-  padding: 10px;
 }
 
 .file-tile {
@@ -47,4 +46,17 @@
   min-width: 50px;
   display: flex;
   justify-content: center;
+}
+
+.file-upload-drop-zone {
+  margin-top: 10px;
+  border: var(--default-border);
+  width: 100%;
+  min-height: 100px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  user-select: none;
+  cursor: pointer;
 }

@@ -3,12 +3,7 @@ import { Component, createSignal, For, createEffect, on } from "solid-js";
 import "./editor.css";
 
 import { EditorView } from "@codemirror/view";
-import {
-  AiOutlineFile,
-  AiOutlineFolder,
-  AiOutlinePlus,
-  AiOutlineUpload,
-} from "solid-icons/ai";
+import { AiOutlineFolder, AiOutlinePlus } from "solid-icons/ai";
 import {
   DragDropProvider,
   DragDropSensors,
@@ -18,7 +13,6 @@ import {
 
 import { useAppContext } from "../App";
 import Tab from "../components/Tab";
-import { createDropzone } from "@soorria/solid-dropzone";
 import { IconTypes } from "solid-icons";
 import FileBrowserModal from "../components/FileBrowser";
 
@@ -70,15 +64,6 @@ const EditorPanel: Component = () => {
       previousFileId = editingFile();
     })
   );
-
-  const onDrop = (acceptedFiles: File[]) => {
-    console.log(acceptedFiles);
-    acceptedFiles.forEach(async (file: File) => {
-      const newId = await app.createFile(file);
-      setEditingFile(newId);
-    });
-  };
-  const dropzone = createDropzone({ onDrop });
 
   return (
     <div class="panel">
@@ -154,7 +139,6 @@ const TAB_END_ID = "end";
 const TabFiller: Component<{
   onClick: () => void;
   iconComponent?: IconTypes;
-  dropzone?: any;
 }> = (props) => {
   // for dragging a file to the end of the list
   // had to make this its own component because of dragDrop context issues
@@ -170,9 +154,7 @@ const TabFiller: Component<{
   return (
     <div
       ref={droppableRef}
-      class={props.dropzone ? "dropzone-root" : undefined}
       classList={{ "tab-filler": true, "tab-insert-marker": isUnderDrag() }}
-      {...(props.dropzone ? props.dropzone.getRootProps() : {})}
     >
       <IconComponent class="text-button" onClick={props.onClick} />
     </div>
