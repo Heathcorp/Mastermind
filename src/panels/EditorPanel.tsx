@@ -137,7 +137,10 @@ const EditorPanel: Component = () => {
             }}
           />
 
-          <FileBrowserModal />
+          <FileBrowserModal
+            editingFile={editingFile}
+            setEditingFile={setEditingFile}
+          />
         </div>
       </div>
       <div class="code-panel" ref={editorRef} />

@@ -16,3 +16,35 @@
   margin: 0;
   border: 0;
 }
+
+.file-browser-container {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+  padding: 10px;
+}
+
+.file-tile {
+  padding: 5px;
+  gap: 5px;
+  display: flex;
+  align-items: center;
+  border: var(--default-border);
+  background-color: var(--BG-2);
+  user-select: none;
+  cursor: pointer;
+}
+
+.current-file {
+  background-color: var(--BG-3);
+}
+
+.file-tile:hover {
+  background-color: var(--BG-1);
+}
+
+.file-tile-utility {
+  min-width: 50px;
+  display: flex;
+  justify-content: center;
+}
