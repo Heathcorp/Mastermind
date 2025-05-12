@@ -1334,6 +1334,30 @@ output '\n';
 	}
 
 	#[test]
+	#[should_panic]
+	fn structs_4d() {
+		let program = String::from(
+			r#";
+struct AA a;
+input *a.reds;
+
+struct AA {
+  cell[4] reds;
+  cell green;
+}
+
+output a.reds[4];
+output '\n';
+			"#,
+		);
+		let input = String::from("0123a");
+		let desired_output = String::from("a\n");
+		let output = compile_and_run(program, input).expect("");
+		println!("{output}");
+		assert_eq!(desired_output, output)
+	}
+
+	#[test]
 	fn structs_5() {
 		let program = String::from(
 			r#";
