@@ -3,6 +3,8 @@
 // black box testing
 #[cfg(test)]
 pub mod tests {
+	use wasm_bindgen::convert::OptionIntoWasmAbi;
+
 	use crate::{
 		brainfuck::{tests::run_code, BVMConfig},
 		builder::{BrainfuckOpcodes, Builder, Opcode},
@@ -1983,6 +1985,35 @@ bf {
 	}
 
 	#[test]
+	fn inline_brainfuck_4a() -> Result<(), String> {
+		let program = String::from(
+			r#"
+bf {
+	// enters a line of user input
+	// runs some embedded mastermind for each character
+	,----------[
+		++++++++++
+		{
+			extern cell chr @0;
+			output chr;
+			chr += 1;
+			output chr;
+		}
+		[-]
+		,----------
+	]
+}
+"#,
+		);
+		let code = compile_program(program, None)?.to_string();
+		println!("{code}");
+
+		let output = run_code(BVM_CONFIG_1D, code, String::from("line of input\n"), None);
+		assert_eq!(output, "lmijnoef !opfg !ijnopquvtu");
+		Ok(())
+	}
+
+	#[test]
 	fn inline_brainfuck_5() -> Result<(), String> {
 		let program = String::from(
 			r#"
@@ -2002,6 +2033,43 @@ bf {
 		{
 			cell chr @0;
 			assert chr unknown;
+			quote(chr);
+			output 10;
+			// this time it may be tricky because the compiler needs to return to the start cell
+		}
+		[-]
+		,----------
+	]
+}
+"#,
+		);
+		let code = compile_program(program, None)?.to_string();
+		println!("{code}");
+
+		let output = run_code(BVM_CONFIG_1D, code, String::from("hello\n"), None);
+		assert_eq!(output, "'h'\n'e'\n'l'\n'l'\n'o'\n");
+		Ok(())
+	}
+
+	#[test]
+	fn inline_brainfuck_5a() -> Result<(), String> {
+		let program = String::from(
+			r#"
+// external function within the same file, could be tricky to implement
+fn quote(cell n) {
+	// H 'H'
+	output 39;
+	output n;
+	output 39;
+}
+
+bf {
+	// enters a line of user input
+	// runs some embedded mastermind for each character
+	,----------[
+		++++++++++
+		{
+			extern cell chr @0;
 			quote(chr);
 			output 10;
 			// this time it may be tricky because the compiler needs to return to the start cell
@@ -2058,6 +2126,29 @@ bf {
 		assert_eq!(code, ",>,>,<<>>>>>+[-]<<<<<");
 		Ok(())
 	}
+
+	#[test]
+	fn inline_brainfuck_8() -> Result<(), String> {
+		let program = String::from(
+			r#"
+cell a @4 = '7';
+bf @a {
+  +>
+  ++++++++[->++++++<]<
+}
+extern cell b @6;
+output a;
+output b;
+"#,
+		);
+		let code = compile_program(program, None)?.to_string();
+		println!("{code}");
+
+		let output = run_code(BVM_CONFIG_1D, code, String::from(""), None);
+		assert_eq!(output, "80");
+		Ok(())
+	}
+
 	#[test]
 	fn inline_2d_brainfuck() -> Result<(), String> {
 		let program = String::from(
