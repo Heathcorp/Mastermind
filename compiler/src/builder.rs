@@ -11,7 +11,7 @@ use std::{
 };
 
 use crate::{
-	compiler::{CellLocationReference, Instruction, MemoryId},
+	compiler::{CellLocation, Instruction, MemoryId},
 	constants_optimiser::calculate_optimal_addition,
 	macros::macros::{r_assert, r_panic},
 	MastermindConfig,
@@ -327,8 +327,8 @@ outside of loop it was allocated"
 				Instruction::InsertBrainfuckAtCell(operations, location_specifier) => {
 					// move to the correct cell, based on the location specifier
 					match location_specifier {
-						CellLocationReference::FixedCell(cell) => ops.move_to_cell(cell),
-						CellLocationReference::MemoryCell(cell_obj) => {
+						CellLocation::FixedCell(cell) => ops.move_to_cell(cell),
+						CellLocation::MemoryCell(cell_obj) => {
 							let Some((cell_base, size, _alloc_loop_depth, _known_values)) =
 								alloc_map.get(&cell_obj.memory_id)
 							else {
@@ -342,7 +342,7 @@ outside of loop it was allocated"
 							let cell = *cell_base + mem_idx as i32;
 							ops.move_to_cell(cell);
 						}
-						CellLocationReference::None => (),
+						CellLocation::Unspecified => (),
 					}
 
 					// paste the in-line BF operations

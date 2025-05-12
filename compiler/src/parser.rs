@@ -1300,7 +1300,6 @@ pub enum VariableTypeReference {
 
 #[derive(Debug, Clone, Hash, PartialEq, Eq)]
 pub enum LocationSpecifier {
-	// TODO: extract this none to be an option
 	None,
 	Cell(TapeCell),
 	Variable(VariableTarget),
