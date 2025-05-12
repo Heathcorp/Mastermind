@@ -6,8 +6,8 @@ use crate::{
 	builder::{Builder, Opcode, TapeCell},
 	macros::macros::{r_assert, r_panic},
 	parser::{
-		Clause, Expression, ExtendedOpcode, Reference, VariableDefinition, VariableTarget,
-		VariableTargetReferenceChain, VariableTypeReference,
+		Clause, Expression, ExtendedOpcode, LocationSpecifier, Reference, VariableDefinition,
+		VariableTarget, VariableTargetReferenceChain, VariableTypeReference,
 	},
 	MastermindConfig,
 };
@@ -535,9 +535,19 @@ impl Compiler<'_> {
 							ExtendedOpcode::Down => expanded_bf.push(Opcode::Down),
 						}
 					}
+
+					// handle the location specifier
+					let location = match location_specifier {
+						LocationSpecifier::None => CellLocation::Unspecified,
+						LocationSpecifier::Cell(cell) => CellLocation::FixedCell(cell),
+						LocationSpecifier::Variable(var) => {
+							CellLocation::MemoryCell(scope.get_target_cell_reference(&var)?)
+						}
+					};
+
 					scope.push_instruction(Instruction::InsertBrainfuckAtCell(
 						expanded_bf,
-						location_specifier,
+						location,
 					));
 					// assert that we clobbered the variables
 					// not sure whether this should go before or after the actual bf code
@@ -738,7 +748,7 @@ fn _copy_cell(
 // this is subject to change
 #[derive(Debug, Clone)]
 pub enum Instruction {
-	Allocate(Memory, Option<TapeCell>), // most of the below comments are wrong, usize is a unique id of an allocated cell
+	Allocate(Memory, Option<TapeCell>),
 	Free(MemoryId), // the number indicates which cell in the allocation stack should be freed (cell 0, is the top of the stack, 1 is the second element, etc)
 	OpenLoop(CellReference), // same with other numbers here, they indicate the cell in the allocation stack to use in the instruction
 	CloseLoop(CellReference), // pass in the cell id, this originally wasn't there but may be useful later on
@@ -747,7 +757,15 @@ pub enum Instruction {
 	ClearCell(CellReference), // not sure if this should be here, seems common enough that it should be
 	AssertCellValue(CellReference, Option<u8>), // allows the user to hand-tune optimisations further
 	OutputCell(CellReference),
-	InsertBrainfuckAtCell(Vec<Opcode>, Option<TapeCell>),
+	InsertBrainfuckAtCell(Vec<Opcode>, CellLocation),
+}
+
+#[derive(Debug, Clone)]
+/// Either a fixed constant cell or a reference to some existing memory
+pub enum CellLocation {
+	Unspecified,
+	FixedCell(i32),
+	MemoryCell(CellReference),
 }
 
 #[derive(Debug, Clone)]
@@ -1083,11 +1101,17 @@ impl Scope<'_> {
 			r_panic!("Unreachable error occurred when allocating {var}");
 		};
 
+		// verify location specifier
+		let location = match var.location_specifier {
+			LocationSpecifier::None => None,
+			LocationSpecifier::Cell(cell) => Some(cell),
+			LocationSpecifier::Variable(_) => r_panic!(
+				"Cannot use variable as location specifier target when allocating variable: {var}"
+			),
+		};
+
 		// allocate
-		self.push_instruction(Instruction::Allocate(
-			memory.clone(),
-			var.location_specifier,
-		));
+		self.push_instruction(Instruction::Allocate(memory.clone(), location));
 
 		// return a reference to the created full type
 		Ok(&self.variable_memory.get(&var.name).unwrap().0)
@@ -1139,14 +1163,15 @@ impl Scope<'_> {
 		for var_def in fields {
 			let absolute_type = self.create_absolute_type(&var_def.var_type)?;
 			let non_neg_location_specifier = match &var_def.location_specifier {
-				None => None,
-				Some(l) => {
+				LocationSpecifier::None => None,
+				LocationSpecifier::Cell(l) => {
 					r_assert!(
 						*l >= 0,
 						"Struct field location specifiers must be non-negative: {var_def}"
 					);
 					Some(*l as usize)
 				}
+				      LocationSpecifier::Variable(_) => r_panic!("Location specifiers in struct definitions must be relative, not variables: {var_def}"),  
 			};
 			absolute_fields.push((var_def.name, absolute_type, non_neg_location_specifier));
 		}
@@ -1171,10 +1196,9 @@ impl Scope<'_> {
 		let absolute_arguments = arguments
 			.into_iter()
 			.map(|f| {
-				r_assert!(
-					f.location_specifier.is_none(),
-					"Cannot specify variable location in function argument \"{f}\"."
-				);
+				let LocationSpecifier::None = f.location_specifier else {
+					r_panic!("Cannot specify variable location in function argument \"{f}\".");
+				};
 				Ok((f.name, self.create_absolute_type(&f.var_type)?))
 			})
 			.collect::<Result<Vec<(String, ValueType)>, String>>()?;
@@ -1336,33 +1360,28 @@ impl Scope<'_> {
 			(
 				Some(subfields),
 				ValueType::Array(_, _) | ValueType::DictStruct(_),
-				Memory::Cells { id, len }
+				Memory::Cells { id, len: _ }
 				| Memory::MappedCells {
 					id,
 					start_index: _,
-					len,
+					len: _,
 				},
 			) => {
-				let (subfield_type, _offset_index) = full_type.get_subfield(subfields)?;
+				let (subfield_type, offset_index) = full_type.get_subfield(subfields)?;
 				let ValueType::Array(arr_len, element_type) = subfield_type else {
 					r_panic!("Expected array type in subfield variable target \"{target}\".");
 				};
 				let ValueType::Cell = **element_type else {
 					r_panic!("Expected cell array in subfield variable target \"{target}\".");
 				};
-				r_assert!(
-					*arr_len == *len,
-					"Array memory incorrect length {len} for array length {arr_len}."
-				);
-				// TODO: any more assertions needed here?
 
 				(match memory {
-					Memory::Cells { id: _, len } => 0..*len,
+					Memory::Cells { id: _, len: _ } => offset_index..(offset_index + *arr_len),
 					Memory::MappedCells {
 						id: _,
 						start_index,
-						len,
-					} => *start_index..(*start_index + *len),
+						len: _,
+					} => (*start_index + offset_index)..(*start_index + offset_index + *arr_len),
 					_ => unreachable!(),
 				})
 				.map(|i| CellReference {
@@ -1412,6 +1431,50 @@ impl Scope<'_> {
 			) => r_panic!(
 				"Invalid memory for value type in target: {target}. This should not occur."
 			),
+		})
+	}
+
+	/// Return the first memory cell of a target allocation, used for location specifiers
+	fn get_target_cell_reference(&self, target: &VariableTarget) -> Result<CellReference, String> {
+		let (full_type, memory) = self.get_base_variable_memory(&target.name)?;
+		Ok(match &target.subfields {
+			None => match memory {
+				Memory::Cell { id } => CellReference {
+					memory_id: *id,
+					index: None,
+				},
+				Memory::MappedCell { id, index } => CellReference {
+					memory_id: *id,
+					index: *index,
+				},
+				Memory::Cells { id, len: _ } => CellReference {
+					memory_id: *id,
+					index: Some(0),
+				},
+				Memory::MappedCells {
+					id,
+					start_index,
+					len: _,
+				} => CellReference {
+					memory_id: *id,
+					index: Some(*start_index),
+				},
+			},
+			Some(subfield_chain) => {
+				let (_subfield_type, offset_index) = full_type.get_subfield(&subfield_chain)?;
+				match memory {
+					   Memory::Cell { id: _ } |Memory::MappedCell { id: _, index: _ } => r_panic!("Attempted to get cell reference of subfield of single cell memory: {target}"),  
+					Memory::Cells { id, len } | Memory::MappedCells { id, start_index: _, len } => {
+						r_assert!(offset_index < *len, "Subfield memory index out of allocation range. This should not occur. ({target})");
+						let index = match memory {
+							Memory::Cells { id: _, len: _ } => offset_index,
+							Memory::MappedCells { id: _, start_index, len: _ } => *start_index + offset_index,
+										Memory::Cell { id: _ } | Memory::MappedCell { id: _, index: _ } => unreachable!()
+								};
+						CellReference {memory_id: *id, index: Some(index)}
+					}
+				}
+			}
 		})
 	}
 

@@ -487,33 +487,47 @@ fn parse_assert_clause(clause: &[Token]) -> Result<Clause, String> {
 // let g @4,2 = 68;
 // or
 // let p @3 = 68;
-fn parse_location_specifier(tokens: &[Token]) -> Result<(Option<i32>, usize), String> {
+fn parse_location_specifier(tokens: &[Token]) -> Result<(LocationSpecifier, usize), String> {
 	if tokens.len() == 0 {
-		return Ok((None, 0));
+		return Ok((LocationSpecifier::None, 0));
 	}
 	if let Token::At = &tokens[0] {
 		let mut i = 1;
-		let positive = if let Token::Minus = &tokens[i] {
-			i += 1;
-			false
-		} else {
-			true
-		};
 
-		let Token::Digits(raw) = &tokens[i] else {
-			r_panic!("Expected constant number in memory location specifier: {tokens:#?}");
-		};
-		i += 1;
+		match &tokens[i] {
+			Token::Digits(_) | Token::Minus => {
+				let mut positive = true;
+				if let Token::Minus = &tokens[i] {
+					i += 1;
+					positive = false;
+				}
+				let Token::Digits(raw) = &tokens[i] else {
+					r_panic!(
+						"Expected number after \"-\" in memory location specifier: {tokens:#?}"
+					);
+				};
+				i += 1;
 
-		// TODO: error handling
-		let mut offset: i32 = raw.parse().unwrap();
-		if !positive {
-			offset = -offset;
+				// TODO: error handling
+				let mut offset: i32 = raw.parse().unwrap();
+				if !positive {
+					offset = -offset;
+				}
+
+				return Ok((LocationSpecifier::Cell(offset), i));
+			}
+			Token::Name(_) => {
+				// variable location specifier
+				let (var, len) = parse_var_target(&tokens[i..])?;
+				i += len;
+
+				return Ok((LocationSpecifier::Variable(var), i));
+			}
+			_ => r_panic!("Expected constant or variable in location specifier: {tokens:#?}"),
 		}
-		return Ok((Some(offset), i));
 	}
 
-	Ok((None, 0))
+	Ok((LocationSpecifier::None, 0))
 }
 
 fn parse_brainfuck_clause(clause: &[Token]) -> Result<Clause, String> {
@@ -782,6 +796,7 @@ fn parse_var_definition(
 	i += 1;
 
 	let (location_specifier, len) = parse_location_specifier(&tokens[i..])?;
+
 	r_assert!(
 		location_specifier.is_none() || allow_location,
 		"Unexpected location specifier in variable definition: {tokens:#?}"
@@ -1251,7 +1266,7 @@ pub enum Clause {
 	},
 	Block(Vec<Clause>),
 	InlineBrainfuck {
-		location_specifier: Option<TapeCell>,
+		location_specifier: LocationSpecifier,
 		clobbered_variables: Vec<VariableTarget>,
 		// TODO: make this support embedded mastermind
 		operations: Vec<ExtendedOpcode>,
@@ -1284,10 +1299,25 @@ pub enum VariableTypeReference {
 }
 
 #[derive(Debug, Clone, Hash, PartialEq, Eq)]
+pub enum LocationSpecifier {
+	None,
+	Cell(TapeCell),
+	Variable(VariableTarget),
+}
+impl LocationSpecifier {
+	fn is_none(&self) -> bool {
+		match self {
+			LocationSpecifier::None => true,
+			_ => false,
+		}
+	}
+}
+
+#[derive(Debug, Clone, Hash, PartialEq, Eq)]
 pub struct VariableDefinition {
 	pub name: String,
 	pub var_type: VariableTypeReference,
-	pub location_specifier: Option<TapeCell>,
+	pub location_specifier: LocationSpecifier,
 	// Infinite {name: String, pattern: ???},
 }
 
@@ -1336,8 +1366,24 @@ impl Display for VariableTypeReference {
 impl Display for VariableDefinition {
 	fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
 		f.write_str(&format!("{} {}", self.var_type, self.name))?;
-		if let Some(l) = self.location_specifier {
-			f.write_str(&format!(" @{}", l))?;
+		match &self.location_specifier {
+			LocationSpecifier::Cell(_) | LocationSpecifier::Variable(_) => {
+				f.write_str(&format!(" {}", self.location_specifier))?
+			}
+			LocationSpecifier::None => (),
+		}
+
+		Ok(())
+	}
+}
+
+impl Display for LocationSpecifier {
+	fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+		f.write_str("@")?;
+		match self {
+			LocationSpecifier::Cell(cell) => f.write_str(&format!("{}", cell))?,
+			LocationSpecifier::Variable(var) => f.write_str(&format!("{}", var))?,
+			LocationSpecifier::None => (),
 		}
 
 		Ok(())

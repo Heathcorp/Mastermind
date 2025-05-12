@@ -11,7 +11,7 @@ use std::{
 };
 
 use crate::{
-	compiler::{Instruction, MemoryId},
+	compiler::{CellLocation, Instruction, MemoryId},
 	constants_optimiser::calculate_optimal_addition,
 	macros::macros::{r_assert, r_panic},
 	MastermindConfig,
@@ -325,28 +325,27 @@ outside of loop it was allocated"
 					ops.push(Opcode::Output);
 				}
 				Instruction::InsertBrainfuckAtCell(operations, location_specifier) => {
-					// I don't think this is a good idea (moving to an unallocated cell to run brainfuck)
-					// ops.move_to_cell(location_specifier.unwrap_or({
-					// 	// default position to run brainfuck in?
-					// 	// not sure what is best here, probably the last cell in the allocation tape
-					// 	let mut first_unallocated = None;
-					// 	for i in 0..alloc_tape.len() {
-					// 		match (first_unallocated, &alloc_tape[i]) {
-					// 			(None, false) => {
-					// 				first_unallocated = Some(i);
-					// 			}
-					// 			(Some(_), true) => {
-					// 				first_unallocated = None;
-					// 			}
-					// 			_ => (),
-					// 		}
-					// 	}
-
-					// 	first_unallocated.unwrap_or(alloc_tape.len())
-					// }));
-					if let Some(loc) = location_specifier {
-						ops.move_to_cell(loc);
+					// move to the correct cell, based on the location specifier
+					match location_specifier {
+						CellLocation::FixedCell(cell) => ops.move_to_cell(cell),
+						CellLocation::MemoryCell(cell_obj) => {
+							let Some((cell_base, size, _alloc_loop_depth, _known_values)) =
+								alloc_map.get(&cell_obj.memory_id)
+							else {
+								r_panic!("Attempted to use location of cell {cell_obj:#?} which could not be found");
+							};
+							let mem_idx = cell_obj.index.unwrap_or(0);
+							r_assert!(
+								mem_idx < *size,
+								"Attempted to access memory outside of allocation"
+							);
+							let cell = *cell_base + mem_idx as i32;
+							ops.move_to_cell(cell);
+						}
+						CellLocation::Unspecified => (),
 					}
+
+					// paste the in-line BF operations
 					ops.extend(operations);
 				}
 			}
