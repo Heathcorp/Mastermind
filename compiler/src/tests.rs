@@ -36,7 +36,7 @@ pub mod tests {
 		enable_2d_grid: false,
 	};
 
-	const OPT_NONE_TILES:MastermindConfig = MastermindConfig {
+	const OPT_NONE_TILES: MastermindConfig = MastermindConfig {
 		optimise_generated_code: false,
 		optimise_cell_clearing: false,
 		optimise_variable_usage: false,
@@ -48,7 +48,7 @@ pub mod tests {
 		enable_2d_grid: false,
 	};
 
-	const OPT_NONE_SPIRAL:MastermindConfig = MastermindConfig {
+	const OPT_NONE_SPIRAL: MastermindConfig = MastermindConfig {
 		optimise_generated_code: false,
 		optimise_cell_clearing: false,
 		optimise_variable_usage: false,
@@ -60,7 +60,7 @@ pub mod tests {
 		enable_2d_grid: false,
 	};
 
-	const OPT_NONE_ZIG_ZAG:MastermindConfig = MastermindConfig {
+	const OPT_NONE_ZIG_ZAG: MastermindConfig = MastermindConfig {
 		optimise_generated_code: false,
 		optimise_cell_clearing: false,
 		optimise_variable_usage: false,
@@ -1304,6 +1304,96 @@ output '\n';
 	}
 
 	#[test]
+	fn structs_4b() {
+		let program = String::from(
+			r#";
+struct AA a;
+input a.green;
+input a.yellow;
+input *a.reds;
+
+struct AA {
+  cell green;
+  cell yellow;
+  cell[4] reds;
+}
+
+output *a.reds;
+output a.yellow;
+output a.green;
+output '\n';
+			"#,
+		);
+		let input = String::from("gy0123");
+		let desired_output = String::from("0123yg\n");
+		let output = compile_and_run(program, input).expect("");
+		println!("{output}");
+		assert_eq!(desired_output, output)
+	}
+
+	#[test]
+	fn structs_4c() {
+		let program = String::from(
+			r#";
+struct AA a;
+input a.green;
+input a.yellow;
+// input *a.reds;
+input *a.sub.blues;
+input a.sub.t;
+
+struct BB {
+  cell[2] blues;
+	cell t;
+}
+
+struct AA {
+  cell green;
+  cell yellow;
+  // cell[4] reds;
+	struct BB sub;
+}
+
+output a.sub.t;
+output *a.sub.blues;
+// output *a.reds;
+output a.yellow;
+output a.green;
+output '\n';
+			"#,
+		);
+		let input = String::from("gy-+t");
+		let desired_output = String::from("t-+yg\n");
+		let output = compile_and_run(program, input).expect("");
+		println!("{output}");
+		assert_eq!(desired_output, output)
+	}
+
+	#[test]
+	#[should_panic]
+	fn structs_4d() {
+		let program = String::from(
+			r#";
+struct AA a;
+input *a.reds;
+
+struct AA {
+  cell[4] reds;
+  cell green;
+}
+
+output a.reds[4];
+output '\n';
+			"#,
+		);
+		let input = String::from("0123a");
+		let desired_output = String::from("a\n");
+		let output = compile_and_run(program, input).expect("");
+		println!("{output}");
+		assert_eq!(desired_output, output)
+	}
+
+	#[test]
 	fn structs_5() {
 		let program = String::from(
 			r#";
@@ -1434,7 +1524,54 @@ output as[1].bbb[2].green;
 		assert_eq!(desired_output, output)
 	}
 
-	#[ignore]
+	#[test]
+	fn structs_7a() {
+		let program = String::from(
+			r#";
+struct BB {
+	cell green @2;
+}
+struct AA {
+  cell green @10;
+	struct BB[3] bbb @1;
+}
+
+struct AA[2] as @-9;
+
+fn input_AAs(struct AA[2] aaas) {
+  fn input_BB(struct BB b) {
+	  input b.green;
+	}
+	input_BB(aaas[0].bbb[0]);
+	input_BB(aaas[0].bbb[1]);
+	input_BB(aaas[0].bbb[2]);
+  input_BB(aaas[1].bbb[0]);
+	input_BB(aaas[1].bbb[1]);
+	input_BB(aaas[1].bbb[2]);
+ 
+  input aaas[0].green;
+  input aaas[1].green;
+	output "HI\n";
+}
+input_AAs(as);
+
+output as[0].green;
+output as[0].bbb[0].green;
+output as[0].bbb[1].green;
+output as[0].bbb[2].green;
+output as[1].green;
+output as[1].bbb[0].green;
+output as[1].bbb[1].green;
+output as[1].bbb[2].green;
+			"#,
+		);
+		let input = String::from("abcdefgh");
+		let desired_output = String::from("HI\ngabchdef");
+		let output = compile_and_run(program, input).expect("");
+		println!("{output}");
+		assert_eq!(desired_output, output)
+	}
+
 	#[test]
 	fn structs_bf_1() {
 		let program = String::from(
@@ -1450,25 +1587,97 @@ struct Vector {
 }
 
 struct Vector vec1 @2;
+vec1.marker = true;
 
 vec1.frames[0].marker = true;
 vec1.frames[0].value = 'j';
 vec1.frames[1].marker = true;
 vec1.frames[1].value = 'k';
+vec1.frames[2].value = 'l';
 
 bf @2 {
-  >[>.>>>]
+  [>.>>>]
 }
 			"#,
 		);
 		let input = String::from("");
-		let desired_output = String::from("jk");
+		let desired_output = String::from("jkl");
 		let output = compile_and_run(program, input).expect("");
 		println!("{output}");
 		assert_eq!(desired_output, output)
 	}
 
-	#[ignore]
+	#[test]
+	// TODO: fix the r_panic macro that makes this error have unescaped quotes in it (weird)
+	// #[should_panic(expected = r#"Subfields "marker" and "temp_cells" overlap in struct."#)]
+	#[should_panic]
+	fn structs_bf_1a() {
+		let program = String::from(
+			r#";
+struct Frame {
+	cell    marker     @2;
+	cell    value      @0;
+	cell[2] temp_cells @1;
+}
+
+struct Frame f;
+			"#,
+		);
+		let input = String::from("");
+		let desired_output = String::from("");
+		let output = compile_and_run(program, input).expect("");
+		println!("{output}");
+		assert_eq!(desired_output, output)
+	}
+
+	#[test]
+	// TODO: fix the r_panic macro that makes this error have unescaped quotes in it (weird)
+	// #[should_panic(expected = r#"Subfields "marker" and "temp_cells" overlap in struct."#)]
+	#[should_panic]
+	fn structs_bf_1b() {
+		let program = String::from(
+			r#";
+struct Frame {
+	cell    marker     @-2;
+	cell    value      @0;
+	cell[2] temp_cells @1;
+}
+
+struct Frame f;
+			"#,
+		);
+		let input = String::from("");
+		let desired_output = String::from("");
+		let output = compile_and_run(program, input).expect("");
+		println!("{output}");
+		assert_eq!(desired_output, output)
+	}
+
+	#[test]
+	#[should_panic]
+	fn structs_bf_1c() {
+		let program = String::from(
+			r#";
+struct G {
+	cell a @1;
+	cell b @1;
+}
+
+struct G g;
+g.a = 'a';
+g.b = 'b';
+
+output g.a;
+output g.b;
+			"#,
+		);
+		let input = String::from("");
+		let desired_output = String::from("ab");
+		let output = compile_and_run(program, input).expect("");
+		println!("{output}");
+		assert_eq!(desired_output, output)
+	}
+
 	#[test]
 	fn structs_bf_2() {
 		let program = String::from(
@@ -1799,7 +2008,10 @@ cell b = 3;
 		);
 		let code = compile_program(program, None);
 		assert!(code.is_err());
-		assert!(code.unwrap_err().to_string().contains("Location specifier @1,0 conflicts with another allocation"));
+		assert!(code
+			.unwrap_err()
+			.to_string()
+			.contains("Location specifier @1,0 conflicts with another allocation"));
 	}
 
 	#[test]
@@ -1813,7 +2025,10 @@ cell b = 3;
 		);
 		let code = compile_program(program, None);
 		assert!(code.is_err());
-		assert!(code.unwrap_err().to_string().contains("Location specifier @1,3 conflicts with another allocation"));
+		assert!(code
+			.unwrap_err()
+			.to_string()
+			.contains("Location specifier @1,3 conflicts with another allocation"));
 	}
 
 	#[test]
@@ -1827,7 +2042,10 @@ cell b = 3;
 		);
 		let code = compile_program(program, None);
 		assert!(code.is_err());
-		assert!(code.unwrap_err().to_string().contains("Location specifier @2,0 conflicts with another allocation"));
+		assert!(code
+			.unwrap_err()
+			.to_string()
+			.contains("Location specifier @2,0 conflicts with another allocation"));
 	}
 
 	#[test]
@@ -1840,7 +2058,254 @@ cell[4] b @0,4;
 		);
 		let code = compile_program(program, None);
 		assert!(code.is_err());
-		assert!(code.unwrap_err().to_string().contains("Location specifier @0,4 conflicts with another allocation"));
+		assert!(code
+			.unwrap_err()
+			.to_string()
+			.contains("Location specifier @0,4 conflicts with another allocation"));
+	}
+
+	#[test]
+	fn variable_location_specifiers_1() -> Result<(), String> {
+		let program = String::from(
+			r#"
+cell a = 'h';
+bf @a {.}
+"#,
+		);
+		let code = compile_program(program, None)?.to_string();
+		println!("{code}");
+
+		let input = String::from("wxy");
+		let output = run_code(BVM_CONFIG_1D, code.clone(), input, None);
+		println!("{output}");
+		assert_eq!(output, "h");
+		Ok(())
+	}
+
+	#[test]
+	fn variable_location_specifiers_1a() -> Result<(), String> {
+		let program = String::from(
+			r#"
+cell[100] _;
+cell a = 'h';
+cell[4] b;
+bf @a {.}
+"#,
+		);
+		let code = compile_program(program, None)?.to_string();
+		println!("{code}");
+
+		let input = String::from("");
+		let output = run_code(BVM_CONFIG_1D, code.clone(), input, None);
+		println!("{output}");
+		assert_eq!(output, "h");
+		Ok(())
+	}
+
+	#[test]
+	fn variable_location_specifiers_2() -> Result<(), String> {
+		let program = String::from(
+			r#"
+struct Test {cell[3] a @0; cell b;}
+struct Test t;
+input *t.a;
+bf @t.a {
+[+.>]
+}
+"#,
+		);
+		let code = compile_program(program, None)?.to_string();
+		println!("{code}");
+
+		let input = String::from("wxy");
+		let output = run_code(BVM_CONFIG_1D, code.clone(), input, None);
+		println!("{output}");
+		assert_eq!(code, ",>,>,<<[+.>]");
+		assert_eq!(output, "xyz");
+		Ok(())
+	}
+
+	#[test]
+	fn variable_location_specifiers_2a() -> Result<(), String> {
+		let program = String::from(
+			r#"
+struct Test {cell[3] a @0; cell b;}
+struct Test t;
+input *t.a;
+bf @t {
+[+.>]
+}
+"#,
+		);
+		let code = compile_program(program, None)?.to_string();
+		println!("{code}");
+
+		let input = String::from("wxy");
+		let output = run_code(BVM_CONFIG_1D, code.clone(), input, None);
+		println!("{output}");
+		assert_eq!(code, ",>,>,<<[+.>]");
+		assert_eq!(output, "xyz");
+		Ok(())
+	}
+
+	#[test]
+	fn variable_location_specifiers_3() -> Result<(), String> {
+		let program = String::from(
+			r#"
+cell[5] f @6 = "abcde";
+bf @f[2] clobbers *f {.+++.}
+output 10;
+output *f;
+"#,
+		);
+		let code = compile_program(program, None)?.to_string();
+		println!("{code}");
+
+		let input = String::from("");
+		let output = run_code(BVM_CONFIG_1D, code.clone(), input, None);
+		println!("{output}");
+		assert_eq!(output, "cf\nabfde");
+		Ok(())
+	}
+
+	#[test]
+	fn variable_location_specifiers_3a() -> Result<(), String> {
+		let program = String::from(
+			r#"
+cell[4] f @8 = "xyz ";
+bf @f {[.>]}
+"#,
+		);
+		let code = compile_program(program, None)?.to_string();
+		println!("{code}");
+
+		let input = String::from("");
+		let output = run_code(BVM_CONFIG_1D, code.clone(), input, None);
+		println!("{output}");
+		assert_eq!(output, "xyz ");
+		Ok(())
+	}
+
+	#[test]
+	fn variable_location_specifiers_4() -> Result<(), String> {
+		let program = String::from(
+			r#"
+fn func(cell g) {
+  bf @g {+.-}
+}
+
+cell a = '5';
+func(a);
+"#,
+		);
+		let code = compile_program(program, None)?.to_string();
+		println!("{code}");
+
+		let input = String::from("");
+		let output = run_code(BVM_CONFIG_1D, code.clone(), input, None);
+		println!("{output}");
+		assert_eq!(output, "6");
+		Ok(())
+	}
+
+	#[test]
+	fn variable_location_specifiers_4a() -> Result<(), String> {
+		let program = String::from(
+			r#"
+fn func(cell g) {
+  bf @g {+.-}
+}
+
+cell[3] a = "456";
+func(a[1]);
+"#,
+		);
+		let code = compile_program(program, None)?.to_string();
+		println!("{code}");
+
+		let input = String::from("");
+		let output = run_code(BVM_CONFIG_1D, code.clone(), input, None);
+		println!("{output}");
+		assert_eq!(output, "6");
+		Ok(())
+	}
+
+	#[test]
+	fn variable_location_specifiers_4b() -> Result<(), String> {
+		let program = String::from(
+			r#"
+fn func(cell g) {
+  bf @g {+.-}
+}
+
+struct H {cell[3] r;}
+struct H a;
+a.r[0] = '4';
+a.r[1] = '5';
+a.r[2] = '6';
+func(a.r[1]);
+"#,
+		);
+		let code = compile_program(program, None)?.to_string();
+		println!("{code}");
+
+		let input = String::from("");
+		let output = run_code(BVM_CONFIG_1D, code.clone(), input, None);
+		println!("{output}");
+		assert_eq!(output, "6");
+		Ok(())
+	}
+
+	#[test]
+	fn variable_location_specifiers_4c() -> Result<(), String> {
+		let program = String::from(
+			r#"
+fn func(struct H h) {
+  bf @h {+.-}
+}
+
+struct H {cell[3] r @0;}
+struct H a;
+a.r[0] = '4';
+a.r[1] = '5';
+a.r[2] = '6';
+func(a);
+"#,
+		);
+		let code = compile_program(program, None)?.to_string();
+		println!("{code}");
+
+		let input = String::from("");
+		let output = run_code(BVM_CONFIG_1D, code.clone(), input, None);
+		println!("{output}");
+		assert_eq!(output, "5");
+		Ok(())
+	}
+
+	#[test]
+	fn variable_location_specifiers_4d() -> Result<(), String> {
+		let program = String::from(
+			r#"
+fn func(cell[2] g) {
+  bf @g {+.-}
+}
+
+struct J {cell[2] j;}
+struct H {cell[20] a; struct J jj @1;}
+struct H a;
+a.jj.j[0] = '3';
+a.jj.j[1] = '4';
+func(a.jj.j);
+"#,
+		);
+		let code = compile_program(program, None)?.to_string();
+		println!("{code}");
+
+		let input = String::from("");
+		let output = run_code(BVM_CONFIG_1D, code.clone(), input, None);
+		println!("{output}");
+		assert_eq!(output, "4");
+		Ok(())
 	}
 
 	#[test]

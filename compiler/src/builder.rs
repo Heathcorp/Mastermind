@@ -11,7 +11,7 @@ use std::{
 };
 
 use crate::{
-	compiler::{Instruction, MemoryId},
+	compiler::{CellLocation, Instruction, MemoryId},
 	constants_optimiser::calculate_optimal_addition,
 	macros::macros::{r_assert, r_panic},
 	MastermindConfig,
@@ -61,7 +61,11 @@ impl Builder<'_> {
 				// the ids (indices really) given by the compiler are guaranteed to be unique (at the time of writing)
 				// however they will absolutely not be very efficient if used directly as cell locations
 				Instruction::Allocate(memory, location_specifier) => {
-					let cell = allocator.allocate(location_specifier, memory.len(), self.config.memory_allocation_method)?;
+					let cell = allocator.allocate(
+						location_specifier,
+						memory.len(),
+						self.config.memory_allocation_method,
+					)?;
 					let None = alloc_map.insert(
 						memory.id(),
 						(
@@ -325,28 +329,27 @@ outside of loop it was allocated"
 					ops.push(Opcode::Output);
 				}
 				Instruction::InsertBrainfuckAtCell(operations, location_specifier) => {
-					// I don't think this is a good idea (moving to an unallocated cell to run brainfuck)
-					// ops.move_to_cell(location_specifier.unwrap_or({
-					// 	// default position to run brainfuck in?
-					// 	// not sure what is best here, probably the last cell in the allocation tape
-					// 	let mut first_unallocated = None;
-					// 	for i in 0..alloc_tape.len() {
-					// 		match (first_unallocated, &alloc_tape[i]) {
-					// 			(None, false) => {
-					// 				first_unallocated = Some(i);
-					// 			}
-					// 			(Some(_), true) => {
-					// 				first_unallocated = None;
-					// 			}
-					// 			_ => (),
-					// 		}
-					// 	}
-
-					// 	first_unallocated.unwrap_or(alloc_tape.len())
-					// }));
-					if let Some(loc) = location_specifier {
-						ops.move_to_cell(loc);
+					// move to the correct cell, based on the location specifier
+					match location_specifier {
+						CellLocation::FixedCell(cell) => ops.move_to_cell(cell),
+						CellLocation::MemoryCell(cell_obj) => {
+							let Some((cell_base, size, _alloc_loop_depth, _known_values)) =
+								alloc_map.get(&cell_obj.memory_id)
+							else {
+								r_panic!("Attempted to use location of cell {cell_obj:#?} which could not be found");
+							};
+							let mem_idx = cell_obj.index.unwrap_or(0);
+							r_assert!(
+								mem_idx < *size,
+								"Attempted to access memory outside of allocation"
+							);
+							let cell = (cell_base.0 + mem_idx as i32, cell_base.1);
+							ops.move_to_cell(cell);
+						}
+						CellLocation::Unspecified => (),
 					}
+
+					// paste the in-line BF operations
 					ops.extend(operations);
 				}
 			}
@@ -354,7 +357,7 @@ outside of loop it was allocated"
 
 		// this is used in embedded brainfuck contexts to preserve head position
 		if return_to_origin {
-			ops.move_to_cell((0,0));
+			ops.move_to_cell((0, 0));
 		}
 
 		Ok(ops.opcodes)
@@ -374,16 +377,25 @@ impl CellAllocator {
 		}
 	}
 
-	fn allocate(&mut self, location: Option<TapeCell>, size: usize, method: u8) -> Result<TapeCell, String> {
+	fn allocate(
+		&mut self,
+		location: Option<TapeCell>,
+		size: usize,
+		method: u8,
+	) -> Result<TapeCell, String> {
 		// should the region start at the current tape head?
-		let mut region_start = location.unwrap_or((0,0));
+		let mut region_start = location.unwrap_or((0, 0));
 		if method == 0 {
 			for i in region_start.0.. {
 				if self.alloc_map.contains(&(i, region_start.1)) {
 					// if a specifier was set, it is invalid so throw an error
 					// TODO: not sure if this should throw here or not
 					if let Some(l) = location {
-						r_panic!("Location specifier @{0},{1} conflicts with another allocation", l.0, l.1);
+						r_panic!(
+							"Location specifier @{0},{1} conflicts with another allocation",
+							l.0,
+							l.1
+						);
 					};
 					// reset search to start at next cell
 					region_start = (i + 1, region_start.1);
@@ -415,7 +427,7 @@ impl CellAllocator {
 			//Spiral
 			let mut found = false;
 			let mut loops = 1;
-			let mut directions = ['N','E','S','W'];
+			let mut directions = ['N', 'E', 'S', 'W'];
 			let mut i = region_start.0;
 			let mut j = region_start.1;
 			while !found {
@@ -468,7 +480,7 @@ impl CellAllocator {
 					}
 				}
 				if found {
-					break
+					break;
 				}
 				i -= 1;
 				j -= 1;
@@ -481,7 +493,10 @@ impl CellAllocator {
 			while !found {
 				for i in -loops..=loops {
 					for j in -loops..=loops {
-						if !self.alloc_map.contains(&(region_start.0 + i, region_start.1 + j)) {
+						if !self
+							.alloc_map
+							.contains(&(region_start.0 + i, region_start.1 + j))
+						{
 							found = true;
 							region_start = (region_start.0 + i, region_start.1 + j);
 							break;
@@ -490,12 +505,10 @@ impl CellAllocator {
 					if found {
 						break;
 					}
-
 				}
 				loops += 1;
 			}
-		}
-		else {
+		} else {
 			panic!("Memory Allocation Method not implemented");
 		}
 
@@ -528,7 +541,6 @@ impl CellAllocator {
 				if self.alloc_map.insert((i, location.1)) {
 					return (i, location.1);
 				} else {
-
 				}
 			}
 
@@ -544,7 +556,9 @@ impl CellAllocator {
 		for i in cell.0..(cell.0 + size as i32) {
 			r_assert!(
 				self.alloc_map.contains(&(i, cell.1)),
-				"Cannot free cell @{0},{1} as it is not allocated.", i, cell.1
+				"Cannot free cell @{0},{1} as it is not allocated.",
+				i,
+				cell.1
 			);
 			self.alloc_map.remove(&(i, cell.1));
 		}
@@ -637,7 +651,7 @@ impl BrainfuckOpcodes for BrainfuckCodeBuilder {
 	fn from_str(s: &str) -> Self {
 		BrainfuckCodeBuilder {
 			opcodes: BrainfuckOpcodes::from_str(s),
-			head_pos: (0,0),
+			head_pos: (0, 0),
 		}
 	}
 }
@@ -646,7 +660,7 @@ impl BrainfuckCodeBuilder {
 	pub fn new() -> BrainfuckCodeBuilder {
 		BrainfuckCodeBuilder {
 			opcodes: Vec::new(),
-			head_pos: (0,0),
+			head_pos: (0, 0),
 		}
 	}
 	pub fn len(&self) -> usize {
