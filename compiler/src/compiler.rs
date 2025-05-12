@@ -1360,33 +1360,28 @@ impl Scope<'_> {
 			(
 				Some(subfields),
 				ValueType::Array(_, _) | ValueType::DictStruct(_),
-				Memory::Cells { id, len }
+				Memory::Cells { id, len: _ }
 				| Memory::MappedCells {
 					id,
 					start_index: _,
-					len,
+					len: _,
 				},
 			) => {
-				let (subfield_type, _offset_index) = full_type.get_subfield(subfields)?;
+				let (subfield_type, offset_index) = full_type.get_subfield(subfields)?;
 				let ValueType::Array(arr_len, element_type) = subfield_type else {
 					r_panic!("Expected array type in subfield variable target \"{target}\".");
 				};
 				let ValueType::Cell = **element_type else {
 					r_panic!("Expected cell array in subfield variable target \"{target}\".");
 				};
-				r_assert!(
-					*arr_len == *len,
-					"Array memory incorrect length {len} for array length {arr_len}."
-				);
-				// TODO: any more assertions needed here?
 
 				(match memory {
-					Memory::Cells { id: _, len } => 0..*len,
+					Memory::Cells { id: _, len: _ } => offset_index..(offset_index + *arr_len),
 					Memory::MappedCells {
 						id: _,
 						start_index,
-						len,
-					} => *start_index..(*start_index + *len),
+						len: _,
+					} => (*start_index + offset_index)..(*start_index + offset_index + *arr_len),
 					_ => unreachable!(),
 				})
 				.map(|i| MemoryCellReference {

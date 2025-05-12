@@ -1268,6 +1268,72 @@ output '\n';
 	}
 
 	#[test]
+	fn structs_4b() {
+		let program = String::from(
+			r#";
+struct AA a;
+input a.green;
+input a.yellow;
+input *a.reds;
+
+struct AA {
+  cell green;
+  cell yellow;
+  cell[4] reds;
+}
+
+output *a.reds;
+output a.yellow;
+output a.green;
+output '\n';
+			"#,
+		);
+		let input = String::from("gy0123");
+		let desired_output = String::from("0123yg\n");
+		let output = compile_and_run(program, input).expect("");
+		println!("{output}");
+		assert_eq!(desired_output, output)
+	}
+
+	#[test]
+	fn structs_4c() {
+		let program = String::from(
+			r#";
+struct AA a;
+input a.green;
+input a.yellow;
+// input *a.reds;
+input *a.sub.blues;
+input a.sub.t;
+
+struct BB {
+  cell[2] blues;
+	cell t;
+}
+
+struct AA {
+  cell green;
+  cell yellow;
+  // cell[4] reds;
+	struct BB sub;
+}
+
+output a.sub.t;
+output *a.sub.blues;
+// output *a.reds;
+output a.yellow;
+output a.green;
+output '\n';
+			"#,
+		);
+		let input = String::from("gy-+t");
+		let desired_output = String::from("t-+yg\n");
+		let output = compile_and_run(program, input).expect("");
+		println!("{output}");
+		assert_eq!(desired_output, output)
+	}
+
+	#[test]
 	fn structs_5() {
 		let program = String::from(
 			r#";
@@ -1858,16 +1924,16 @@ bf @a {.}
 	fn variable_location_specifiers_1a() -> Result<(), String> {
 		let program = String::from(
 			r#"
-cell _[100];
+cell[100] _;
 cell a = 'h';
-cell b[4];
+cell[4] b;
 bf @a {.}
 "#,
 		);
 		let code = compile_program(program, None)?.to_string();
 		println!("{code}");
 
-		let input = String::from("wxy");
+		let input = String::from("");
 		let output = run_code(BVM_CONFIG_1D, code.clone(), input, None);
 		println!("{output}");
 		assert_eq!(output, "h");
