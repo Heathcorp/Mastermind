@@ -37,7 +37,7 @@ import CompilerPanel from "./panels/CompilerPanel.tsx";
 import { defaultExtensions } from "./misc";
 import { makePersisted } from "@solid-primitives/storage";
 import { createStore } from "solid-js/store";
-import { MastermindConfig } from "./components/Settings";
+import  { MastermindConfig } from "./components/Settings";
 
 const AppContext = createContext<AppContextProps>();
 
@@ -51,19 +51,17 @@ const App: Component = () => {
   const [helpOpen, setHelpOpen] = createSignal(false);
   const [settingsOpen, setSettingsOpen] = createSignal(false);
   const [config, setConfig] = makePersisted(
-    createSignal<MastermindConfig>({
-      optimise_cell_clearing: false,
-      optimise_constants: false,
-      optimise_empty_blocks: false,
-      optimise_generated_code: false,
-      optimise_memory_allocation: false,
-      optimise_unreachable_loops: false,
-      optimise_variable_usage: false,
-      memory_allocation_method: 0,
-      enable_2d_grid: false,
-    }),
-    { name: "mastermind_config" }
-  );
+      createSignal<MastermindConfig>({
+    optimise_cell_clearing: false,
+    optimise_constants: false,
+    optimise_empty_blocks: false,
+    optimise_generated_code: false,
+    optimise_memory_allocation: false,
+    optimise_unreachable_loops: false,
+    optimise_variable_usage: false,
+    memory_allocation_method: 0,
+    enable_2d_grid: false,
+  }), { name:"mastermind_config"});
   createEffect(
     on([version], () => {
       const v = version();

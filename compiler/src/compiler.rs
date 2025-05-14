@@ -764,7 +764,7 @@ pub enum Instruction {
 /// Either a fixed constant cell or a reference to some existing memory
 pub enum CellLocation {
 	Unspecified,
-	FixedCell(i32),
+	FixedCell((i32, i32)),
 	MemoryCell(CellReference),
 }
 
@@ -1165,11 +1165,13 @@ impl Scope<'_> {
 			let non_neg_location_specifier = match &var_def.location_specifier {
 				LocationSpecifier::None => None,
 				LocationSpecifier::Cell(l) => {
+					// assert the y coordinate is 0
+					r_assert!(l.1 == 0, "Struct field location specifiers do not support 2D grid cells: {var_def}");
 					r_assert!(
-						*l >= 0,
+						l.0 >= 0,
 						"Struct field location specifiers must be non-negative: {var_def}"
 					);
-					Some(*l as usize)
+					Some(l.0 as usize)
 				}
 				      LocationSpecifier::Variable(_) => r_panic!("Location specifiers in struct definitions must be relative, not variables: {var_def}"),  
 			};

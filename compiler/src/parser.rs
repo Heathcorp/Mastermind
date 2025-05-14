@@ -1,10 +1,10 @@
-use std::{fmt::Display, mem::discriminant, num::Wrapping};
-
 use crate::{
 	builder::TapeCell,
 	macros::macros::{r_assert, r_panic},
 	tokeniser::Token,
 };
+use std::any::type_name;
+use std::{fmt::Display, mem::discriminant, num::Wrapping};
 
 // recursive function to create a tree representation of the program
 pub fn parse(tokens: &[Token]) -> Result<Vec<Clause>, String> {
@@ -496,25 +496,54 @@ fn parse_location_specifier(tokens: &[Token]) -> Result<(LocationSpecifier, usiz
 
 		match &tokens[i] {
 			Token::Digits(_) | Token::Minus => {
-				let mut positive = true;
-				if let Token::Minus = &tokens[i] {
+				let x_offset = {
+					let mut positive = true;
+					if let Token::Minus = &tokens[i] {
+						i += 1;
+						positive = false;
+					}
+					let Token::Digits(raw) = &tokens[i] else {
+						r_panic!(
+							"Expected number after \"-\" in memory location specifier: {tokens:#?}"
+						);
+					};
 					i += 1;
-					positive = false;
-				}
-				let Token::Digits(raw) = &tokens[i] else {
-					r_panic!(
-						"Expected number after \"-\" in memory location specifier: {tokens:#?}"
-					);
+
+					// TODO: error handling
+					let mut offset: i32 = raw.parse().unwrap();
+					if !positive {
+						offset = -offset;
+					}
+					offset
 				};
-				i += 1;
 
-				// TODO: error handling
-				let mut offset: i32 = raw.parse().unwrap();
-				if !positive {
-					offset = -offset;
-				}
+				let y_offset = {
+					if let Token::Comma = &tokens[i] {
+						i += 1;
+						let mut positive = true;
+						if let Token::Minus = &tokens[i] {
+							i += 1;
+							positive = false;
+						}
+						let Token::Digits(raw) = &tokens[i] else {
+							r_panic!(
+							"Expected number after \"-\" in memory location specifier: {tokens:#?}"
+						);
+						};
+						i += 1;
 
-				return Ok((LocationSpecifier::Cell(offset), i));
+						// TODO: error handling
+						let mut offset: i32 = raw.parse().unwrap();
+						if !positive {
+							offset = -offset;
+						}
+						offset
+					} else {
+						0
+					}
+				};
+
+				return Ok((LocationSpecifier::Cell((x_offset, y_offset)), i));
 			}
 			Token::Name(_) => {
 				// variable location specifier
@@ -1381,7 +1410,7 @@ impl Display for LocationSpecifier {
 	fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
 		f.write_str("@")?;
 		match self {
-			LocationSpecifier::Cell(cell) => f.write_str(&format!("{}", cell))?,
+			LocationSpecifier::Cell(cell) => f.write_str(&format!("{:?}", cell))?,
 			LocationSpecifier::Variable(var) => f.write_str(&format!("{}", var))?,
 			LocationSpecifier::None => (),
 		}
