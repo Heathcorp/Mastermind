@@ -572,24 +572,27 @@ impl Compiler<'_> {
 					arguments,
 				} => {
 					// create variable translations and recursively compile the inner variable block
-					let function_definition = scope.get_function(&function_name)?;
+
+					let calling_argument_types = arguments
+						.iter()
+						.map(|a| scope.get_target_type(&a))
+						.collect::<Result<Vec<_>, _>>()?;
+
+					let function_definition =
+						scope.get_function(&function_name, &calling_argument_types)?;
 
 					let mut argument_translation_scope = scope.open_inner();
 
-					// deal with arguments
-					r_assert!(
-						function_definition.arguments.len() == arguments.len(),
-						"Expected {} arguments in function \"{function_name}\", received {}.",
-						function_definition.arguments.len(),
-						arguments.len()
-					);
-					for (calling_argument, (arg_name, expected_type)) in
-						zip(arguments, function_definition.arguments.iter())
-					{
+					// TODO: refactor this mess
+					// deal with argument memory mappings:
+					for ((calling_argument, calling_argument_type), (arg_name, expected_type)) in
+						zip(
+							zip(arguments, calling_argument_types),
+							function_definition.arguments.iter(),
+						) {
 						// TODO: fix this duplicate call, get_target_type() internally gets the memory allocation details
 						// 	then these are gotten again in create_mapped_variable()
-						let argument_type = scope.get_target_type(&calling_argument)?;
-						r_assert!(argument_type == expected_type, "Expected argument of type \"{expected_type:#?}\" in function call \"{function_name}\", received argument of type \"{argument_type:#?}\".");
+						r_assert!(calling_argument_type == expected_type, "Expected argument of type \"{expected_type:#?}\" in function call \"{function_name}\", received argument of type \"{calling_argument_type:#?}\". This should not occur");
 						// register an argument translation in the scope
 						argument_translation_scope
 							.create_mapped_variable(arg_name.clone(), &calling_argument)?;
@@ -841,7 +844,7 @@ pub struct Scope<'a> {
 	variable_memory: HashMap<String, (ValueType, Memory)>,
 
 	/// Functions accessible by any code within or in the current scope
-	functions: HashMap<String, Function>,
+	functions: Vec<(String, Vec<(String, ValueType)>, Vec<Clause>)>,
 	/// Struct types definitions
 	structs: HashMap<String, DictStructType>,
 
@@ -993,7 +996,7 @@ impl Scope<'_> {
 			types_only: false,
 			allocations: 0,
 			variable_memory: HashMap::new(),
-			functions: HashMap::new(),
+			functions: Vec::new(),
 			structs: HashMap::new(),
 			instructions: Vec::new(),
 		}
@@ -1055,7 +1058,7 @@ impl Scope<'_> {
 			types_only: false,
 			allocations: 0,
 			variable_memory: HashMap::new(),
-			functions: HashMap::new(),
+			functions: Vec::new(),
 			structs: HashMap::new(),
 			instructions: Vec::new(),
 		}
@@ -1069,7 +1072,7 @@ impl Scope<'_> {
 			types_only: true,
 			allocations: 0,
 			variable_memory: HashMap::new(),
-			functions: HashMap::new(),
+			functions: Vec::new(),
 			structs: HashMap::new(),
 			instructions: Vec::new(),
 		}
@@ -1141,15 +1144,33 @@ impl Scope<'_> {
 		}
 	}
 
-	fn get_function(&self, name: &str) -> Result<&Function, String> {
+	fn get_function(
+		&self,
+		calling_name: &str,
+		calling_arg_types: &Vec<&ValueType>,
+	) -> Result<Function, String> {
 		// this function is unaffected by the self.fn_only flag
-		Ok(if let Some(func) = self.functions.get(name) {
-			func
-		} else if let Some(outer_scope) = self.outer_scope {
-			outer_scope.get_function(name)?
-		} else {
-			r_panic!("Could not find function \"{name}\" in current scope");
-		})
+		Ok(
+			if let Some(func) = self.functions.iter().find(|(name, args, _)| {
+				if name != calling_name || args.len() != calling_arg_types.len() {
+					return false;
+				}
+				for ((_, arg_type), calling_arg_type) in zip(args, calling_arg_types) {
+					if *arg_type != **calling_arg_type {
+						return false;
+					}
+				}
+				true
+			}) {
+				// TODO: stop cloning! This function overload stuff is tacked on and needs refactoring
+				let (_, arguments, block) = func.clone();
+				Function { arguments, block }
+			} else if let Some(outer_scope) = self.outer_scope {
+				outer_scope.get_function(calling_name, calling_arg_types)?
+			} else {
+				r_panic!("Could not find function \"{calling_name}\" with correct arguments in current scope");
+			},
+		)
 	}
 
 	/// Define a struct in this scope
@@ -1191,11 +1212,11 @@ impl Scope<'_> {
 	/// Define a function in this scope
 	fn register_function_definition(
 		&mut self,
-		function_name: &str,
-		arguments: Vec<VariableDefinition>,
-		block: Vec<Clause>,
+		new_function_name: &str,
+		new_arguments: Vec<VariableDefinition>,
+		new_block: Vec<Clause>,
 	) -> Result<(), String> {
-		let absolute_arguments = arguments
+		let absolute_arguments = new_arguments
 			.into_iter()
 			.map(|f| {
 				let LocationSpecifier::None = f.location_specifier else {
@@ -1203,17 +1224,25 @@ impl Scope<'_> {
 				};
 				Ok((f.name, self.create_absolute_type(&f.var_type)?))
 			})
-			.collect::<Result<Vec<(String, ValueType)>, String>>()?;
+			.collect::<Result<Vec<_>, _>>()?;
 
-		let None = self.functions.insert(
-			function_name.to_string(),
-			Function {
-				arguments: absolute_arguments,
-				block,
-			},
-		) else {
-			r_panic!("Cannot define function {function_name} more than once in same scope.");
-		};
+		// This is some fucked C-style loop break logic, basically GOTOs
+		// basically it only gets to the panic if the functions have identical signature (except argument names)
+		'func_loop: for (name, args, _) in self.functions.iter() {
+			if name != new_function_name || args.len() != absolute_arguments.len() {
+				continue;
+			}
+			for ((_, new_arg_type), (_, arg_type)) in zip(&absolute_arguments, args) {
+				if *new_arg_type != *arg_type {
+					// early break if any of the arguments are different type
+					break 'func_loop;
+				}
+			}
+			r_panic!("Cannot define a function with the same signature more than once in the same scope: \"{new_function_name}\"");
+		}
+
+		self.functions
+			.push((new_function_name.to_string(), absolute_arguments, new_block));
 
 		Ok(())
 	}

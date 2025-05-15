@@ -908,6 +908,127 @@ fn add_one(cell t) {
 	}
 
 	#[test]
+	fn functions_3d() {
+		let program = String::from(
+			r#"
+struct A {cell b; cell c;};
+struct A a;
+a.b = '0';
+a.c = '0';
+
+add_one(a.b);
+add_one(a.c);
+add_one(a.c);
+output a.b;
+output a.c;
+
+output 10;
+
+add_one(a);
+output a.b;
+output a.c;
+
+fn add_one(cell t) {
+  ++t;
+}
+
+fn add_one(struct A t) {
+  ++t.b;
+	++t.c;
+}
+"#,
+		);
+		let input = String::from("");
+		let desired_output = String::from("12\n23");
+		let output = compile_and_run(program, input).expect("");
+		println!("{output}");
+		assert_eq!(desired_output, output)
+	}
+
+	#[test]
+	fn functions_3e() {
+		let program = String::from(
+			r#"
+struct A {cell b; cell c;};
+struct A a;
+a.b = '0';
+a.c = '0';
+
+add_one(a.b);
+add_one(a.c);
+add_one(a.c);
+output a.b;
+output a.c;
+
+output 10;
+
+add_one(a, a.b);
+output a.b;
+output a.c;
+
+fn add_one(cell t) {
+  ++t;
+}
+
+fn add_one(struct A t, cell a) {
+  ++t.b;
+	++t.c;
+	++a;
+}
+"#,
+		);
+		let input = String::from("");
+		let desired_output = String::from("12\n33");
+		let output = compile_and_run(program, input).expect("");
+		println!("{output}");
+		assert_eq!(desired_output, output)
+	}
+
+	#[test]
+	#[should_panic]
+	fn functions_3f() {
+		let program = String::from(
+			r#"
+struct A {cell b; cell c;};
+struct A a;
+a.b = '0';
+a.c = '0';
+
+add_one(a.b);
+add_one(a.c);
+add_one(a.c);
+output a.b;
+output a.c;
+
+output 10;
+
+add_one(a, a.b);
+output a.b;
+output a.c;
+
+fn add_one(cell t) {
+  ++t;
+}
+
+fn add_one(struct A t, cell a) {
+  ++t.b;
+	++t.c;
+	++a;
+}
+
+fn add_one(struct A tfoaishjdf, cell aaewofjas) {
+  output "hello";
+}
+"#,
+		);
+		let input = String::from("");
+		let desired_output = String::from("12\n33");
+		let output = compile_and_run(program, input).expect("");
+		println!("{output}");
+		assert_eq!(desired_output, output)
+	}
+
+	#[test]
 	fn functions_4() {
 		let program = String::from(
 			r#"
