@@ -1,6 +1,8 @@
 use std::{collections::HashMap, num::Wrapping};
 use std::alloc::dealloc;
+use std::thread::current;
 use crate::builder::Opcode;
+use itertools::Itertools;
 
 // post-compilation optimisations
 
@@ -112,13 +114,58 @@ fn optimise_subset(run: Vec<Opcode>, exhaustive: bool) -> Vec<Opcode> {
 		}
 		i += 1;
 	}
-	//Lets start with greedy approach find the nearest cell and move to it
-	let mut position = start;
 	let mut output = Vec::new();
 	if exhaustive {
-
+		//Exhaustive approach checks all permutations
+		let mut output_length = i32::MAX;
+		let mut best_permutation = Vec::new();
+		for perm in tape.iter().permutations(tape.len()){
+			let mut position = start;
+			let mut current_output_length = 0;
+			//Calculate the distance of this
+			for (cell, _) in &perm {
+				current_output_length += (cell.0 - position.0).abs();
+				current_output_length += (cell.1 - position.1).abs();
+				position = **cell;
+				if current_output_length > output_length {
+					break;
+				}
+			}
+			if current_output_length > output_length {
+				continue;
+			}
+			//Add the distance to the finishing location
+			current_output_length += (head.0 - position.0).abs();
+			current_output_length += (head.1 - position.1).abs();
+			if current_output_length < output_length {
+				best_permutation = perm;
+				output_length = current_output_length;
+			}
+		}
+		let mut position = start;
+		for (cell, change) in best_permutation {
+			output = move_position(output, &position, cell);
+			position = *cell;
+			if let Change::Set(_) = change {
+				output.push(Opcode::Clear);
+			}
+			let (Change::Add(v) | Change::Set(v)) = change;
+			let v = v.0;
+			if v > 0 {
+				for _ in 0..v {
+					output.push(Opcode::Add);
+				}
+			} else if v < 0 {
+				for _ in 0..(-v) {
+					output.push(Opcode::Subtract);
+				}
+			}
+		}
+		output = move_position(output, &position, &head);
 	}
 	else {
+		//Greedy approach faster for bigger datasets
+		let mut position = start;
 		//For the number of cells navigate to the nearest cell
 		for _ in 0..tape.len() {
 			if !tape.is_empty() {
@@ -163,21 +210,21 @@ mod tests {
 	use super::*;
 
 	#[test]
-	fn subset_equivalence_test_0() {
+	fn  greedy_subset_equivalence_test_0() {
 		let v = BrainfuckOpcodes::from_str("+++>><<++>--->+++<><><><><<<<<+++"); //(3) 0  0 [5] -3 3
 		let o = optimise_subset(v, false).to_string();
 		assert_eq!(o, "+++++>--->+++<<<<<+++");
 	}
 
 	#[test]
-	fn program_equivalence_test_0() {
+	fn  greedy_program_equivalence_test_0() {
 		let v = BrainfuckOpcodes::from_str("<><><>++<+[--++>>+<<-]");
 		let o: String = optimise(v, false).to_string();
 		assert_eq!(o, "++<+[->>+<<]");
 	}
 
 	#[test]
-	fn program_equivalence_test_1() {
+	fn  greedy_program_equivalence_test_1() {
 		let v = BrainfuckOpcodes::from_str(
 			"+++++++++>>+++>---->>>++++--<--++<<hello<++++[-<+>>++<+<->]++--->+",
 		); // [9] 0 (7) -4 0 0 2 // [(0)] 2 // -1 1
@@ -186,28 +233,28 @@ mod tests {
 	}
 
 	#[test]
-	fn program_equivalence_test_2() {
+	fn  greedy_program_equivalence_test_2() {
 		let v = BrainfuckOpcodes::from_str(">><.");
 		let o: String = optimise(v, false).to_string();
 		assert_eq!(o, ">.");
 	}
 
 	#[test]
-	fn subset_equivalence_test_1() {
+	fn  greedy_subset_equivalence_test_1() {
 		let v = BrainfuckOpcodes::from_str("+++<+++>[-]+++"); //(3) 0  0 [5] -3 3
 		let o = optimise_subset(v, false).to_string();
 		assert_eq!(o, "[-]+++<+++>");
 	}
 
 	#[test]
-	fn subset_equivalence_test_2() {
+	fn  greedy_subset_equivalence_test_2() {
 		let v = BrainfuckOpcodes::from_str("+++<+++>[-]+++[-]<[-]--+>-"); //(3) 0  0 [5] -3 3
 		let o = optimise_subset(v, false).to_string();
 		assert_eq!(o, "[-]-<[-]->");
 	}
 
 	#[test]
-	fn program_equivalence_test_3() {
+	fn  greedy_program_equivalence_test_3() {
 		let v = BrainfuckOpcodes::from_str(
 			"+++++[-]+++++++++>>+++>---->>>++++--<--++<<hello<++++[[-]<+>>++<+<->]++--->+",
 		); // [9] 0 (7) -4 0 0 2 // [(0)] 2 // -1 1
@@ -216,21 +263,21 @@ mod tests {
 	}
 
 	#[test]
-	fn two_dimensional_subset_equivalence_test_0() {
+	fn  greedy_two_dimensional_subset_equivalence_test_0() {
 		let v = BrainfuckOpcodes::from_str("+++^^vv++^---^+++v^v^v^v^vvvvv+++"); //(3) 0  0 [5] -3 3
 		let o = optimise_subset(v, false).to_string();
 		assert_eq!(o, "+++++^---^+++vvvvv+++");
 	}
 
 	#[test]
-		fn two_dimensional_program_equivalence_test_0() {
+	fn greedy_two_dimensional_program_equivalence_test_0() {
 		let v = BrainfuckOpcodes::from_str("v^v^v^++v+[--++^^+vv-]");
 		let o: String = optimise(v, false).to_string();
 		assert_eq!(o, "++v+[-^^+vv]");
 	}
 
 	#[test]
-	fn two_dimensional_program_equivalence_test_1() {
+	fn  greedy_two_dimensional_program_equivalence_test_1() {
 		let v = BrainfuckOpcodes::from_str(
 		"+++++++++^^+++^----^^^++++--v--++vvhellov++++[-v+^^++v+v-^]++---^+",
 		); // [9] 0 (7) -4 0 0 2 // [(0)] 2 // -1 1
@@ -239,32 +286,138 @@ mod tests {
 	}
 
 	#[test]
-	fn two_dimensional_program_equivalence_test_2() {
+	fn  greedy_two_dimensional_program_equivalence_test_2() {
 		let v = BrainfuckOpcodes::from_str("^^v.");
 		let o: String = optimise(v, false).to_string();
 		assert_eq!(o, "^.");
 	}
 
 	#[test]
-	fn two_dimensional_subset_equivalence_test_1() {
+	fn  greedy_two_dimensional_subset_equivalence_test_1() {
 		let v = BrainfuckOpcodes::from_str("+++v+++^[-]+++"); //(3) 0  0 [5] -3 3
 		let o = optimise_subset(v, false).to_string();
 		assert_eq!(o, "[-]+++v+++^");
 	}
 
 	#[test]
-	fn two_dimensional_subset_equivalence_test_2() {
+	fn  greedy_two_dimensional_subset_equivalence_test_2() {
 		let v = BrainfuckOpcodes::from_str("+++v+++^[-]+++[-]v[-]--+^-"); //(3) 0  0 [5] -3 3
 		let o = optimise_subset(v, false).to_string();
 		assert_eq!(o, "[-]-v[-]-^");
 	}
 
 	#[test]
-	fn two_dimensional_program_equivalence_test_3() {
+	fn  greedy_two_dimensional_program_equivalence_test_3() {
 		let v = BrainfuckOpcodes::from_str(
 		"+++++[-]+++++++++^^+++^----^^^++++--v--++vvhellov++++[[-]v+^^++v+v-^]++---^+",
 		); // [9] 0 (7) -4 0 0 2 // [(0)] 2 // -1 1
 		let o: String = optimise(v, false).to_string();
 		assert_eq!(o, "[-]+++++++++^^+++++++^----^^^++vvvv[[-]+^++v]");
+	}
+
+	#[test]
+	fn  exhaustive_subset_equivalence_test_0() {
+		let v = BrainfuckOpcodes::from_str("+++>><<++>--->+++<><><><><<<<<+++"); //(3) 0  0 [5] -3 3
+		let o = optimise_subset(v, true).to_string();
+		assert_eq!(o, ">--->+++<<+++++<<<+++");
+	}
+
+	#[test]
+	fn  exhaustive_program_equivalence_test_0() {
+		let v = BrainfuckOpcodes::from_str("<><><>++<+[--++>>+<<-]");
+		let o: String = optimise(v, true).to_string();
+		assert_eq!(o, "++<+[>>+<<-]");
+	}
+
+	#[test]
+	fn  exhaustive_program_equivalence_test_1() {
+		let v = BrainfuckOpcodes::from_str(
+			"+++++++++>>+++>---->>>++++--<--++<<hello<++++[-<+>>++<+<->]++--->+",
+		); // [9] 0 (7) -4 0 0 2 // [(0)] 2 // -1 1
+		let o: String = optimise(v, true).to_string();
+		assert_eq!(o, "+++++++++>>+++++++>>>>++<<<----<[>++<]");
+	}
+
+	#[test]
+	fn  exhaustive_program_equivalence_test_2() {
+		let v = BrainfuckOpcodes::from_str(">><.");
+		let o: String = optimise(v, true).to_string();
+		assert_eq!(o, ">.");
+	}
+
+	#[test]
+	fn  exhaustive_subset_equivalence_test_1() {
+		let v = BrainfuckOpcodes::from_str("+++<+++>[-]+++"); //(3) 0  0 [5] -3 3
+		let o = optimise_subset(v, true).to_string();
+		assert_eq!(o, "[-]+++<+++>");
+	}
+
+	#[test]
+	fn  exhaustive_subset_equivalence_test_2() {
+		let v = BrainfuckOpcodes::from_str("+++<+++>[-]+++[-]<[-]--+>-"); //(3) 0  0 [5] -3 3
+		let o = optimise_subset(v, true).to_string();
+		assert_eq!(o, "[-]-<[-]->");
+	}
+
+	#[test]
+	fn  exhaustive_program_equivalence_test_3() {
+		let v = BrainfuckOpcodes::from_str(
+			"+++++[-]+++++++++>>+++>---->>>++++--<--++<<hello<++++[[-]<+>>++<+<->]++--->+",
+		); // [9] 0 (7) -4 0 0 2 // [(0)] 2 // -1 1
+		let o: String = optimise(v, true).to_string();
+		assert_eq!(o, "[-]+++++++++>>+++++++>---->>>++<<<<[[-]+>++<]");
+	}
+
+	#[test]
+	fn  exhaustive_two_dimensional_subset_equivalence_test_0() {
+		let v = BrainfuckOpcodes::from_str("+++^^vv++^---^+++v^v^v^v^vvvvv+++"); //(3) 0  0 [5] -3 3
+		let o = optimise_subset(v, true).to_string();
+		assert_eq!(o, "^^+++v---v+++++vvv+++");
+	}
+
+	#[test]
+	fn exhaustive_two_dimensional_program_equivalence_test_0() {
+		let v = BrainfuckOpcodes::from_str("v^v^v^++v+[--++^^+vv-]");
+		let o: String = optimise(v, true).to_string();
+		assert_eq!(o, "++v+[^^+vv-]");
+	}
+
+	#[test]
+	fn  exhaustive_two_dimensional_program_equivalence_test_1() {
+		let v = BrainfuckOpcodes::from_str(
+			"+++++++++^^+++^----^^^++++--v--++vvhellov++++[-v+^^++v+v-^]++---^+",
+		); // [9] 0 (7) -4 0 0 2 // [(0)] 2 // -1 1
+		let o: String = optimise(v, true).to_string();
+		assert_eq!(o, "+++++++++^^+++++++^----^^^++vvvv[^++v]");
+	}
+
+	#[test]
+	fn  exhaustive_two_dimensional_program_equivalence_test_2() {
+		let v = BrainfuckOpcodes::from_str("^^v.");
+		let o: String = optimise(v, true).to_string();
+		assert_eq!(o, "^.");
+	}
+
+	#[test]
+	fn  exhaustive_two_dimensional_subset_equivalence_test_1() {
+		let v = BrainfuckOpcodes::from_str("+++v+++^[-]+++"); //(3) 0  0 [5] -3 3
+		let o = optimise_subset(v, true).to_string();
+		assert_eq!(o, "[-]+++v+++^");
+	}
+
+	#[test]
+	fn  exhaustive_two_dimensional_subset_equivalence_test_2() {
+		let v = BrainfuckOpcodes::from_str("+++v+++^[-]+++[-]v[-]--+^-"); //(3) 0  0 [5] -3 3
+		let o = optimise_subset(v, true).to_string();
+		assert_eq!(o, "[-]-v[-]-^");
+	}
+
+	#[test]
+	fn  exhaustive_two_dimensional_program_equivalence_test_3() {
+		let v = BrainfuckOpcodes::from_str(
+			"+++++[-]+++++++++^^+++^----^^^++++--v--++vvhellov++++[[-]v+^^++v+v-^]++---^+",
+		); // [9] 0 (7) -4 0 0 2 // [(0)] 2 // -1 1
+		let o: String = optimise(v, true).to_string();
+		assert_eq!(o, "[-]+++++++++^^^^^^++vvv----v+++++++[^++v[-]+]");
 	}
 }
