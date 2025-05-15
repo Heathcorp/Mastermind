@@ -14,6 +14,7 @@ pub mod tests {
 	// TODO: run test suite with different optimisations turned on
 	const OPT_NONE: MastermindConfig = MastermindConfig {
 		optimise_generated_code: false,
+		optimise_generated_all_permutations: false,
 		optimise_cell_clearing: false,
 		optimise_variable_usage: false,
 		optimise_memory_allocation: false,
@@ -26,6 +27,7 @@ pub mod tests {
 
 	const OPT_ALL: MastermindConfig = MastermindConfig {
 		optimise_generated_code: true,
+		optimise_generated_all_permutations: false,
 		optimise_cell_clearing: true,
 		optimise_variable_usage: true,
 		optimise_memory_allocation: true,
@@ -38,6 +40,7 @@ pub mod tests {
 
 	const OPT_NONE_TILES: MastermindConfig = MastermindConfig {
 		optimise_generated_code: false,
+		optimise_generated_all_permutations: false,
 		optimise_cell_clearing: false,
 		optimise_variable_usage: false,
 		optimise_memory_allocation: false,
@@ -50,6 +53,7 @@ pub mod tests {
 
 	const OPT_NONE_SPIRAL: MastermindConfig = MastermindConfig {
 		optimise_generated_code: false,
+		optimise_generated_all_permutations: false,
 		optimise_cell_clearing: false,
 		optimise_variable_usage: false,
 		optimise_memory_allocation: false,
@@ -62,6 +66,7 @@ pub mod tests {
 
 	const OPT_NONE_ZIG_ZAG: MastermindConfig = MastermindConfig {
 		optimise_generated_code: false,
+		optimise_generated_all_permutations: false,
 		optimise_cell_clearing: false,
 		optimise_variable_usage: false,
 		optimise_memory_allocation: false,
@@ -2745,6 +2750,7 @@ output a + 3;
 		);
 		let cfg = MastermindConfig {
 			optimise_generated_code: false,
+			optimise_generated_all_permutations: false,
 			optimise_cell_clearing: false,
 			optimise_variable_usage: false,
 			optimise_memory_allocation: false,

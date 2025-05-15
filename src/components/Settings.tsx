@@ -18,6 +18,7 @@ const SettingsModal: Component<{ style?: JSX.CSSProperties }> = () => {
         "optimise_constants",
         "optimise_empty_blocks",
         "optimise_generated_code",
+        "optimise_generated_all_permutations",
         "optimise_memory_allocation",
         "optimise_unreachable_loops",
         "optimise_variable_usage",
@@ -149,6 +150,7 @@ interface OptimisationSettings {
   optimise_constants: boolean;
   optimise_empty_blocks: boolean;
   optimise_generated_code: boolean;
+  optimise_generated_all_permutations: boolean;
   optimise_memory_allocation: boolean;
   optimise_unreachable_loops: boolean;
   optimise_variable_usage: boolean;
@@ -168,6 +170,7 @@ const optimisationLabels: Record<keyof OptimisationSettings, string> = {
   optimise_constants: "constants",
   optimise_empty_blocks: "empty blocks",
   optimise_generated_code: "generated code",
+  optimise_generated_all_permutations: "generated code permutations (May slow larger projects)",
   optimise_memory_allocation: "memory allocations",
   optimise_unreachable_loops: "unreachable loops",
   optimise_variable_usage: "variable usage",

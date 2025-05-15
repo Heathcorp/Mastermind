@@ -110,7 +110,7 @@ fn main() -> Result<(), String> {
 			let bf_program = builder.build(instructions, false)?;
 
 			match config.optimise_generated_code {
-				true => optimise(bf_program).to_string(),
+				true => optimise(bf_program, config.optimise_generated_all_permutations).to_string(),
 				false => bf_program.to_string(),
 			}
 		}
