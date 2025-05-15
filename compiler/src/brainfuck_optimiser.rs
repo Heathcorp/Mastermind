@@ -1,5 +1,5 @@
 use std::{collections::HashMap, num::Wrapping};
-
+use std::alloc::dealloc;
 use crate::builder::Opcode;
 
 // post-compilation optimisations
@@ -34,15 +34,39 @@ pub fn optimise(program: Vec<Opcode>) -> Vec<Opcode> {
 	output
 }
 
+fn move_position(mut program: Vec<Opcode>, old_position: &(i32, i32), new_position: &(i32, i32)) -> Vec<Opcode> {
+	if old_position != new_position {
+		if old_position.0 < new_position.0 {
+			for _ in 0..(new_position.0 - old_position.0) {
+				program.push(Opcode::Right);
+			}
+		} else {
+			for _ in 0..(old_position.0 - new_position.0) {
+				program.push(Opcode::Left);
+			}
+		}
+		if old_position.1 < new_position.1 {
+			for _ in 0..(new_position.1 - old_position.1) {
+				program.push(Opcode::Up);
+			}
+		} else {
+			for _ in 0..(old_position.1 - new_position.1) {
+				program.push(Opcode::Down);
+			}
+		}
+	}
+	program
+}
+
 fn optimise_subset(run: Vec<Opcode>) -> Vec<Opcode> {
 	#[derive(Clone)]
 	enum Change {
 		Add(Wrapping<i8>),
 		Set(Wrapping<i8>),
 	}
-	let mut tape: HashMap<i32, Change> = HashMap::new();
-	let mut head: i32 = 0;
-
+	let mut tape: HashMap<(i32, i32), Change> = HashMap::new();
+	let start = (0, 0);
+	let mut head  = (0, 0);
 	let mut i = 0;
 	while i < run.len() {
 		let op = run[i];
@@ -72,150 +96,56 @@ fn optimise_subset(run: Vec<Opcode>) -> Vec<Opcode> {
 				}
 			}
 			Opcode::Right => {
-				head += 1;
+				head.0 += 1;
 			}
 			Opcode::Left => {
-				head -= 1;
+				head.0 -= 1;
+			}
+			Opcode::Up => {
+				head.1 += 1;
+			}
+			Opcode::Down => {
+				head.1 -= 1;
 			}
 			_ => (),
 		}
 		i += 1;
 	}
-	// always have a start and end cell
-	if !tape.contains_key(&0) {
-		tape.insert(0, Change::Add(Wrapping(0i8)));
-	}
-	if !tape.contains_key(&head) {
-		tape.insert(head, Change::Add(Wrapping(0i8)));
-	}
-
-	// This whole algorithm is probably really efficient and I reckon there's almost certainly a better way
-	// It's also just really poorly done in general, I don't understand what everything does and I wrote the damned thing
-	// TODO: refactor this properly
-	// convert hashmap to array
-	// start by making a negative and positive array
-	let mut pos_arr = Vec::new();
-	let mut neg_arr = Vec::new();
-	for (cell, value) in tape.into_iter() {
-		let i: usize;
-		let arr: &mut Vec<Change>;
-		if cell < 0 {
-			i = (-(cell + 1)) as usize;
-			arr = &mut neg_arr;
-		} else {
-			i = cell as usize;
-			arr = &mut pos_arr;
-		}
-
-		if i >= arr.len() {
-			arr.resize(i + 1, Change::Add(Wrapping(0i8)));
-		}
-		arr[i] = value;
-	}
-	let start_index = neg_arr.len();
-	// now combine the two arrays
-	let mut tape_arr: Vec<Change> = Vec::new();
-	tape_arr.extend(neg_arr.into_iter().rev());
-	tape_arr.extend(pos_arr.into_iter());
-
-	if ((start_index) + 1) >= (tape_arr.len()) {
-		tape_arr.resize(start_index + 1, Change::Add(Wrapping(0i8)));
-	}
-	let final_index = ((start_index as i32) + head) as usize;
-
+	//Lets start with greedy approach find the nearest cell and move to it
+	let mut position = start;
 	let mut output = Vec::new();
-
-	// Also this following algorithm for zig-zagging around the tape is pretty poor as well, there has to be a nicer way of doing it
-
-	// if final cell is to the right of the start cell then we need to go to the left first, and vice-versa
-	// 1. go to the furthest point on the tape (opposite of direction to final cell)
-	// 2. go from that end of the tape to the opposite end of the tape
-	// 3. return to the final cell
-	let mut idx = start_index;
-	let d2 = final_index >= start_index;
-	let d1 = !d2;
-	let d3 = !d2;
-
-	//1
-	match d1 {
-		true => {
-			for _ in start_index..(tape_arr.len() - 1) {
-				output.push(Opcode::Right);
-				idx += 1;
-			}
-		}
-		false => {
-			for _ in (1..=start_index).rev() {
-				output.push(Opcode::Left);
-				idx -= 1;
-			}
-		}
-	}
-
-	//2
-	match d2 {
-		true => {
-			for cell in idx..tape_arr.len() {
-				let change = &tape_arr[cell];
-				if let Change::Set(_) = change {
-					output.push(Opcode::Clear);
-				}
-				let (Change::Add(v) | Change::Set(v)) = change;
-				let v = v.0;
-
-				for _ in 0..v.abs() {
-					output.push(match v > 0 {
-						true => Opcode::Add,
-						false => Opcode::Subtract,
-					});
-				}
-
-				if cell < (tape_arr.len() - 1) {
-					output.push(Opcode::Right);
-					idx += 1;
+	for _ in 0..tape.len() {
+		if !tape.is_empty() {
+			let mut min_distance = i32::MAX;
+			let mut next_position= (0,0);
+			for (cell, value) in tape.iter() {
+				if (cell.0 - position.0).abs() + (cell.1 - position.1).abs()  < min_distance {
+					min_distance = (cell.0 - position.0).abs() + (cell.1 - position.1).abs();
+					next_position = *cell;
 				}
 			}
-		}
-		false => {
-			for cell in (0..=idx).rev() {
-				let change = &tape_arr[cell];
-				if let Change::Set(_) = change {
-					output.push(Opcode::Clear);
+			// Move to next position
+			output = move_position(output, &position, &next_position);
+			position = next_position;
+			//Now Update the output with correct opcodes
+			let change = tape.remove(&next_position).unwrap();
+			if let Change::Set(_) = change {
+				output.push(Opcode::Clear);
+			}
+			let (Change::Add(v) | Change::Set(v)) = change;
+			let v = v.0;
+			if v > 0 {
+				for _ in 0..v {
+					output.push(Opcode::Add);
 				}
-				let (Change::Add(v) | Change::Set(v)) = change;
-				let v = v.0;
-
-				for _ in 0..v.abs() {
-					output.push(match v > 0 {
-						true => Opcode::Add,
-						false => Opcode::Subtract,
-					});
-				}
-
-				if cell > 0 {
-					output.push(Opcode::Left);
-					idx -= 1;
+			} else if v < 0 {
+				for _ in 0..(-v) {
+					output.push(Opcode::Subtract);
 				}
 			}
 		}
 	}
-
-	//3
-	match d3 {
-		true => {
-			for _ in idx..final_index {
-				output.push(Opcode::Right);
-				idx += 1;
-			}
-		}
-		false => {
-			for _ in final_index..idx {
-				output.push(Opcode::Left);
-				idx -= 1;
-			}
-		}
-	}
-
+	output = move_position(output, &position, &head);
 	output
 }
 
@@ -229,7 +159,7 @@ mod tests {
 	fn subset_equivalence_test_0() {
 		let v = BrainfuckOpcodes::from_str("+++>><<++>--->+++<><><><><<<<<+++"); //(3) 0  0 [5] -3 3
 		let o = optimise_subset(v).to_string();
-		assert_eq!(o, ">>+++<---<+++++<<<+++");
+		assert_eq!(o, "+++++>--->+++<<<<<+++");
 	}
 
 	#[test]
@@ -259,14 +189,14 @@ mod tests {
 	fn subset_equivalence_test_1() {
 		let v = BrainfuckOpcodes::from_str("+++<+++>[-]+++"); //(3) 0  0 [5] -3 3
 		let o = optimise_subset(v).to_string();
-		assert_eq!(o, "<+++>[-]+++");
+		assert_eq!(o, "[-]+++<+++>");
 	}
 
 	#[test]
 	fn subset_equivalence_test_2() {
 		let v = BrainfuckOpcodes::from_str("+++<+++>[-]+++[-]<[-]--+>-"); //(3) 0  0 [5] -3 3
 		let o = optimise_subset(v).to_string();
-		assert_eq!(o, "<[-]->[-]-");
+		assert_eq!(o, "[-]-<[-]->");
 	}
 
 	#[test]
@@ -276,5 +206,58 @@ mod tests {
 		); // [9] 0 (7) -4 0 0 2 // [(0)] 2 // -1 1
 		let o: String = optimise(v).to_string();
 		assert_eq!(o, "[-]+++++++++>>+++++++>---->>>++<<<<[[-]+>++<]");
+	}
+
+	#[test]
+	fn two_dimensional_subset_equivalence_test_0() {
+		let v = BrainfuckOpcodes::from_str("+++^^vv++^---^+++v^v^v^v^vvvvv+++"); //(3) 0  0 [5] -3 3
+		let o = optimise_subset(v).to_string();
+		assert_eq!(o, "+++++^---^+++vvvvv+++");
+	}
+
+	#[test]
+		fn two_dimensional_program_equivalence_test_0() {
+		let v = BrainfuckOpcodes::from_str("v^v^v^++v+[--++^^+vv-]");
+		let o: String = optimise(v).to_string();
+		assert_eq!(o, "++v+[-^^+vv]");
+	}
+
+	#[test]
+	fn two_dimensional_program_equivalence_test_1() {
+		let v = BrainfuckOpcodes::from_str(
+		"+++++++++^^+++^----^^^++++--v--++vvhellov++++[-v+^^++v+v-^]++---^+",
+		); // [9] 0 (7) -4 0 0 2 // [(0)] 2 // -1 1
+		let o: String = optimise(v).to_string();
+		assert_eq!(o, "+++++++++^^+++++++^----^^^++vvvv[^++v]");
+	}
+
+	#[test]
+	fn two_dimensional_program_equivalence_test_2() {
+		let v = BrainfuckOpcodes::from_str("^^v.");
+		let o: String = optimise(v).to_string();
+		assert_eq!(o, "^.");
+	}
+
+	#[test]
+	fn two_dimensional_subset_equivalence_test_1() {
+		let v = BrainfuckOpcodes::from_str("+++v+++^[-]+++"); //(3) 0  0 [5] -3 3
+		let o = optimise_subset(v).to_string();
+		assert_eq!(o, "[-]+++v+++^");
+	}
+
+	#[test]
+	fn two_dimensional_subset_equivalence_test_2() {
+		let v = BrainfuckOpcodes::from_str("+++v+++^[-]+++[-]v[-]--+^-"); //(3) 0  0 [5] -3 3
+		let o = optimise_subset(v).to_string();
+		assert_eq!(o, "[-]-v[-]-^");
+	}
+
+	#[test]
+	fn two_dimensional_program_equivalence_test_3() {
+		let v = BrainfuckOpcodes::from_str(
+		"+++++[-]+++++++++^^+++^----^^^++++--v--++vvhellov++++[[-]v+^^++v+v-^]++---^+",
+		); // [9] 0 (7) -4 0 0 2 // [(0)] 2 // -1 1
+		let o: String = optimise(v).to_string();
+		assert_eq!(o, "[-]+++++++++^^+++++++^----^^^++vvvv[[-]+^++v]");
 	}
 }
