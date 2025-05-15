@@ -711,7 +711,8 @@ impl BrainfuckCodeBuilder {
 				self.opcodes.push(Opcode::Add);
 			}
 		} else if imm < 0 {
-			for _ in 0..-imm {
+			// needs to be i32 because -(-128) = -128 in i8-land
+			for _ in 0..-(imm as i32) {
 				self.opcodes.push(Opcode::Subtract);
 			}
 		}
