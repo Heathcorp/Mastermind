@@ -483,6 +483,55 @@ output *x;
 	}
 
 	#[test]
+	fn assignments_8() {
+		let program = String::from(
+			r#";
+cell x = 128;
+output x - 2;
+			"#,
+		);
+		let input = String::from("");
+		let desired_output = String::from("~");
+		let output = compile_and_run(program, input).expect("");
+		println!("{output}");
+		assert_eq!(desired_output, output)
+	}
+
+	#[test]
+	fn assignments_8a() {
+		let program = String::from(
+			r#";
+cell x = 127;
+cell y = 64;
+x += y + y;
+output x + 'f' + 1;
+			"#,
+		);
+		let input = String::from("");
+		let desired_output = String::from("f");
+		let output = compile_and_run(program, input).expect("");
+		println!("{output}");
+		assert_eq!(desired_output, output)
+	}
+
+	#[test]
+	fn assignments_8b() {
+		let program = String::from(
+			r#";
+cell x = 128;
+cell y = 64;
+x += y + y;
+output x + 'f';
+			"#,
+		);
+		let input = String::from("");
+		let desired_output = String::from("f");
+		let output = compile_and_run(program, input).expect("");
+		println!("{output}");
+		assert_eq!(desired_output, output)
+	}
+
+	#[test]
 	fn loops_1() {
 		let program = String::from(
 			"
