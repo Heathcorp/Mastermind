@@ -1234,8 +1234,8 @@ impl Scope<'_> {
 			}
 			for ((_, new_arg_type), (_, arg_type)) in zip(&absolute_arguments, args) {
 				if *new_arg_type != *arg_type {
-					// early break if any of the arguments are different type
-					break 'func_loop;
+					// early continue if any of the arguments are different type
+					continue 'func_loop;
 				}
 			}
 			r_panic!("Cannot define a function with the same signature more than once in the same scope: \"{new_function_name}\"");
