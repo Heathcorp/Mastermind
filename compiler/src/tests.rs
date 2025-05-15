@@ -2829,6 +2829,32 @@ cell[4] b @0,4;
 	}
 
 	#[test]
+	fn tiles_memory_allocation_4() -> Result<(), String> {
+		let program = String::from(
+			r#"
+cell a @2 = 1;
+cell[4] b;
+a = '5';
+b[0] = '1';
+b[1] = '2';
+b[2] = '3';
+b[3] = '4';
+output b[0];
+output b[1];
+output b[2];
+output b[3];
+output a;
+"#,
+		);
+		let code = compile_program(program, Some(&OPT_NONE_TILES))?.to_string();
+		println!("{}", code);
+		let input = String::from("");
+		let desired_output = String::from("12345");
+		assert_eq!(desired_output, run_code(BVM_CONFIG_2D, code, input, None));
+		Ok(())
+	}
+
+	#[test]
 	fn zig_zag_memory_allocation_1() -> Result<(), String> {
 		let program = String::from(
 			r#"
@@ -2901,6 +2927,32 @@ cell[4] b @0,4;
 	}
 
 	#[test]
+	fn zig_zag_memory_allocation_4() -> Result<(), String> {
+		let program = String::from(
+			r#"
+cell a @2 = 1;
+cell[4] b;
+a = '5';
+b[0] = '1';
+b[1] = '2';
+b[2] = '3';
+b[3] = '4';
+output b[0];
+output b[1];
+output b[2];
+output b[3];
+output a;
+"#,
+		);
+		let code = compile_program(program, Some(&OPT_NONE_ZIG_ZAG))?.to_string();
+		println!("{}", code);
+		let input = String::from("");
+		let desired_output = String::from("12345");
+		assert_eq!(desired_output, run_code(BVM_CONFIG_2D, code, input, None));
+		Ok(())
+	}
+
+	#[test]
 	fn spiral_memory_allocation_1() -> Result<(), String> {
 		let program = String::from(
 			r#"
@@ -2970,5 +3022,31 @@ cell[4] b @0,4;
 			.unwrap_err()
 			.to_string()
 			.contains("Location specifier @0,4 conflicts with another allocation"));
+	}
+
+	#[test]
+	fn spiral_memory_allocation_4() -> Result<(), String> {
+		let program = String::from(
+			r#"
+cell a @2 = 1;
+cell[4] b;
+a = '5';
+b[0] = '1';
+b[1] = '2';
+b[2] = '3';
+b[3] = '4';
+output b[0];
+output b[1];
+output b[2];
+output b[3];
+output a;
+"#,
+		);
+		let code = compile_program(program, Some(&OPT_NONE_SPIRAL))?.to_string();
+		println!("{}", code);
+		let input = String::from("");
+		let desired_output = String::from("12345");
+		assert_eq!(desired_output, run_code(BVM_CONFIG_2D, code, input, None));
+		Ok(())
 	}
 }
