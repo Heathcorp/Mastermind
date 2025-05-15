@@ -81,7 +81,13 @@ VariableTarget {
     }*
 }
 
-LocationSpecifier { At (Number | (Number Comma Number)) }
+LocationSpecifier {
+    At
+    (
+        (Number | (Number Comma Number)) |
+        VariableTarget
+    )
+}
 
 Constant {
     Number | Boolean | Character
