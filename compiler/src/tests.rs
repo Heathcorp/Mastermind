@@ -532,6 +532,45 @@ output x + 'f';
 	}
 
 	#[test]
+	fn assignments_8c() -> Result<(), String> {
+		let program = String::from(
+			r#";
+cell x = 128;
+x += 128;
+output x + 'f';
+			"#,
+		);
+		let input = String::from("");
+		let desired_output = String::from("f");
+		let code = compile_program(program, Some(&OPT_ALL))?;
+		assert_eq!(
+			desired_output,
+			run_code(BVM_CONFIG_1D, code.to_string(), input, None)
+		);
+		Ok(())
+	}
+
+	#[test]
+	fn assignments_8d() -> Result<(), String> {
+		let program = String::from(
+			r#";
+cell x = 126;
+x += 2;
+x += 128;
+output x + 'f';
+			"#,
+		);
+		let input = String::from("");
+		let desired_output = String::from("f");
+		let code = compile_program(program, Some(&OPT_ALL))?;
+		assert_eq!(
+			desired_output,
+			run_code(BVM_CONFIG_1D, code.to_string(), input, None)
+		);
+		Ok(())
+	}
+
+	#[test]
 	fn loops_1() {
 		let program = String::from(
 			"
