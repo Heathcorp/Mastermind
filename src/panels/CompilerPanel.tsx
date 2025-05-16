@@ -1,18 +1,12 @@
-import {
-  Component,
-  For,
-  createEffect,
-  JSX,
-} from "solid-js";
+import { Component, For, createEffect, JSX } from "solid-js";
 import { useAppContext } from "../App";
 import { AiOutlineStop } from "solid-icons/ai";
-import { FaSolidPlay } from 'solid-icons/fa'
+import { FaSolidPlay } from "solid-icons/fa";
 // import { FiSave } from "solid-icons/fi";
 // import downloadBlob from "../utils/downloadBlob";
 // import JSZip from "jszip";
 
 import "./settings.css";
-
 
 const CompilerPanel: Component<{ style?: JSX.CSSProperties }> = (props) => {
   const app = useAppContext()!;
@@ -29,7 +23,7 @@ const CompilerPanel: Component<{ style?: JSX.CSSProperties }> = (props) => {
     // TODO: error handling here? is it needed?
     const code = app.brainfuck();
     if (!code.text) return;
-    app.setOutput({ type: "OUTPUT", content: ""})
+    app.setOutput({ type: "OUTPUT", content: "" });
     await app.run(code.text, app.config().enable_2d_grid);
   };
 
@@ -44,29 +38,16 @@ const CompilerPanel: Component<{ style?: JSX.CSSProperties }> = (props) => {
     console.log(app.fileStates);
   });
 
-  // const zipAndSave = async () => {
-  //   const zip = new JSZip();
-  //   app.fileStates.forEach((fileState) => {
-  //     const blob = new Blob([fileState.editorState.doc.toString()], {
-  //       type: "text/plain",
-  //     });
-  //     zip.file(fileState.label, blob);
-  //   });
-  //   await zip.generateAsync({ type: "blob" }).then((x) => {
-  //     downloadBlob(x);
-  //   });
-  // };
-
   return (
     <div class="panel" style={{ "flex-direction": "row", ...props.style }}>
       <div class="panel settings-panel">
         <div class="row settings-container">
           {/* entry file selection */}
-          <label class="top-label" style={{"padding-top": "0.5rem"}}>
+          <label class="top-label" style={{ "padding-top": "0.5rem" }}>
             File:
             <select
-                value={app.entryFile()}
-                onChange={(e) => app.setEntryFile(e.target.value)}
+              value={app.entryFile()}
+              onChange={(e) => app.setEntryFile(e.target.value)}
             >
               {/* TODO: fix an issue with file renaming not updating this list */}
               <For each={app.fileStates}>
@@ -76,65 +57,75 @@ const CompilerPanel: Component<{ style?: JSX.CSSProperties }> = (props) => {
           </label>
         </div>
         <div>
+          <div
+            classList={{ button: true, disabled: app.busy() }}
+            style={{ padding: 0 }}
+          >
             <div
-                classList={{button: true, disabled: app.busy()}}
-                style={{padding: 0}}
+              classList={{
+                "text-button": true,
+                "run-button": true,
+                "text-button-disabled": app.busy(),
+              }}
+              style={{
+                padding: "0.5rem",
+                "max-width": "6rem",
+                "min-width": "5.5rem",
+              }}
+              onClick={!app.busy() ? onCompile : undefined}
             >
-                <div
-                    classList={{
-                      "text-button": true,
-                      "run-button" : true,
-                      "text-button-disabled": app.busy(),
-                    }}
-                    style={{padding: "0.5rem", "max-width": "6rem", "min-width": "5.5rem"}}
-                    onClick={!app.busy() ? onCompile : undefined}
-                >
-                  Compile File
-                </div>
+              Compile File
             </div>
+          </div>
         </div>
         <div>
-            {app.busy() ? (
-                <div
-                    classList={{"run-button": true,
-                                "button": true}}
-                    onClick={() => {
-                        app.restartWorker()
-                    }}
-                    title="kill brainfuck process"
-                >
-                    <div class="stop-button">
-                        <AiOutlineStop style={{"margin-right": "8px"}}/>
-                    </div>
-                        Stop Code
-                </div>
-            ) : (
-                <div
-                    classList={{"run-button": true,
-                      "button": true}}
-                    style={{}}
-                    onClick={onRun}
-                >
-                    <div class="start-button">
-                        <FaSolidPlay style={{"margin-right": "8px", "padding-top": "0.2rem"}}/>
-                    </div>
-                    Run Code
-                </div>
-            )}
+          {app.busy() ? (
+            <div
+              classList={{ "run-button": true, button: true }}
+              onClick={() => {
+                app.restartWorker();
+              }}
+              title="kill brainfuck process"
+            >
+              <div class="stop-button">
+                <AiOutlineStop style={{ "margin-right": "8px" }} />
+              </div>
+              Stop Code
+            </div>
+          ) : (
+            <div
+              classList={{ "run-button": true, button: true }}
+              style={{}}
+              onClick={onRun}
+            >
+              <div class="start-button">
+                <FaSolidPlay
+                  style={{ "margin-right": "8px", "padding-top": "0.2rem" }}
+                />
+              </div>
+              Run Code
+            </div>
+          )}
         </div>
         <div>
           {/* misc options and markers */}
           <div
-              class="row button"
-              style={{gap: 0, "font-size": "0.9rem", "min-height": "1.5rem", "min-width": "11rem", "text-align": "center"}}
-              classList={{"button-selected": app.enableBlockingInput()}}
-              onClick={() => app.setEnableBlockingInput((prev) => !prev)}
+            class="row button"
+            style={{
+              gap: 0,
+              "font-size": "0.9rem",
+              "min-height": "1.5rem",
+              "min-width": "11rem",
+              "text-align": "center",
+            }}
+            classList={{ "button-selected": app.enableBlockingInput() }}
+            onClick={() => app.setEnableBlockingInput((prev) => !prev)}
           >
             Blocking Input [
             {app.enableBlockingInput() ? (
-                <div class="positive-text">enabled</div>
+              <div class="positive-text">enabled</div>
             ) : (
-                <div class="negative-text">disabled</div>
+              <div class="negative-text">disabled</div>
             )}
             ]
           </div>
