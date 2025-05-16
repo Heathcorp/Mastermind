@@ -16,7 +16,13 @@ pub fn optimise(program: Vec<Opcode>) -> Vec<Opcode> {
 	while i < program.len() {
 		let op = program[i];
 		match op {
-			Opcode::Add | Opcode::Subtract | Opcode::Right | Opcode::Left | Opcode::Clear | Opcode::Up | Opcode::Down => {
+			Opcode::Add
+			| Opcode::Subtract
+			| Opcode::Right
+			| Opcode::Left
+			| Opcode::Clear
+			| Opcode::Up
+			| Opcode::Down => {
 				subset.push(op);
 			}
 			Opcode::OpenLoop | Opcode::CloseLoop | Opcode::Input | Opcode::Output => {
@@ -276,5 +282,45 @@ mod tests {
 		); // [9] 0 (7) -4 0 0 2 // [(0)] 2 // -1 1
 		let o: String = optimise(v).to_string();
 		assert_eq!(o, "[-]+++++++++>>+++++++>---->>>++<<<<[[-]+>++<]");
+	}
+
+	#[test]
+	fn subset_edge_case_0() {
+		let v = BrainfuckOpcodes::from_str(
+			"-++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++",
+		);
+		let o: String = optimise_subset(v).to_string();
+		println!("{o}");
+		assert_eq!(o.len(), 127);
+	}
+
+	#[test]
+	fn subset_edge_case_1() {
+		let v = BrainfuckOpcodes::from_str(
+			"++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++",
+		);
+		let o: String = optimise_subset(v).to_string();
+		println!("{o}");
+		assert_eq!(o.len(), 128);
+	}
+
+	#[test]
+	fn subset_edge_case_2() {
+		let v = BrainfuckOpcodes::from_str(
+			"+--------------------------------------------------------------------------------------------------------------------------------"
+		);
+		let o: String = optimise_subset(v).to_string();
+		println!("{o}");
+		assert_eq!(o.len(), 127);
+	}
+
+	#[test]
+	fn subset_edge_case_2() {
+		let v = BrainfuckOpcodes::from_str(
+			"--------------------------------------------------------------------------------------------------------------------------------"
+		);
+		let o: String = optimise_subset(v).to_string();
+		println!("{o}");
+		assert_eq!(o.len(), 128);
 	}
 }

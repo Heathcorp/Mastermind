@@ -532,7 +532,7 @@ output x + 'f';
 	}
 
 	#[test]
-	fn assignments_8c() -> Result<(), String> {
+	fn assignments_9() -> Result<(), String> {
 		let program = String::from(
 			r#";
 cell x = 128;
@@ -551,7 +551,7 @@ output x + 'f';
 	}
 
 	#[test]
-	fn assignments_8d() -> Result<(), String> {
+	fn assignments_9a() -> Result<(), String> {
 		let program = String::from(
 			r#";
 cell x = 126;
