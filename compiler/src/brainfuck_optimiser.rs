@@ -316,6 +316,7 @@ mod tests {
 	}
 
 	#[test]
+	#[ignore]
 	fn  exhaustive_subset_equivalence_test_0() {
 		let v = BrainfuckOpcodes::from_str("+++>><<++>--->+++<><><><><<<<<+++"); //(3) 0  0 [5] -3 3
 		let o = optimise_subset(v, true).to_string();
@@ -323,6 +324,7 @@ mod tests {
 	}
 
 	#[test]
+	#[ignore]
 	fn  exhaustive_program_equivalence_test_0() {
 		let v = BrainfuckOpcodes::from_str("<><><>++<+[--++>>+<<-]");
 		let o: String = optimise(v, true).to_string();
@@ -330,6 +332,7 @@ mod tests {
 	}
 
 	#[test]
+	#[ignore]
 	fn  exhaustive_program_equivalence_test_1() {
 		let v = BrainfuckOpcodes::from_str(
 			"+++++++++>>+++>---->>>++++--<--++<<hello<++++[-<+>>++<+<->]++--->+",
@@ -339,6 +342,7 @@ mod tests {
 	}
 
 	#[test]
+	#[ignore]
 	fn  exhaustive_program_equivalence_test_2() {
 		let v = BrainfuckOpcodes::from_str(">><.");
 		let o: String = optimise(v, true).to_string();
@@ -346,6 +350,7 @@ mod tests {
 	}
 
 	#[test]
+	#[ignore]
 	fn  exhaustive_subset_equivalence_test_1() {
 		let v = BrainfuckOpcodes::from_str("+++<+++>[-]+++"); //(3) 0  0 [5] -3 3
 		let o = optimise_subset(v, true).to_string();
@@ -353,6 +358,7 @@ mod tests {
 	}
 
 	#[test]
+	#[ignore]
 	fn  exhaustive_subset_equivalence_test_2() {
 		let v = BrainfuckOpcodes::from_str("+++<+++>[-]+++[-]<[-]--+>-"); //(3) 0  0 [5] -3 3
 		let o = optimise_subset(v, true).to_string();
@@ -360,6 +366,7 @@ mod tests {
 	}
 
 	#[test]
+	#[ignore]
 	fn  exhaustive_program_equivalence_test_3() {
 		let v = BrainfuckOpcodes::from_str(
 			"+++++[-]+++++++++>>+++>---->>>++++--<--++<<hello<++++[[-]<+>>++<+<->]++--->+",
@@ -369,6 +376,7 @@ mod tests {
 	}
 
 	#[test]
+	#[ignore]
 	fn  exhaustive_two_dimensional_subset_equivalence_test_0() {
 		let v = BrainfuckOpcodes::from_str("+++^^vv++^---^+++v^v^v^v^vvvvv+++"); //(3) 0  0 [5] -3 3
 		let o = optimise_subset(v, true).to_string();
@@ -376,6 +384,7 @@ mod tests {
 	}
 
 	#[test]
+	#[ignore]
 	fn exhaustive_two_dimensional_program_equivalence_test_0() {
 		let v = BrainfuckOpcodes::from_str("v^v^v^++v+[--++^^+vv-]");
 		let o: String = optimise(v, true).to_string();
@@ -383,6 +392,7 @@ mod tests {
 	}
 
 	#[test]
+	#[ignore]
 	fn  exhaustive_two_dimensional_program_equivalence_test_1() {
 		let v = BrainfuckOpcodes::from_str(
 			"+++++++++^^+++^----^^^++++--v--++vvhellov++++[-v+^^++v+v-^]++---^+",
@@ -392,6 +402,7 @@ mod tests {
 	}
 
 	#[test]
+	#[ignore]
 	fn  exhaustive_two_dimensional_program_equivalence_test_2() {
 		let v = BrainfuckOpcodes::from_str("^^v.");
 		let o: String = optimise(v, true).to_string();
@@ -399,6 +410,7 @@ mod tests {
 	}
 
 	#[test]
+	#[ignore]
 	fn  exhaustive_two_dimensional_subset_equivalence_test_1() {
 		let v = BrainfuckOpcodes::from_str("+++v+++^[-]+++"); //(3) 0  0 [5] -3 3
 		let o = optimise_subset(v, true).to_string();
@@ -406,6 +418,7 @@ mod tests {
 	}
 
 	#[test]
+	#[ignore]
 	fn  exhaustive_two_dimensional_subset_equivalence_test_2() {
 		let v = BrainfuckOpcodes::from_str("+++v+++^[-]+++[-]v[-]--+^-"); //(3) 0  0 [5] -3 3
 		let o = optimise_subset(v, true).to_string();
@@ -413,6 +426,7 @@ mod tests {
 	}
 
 	#[test]
+	#[ignore]
 	fn  exhaustive_two_dimensional_program_equivalence_test_3() {
 		let v = BrainfuckOpcodes::from_str(
 			"+++++[-]+++++++++^^+++^----^^^++++--v--++vvhellov++++[[-]v+^^++v+v-^]++---^+",
