@@ -50,6 +50,7 @@ const App: Component = () => {
   });
   const [helpOpen, setHelpOpen] = createSignal(false);
   const [settingsOpen, setSettingsOpen] = createSignal(false);
+  const [fileBrowserOpen, setFileBrowserOpen] = createSignal(false);
   const [config, setConfig] = makePersisted(
       createSignal<MastermindConfig>({
     optimise_cell_clearing: false,
@@ -489,6 +490,8 @@ const App: Component = () => {
         setEnableBlockingInput,
         settingsOpen,
         setSettingsOpen,
+        fileBrowserOpen,
+        setFileBrowserOpen,
         config,
         setConfig,
         brainfuck,
@@ -568,6 +571,9 @@ interface AppContextProps {
 
   settingsOpen: Accessor<boolean>;
   setSettingsOpen: Setter<boolean>;
+
+  fileBrowserOpen: Accessor<boolean>;
+  setFileBrowserOpen: Setter<boolean>;
 
   setConfig: Setter<MastermindConfig>;
   config: Accessor<MastermindConfig>;
