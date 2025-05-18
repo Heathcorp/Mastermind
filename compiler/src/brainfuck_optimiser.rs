@@ -16,7 +16,13 @@ pub fn optimise(program: Vec<Opcode>) -> Vec<Opcode> {
 	while i < program.len() {
 		let op = program[i];
 		match op {
-			Opcode::Add | Opcode::Subtract | Opcode::Right | Opcode::Left | Opcode::Clear | Opcode::Up | Opcode::Down => {
+			Opcode::Add
+			| Opcode::Subtract
+			| Opcode::Right
+			| Opcode::Left
+			| Opcode::Clear
+			| Opcode::Up
+			| Opcode::Down => {
 				subset.push(op);
 			}
 			Opcode::OpenLoop | Opcode::CloseLoop | Opcode::Input | Opcode::Output => {
@@ -54,6 +60,7 @@ fn optimise_subset(run: Vec<Opcode>) -> Vec<Opcode> {
 				let mut change = tape.remove(&head).unwrap_or(Change::Add(Wrapping(0i8)));
 
 				let (Change::Add(val) | Change::Set(val)) = &mut change;
+				let v = *val;
 				*val += match op {
 					Opcode::Add => 1,
 					Opcode::Subtract => -1,
@@ -163,8 +170,11 @@ fn optimise_subset(run: Vec<Opcode>) -> Vec<Opcode> {
 				let (Change::Add(v) | Change::Set(v)) = change;
 				let v = v.0;
 
-				for _ in 0..v.abs() {
-					output.push(match v > 0 {
+				// casting to i32 so that abs works (-128i8 does not exist in positive/absolute terms, crazy edge case)
+				// also -128 can be expressed as adding 128 times also, which seems cleaner so we add that check in the match
+				// Also: this is so inefficient and really poor code, it will be refactored or replaced by 2D grid stuff
+				for _ in 0..(v as i32).abs() {
+					output.push(match v == -128 || v > 0 {
 						true => Opcode::Add,
 						false => Opcode::Subtract,
 					});
@@ -185,8 +195,11 @@ fn optimise_subset(run: Vec<Opcode>) -> Vec<Opcode> {
 				let (Change::Add(v) | Change::Set(v)) = change;
 				let v = v.0;
 
-				for _ in 0..v.abs() {
-					output.push(match v > 0 {
+				// casting to i32 so that abs works (-128i8 does not exist in positive/absolute terms, crazy edge case)
+				// also -128 can be expressed as adding 128 times also, which seems cleaner so we add that check in the match
+				// Also: this is so inefficient and really poor code, it will be refactored or replaced by 2D grid stuff
+				for _ in 0..(v as i32).abs() {
+					output.push(match v == -128 || v > 0 {
 						true => Opcode::Add,
 						false => Opcode::Subtract,
 					});
@@ -276,5 +289,65 @@ mod tests {
 		); // [9] 0 (7) -4 0 0 2 // [(0)] 2 // -1 1
 		let o: String = optimise(v).to_string();
 		assert_eq!(o, "[-]+++++++++>>+++++++>---->>>++<<<<[[-]+>++<]");
+	}
+
+	#[test]
+	fn subset_edge_case_0() {
+		let v = BrainfuckOpcodes::from_str(
+			"-++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++",
+		);
+		let o: String = optimise_subset(v).to_string();
+		println!("{o}");
+		assert_eq!(o.len(), 127);
+	}
+
+	#[test]
+	fn subset_edge_case_1() {
+		let v = BrainfuckOpcodes::from_str(
+			"++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++",
+		);
+		let o: String = optimise_subset(v).to_string();
+		println!("{o}");
+		assert_eq!(o.len(), 128);
+	}
+
+	#[test]
+	fn subset_edge_case_2() {
+		let v = BrainfuckOpcodes::from_str(
+			"+--------------------------------------------------------------------------------------------------------------------------------"
+		);
+		let o: String = optimise_subset(v).to_string();
+		println!("{o}");
+		assert_eq!(o.len(), 127);
+	}
+
+	#[test]
+	fn subset_edge_case_3() {
+		let v = BrainfuckOpcodes::from_str(
+			"--------------------------------------------------------------------------------------------------------------------------------"
+		);
+		let o: String = optimise_subset(v).to_string();
+		println!("{o}");
+		assert_eq!(o.len(), 128);
+	}
+
+	#[test]
+	fn subset_edge_case_3a() {
+		let v = BrainfuckOpcodes::from_str(
+			"- --------------------------------------------------------------------------------------------------------------------------------"
+		);
+		let o: String = optimise_subset(v).to_string();
+		println!("{o}");
+		assert_eq!(o.len(), 127);
+	}
+
+	#[test]
+	fn subset_edge_case_4() {
+		let v = BrainfuckOpcodes::from_str(
+			"[-]--------------------------------------------------------------------------------------------------------------------------------"
+		);
+		let o: String = optimise_subset(v).to_string();
+		println!("{o}");
+		assert_eq!(o.len(), 131);
 	}
 }
