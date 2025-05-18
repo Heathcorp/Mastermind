@@ -1,66 +1,79 @@
 /// shift left and wrap
+fn wshift_l(cell n) {
+  cell val = n;
+  drain val into n {
+    // wrapping annihilates the bit, here we correct it
+    // (efficient if not)
+    n += 1;
+    if n { n -= 1; }
+  }
+}
 fn wshift_l(cell n, cell count) {
   copy count {
-    cell val = n;
-    drain val into n {
-      // wrapping annihilates the bit, here we correct it
-      // (efficient if not)
-      n += 1;
-      if n { n -= 1; }
-    }
+    wshift_l(n);
   }
 }
 
 /// shift left and truncate
+fn tshift_l(cell n) {
+  // no need to detect overflows because overflowing annihilates the bit
+  n += n;
+}
 fn tshift_l(cell n, cell count) {
   copy count {
-    // no need to detect overflows because overflowing annihilates the bit
-    n += n;
+    tshift_l(n);
   }
 }
 
 /// shift right and wrap
-fn wshift_r(cell n, cell count) {
-  copy count {
-    // repeatedly divide by two, adding 128 if there's a remainder
-    cell i = 0;
-    cell carry = false;
-    while n {
+fn wshift_r(cell n) {
+  // repeatedly divide by two, adding 128 if there's a remainder
+  cell i = 0;
+  cell carry = false;
+  while n {
+    n -= 1;
+    if not n {
+      carry = true;
+    } else {
+      i += 1;
       n -= 1;
-      if not n {
-        carry = true;
-      } else {
-        i += 1;
-        n -= 1;
-      }
     }
-    n = i;
-    if carry {
-      n += 128;
-    }
+  }
+  n = i;
+  if carry {
+    n += 128;
   }
   // this is fairly inefficient
   // maybe could cheat and shift (8 - count) times the other way?
 }
+fn wshift_r(cell n, cell count) {
+  copy count {
+    wshift_r(n);
+  }
+}
 
 /// shift right and truncate
+fn tshift_r(cell n) {
+  cell i = 0;
+  while n {
+    n -= 1;
+    if n {
+      i += 1;
+      n -= 1;
+    }
+  }
+  drain i into n;
+}
 fn tshift_r(cell n, cell count) {
   copy count {
-    cell i = 0;
-    while n {
-      n -= 1;
-      if n {
-        i += 1;
-        n -= 1;
-      }
-    }
-    drain i into n;
+    tshift_r(n);
   }
 }
 
 // debug/test code:
-// cell a = 104;
-// cell bitshift_count = 1
+// #include "print.mmi"
+// cell a = 5;
+// cell bitshift_count = 1;
 // drain 10 {
 //   print(a);
 //   output '\n';
@@ -73,7 +86,10 @@ fn tshift_r(cell n, cell count) {
 //   output '\n';
 //   tshift_l(a, bitshift_count);
 // }
-// drain 7 {
+
+// output "\n\n";
+// a = 104;
+// drain 8 {
 //   print(a);
 //   output '\n';
 //   wshift_r(a, bitshift_count);
