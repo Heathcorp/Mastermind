@@ -37,10 +37,10 @@ fn to_u8(struct i8 a, cell _abs, cell _sign_neg) {
 
 // debug/test code:
 // #include "print.mmi"
-// struct i8 n;
-// n.n = 0;
+// struct i8 a;
+// a.n = 0;
 // drain 2 {
-//   drain 128 into n.n {
+//   drain 128 into a.n {
 //     cell abs;
 //     cell neg;
 //     to_u8(n, abs, neg);

@@ -1,4 +1,4 @@
-#include <bitops>
+// #include <bitops>
 #include <i8>
 
 struct u16 {
@@ -6,13 +6,32 @@ struct u16 {
   cell n1;
 }
 
+/// increment a u16 by 1
+fn inc(struct u16 self) {
+  self.n0 += 1;
+  self.n1 += 1;
+  if self.n0 {
+    self.n1 -= 1;
+  }
+  // more efficient version of the following:
+  // if not self.n0 {
+  //   self.n1 += 1;
+  // }
+}
+
+/// decrement a u16 by 1
+fn dec(struct u16 self) {
+  self.n0 -= 1;
+  self.n1 -= 1;
+  if self.n0 {
+    self.n1 += 1;
+  }
+}
+
 /// add a cell's value as a u8 in place to the current u16
 fn add(struct u16 self, cell other) {
   copy other {
-    self.n0 += 1;
-    if not self.n0 {
-      self.n1 += 1;
-    }
+    inc(self);
   }
 }
 /// overload for an i8 (signed 8-bit)
@@ -23,17 +42,11 @@ fn add(struct u16 self, struct i8 other) {
 
   if not neg {
     drain abs {
-      self.n0 += 1;
-      if not self.n0 {
-        self.n1 += 1;
-      }
+      inc(self);
     }
   } else {
     drain abs {
-      self.n0 -= 1;
-      if not self.n0 {
-        self.n1 -= 1;
-      }
+      dec(self);
     }
   }
   assert abs equals 0;
@@ -41,16 +54,70 @@ fn add(struct u16 self, struct i8 other) {
 /// overload for another u16
 fn add(struct u16 self, struct u16 other) {
   // most significant first
-  copy other.n1 into self.n1;
-  copy other.n0 {
-    self.n0 += 1;
-    if not self.n0 {
-      self.n1 += 1;
+  // copy other.n1 into self.n1;
+  // copy other.n0 {
+  //   self.n0 += 1;
+  //   if not self.n0 {
+  //     self.n1 += 1;
+  //   }
+  // }
+}
+
+/// print the u16 as a base-10 natural number [0, 65535]
+fn print(struct u16 n) {
+  cell[5] digit_stack;
+  fn shift_stack() {
+    digit_stack[4] = 0;
+    drain digit_stack[3] into digit_stack[4];
+    drain digit_stack[2] into digit_stack[3];
+    drain digit_stack[1] into digit_stack[2];
+    drain digit_stack[0] into digit_stack[1];
+  }
+
+  cell n0 = n.n0;
+  cell n1 = n.n1;
+  // essentially repeatedly divide by 10
+  cell dividing = true;
+  cell remainder;
+  while dividing {
+    remainder = 0;
+    drain 10 {
+      if n0 {
+        n0 -= 1;
+      } else {
+        if n1 {
+          n1 -= 1;
+        } else {
+          dividing = false;
+          remainder += 1;
+        }
+      }
     }
   }
+  drain remainder into digit_stack[0];
+  shift_stack();
+
+  output '0' + digit_stack[1];
+
+  
+STUB
+
 }
 
 // debug/test code:
-// #include "print.mmi"
-// struct u16 a;
+#include "print.mmi"
+struct u16 a;
 
+a.n0 = 5;
+print(a);
+output '\n';
+// 5
+
+cell b = 1;
+drain 255 {
+  drain 255 {
+    print(a);
+    output '\n';
+    add(a, b);
+  }
+}
