@@ -1,0 +1,56 @@
+#include <bitops>
+#include <i8>
+
+struct u16 {
+  cell n0;
+  cell n1;
+}
+
+/// add a cell's value as a u8 in place to the current u16
+fn add(struct u16 self, cell other) {
+  copy other {
+    self.n0 += 1;
+    if not self.n0 {
+      self.n1 += 1;
+    }
+  }
+}
+/// overload for an i8 (signed 8-bit)
+fn add(struct u16 self, struct i8 other) {
+  cell abs;
+  cell neg;
+  to_u8(other, abs, neg);
+
+  if not neg {
+    drain abs {
+      self.n0 += 1;
+      if not self.n0 {
+        self.n1 += 1;
+      }
+    }
+  } else {
+    drain abs {
+      self.n0 -= 1;
+      if not self.n0 {
+        self.n1 -= 1;
+      }
+    }
+  }
+  assert abs equals 0;
+}
+/// overload for another u16
+fn add(struct u16 self, struct u16 other) {
+  // most significant first
+  copy other.n1 into self.n1;
+  copy other.n0 {
+    self.n0 += 1;
+    if not self.n0 {
+      self.n1 += 1;
+    }
+  }
+}
+
+// debug/test code:
+// #include "print.mmi"
+// struct u16 a;
+
