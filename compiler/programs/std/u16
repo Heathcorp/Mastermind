@@ -6,6 +6,58 @@ struct u16 {
   cell n1;
 }
 
+fn _65535(struct u16 n) {
+  n.n0 = 255;
+  n.n1 = 255;
+}
+fn MAX(struct u16 n) {_65535(n);}
+fn _10(struct u16 n) {
+  n.n0 = 10;
+  n.n1 = 0;
+}
+fn _100(struct u16 n) {
+  n.n0 = 100;
+  n.n1 = 0;
+}
+fn _1000(struct u16 n) {
+  n.n0 = 232;
+  n.n1 = 3;
+}
+fn _1024(struct u16 n) {
+  n.n0 = 0;
+  n.n1 = 4;
+}
+fn _2048(struct u16 n) {
+  n.n0 = 0;
+  n.n1 = 8;
+}
+fn _4096(struct u16 n) {
+  n.n0 = 0;
+  n.n1 = 16;
+}
+fn _8192(struct u16 n) {
+  n.n0 = 0;
+  n.n1 = 32;
+}
+fn _10000(struct u16 n) {
+  n.n0 = 16;
+  n.n1 = 39;
+}
+fn _16384(struct u16 n) {
+  n.n0 = 0;
+  n.n1 = 64;
+}
+fn _20000(struct u16 n) {
+  n.n0 = 32;
+  n.n1 = 78;
+}
+
+/// copy one u16 into another
+fn cpy(struct u16 src, struct u16 dest) {
+  dest.n0 = src.n0;
+  dest.n1 = src.n1;
+}
+
 /// increment a u16 by 1
 fn inc(struct u16 self) {
   self.n0 += 1;
@@ -21,11 +73,11 @@ fn inc(struct u16 self) {
 
 /// decrement a u16 by 1
 fn dec(struct u16 self) {
-  self.n0 -= 1;
   self.n1 -= 1;
   if self.n0 {
     self.n1 += 1;
   }
+  self.n0 -= 1;
 }
 
 /// add a cell's value as a u8 in place to the current u16
@@ -54,17 +106,35 @@ fn add(struct u16 self, struct i8 other) {
 /// overload for another u16
 fn add(struct u16 self, struct u16 other) {
   // most significant first
-  // copy other.n1 into self.n1;
-  // copy other.n0 {
-  //   self.n0 += 1;
-  //   if not self.n0 {
-  //     self.n1 += 1;
-  //   }
-  // }
+  copy other.n1 {
+    self.n1 += 1;
+    self.n0 += 1;
+    if self.n1 {
+      self.n0 -= 1;
+    }
+  }
+  copy other.n0 {
+    self.n0 += 1;
+    self.n1 += 1;
+    if self.n0 {
+      self.n1 -= 1;
+    }
+  }
+}
+
+/// check if number is non-zero
+fn ne_zero(struct u16 self, cell _output) {
+  // return n0 || n1
+  if self.n0 {
+    _output = true;
+  }
+  if self.n1 {
+    _output = true;
+  }
 }
 
 /// print the u16 as a base-10 natural number [0, 65535]
-fn print(struct u16 n) {
+fn print(struct u16 self) {
   cell[5] digit_stack;
   fn shift_stack() {
     digit_stack[4] = 0;
@@ -73,51 +143,80 @@ fn print(struct u16 n) {
     drain digit_stack[1] into digit_stack[2];
     drain digit_stack[0] into digit_stack[1];
   }
+  fn print_stack() {
+    output '0' + digit_stack[0];
+    output '0' + digit_stack[1];
+    output '0' + digit_stack[2];
+    output '0' + digit_stack[3];
+    output '0' + digit_stack[4];
+  }
 
-  cell n0 = n.n0;
-  cell n1 = n.n1;
+  struct u16 n;
+  cpy(self, n);
   // essentially repeatedly divide by 10
-  cell dividing = true;
-  cell remainder;
-  while dividing {
-    remainder = 0;
-    drain 10 {
-      if n0 {
-        n0 -= 1;
-      } else {
-        if n1 {
-          n1 -= 1;
+  drain 5 {
+    shift_stack();
+    cell dividing = true;
+    struct u16 m;// MAX(m); // quotient set to -1 = 65535
+    digit_stack[0] = 10; // remainder
+    while dividing {
+      drain 10 {
+        cell o; ne_zero(n, o);
+        if o {
+          dec(n);
         } else {
+          digit_stack[0] -= 1;
           dividing = false;
-          remainder += 1;
         }
       }
+
+      if dividing {
+        inc(m);
+      }
     }
+    // copy new quotient to value so we start again
+    cpy(m, n);
   }
-  drain remainder into digit_stack[0];
-  shift_stack();
 
-  output '0' + digit_stack[1];
 
-  
-STUB
-
+  // TODO:
+  print_stack();
 }
 
 // debug/test code:
-#include "print.mmi"
-struct u16 a;
+// #include "print.mmi"
+// struct u16 a; // = 0
+// MAX(a);
 
-a.n0 = 5;
-print(a);
-output '\n';
-// 5
+// print(a);
+// output '\n';
 
-cell b = 1;
-drain 255 {
-  drain 255 {
-    print(a);
-    output '\n';
-    add(a, b);
-  }
-}
+// drain 100 {
+//   drain 100 {
+//     inc(a);
+//     print(a);
+//     output '\n';
+//   }
+// }
+// struct u16 a;
+// _100(a);
+// print(a);
+// output '\n';
+// _1000(a);
+// print(a);
+// output '\n';
+// _10000(a);
+// print(a);
+// output '\n';
+// _20000(a);
+// print(a);
+// output '\n';
+// struct u16 a;
+// struct u16 b;
+// _100(a);
+// _1000(b);
+// add(a, b);
+// print(a); output '\n';
+// _16384(b);
+// add(a, b);
+// print(a); output '\n';
