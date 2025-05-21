@@ -135,20 +135,33 @@ fn ne_zero(struct u16 self, cell _output) {
 
 /// print the u16 as a base-10 natural number [0, 65535]
 fn print(struct u16 self) {
-  cell[5] digit_stack;
-  fn shift_stack() {
-    digit_stack[4] = 0;
-    drain digit_stack[3] into digit_stack[4];
-    drain digit_stack[2] into digit_stack[3];
-    drain digit_stack[1] into digit_stack[2];
-    drain digit_stack[0] into digit_stack[1];
+  struct DS {
+    // markers either side of the digit stack
+    // cell m0 @0;
+    cell[5] stack;
+    // cell m1 @6;
   }
-  fn print_stack() {
-    output '0' + digit_stack[0];
-    output '0' + digit_stack[1];
-    output '0' + digit_stack[2];
-    output '0' + digit_stack[3];
-    output '0' + digit_stack[4];
+  struct DS ds;
+  fn shift_stack() {
+    ds.stack[4] = 0;
+    drain ds.stack[3] into ds.stack[4];
+    drain ds.stack[2] into ds.stack[3];
+    drain ds.stack[1] into ds.stack[2];
+    drain ds.stack[0] into ds.stack[1];
+  }
+  fn unshift_stack() {
+    ds.stack[0] = 0;
+    drain ds.stack[1] into ds.stack[0];
+    drain ds.stack[2] into ds.stack[1];
+    drain ds.stack[3] into ds.stack[2];
+    drain ds.stack[4] into ds.stack[3];
+  }
+  fn debug_stack() {
+    output '0' + ds.stack[0];
+    output '0' + ds.stack[1];
+    output '0' + ds.stack[2];
+    output '0' + ds.stack[3];
+    output '0' + ds.stack[4];
   }
 
   struct u16 n;
@@ -158,14 +171,14 @@ fn print(struct u16 self) {
     shift_stack();
     cell dividing = true;
     struct u16 m;// MAX(m); // quotient set to -1 = 65535
-    digit_stack[0] = 10; // remainder
+    ds.stack[0] = 10; // remainder, add 1 for magic later on
     while dividing {
       drain 10 {
         cell o; ne_zero(n, o);
         if o {
           dec(n);
         } else {
-          digit_stack[0] -= 1;
+          ds.stack[0] -= 1;
           dividing = false;
         }
       }
@@ -178,9 +191,17 @@ fn print(struct u16 self) {
     cpy(m, n);
   }
 
-
-  // TODO:
-  print_stack();
+  cell not_leading = false;
+  drain 5 {
+    if ds.stack[0] {
+      not_leading = true;
+    }
+    if not_leading {
+      ds.stack[0] += '0';
+      output ds.stack[0];
+    }
+    unshift_stack();
+  }
 }
 
 // debug/test code:
