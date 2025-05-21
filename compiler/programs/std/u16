@@ -2,55 +2,30 @@
 #include <i8>
 
 struct u16 {
-  cell n0;
+  // big-endian?
   cell n1;
+  cell n0;
 }
 
-fn _65535(struct u16 n) {
-  n.n0 = 255;
-  n.n1 = 255;
-}
+fn _65535(struct u16 n) {n.n1 = 255; n.n0 = 255;}
+fn _10(struct u16 n)    {n.n1 = 0;   n.n0 = 10;}
+fn _100(struct u16 n)   {n.n1 = 0;   n.n0 = 100;}
+fn _200(struct u16 n)   {n.n1 = 0;   n.n0 = 200;}
+fn _300(struct u16 n)   {n.n1 = 1;   n.n0 = 44;}
+fn _1000(struct u16 n)  {n.n1 = 3;   n.n0 = 232;}
+fn _1024(struct u16 n)  {n.n1 = 4;   n.n0 = 0;}
+fn _2048(struct u16 n)  {n.n1 = 8;   n.n0 = 0;}
+fn _4096(struct u16 n)  {n.n1 = 16;  n.n0 = 0;}
+fn _8192(struct u16 n)  {n.n1 = 32;  n.n0 = 0;}
+fn _10000(struct u16 n) {n.n1 = 39;  n.n0 = 16;}
+fn _16384(struct u16 n) {n.n1 = 64;  n.n0 = 0;}
+fn _20000(struct u16 n) {n.n1 = 78;  n.n0 = 32;}
+fn _30000(struct u16 n) {n.n1 = 117; n.n0 = 48;}
+fn _40000(struct u16 n) {n.n1 = 156; n.n0 = 64;}
+fn _50000(struct u16 n) {n.n1 = 195; n.n0 = 80;}
+fn _60000(struct u16 n) {n.n1 = 234; n.n0 = 96;}
+
 fn MAX(struct u16 n) {_65535(n);}
-fn _10(struct u16 n) {
-  n.n0 = 10;
-  n.n1 = 0;
-}
-fn _100(struct u16 n) {
-  n.n0 = 100;
-  n.n1 = 0;
-}
-fn _1000(struct u16 n) {
-  n.n0 = 232;
-  n.n1 = 3;
-}
-fn _1024(struct u16 n) {
-  n.n0 = 0;
-  n.n1 = 4;
-}
-fn _2048(struct u16 n) {
-  n.n0 = 0;
-  n.n1 = 8;
-}
-fn _4096(struct u16 n) {
-  n.n0 = 0;
-  n.n1 = 16;
-}
-fn _8192(struct u16 n) {
-  n.n0 = 0;
-  n.n1 = 32;
-}
-fn _10000(struct u16 n) {
-  n.n0 = 16;
-  n.n1 = 39;
-}
-fn _16384(struct u16 n) {
-  n.n0 = 0;
-  n.n1 = 64;
-}
-fn _20000(struct u16 n) {
-  n.n0 = 32;
-  n.n1 = 78;
-}
 
 /// copy one u16 into another
 fn cpy(struct u16 src, struct u16 dest) {
@@ -191,53 +166,49 @@ fn print(struct u16 self) {
     cpy(m, n);
   }
 
-  cell not_leading = false;
-  drain 5 {
-    if ds.stack[0] {
-      not_leading = true;
+  {
+    cell not_leading = false;
+    drain 4 {
+      if ds.stack[0] {
+        not_leading = true;
+      }
+      if not_leading {
+        ds.stack[0] += '0';
+        output ds.stack[0];
+      }
+      unshift_stack();
     }
-    if not_leading {
-      ds.stack[0] += '0';
-      output ds.stack[0];
-    }
-    unshift_stack();
   }
+  ds.stack[0] += '0';
+  output ds.stack[0];
 }
 
 // debug/test code:
 // #include "print.mmi"
-// struct u16 a; // = 0
+// struct u16 a;
+// output "a = "; print(a); output "\n";
 // MAX(a);
-
-// print(a);
-// output '\n';
-
-// drain 100 {
-//   drain 100 {
-//     inc(a);
-//     print(a);
-//     output '\n';
-//   }
-// }
-// struct u16 a;
-// _100(a);
-// print(a);
-// output '\n';
-// _1000(a);
-// print(a);
-// output '\n';
-// _10000(a);
-// print(a);
-// output '\n';
-// _20000(a);
-// print(a);
-// output '\n';
-// struct u16 a;
+// output "(a = "; print(a); output ")\n";
+// cell c = 5;
+// output "(c = 5)\n";
+// add(a, c);
+// output "(a += c)\n";
+// output "a = "; print(a); output "\n";
 // struct u16 b;
 // _100(a);
+// output "(a = "; print(a); output ")\n";
 // _1000(b);
+// output "(b = "; print(b); output ")\n";
 // add(a, b);
-// print(a); output '\n';
+// output "(a += b)\n";
+// output "a = "; print(a); output '\n';
 // _16384(b);
+// output "(b = "; print(b); output ")\n";
 // add(a, b);
-// print(a); output '\n';
+// output "(a += b)\n";
+// output "a = "; print(a); output '\n';
+// _50000(b);
+// output "(b = "; print(b); output ")\n";
+// add(a, b);
+// output "(a += b)\n";
+// output "a = "; print(a); output '\n';
