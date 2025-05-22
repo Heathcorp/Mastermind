@@ -5,7 +5,6 @@ import "./editor.css";
 import { EditorView } from "@codemirror/view";
 import {
   AiOutlineFolder,
-  AiOutlinePlus,
   AiOutlinePlusCircle,
   AiOutlineSave,
   AiOutlineUpload,
@@ -13,13 +12,13 @@ import {
 import {
   DragDropProvider,
   DragDropSensors,
-  createDroppable,
-  useDragDropContext,
+  // createDroppable,
+  // useDragDropContext,
 } from "@thisbeyond/solid-dnd";
 
 import { useAppContext } from "../App";
 import Tab from "../components/Tab";
-import { IconTypes } from "solid-icons";
+// import { IconTypes } from "solid-icons";
 import FileBrowserModal from "../components/FileBrowser";
 import JSZip from "jszip";
 import downloadBlob from "../utils/downloadBlob";
@@ -174,27 +173,27 @@ const EditorPanel: Component = () => {
 export default EditorPanel;
 
 const TAB_END_ID = "end";
-const TabFiller: Component<{
-  onClick: () => void;
-  iconComponent?: IconTypes;
-}> = (props) => {
-  // for dragging a file to the end of the list
-  // had to make this its own component because of dragDrop context issues
-  const droppableRef = createDroppable(TAB_END_ID);
-  const [isUnderDrag, setIsUnderDrag] = createSignal(false);
-  const [, { onDragOver, onDragEnd }] = useDragDropContext()!;
-
-  onDragOver(({ droppable }) => setIsUnderDrag(droppable?.id === TAB_END_ID));
-  onDragEnd(() => setIsUnderDrag(false));
-
-  const IconComponent = props.iconComponent ?? AiOutlinePlus;
-
-  return (
-    <div
-      ref={droppableRef}
-      classList={{ "tab-filler": true, "tab-insert-marker": isUnderDrag() }}
-    >
-      <IconComponent class="text-button" onClick={props.onClick} />
-    </div>
-  );
-};
+// const TabFiller: Component<{
+//   onClick: () => void;
+//   iconComponent?: IconTypes;
+// }> = (props) => {
+//   // for dragging a file to the end of the list
+//   // had to make this its own component because of dragDrop context issues
+//   const droppableRef = createDroppable(TAB_END_ID);
+//   const [isUnderDrag, setIsUnderDrag] = createSignal(false);
+//   const [, { onDragOver, onDragEnd }] = useDragDropContext()!;
+//
+//   onDragOver(({ droppable }) => setIsUnderDrag(droppable?.id === TAB_END_ID));
+//   onDragEnd(() => setIsUnderDrag(false));
+//
+//   const IconComponent = props.iconComponent ?? AiOutlinePlus;
+//
+//   return (
+//     <div
+//       ref={droppableRef}
+//       classList={{ "tab-filler": true, "tab-insert-marker": isUnderDrag() }}
+//     >
+//       <IconComponent class="text-button" onClick={props.onClick} />
+//     </div>
+//   );
+// };

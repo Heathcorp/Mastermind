@@ -7,6 +7,7 @@ import { useAppContext } from "../App";
 const SettingsModal: Component<{ style?: JSX.CSSProperties }> = () => {
   const MemoryAllocationOptions: string[] = [
     "1D Mastermind",
+    "2D Mastermind - Zig Zag",
     "2D Mastermind - Spiral",
     "2D Mastermind - Tiles",
     "2D Mastermind - Nearest",

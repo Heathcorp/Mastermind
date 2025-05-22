@@ -18,7 +18,8 @@ pub struct MastermindConfig {
 	pub optimise_empty_blocks: bool,
 	// Memory Allocation Method
 	//'1D Mastermind'  0
-	// '2D Mastermind - Spiral'  1
+	//'2D Mastermind - ZigZag'  1
+	// '2D Mastermind - Spiral'  2
 	// '2D Mastermind - Tiles'  2
 	// '2D Mastermind - Nearest' 3
 	pub memory_allocation_method: u8,

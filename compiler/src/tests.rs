@@ -36,6 +36,42 @@ pub mod tests {
 		enable_2d_grid: false,
 	};
 
+	const OPT_NONE_TILES: MastermindConfig = MastermindConfig {
+		optimise_generated_code: false,
+		optimise_cell_clearing: false,
+		optimise_variable_usage: false,
+		optimise_memory_allocation: false,
+		optimise_unreachable_loops: false,
+		optimise_constants: false,
+		optimise_empty_blocks: false,
+		memory_allocation_method: 3,
+		enable_2d_grid: false,
+	};
+
+	const OPT_NONE_SPIRAL: MastermindConfig = MastermindConfig {
+		optimise_generated_code: false,
+		optimise_cell_clearing: false,
+		optimise_variable_usage: false,
+		optimise_memory_allocation: false,
+		optimise_unreachable_loops: false,
+		optimise_constants: false,
+		optimise_empty_blocks: false,
+		memory_allocation_method: 2,
+		enable_2d_grid: false,
+	};
+
+	const OPT_NONE_ZIG_ZAG: MastermindConfig = MastermindConfig {
+		optimise_generated_code: false,
+		optimise_cell_clearing: false,
+		optimise_variable_usage: false,
+		optimise_memory_allocation: false,
+		optimise_unreachable_loops: false,
+		optimise_constants: false,
+		optimise_empty_blocks: false,
+		memory_allocation_method: 1,
+		enable_2d_grid: false,
+	};
+
 	const BVM_CONFIG_1D: BVMConfig = BVMConfig {
 		ENABLE_DEBUG_SYMBOLS: false,
 		ENABLE_2D_GRID: false,
@@ -444,6 +480,94 @@ output *x;
 		let output = compile_and_run(program, input).expect("");
 		println!("{output}");
 		assert_eq!(desired_output, output)
+	}
+
+	#[test]
+	fn assignments_8() {
+		let program = String::from(
+			r#";
+cell x = 128;
+output x - 2;
+			"#,
+		);
+		let input = String::from("");
+		let desired_output = String::from("~");
+		let output = compile_and_run(program, input).expect("");
+		println!("{output}");
+		assert_eq!(desired_output, output)
+	}
+
+	#[test]
+	fn assignments_8a() {
+		let program = String::from(
+			r#";
+cell x = 127;
+cell y = 64;
+x += y + y;
+output x + 'f' + 1;
+			"#,
+		);
+		let input = String::from("");
+		let desired_output = String::from("f");
+		let output = compile_and_run(program, input).expect("");
+		println!("{output}");
+		assert_eq!(desired_output, output)
+	}
+
+	#[test]
+	fn assignments_8b() {
+		let program = String::from(
+			r#";
+cell x = 128;
+cell y = 64;
+x += y + y;
+output x + 'f';
+			"#,
+		);
+		let input = String::from("");
+		let desired_output = String::from("f");
+		let output = compile_and_run(program, input).expect("");
+		println!("{output}");
+		assert_eq!(desired_output, output)
+	}
+
+	#[test]
+	fn assignments_9() -> Result<(), String> {
+		let program = String::from(
+			r#";
+cell x = 128;
+x += 128;
+output x + 'f';
+			"#,
+		);
+		let input = String::from("");
+		let desired_output = String::from("f");
+		let code = compile_program(program, Some(&OPT_ALL))?;
+		assert_eq!(
+			desired_output,
+			run_code(BVM_CONFIG_1D, code.to_string(), input, None)
+		);
+		Ok(())
+	}
+
+	#[test]
+	fn assignments_9a() -> Result<(), String> {
+		let program = String::from(
+			r#";
+cell x = 126;
+x += 2;
+x += 128;
+output x + 'f';
+			"#,
+		);
+		let input = String::from("");
+		let desired_output = String::from("f");
+		let code = compile_program(program, Some(&OPT_ALL))?;
+		assert_eq!(
+			desired_output,
+			run_code(BVM_CONFIG_1D, code.to_string(), input, None)
+		);
+		Ok(())
 	}
 
 	#[test]
@@ -872,6 +996,127 @@ fn add_one(cell t) {
 	}
 
 	#[test]
+	fn functions_3d() {
+		let program = String::from(
+			r#"
+struct A {cell b; cell c;};
+struct A a;
+a.b = '0';
+a.c = '0';
+
+add_one(a.b);
+add_one(a.c);
+add_one(a.c);
+output a.b;
+output a.c;
+
+output 10;
+
+add_one(a);
+output a.b;
+output a.c;
+
+fn add_one(cell t) {
+  ++t;
+}
+
+fn add_one(struct A t) {
+  ++t.b;
+	++t.c;
+}
+"#,
+		);
+		let input = String::from("");
+		let desired_output = String::from("12\n23");
+		let output = compile_and_run(program, input).expect("");
+		println!("{output}");
+		assert_eq!(desired_output, output)
+	}
+
+	#[test]
+	fn functions_3e() {
+		let program = String::from(
+			r#"
+struct A {cell b; cell c;};
+struct A a;
+a.b = '0';
+a.c = '0';
+
+add_one(a.b);
+add_one(a.c);
+add_one(a.c);
+output a.b;
+output a.c;
+
+output 10;
+
+add_one(a, a.b);
+output a.b;
+output a.c;
+
+fn add_one(cell t) {
+  ++t;
+}
+
+fn add_one(struct A t, cell a) {
+  ++t.b;
+	++t.c;
+	++a;
+}
+"#,
+		);
+		let input = String::from("");
+		let desired_output = String::from("12\n33");
+		let output = compile_and_run(program, input).expect("");
+		println!("{output}");
+		assert_eq!(desired_output, output)
+	}
+
+	#[test]
+	#[should_panic]
+	fn functions_3f() {
+		let program = String::from(
+			r#"
+struct A {cell b; cell c;};
+struct A a;
+a.b = '0';
+a.c = '0';
+
+add_one(a.b);
+add_one(a.c);
+add_one(a.c);
+output a.b;
+output a.c;
+
+output 10;
+
+add_one(a, a.b);
+output a.b;
+output a.c;
+
+fn add_one(cell t) {
+  ++t;
+}
+
+fn add_one(struct A t, cell a) {
+  ++t.b;
+	++t.c;
+	++a;
+}
+
+fn add_one(struct A tfoaishjdf, cell aaewofjas) {
+  output "hello";
+}
+"#,
+		);
+		let input = String::from("");
+		let desired_output = String::from("12\n33");
+		let output = compile_and_run(program, input).expect("");
+		println!("{output}");
+		assert_eq!(desired_output, output)
+	}
+
+	#[test]
 	fn functions_4() {
 		let program = String::from(
 			r#"
@@ -1268,6 +1513,96 @@ output '\n';
 	}
 
 	#[test]
+	fn structs_4b() {
+		let program = String::from(
+			r#";
+struct AA a;
+input a.green;
+input a.yellow;
+input *a.reds;
+
+struct AA {
+  cell green;
+  cell yellow;
+  cell[4] reds;
+}
+
+output *a.reds;
+output a.yellow;
+output a.green;
+output '\n';
+			"#,
+		);
+		let input = String::from("gy0123");
+		let desired_output = String::from("0123yg\n");
+		let output = compile_and_run(program, input).expect("");
+		println!("{output}");
+		assert_eq!(desired_output, output)
+	}
+
+	#[test]
+	fn structs_4c() {
+		let program = String::from(
+			r#";
+struct AA a;
+input a.green;
+input a.yellow;
+// input *a.reds;
+input *a.sub.blues;
+input a.sub.t;
+
+struct BB {
+  cell[2] blues;
+	cell t;
+}
+
+struct AA {
+  cell green;
+  cell yellow;
+  // cell[4] reds;
+	struct BB sub;
+}
+
+output a.sub.t;
+output *a.sub.blues;
+// output *a.reds;
+output a.yellow;
+output a.green;
+output '\n';
+			"#,
+		);
+		let input = String::from("gy-+t");
+		let desired_output = String::from("t-+yg\n");
+		let output = compile_and_run(program, input).expect("");
+		println!("{output}");
+		assert_eq!(desired_output, output)
+	}
+
+	#[test]
+	#[should_panic]
+	fn structs_4d() {
+		let program = String::from(
+			r#";
+struct AA a;
+input *a.reds;
+
+struct AA {
+  cell[4] reds;
+  cell green;
+}
+
+output a.reds[4];
+output '\n';
+			"#,
+		);
+		let input = String::from("0123a");
+		let desired_output = String::from("a\n");
+		let output = compile_and_run(program, input).expect("");
+		println!("{output}");
+		assert_eq!(desired_output, output)
+	}
+
+	#[test]
 	fn structs_5() {
 		let program = String::from(
 			r#";
@@ -1398,7 +1733,54 @@ output as[1].bbb[2].green;
 		assert_eq!(desired_output, output)
 	}
 
-	#[ignore]
+	#[test]
+	fn structs_7a() {
+		let program = String::from(
+			r#";
+struct BB {
+	cell green @2;
+}
+struct AA {
+  cell green @10;
+	struct BB[3] bbb @1;
+}
+
+struct AA[2] as @-9;
+
+fn input_AAs(struct AA[2] aaas) {
+  fn input_BB(struct BB b) {
+	  input b.green;
+	}
+	input_BB(aaas[0].bbb[0]);
+	input_BB(aaas[0].bbb[1]);
+	input_BB(aaas[0].bbb[2]);
+  input_BB(aaas[1].bbb[0]);
+	input_BB(aaas[1].bbb[1]);
+	input_BB(aaas[1].bbb[2]);
+ 
+  input aaas[0].green;
+  input aaas[1].green;
+	output "HI\n";
+}
+input_AAs(as);
+
+output as[0].green;
+output as[0].bbb[0].green;
+output as[0].bbb[1].green;
+output as[0].bbb[2].green;
+output as[1].green;
+output as[1].bbb[0].green;
+output as[1].bbb[1].green;
+output as[1].bbb[2].green;
+			"#,
+		);
+		let input = String::from("abcdefgh");
+		let desired_output = String::from("HI\ngabchdef");
+		let output = compile_and_run(program, input).expect("");
+		println!("{output}");
+		assert_eq!(desired_output, output)
+	}
+
 	#[test]
 	fn structs_bf_1() {
 		let program = String::from(
@@ -1414,25 +1796,97 @@ struct Vector {
 }
 
 struct Vector vec1 @2;
+vec1.marker = true;
 
 vec1.frames[0].marker = true;
 vec1.frames[0].value = 'j';
 vec1.frames[1].marker = true;
 vec1.frames[1].value = 'k';
+vec1.frames[2].value = 'l';
 
 bf @2 {
-  >[>.>>>]
+  [>.>>>]
 }
 			"#,
 		);
 		let input = String::from("");
-		let desired_output = String::from("jk");
+		let desired_output = String::from("jkl");
 		let output = compile_and_run(program, input).expect("");
 		println!("{output}");
 		assert_eq!(desired_output, output)
 	}
 
-	#[ignore]
+	#[test]
+	// TODO: fix the r_panic macro that makes this error have unescaped quotes in it (weird)
+	// #[should_panic(expected = r#"Subfields "marker" and "temp_cells" overlap in struct."#)]
+	#[should_panic]
+	fn structs_bf_1a() {
+		let program = String::from(
+			r#";
+struct Frame {
+	cell    marker     @2;
+	cell    value      @0;
+	cell[2] temp_cells @1;
+}
+
+struct Frame f;
+			"#,
+		);
+		let input = String::from("");
+		let desired_output = String::from("");
+		let output = compile_and_run(program, input).expect("");
+		println!("{output}");
+		assert_eq!(desired_output, output)
+	}
+
+	#[test]
+	// TODO: fix the r_panic macro that makes this error have unescaped quotes in it (weird)
+	// #[should_panic(expected = r#"Subfields "marker" and "temp_cells" overlap in struct."#)]
+	#[should_panic]
+	fn structs_bf_1b() {
+		let program = String::from(
+			r#";
+struct Frame {
+	cell    marker     @-2;
+	cell    value      @0;
+	cell[2] temp_cells @1;
+}
+
+struct Frame f;
+			"#,
+		);
+		let input = String::from("");
+		let desired_output = String::from("");
+		let output = compile_and_run(program, input).expect("");
+		println!("{output}");
+		assert_eq!(desired_output, output)
+	}
+
+	#[test]
+	#[should_panic]
+	fn structs_bf_1c() {
+		let program = String::from(
+			r#";
+struct G {
+	cell a @1;
+	cell b @1;
+}
+
+struct G g;
+g.a = 'a';
+g.b = 'b';
+
+output g.a;
+output g.b;
+			"#,
+		);
+		let input = String::from("");
+		let desired_output = String::from("ab");
+		let output = compile_and_run(program, input).expect("");
+		println!("{output}");
+		assert_eq!(desired_output, output)
+	}
+
 	#[test]
 	fn structs_bf_2() {
 		let program = String::from(
@@ -1714,6 +2168,352 @@ cell b = 3;
 		println!("{code}");
 
 		assert!(code.starts_with(">+<++>>+++"));
+		Ok(())
+	}
+
+	#[test]
+	fn memory_specifiers_4() -> Result<(), String> {
+		let program = String::from(
+			r#"
+cell a @1,2 = 1;
+cell foo @0 = 2;
+cell b = 3;
+"#,
+		);
+		let code = compile_program(program, None)?.to_string();
+		println!("{code}");
+
+		assert!(code.starts_with(">^^+<vv++>+++"));
+		Ok(())
+	}
+
+	#[test]
+	fn memory_specifiers_5() -> Result<(), String> {
+		let program = String::from(
+			r#"
+cell[4][3] g @1,2;
+g[0][0] = 1;
+g[1][1] = 2;
+g[2][2] = 3;
+cell foo @0 = 2;
+cell b = 3;
+"#,
+		);
+		let code = compile_program(program, None)?.to_string();
+		println!("{code}");
+
+		assert!(code.starts_with(">^^[-]+>>>>>[-]++>>>>>[-]+++<<<<<<<<<<<vv++>+++"));
+		Ok(())
+	}
+
+	#[test]
+	fn memory_specifiers_6() {
+		let program = String::from(
+			r#"
+cell a @1 = 1;
+cell foo @1 = 2;
+cell b = 3;
+"#,
+		);
+		let code = compile_program(program, None);
+		assert!(code.is_err());
+		assert!(code
+			.unwrap_err()
+			.to_string()
+			.contains("Location specifier @1,0 conflicts with another allocation"));
+	}
+
+	#[test]
+	fn memory_specifiers_7() {
+		let program = String::from(
+			r#"
+cell a @1,3 = 1;
+cell foo @1,3 = 2;
+cell b = 3;
+"#,
+		);
+		let code = compile_program(program, None);
+		assert!(code.is_err());
+		assert!(code
+			.unwrap_err()
+			.to_string()
+			.contains("Location specifier @1,3 conflicts with another allocation"));
+	}
+
+	#[test]
+	fn memory_specifiers_8() {
+		let program = String::from(
+			r#"
+cell a @2 = 1;
+cell foo @2,0 = 2;
+cell b = 3;
+"#,
+		);
+		let code = compile_program(program, None);
+		assert!(code.is_err());
+		assert!(code
+			.unwrap_err()
+			.to_string()
+			.contains("Location specifier @2,0 conflicts with another allocation"));
+	}
+
+	#[test]
+	fn memory_specifiers_9() {
+		let program = String::from(
+			r#"
+cell a @2,4 = 1;
+cell[4] b @0,4;
+"#,
+		);
+		let code = compile_program(program, None);
+		assert!(code.is_err());
+		assert!(code
+			.unwrap_err()
+			.to_string()
+			.contains("Location specifier @0,4 conflicts with another allocation"));
+	}
+
+	#[test]
+	fn variable_location_specifiers_1() -> Result<(), String> {
+		let program = String::from(
+			r#"
+cell a = 'h';
+bf @a {.}
+"#,
+		);
+		let code = compile_program(program, None)?.to_string();
+		println!("{code}");
+
+		let input = String::from("wxy");
+		let output = run_code(BVM_CONFIG_1D, code.clone(), input, None);
+		println!("{output}");
+		assert_eq!(output, "h");
+		Ok(())
+	}
+
+	#[test]
+	fn variable_location_specifiers_1a() -> Result<(), String> {
+		let program = String::from(
+			r#"
+cell[100] _;
+cell a = 'h';
+cell[4] b;
+bf @a {.}
+"#,
+		);
+		let code = compile_program(program, None)?.to_string();
+		println!("{code}");
+
+		let input = String::from("");
+		let output = run_code(BVM_CONFIG_1D, code.clone(), input, None);
+		println!("{output}");
+		assert_eq!(output, "h");
+		Ok(())
+	}
+
+	#[test]
+	fn variable_location_specifiers_2() -> Result<(), String> {
+		let program = String::from(
+			r#"
+struct Test {cell[3] a @0; cell b;}
+struct Test t;
+input *t.a;
+bf @t.a {
+[+.>]
+}
+"#,
+		);
+		let code = compile_program(program, None)?.to_string();
+		println!("{code}");
+
+		let input = String::from("wxy");
+		let output = run_code(BVM_CONFIG_1D, code.clone(), input, None);
+		println!("{output}");
+		assert_eq!(code, ",>,>,<<[+.>]");
+		assert_eq!(output, "xyz");
+		Ok(())
+	}
+
+	#[test]
+	fn variable_location_specifiers_2a() -> Result<(), String> {
+		let program = String::from(
+			r#"
+struct Test {cell[3] a @0; cell b;}
+struct Test t;
+input *t.a;
+bf @t {
+[+.>]
+}
+"#,
+		);
+		let code = compile_program(program, None)?.to_string();
+		println!("{code}");
+
+		let input = String::from("wxy");
+		let output = run_code(BVM_CONFIG_1D, code.clone(), input, None);
+		println!("{output}");
+		assert_eq!(code, ",>,>,<<[+.>]");
+		assert_eq!(output, "xyz");
+		Ok(())
+	}
+
+	#[test]
+	fn variable_location_specifiers_3() -> Result<(), String> {
+		let program = String::from(
+			r#"
+cell[5] f @6 = "abcde";
+bf @f[2] clobbers *f {.+++.}
+output 10;
+output *f;
+"#,
+		);
+		let code = compile_program(program, None)?.to_string();
+		println!("{code}");
+
+		let input = String::from("");
+		let output = run_code(BVM_CONFIG_1D, code.clone(), input, None);
+		println!("{output}");
+		assert_eq!(output, "cf\nabfde");
+		Ok(())
+	}
+
+	#[test]
+	fn variable_location_specifiers_3a() -> Result<(), String> {
+		let program = String::from(
+			r#"
+cell[4] f @8 = "xyz ";
+bf @f {[.>]}
+"#,
+		);
+		let code = compile_program(program, None)?.to_string();
+		println!("{code}");
+
+		let input = String::from("");
+		let output = run_code(BVM_CONFIG_1D, code.clone(), input, None);
+		println!("{output}");
+		assert_eq!(output, "xyz ");
+		Ok(())
+	}
+
+	#[test]
+	fn variable_location_specifiers_4() -> Result<(), String> {
+		let program = String::from(
+			r#"
+fn func(cell g) {
+  bf @g {+.-}
+}
+
+cell a = '5';
+func(a);
+"#,
+		);
+		let code = compile_program(program, None)?.to_string();
+		println!("{code}");
+
+		let input = String::from("");
+		let output = run_code(BVM_CONFIG_1D, code.clone(), input, None);
+		println!("{output}");
+		assert_eq!(output, "6");
+		Ok(())
+	}
+
+	#[test]
+	fn variable_location_specifiers_4a() -> Result<(), String> {
+		let program = String::from(
+			r#"
+fn func(cell g) {
+  bf @g {+.-}
+}
+
+cell[3] a = "456";
+func(a[1]);
+"#,
+		);
+		let code = compile_program(program, None)?.to_string();
+		println!("{code}");
+
+		let input = String::from("");
+		let output = run_code(BVM_CONFIG_1D, code.clone(), input, None);
+		println!("{output}");
+		assert_eq!(output, "6");
+		Ok(())
+	}
+
+	#[test]
+	fn variable_location_specifiers_4b() -> Result<(), String> {
+		let program = String::from(
+			r#"
+fn func(cell g) {
+  bf @g {+.-}
+}
+
+struct H {cell[3] r;}
+struct H a;
+a.r[0] = '4';
+a.r[1] = '5';
+a.r[2] = '6';
+func(a.r[1]);
+"#,
+		);
+		let code = compile_program(program, None)?.to_string();
+		println!("{code}");
+
+		let input = String::from("");
+		let output = run_code(BVM_CONFIG_1D, code.clone(), input, None);
+		println!("{output}");
+		assert_eq!(output, "6");
+		Ok(())
+	}
+
+	#[test]
+	fn variable_location_specifiers_4c() -> Result<(), String> {
+		let program = String::from(
+			r#"
+fn func(struct H h) {
+  bf @h {+.-}
+}
+
+struct H {cell[3] r @0;}
+struct H a;
+a.r[0] = '4';
+a.r[1] = '5';
+a.r[2] = '6';
+func(a);
+"#,
+		);
+		let code = compile_program(program, None)?.to_string();
+		println!("{code}");
+
+		let input = String::from("");
+		let output = run_code(BVM_CONFIG_1D, code.clone(), input, None);
+		println!("{output}");
+		assert_eq!(output, "5");
+		Ok(())
+	}
+
+	#[test]
+	fn variable_location_specifiers_4d() -> Result<(), String> {
+		let program = String::from(
+			r#"
+fn func(cell[2] g) {
+  bf @g {+.-}
+}
+
+struct J {cell[2] j;}
+struct H {cell[20] a; struct J jj @1;}
+struct H a;
+a.jj.j[0] = '3';
+a.jj.j[1] = '4';
+func(a.jj.j);
+"#,
+		);
+		let code = compile_program(program, None)?.to_string();
+		println!("{code}");
+
+		let input = String::from("");
+		let output = run_code(BVM_CONFIG_1D, code.clone(), input, None);
+		println!("{output}");
+		assert_eq!(output, "4");
 		Ok(())
 	}
 
@@ -2021,5 +2821,242 @@ output a + 3;
 		assert_eq!(desired_output, run_code(BVM_CONFIG_1D, code, input, None));
 
 		Ok(())
+	}
+	#[test]
+	#[should_panic(expected = "Memory Allocation Method not implemented")]
+	fn unimplemented_memory_allocation() {
+		let program = String::from(
+			r#"
+			cell[15] arr @1;
+			cell a = 'G';
+			"#,
+		);
+		let cfg = MastermindConfig {
+			optimise_generated_code: false,
+			optimise_cell_clearing: false,
+			optimise_variable_usage: false,
+			optimise_memory_allocation: false,
+			optimise_unreachable_loops: false,
+			optimise_constants: false,
+			optimise_empty_blocks: false,
+			memory_allocation_method: 128,
+			enable_2d_grid: false,
+		};
+		let code = compile_program(program, Some(&cfg));
+	}
+	#[test]
+	fn tiles_memory_allocation_1() -> Result<(), String> {
+		let program = String::from(
+			r#"
+cell a = 1;
+cell b = 1;
+cell c = 1;
+cell d = 1;
+cell e = 1;
+cell f = 1;
+cell h = 1;
+cell i = 1;
+cell j = 1;
+      "#,
+		);
+		let desired_output = String::from("+<v+^+^+>vv+^^+>vv+^+^+");
+
+		let code = compile_program(program, Some(&OPT_NONE_TILES))?.to_string();
+		assert_eq!(desired_output, code);
+
+		Ok(())
+	}
+	#[test]
+	fn tiles_memory_allocation_2() -> Result<(), String> {
+		let program = String::from(
+			r#"
+cell a = '1';
+cell b = '2';
+cell c = '3';
+cell d = '4';
+cell e = '5';
+cell f = '6';
+cell g = '7';
+cell h = '8';
+cell i = '9';
+output a;
+output b;
+output c;
+output d;
+output e;
+output f;
+output g;
+output h;
+output i;
+      "#,
+		);
+		let input = String::from("");
+		let desired_output = String::from("123456789");
+
+		let code = compile_program(program, Some(&OPT_NONE_TILES))?.to_string();
+		println!("{}", code);
+		assert_eq!(desired_output, run_code(BVM_CONFIG_2D, code, input, None));
+
+		Ok(())
+	}
+
+	#[test]
+	fn tiles_memory_allocation_3() {
+		let program = String::from(
+			r#"
+cell a @2,4 = 1;
+cell[4] b @0,4;
+"#,
+		);
+		let code = compile_program(program, Some(&OPT_NONE_TILES));
+		assert!(code.is_err());
+		assert!(code
+			.unwrap_err()
+			.to_string()
+			.contains("Location specifier @0,4 conflicts with another allocation"));
+	}
+
+	#[test]
+	fn zig_zag_memory_allocation_1() -> Result<(), String> {
+		let program = String::from(
+			r#"
+cell a = 1;
+cell b = 1;
+cell c = 1;
+cell d = 1;
+cell e = 1;
+cell f = 1;
+cell h = 1;
+cell i = 1;
+cell j = 1;
+      "#,
+		);
+		let desired_output = String::from("+>+<^+>>v+<^+<^+>>>vv+<^+<^+");
+
+		let code = compile_program(program, Some(&OPT_NONE_ZIG_ZAG))?.to_string();
+		assert_eq!(desired_output, code);
+
+		Ok(())
+	}
+	#[test]
+	fn zig_zag_memory_allocation_2() -> Result<(), String> {
+		let program = String::from(
+			r#"
+cell a = '1';
+cell b = '2';
+cell c = '3';
+cell d = '4';
+cell e = '5';
+cell f = '6';
+cell g = '7';
+cell h = '8';
+cell i = '9';
+output a;
+output b;
+output c;
+output d;
+output e;
+output f;
+output g;
+output h;
+output i;
+      "#,
+		);
+		let input = String::from("");
+		let desired_output = String::from("123456789");
+
+		let code = compile_program(program, Some(&OPT_NONE_ZIG_ZAG))?.to_string();
+		println!("{}", code);
+		assert_eq!(desired_output, run_code(BVM_CONFIG_2D, code, input, None));
+
+		Ok(())
+	}
+
+	#[test]
+	fn zig_zag_memory_allocation_3() {
+		let program = String::from(
+			r#"
+cell a @2,4 = 1;
+cell[4] b @0,4;
+"#,
+		);
+		let code = compile_program(program, Some(&OPT_NONE_ZIG_ZAG));
+		assert!(code.is_err());
+		assert!(code
+			.unwrap_err()
+			.to_string()
+			.contains("Location specifier @0,4 conflicts with another allocation"));
+	}
+
+	#[test]
+	fn spiral_memory_allocation_1() -> Result<(), String> {
+		let program = String::from(
+			r#"
+cell a = 1;
+cell b = 1;
+cell c = 1;
+cell d = 1;
+cell e = 1;
+cell f = 1;
+cell h = 1;
+cell i = 1;
+cell j = 1;
+      "#,
+		);
+		let desired_output = String::from("^+>+v+<+<+^+^+>+>+");
+
+		let code = compile_program(program, Some(&OPT_NONE_SPIRAL))?.to_string();
+		assert_eq!(desired_output, code);
+
+		Ok(())
+	}
+	#[test]
+	fn spiral_memory_allocation_2() -> Result<(), String> {
+		let program = String::from(
+			r#"
+cell a = '1';
+cell b = '2';
+cell c = '3';
+cell d = '4';
+cell e = '5';
+cell f = '6';
+cell g = '7';
+cell h = '8';
+cell i = '9';
+output a;
+output b;
+output c;
+output d;
+output e;
+output f;
+output g;
+output h;
+output i;
+      "#,
+		);
+		let input = String::from("");
+		let desired_output = String::from("123456789");
+
+		let code = compile_program(program, Some(&OPT_NONE_SPIRAL))?.to_string();
+		println!("{}", code);
+		assert_eq!(desired_output, run_code(BVM_CONFIG_2D, code, input, None));
+
+		Ok(())
+	}
+
+	#[test]
+	fn spiral_memory_allocation_3() {
+		let program = String::from(
+			r#"
+cell a @2,4 = 1;
+cell[4] b @0,4;
+"#,
+		);
+		let code = compile_program(program, Some(&OPT_NONE_SPIRAL));
+		assert!(code.is_err());
+		assert!(code
+			.unwrap_err()
+			.to_string()
+			.contains("Location specifier @0,4 conflicts with another allocation"));
 	}
 }
