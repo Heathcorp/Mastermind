@@ -1,4 +1,5 @@
 #include <bitops>
+#include <u8>
 
 struct i8 {
   cell n;
@@ -15,14 +16,14 @@ struct i8 {
 // cell MAX_i8 = 127;
 // cell MIN_i8 = -128;
 
-fn is_neg(struct i8 a, cell _sign_neg) {
-  copy a.n into _sign_neg;
+fn is_neg(struct i8 self, cell _sign_neg) {
+  copy self.n into _sign_neg;
   cell i = 7;
   tshift_r(_sign_neg, i);
 }
 
-fn to_u8(struct i8 a, cell _abs, cell _sign_neg) {
-  copy a.n into _abs _sign_neg;
+fn to_u8(struct i8 self, cell _abs, cell _sign_neg) {
+  copy self.n into _abs _sign_neg;
 
   {
     // shift so that _sign_neg is the most significant bit
@@ -33,6 +34,32 @@ fn to_u8(struct i8 a, cell _abs, cell _sign_neg) {
   if _sign_neg {
     _abs = -_abs;
   }
+}
+
+/// add-assign operator
+fn add(struct i8 self, struct i8 other) {
+  self.n += other.n;
+}
+
+/// increment operator
+fn inc(struct i8 self) {
+  self.n += 1;
+}
+
+/// decrement operator
+fn dec(struct i8 self) {
+  self.n -= 1;
+}
+
+/// print function for signed 8bit integers
+fn print(struct i8 self) {
+  cell abs;
+  cell neg;
+  to_u8(self, abs, neg);
+  if neg {
+    output '-';
+  }
+  print(abs);
 }
 
 // debug/test code:

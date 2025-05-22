@@ -1,5 +1,5 @@
-#include <u8>
-#include <i8>
+// #include <u8>
+// #include <i8>
 #include <u16>
 
 struct ifp16 {
@@ -15,12 +15,12 @@ struct ifp16 {
 // (+/-)(int + frac * 2^-8)
 
 fn _1(struct ifp16 n)             {n.int.n = 1;    n.frac = 0;}
-fn _2(struct ifp16 n)             {n.int.n = 1;    n.frac = 0;}
-fn _4(struct ifp16 n)             {n.int.n = 1;    n.frac = 0;}
-fn _8(struct ifp16 n)             {n.int.n = 1;    n.frac = 0;}
-fn _16(struct ifp16 n)            {n.int.n = 1;    n.frac = 0;}
-fn _32(struct ifp16 n)            {n.int.n = 1;    n.frac = 0;}
-fn _64(struct ifp16 n)            {n.int.n = 1;    n.frac = 0;}
+fn _2(struct ifp16 n)             {n.int.n = 2;    n.frac = 0;}
+fn _4(struct ifp16 n)             {n.int.n = 4;    n.frac = 0;}
+fn _8(struct ifp16 n)             {n.int.n = 8;    n.frac = 0;}
+fn _16(struct ifp16 n)            {n.int.n = 16;    n.frac = 0;}
+fn _32(struct ifp16 n)            {n.int.n = 32;    n.frac = 0;}
+fn _64(struct ifp16 n)            {n.int.n = 64;    n.frac = 0;}
 fn _127(struct ifp16 n)           {n.int.n = 127;  n.frac = 0;}
 fn _127p99609375(struct ifp16 n)  {n.int.n = 127;  n.frac = 255;}
 fn __128(struct ifp16 n)          {n.int.n = -128; n.frac = 0;}
@@ -45,12 +45,11 @@ fn __0p99609375(struct ifp16 n)   {n.int.n = -1;   n.frac = 1;}
 fn _1p5(struct ifp16 n)           {n.int.n = 1;    n.frac = 128;}
 fn _2p5(struct ifp16 n)           {n.int.n = 2;    n.frac = 128;}
 fn _7p75(struct ifp16 n)          {n.int.n = 2;    n.frac = 192;}
-fn __0p5(struct ifp16 n)          {n.int.n = -1;   n.frac = 128;}
 fn __1p5(struct ifp16 n)          {n.int.n = -2;   n.frac = 128;}
 fn __2p5(struct ifp16 n)          {n.int.n = -3;   n.frac = 128;}
 fn __6p25(struct ifp16 n)         {n.int.n = -7;   n.frac = 192;}
 fn _99p99609375(struct ifp16 n)   {n.int.n = 99;   n.frac = 255;}
-fn __99p99609375(struct ifp16 n)  {n.int.n = 100;  n.frac = 1;}
+fn __99p99609375(struct ifp16 n)  {n.int.n = -100;  n.frac = 1;}
 fn _127p12890625(struct ifp16 n)  {n.int.n = 127;  n.frac = 33;}
 fn __127p12890625(struct ifp16 n) {n.int.n = -128;  n.frac = 223;}
 
@@ -58,6 +57,17 @@ fn MIN(struct ifp16 n) {__128(n);}
 fn MAX(struct ifp16 n) {_127p99609375(n);}
 fn EPSILON(struct ifp16 n) {_0p00390625(n);}
 
+/// add-assign two ifp16 numbers
+fn add(struct ifp16 self, struct ifp16 other) {
+  add(self.int, other.int);
+  copy other.frac {
+    self.frac += 1;
+    inc(self.int);
+    if self.frac {
+      dec(self.int);
+    }
+  }
+}
 
 
 /// read an fp16 from stdin, wraps integer digits, truncates fractional part
@@ -67,5 +77,42 @@ fn read(struct ifp16 self) {
 
 /// format and print to 2 decimal places
 fn print(struct ifp16 self) {
-  
+  print(self.int);
+  output '.';
+
+  // convert from integer to decimal digits * 2^-8
+  // (frac * 25) >> 6
+  // (frac * 10 * 10) >> 8
+  struct u16 n;
+  n.n0 = self.frac;
+  {
+    cell c = 100;
+    mult_n_d(n, c);
+  }
+  print(n.n1);
 }
+
+// debug/test code:
+// struct ifp16 a;
+// struct ifp16 e; EPSILON(e);
+// _64(a); print(a); output "\n";
+// __128(a); print(a); output "\n";
+// _0p125(a); print(a); output "\n";
+// _0p5(a); print(a); output "\n";
+// _1p5(a); print(a); output "\n";
+// __0p5(a); print(a); output "\n";
+// __0p25(a); print(a); output "\n";
+// __6p25(a); print(a); output "\n";
+// _99p99609375(a); print(a); output "\n";
+// add(a, e); print(a); output "\n";
+// _127p12890625(a); print(a); output "\n";
+// __127p12890625(a); print(a); output "\n";
+// MAX(a); print(a); output "\n";
+// add(a, e); print(a); output "\n";
+
+// drain 100 {
+//   drain 100 {
+//     add(a, e); print(a); output "\n";
+//   }
+// }
+

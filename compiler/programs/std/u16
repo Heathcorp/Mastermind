@@ -40,12 +40,16 @@ fn _65535(struct u16 n) {n.n1 = 255; n.n0 = 255;}
 fn MAX(struct u16 n) {_65535(n);}
 
 /// set one u16 to be a copy of another
-fn set(struct u16 src, struct u16 dest) {
+fn set(struct u16 dest, struct u16 src) {
   dest.n0 = src.n0;
   dest.n1 = src.n1;
 }
+/// set overload for u8
+fn set(struct u16 dest, cell src) {
+  dest.n0 = src;
+}
 /// set destructively
-fn set_d(struct u16 src, struct u16 dest) {
+fn set_d(struct u16 dest, struct u16 src) {
   dest.n0 = 0;
   drain src.n0 into dest.n0;
   dest.n1 = 0;
@@ -144,9 +148,19 @@ fn mult_10(struct u16 self) {
   // naively multiply by 10
   // it is unclear if there is a better way with bitshifts
   struct u16 n;
-  set(self, n);
+  set(n, self);
   drain 9 {
     add(self, n);
+  }
+}
+
+/// multiply by 25, drains n
+fn mult_n_d(struct u16 self, cell n) {
+  struct u16 c;
+  set(c, self);
+  n -= 1;
+  drain n {
+    add(self, c);
   }
 }
 
@@ -175,7 +189,7 @@ fn print(struct u16 self) {
   }
 
   struct u16 n;
-  set(self, n);
+  set(n, self);
   // essentially repeatedly divide by 10
   drain 5 {
     shift_stack();
