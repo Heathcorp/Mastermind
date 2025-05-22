@@ -58,6 +58,7 @@ const App: Component = () => {
     optimise_constants: false,
     optimise_empty_blocks: false,
     optimise_generated_code: false,
+    optimise_generated_all_permutations: false,
     optimise_memory_allocation: false,
     optimise_unreachable_loops: false,
     optimise_variable_usage: false,

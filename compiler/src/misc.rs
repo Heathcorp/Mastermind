@@ -2,6 +2,7 @@
 pub struct MastermindConfig {
 	// basic pure brainfuck optimisations
 	pub optimise_generated_code: bool,
+	pub optimise_generated_all_permutations: bool,
 	// track cell value and clear with constant addition if possible
 	pub optimise_cell_clearing: bool,
 	// track cell value and skip loops which can never be entered
@@ -30,6 +31,7 @@ impl MastermindConfig {
 	pub fn new(optimise_bitmask: usize) -> MastermindConfig {
 		MastermindConfig {
 			optimise_generated_code: (optimise_bitmask & 0b00000001) > 0,
+			optimise_generated_all_permutations: (optimise_bitmask & 0b00001000) > 0,
 			optimise_cell_clearing: (optimise_bitmask & 0b00000010) > 0,
 			optimise_unreachable_loops: (optimise_bitmask & 0b00000100) > 0,
 			optimise_variable_usage: false,

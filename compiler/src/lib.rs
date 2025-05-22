@@ -59,7 +59,7 @@ pub fn wasm_compile(
 	let bf_code = builder.build(instructions.finalise_instructions(false), false)?;
 
 	Ok(match config.optimise_generated_code {
-		true => optimise(bf_code).to_string(),
+		true => optimise(bf_code, config.optimise_generated_all_permutations).to_string(),
 		false => bf_code.to_string(),
 	})
 }

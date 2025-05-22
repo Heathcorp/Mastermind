@@ -377,140 +377,156 @@ impl CellAllocator {
 		}
 	}
 
+	/// Checks if the memory size can be allocated to the right of a given location e.g. arrays
+	fn check_allocatable(
+		&mut self,
+		location: &TapeCell,
+		size: usize,
+	) -> bool {
+		for k in 0..size {
+			if self.alloc_map.contains(&(location.0 + k as i32, location.1)) {
+				return false;
+			}
+		}
+		return true;
+	}
+
+	/// Will either check a specific location can be allocated at the chosen size or if no location is
+	/// provided it will find a memory location where this size can be allocated
+	/// Uses a variety of memory allocation methods based on settings
 	fn allocate(
 		&mut self,
 		location: Option<TapeCell>,
 		size: usize,
 		method: u8,
 	) -> Result<TapeCell, String> {
-		// should the region start at the current tape head?
 		let mut region_start = location.unwrap_or((0, 0));
-		if method == 0 {
-			for i in region_start.0.. {
-				if self.alloc_map.contains(&(i, region_start.1)) {
-					// if a specifier was set, it is invalid so throw an error
-					// TODO: not sure if this should throw here or not
-					if let Some(l) = location {
-						r_panic!(
-							"Location specifier @{0},{1} conflicts with another allocation",
-							l.0,
-							l.1
-						);
-					};
-					// reset search to start at next cell
-					region_start = (i + 1, region_start.1);
-				} else if i - region_start.0 == (size as i32 - 1) {
-					break;
-				}
+		//Check specified memory allocation above to ensure that this works nicely with all algorithms
+		if let Some(l) = location {
+			if !self.check_allocatable(&l, size) {
+				r_panic!(
+					"Location specifier @{0},{1} conflicts with another allocation",
+					l.0,
+					l.1
+				);
 			}
-		} else if method == 1 {
-			//Zig Zag
-			let mut found = false;
-			let mut loops = 0;
-			let mut i;
-			let mut j;
-			while !found {
-				i = region_start.0 + loops;
-				j = region_start.1;
-				for _ in 0..=loops {
-					if !self.alloc_map.contains(&(i, j)) {
-						found = true;
-						region_start = (i, j);
-						break;
-					}
-					i = i - 1;
-					j = j + 1;
-				}
-				loops += 1;
-			}
-		} else if method == 2 {
-			//Spiral
-			let mut found = false;
-			let mut loops = 1;
-			let mut directions = ['N', 'E', 'S', 'W'];
-			let mut i = region_start.0;
-			let mut j = region_start.1;
-			while !found {
-				for dir in directions {
-					match dir {
-						'N' => {
-							for _ in 0..loops {
-								j += 1;
-								if !self.alloc_map.contains(&(i, j)) {
-									found = true;
-									region_start = (i, j);
-									break;
-								}
-							}
-						}
-						'E' => {
-							for _ in 0..loops {
-								i += 1;
-								if !self.alloc_map.contains(&(i, j)) {
-									found = true;
-									region_start = (i, j);
-									break;
-								}
-							}
-						}
-						'S' => {
-							for _ in 0..loops {
-								j -= 1;
-								if !self.alloc_map.contains(&(i, j)) {
-									found = true;
-									region_start = (i, j);
-									break;
-								}
-							}
-						}
-						'W' => {
-							for _ in 0..loops {
-								i -= 1;
-								if !self.alloc_map.contains(&(i, j)) {
-									found = true;
-									region_start = (i, j);
-									break;
-								}
-							}
-						}
-						_ => {}
-					}
-					if found {
+		} else {
+			// should the region start at the current tape head?
+			if method == 0 {
+				for i in region_start.0.. {
+					if self.alloc_map.contains(&(i, region_start.1)) {
+						region_start = (i + 1, region_start.1);
+					} else if i - region_start.0 == (size as i32 - 1) {
 						break;
 					}
 				}
-				if found {
-					break;
-				}
-				i -= 1;
-				j -= 1;
-				loops += 2;
-			}
-		} else if method == 3 {
-			//Tiles
-			let mut found = false;
-			let mut loops = 0;
-			while !found {
-				for i in -loops..=loops {
-					for j in -loops..=loops {
-						if !self
-							.alloc_map
-							.contains(&(region_start.0 + i, region_start.1 + j))
-						{
+			} else if method == 1 {
+				//Zig Zag
+				let mut found = false;
+				let mut loops = 0;
+				let mut i;
+				let mut j;
+				while !found {
+					i = region_start.0 + loops;
+					j = region_start.1;
+					for _ in 0..=loops {
+						if self.check_allocatable(&(i, j), size) {
 							found = true;
-							region_start = (region_start.0 + i, region_start.1 + j);
+							region_start = (i, j);
+							break;
+						}
+						i = i - 1;
+						j = j + 1;
+					}
+					loops += 1;
+				}
+			} else if method == 2 {
+				//Spiral
+				let mut found = false;
+				let mut loops = 1;
+				let mut directions = ['N', 'E', 'S', 'W'];
+				let mut i = region_start.0;
+				let mut j = region_start.1;
+				while !found {
+					for dir in directions {
+						match dir {
+							'N' => {
+								for _ in 0..loops {
+									j += 1;
+									if self.check_allocatable(&(i, j), size) {
+										found = true;
+										region_start = (i, j);
+										break;
+									}
+								}
+							}
+							'E' => {
+								for _ in 0..loops {
+									i += 1;
+									if self.check_allocatable(&(i, j), size) {
+										found = true;
+										region_start = (i, j);
+										break;
+									}
+								}
+							}
+							'S' => {
+								for _ in 0..loops {
+									j -= 1;
+									if self.check_allocatable(&(i, j), size) {
+										found = true;
+										region_start = (i, j);
+										break;
+									}
+								}
+							}
+							'W' => {
+								for _ in 0..loops {
+									i -= 1;
+									if self.check_allocatable(&(i, j), size) {
+										found = true;
+										region_start = (i, j);
+										break;
+									}
+								}
+							}
+							_ => {}
+						}
+						if found {
 							break;
 						}
 					}
 					if found {
 						break;
 					}
+					i -= 1;
+					j -= 1;
+					loops += 2;
 				}
-				loops += 1;
+			} else if method == 3 {
+				//Tiles
+				let mut found = false;
+				let mut loops = 0;
+				while !found {
+					for i in -loops..=loops {
+						for j in -loops..=loops {
+							if self.check_allocatable(&(region_start.0 + i, region_start.1 + j), size) {
+								found = true;
+								region_start = (region_start.0 + i, region_start.1 + j);
+								break;
+							}
+						}
+						if found {
+							break;
+						}
+					}
+					loops += 1;
+				}
+			} else {
+				panic!("Memory Allocation Method not implemented");
 			}
-		} else {
-			panic!("Memory Allocation Method not implemented");
 		}
+
 
 		// make all cells in the specified region allocated
 		for i in region_start.0..(region_start.0 + size as i32) {
