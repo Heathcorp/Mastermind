@@ -96,7 +96,14 @@
 
 .tab-controller {
   display: flex;
-  flex-direction: row-reverse;
+  flex-direction: row;
   gap: 5px;
   padding: 5px;
+}
+
+.tab-controller-divider {
+  border: var(--default-border);
+  border-width: 0.5px;
+  height: 100%;
+  border-radius: 2px;
 }

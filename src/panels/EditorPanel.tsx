@@ -3,7 +3,13 @@ import { Component, createSignal, For, createEffect, on } from "solid-js";
 import "./editor.css";
 
 import { EditorView } from "@codemirror/view";
-import { AiOutlineFolder, AiOutlinePlus } from "solid-icons/ai";
+import {
+  AiOutlineFolder,
+  AiOutlinePlus,
+  AiOutlinePlusCircle,
+  AiOutlineSave,
+  AiOutlineUpload,
+} from "solid-icons/ai";
 import {
   DragDropProvider,
   DragDropSensors,
@@ -15,11 +21,37 @@ import { useAppContext } from "../App";
 import Tab from "../components/Tab";
 import { IconTypes } from "solid-icons";
 import FileBrowserModal from "../components/FileBrowser";
+import JSZip from "jszip";
+import downloadBlob from "../utils/downloadBlob";
+import FileUploaderModal from "../components/FileUploader";
 
 const EditorPanel: Component = () => {
   const app = useAppContext()!;
 
   const [editingFile, setEditingFile] = createSignal<string>();
+
+  const switchToFile = (fileId: string) => {
+    const firstId = app.fileStates[0]?.id;
+    if (!firstId) return;
+
+    // Grabbing the ID of the first file in the file state list
+    // and moving the selected file to the first slot, then opening it
+    app.reorderFiles(fileId, firstId);
+    setEditingFile(fileId);
+  };
+
+  const zipAndSave = async () => {
+    const zip = new JSZip();
+    app.fileStates.forEach((fileState) => {
+      const blob = new Blob([fileState.editorState.doc.toString()], {
+        type: "text/plain",
+      });
+      zip.file(fileState.label, blob);
+    });
+    await zip.generateAsync({ type: "blob" }).then((x) => {
+      downloadBlob(x);
+    });
+  };
 
   createEffect(
     on([() => app.fileStates, editingFile], () => {
@@ -90,30 +122,28 @@ const EditorPanel: Component = () => {
                   />
                 )}
               </For>
-              {/* <TabFiller
-                onClick={async () => {
-                  const newId = await app.createFile();
-                  setEditingFile(newId);
-                  // setEditingLabel(newFile.id);
-                }}
-                iconComponent={AiOutlineFolder}
-              /> */}
-              {/* <TabFiller
-              onClick={async () => {
-                const newId = await app.createFile();
-                setEditingFile(newId);
-                // setEditingLabel(newFile.id);
-              }}
-            /> */}
-              {/* <TabFiller
-              onClick={() => {}}
-              iconComponent={AiOutlineUpload}
-              dropzone={dropzone}
-            /> */}
             </DragDropSensors>
           </DragDropProvider>
         </div>
         <div class="tab-controller">
+          <AiOutlinePlusCircle
+            size={24}
+            class="text-button"
+            onClick={async () => {
+              const newId = await app.createFile();
+              setEditingFile(newId);
+              switchToFile(newId);
+            }}
+          />
+          <AiOutlineUpload
+            size={24}
+            class="text-button"
+            onClick={() => {
+              app.setFileUploaderOpen(true);
+            }}
+          />
+
+          <div class="tab-controller-divider" />
           <AiOutlineFolder
             size={24}
             class="text-button"
@@ -121,11 +151,19 @@ const EditorPanel: Component = () => {
               app.setFileBrowserOpen(true);
             }}
           />
+          <AiOutlineSave
+            size={24}
+            class="text-button"
+            onClick={() => {
+              zipAndSave();
+            }}
+          />
 
           <FileBrowserModal
             editingFile={editingFile}
             setEditingFile={setEditingFile}
           />
+          <FileUploaderModal setEditingFile={setEditingFile} />
         </div>
       </div>
       <div class="code-panel" ref={editorRef} />

@@ -51,6 +51,7 @@ const App: Component = () => {
   const [helpOpen, setHelpOpen] = createSignal(false);
   const [settingsOpen, setSettingsOpen] = createSignal(false);
   const [fileBrowserOpen, setFileBrowserOpen] = createSignal(false);
+  const [fileUploaderOpen, setFileUploaderOpen] = createSignal(false);
   const [config, setConfig] = makePersisted(
     createSignal<MastermindConfig>({
       optimise_cell_clearing: false,
@@ -494,6 +495,8 @@ const App: Component = () => {
         setSettingsOpen,
         fileBrowserOpen,
         setFileBrowserOpen,
+        fileUploaderOpen,
+        setFileUploaderOpen,
         config,
         setConfig,
         brainfuck,
@@ -576,6 +579,9 @@ interface AppContextProps {
 
   fileBrowserOpen: Accessor<boolean>;
   setFileBrowserOpen: Setter<boolean>;
+
+  fileUploaderOpen: Accessor<boolean>;
+  setFileUploaderOpen: Setter<boolean>;
 
   setConfig: Setter<MastermindConfig>;
   config: Accessor<MastermindConfig>;
