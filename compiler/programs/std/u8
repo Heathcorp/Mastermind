@@ -1,0 +1,100 @@
+// common cell operations
+
+/// function wrapper for +=
+fn add(cell self, cell other) {
+  self += other;
+}
+
+/// function wrapper for -=
+fn sub(cell self, cell other) {
+  self -= other;
+}
+
+/// shift the numbers base-10 digits left, by multiplying by 10
+fn mult_10(cell self) {
+  cell n = self;
+  drain 9 {
+    self += n;
+  }
+}
+
+/// read a u8 from stdin, assumes n = 0 and valid newline-terminated input
+fn read(cell self) {
+  cell digit;
+  input digit;
+  digit -= '\n';
+  while digit {
+    digit += '\n' - '0';
+    // shift digits (times by 10) and add the new digit
+    mult_10(self);
+    self += digit;
+
+    input digit;
+    digit -= '\n';
+  }
+}
+
+fn print(cell self) {
+  cell[3] ds;
+  fn shift_stack() {
+    ds[2] = 0;
+    drain ds[1] into ds[2];
+    drain ds[0] into ds[1];
+  }
+  fn unshift_stack() {
+    ds[0] = 0;
+    drain ds[1] into ds[0];
+    drain ds[2] into ds[1];
+  }
+
+  cell n = self;
+  // essentially repeatedly divide by 10
+  drain 3 {
+    shift_stack();
+    cell dividing = true;
+    cell m; // quotient
+    ds[0] = 10; // remainder, add 1 for magic later on
+    while dividing {
+      drain 10 {
+        if n {
+          n -= 1;
+        } else {
+          ds[0] -= 1;
+          dividing = false;
+        }
+      }
+
+      if dividing {
+        m += 1;
+      }
+    }
+    // copy new quotient to value so we start again
+    n = 0; drain m into n;
+  }
+
+  {
+    cell not_leading = false;
+    drain 2 {
+      if ds[0] {
+        not_leading = true;
+      }
+      if not_leading {
+        ds[0] += '0';
+        output ds[0];
+      }
+      unshift_stack();
+    }
+  }
+  ds[0] += '0';
+  output ds[0];
+}
+
+// debug/test code
+// cell a; read(a);
+// cell b; read(b);
+// print(a); output "\n";
+// print(b); output "\n";
+// add(a, b);
+// print(a); output "\n";
+// add(a, b);
+// print(a); output "\n";

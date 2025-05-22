@@ -1,0 +1,71 @@
+#include <u8>
+#include <i8>
+#include <u16>
+
+struct ifp16 {
+  struct i8 int;
+  cell frac;
+}
+
+// struct ifp16 {
+//   cell sign_neg;
+//   cell int;
+//   cell frac;
+// }
+// (+/-)(int + frac * 2^-8)
+
+fn _1(struct ifp16 n)             {n.int.n = 1;    n.frac = 0;}
+fn _2(struct ifp16 n)             {n.int.n = 1;    n.frac = 0;}
+fn _4(struct ifp16 n)             {n.int.n = 1;    n.frac = 0;}
+fn _8(struct ifp16 n)             {n.int.n = 1;    n.frac = 0;}
+fn _16(struct ifp16 n)            {n.int.n = 1;    n.frac = 0;}
+fn _32(struct ifp16 n)            {n.int.n = 1;    n.frac = 0;}
+fn _64(struct ifp16 n)            {n.int.n = 1;    n.frac = 0;}
+fn _127(struct ifp16 n)           {n.int.n = 127;  n.frac = 0;}
+fn _127p99609375(struct ifp16 n)  {n.int.n = 127;  n.frac = 255;}
+fn __128(struct ifp16 n)          {n.int.n = -128; n.frac = 0;}
+fn _0p99609375(struct ifp16 n)    {n.int.n = 0;    n.frac = 255;}
+fn _0p5(struct ifp16 n)           {n.int.n = 0;    n.frac = 128;}
+fn _0p25(struct ifp16 n)          {n.int.n = 0;    n.frac = 64;}
+fn _0p125(struct ifp16 n)         {n.int.n = 0;    n.frac = 32;}
+fn _0p0625(struct ifp16 n)        {n.int.n = 0;    n.frac = 16;}
+fn _0p03125(struct ifp16 n)       {n.int.n = 0;    n.frac = 8;}
+fn _0p015625(struct ifp16 n)      {n.int.n = 0;    n.frac = 4;}
+fn _0p0078125(struct ifp16 n)     {n.int.n = 0;    n.frac = 2;}
+fn _0p00390625(struct ifp16 n)    {n.int.n = 0;    n.frac = 1;}
+fn __0p00390625(struct ifp16 n)   {n.int.n = -1;   n.frac = 255;}
+fn __0p0078125(struct ifp16 n)    {n.int.n = -1;   n.frac = 254;}
+fn __0p015625(struct ifp16 n)     {n.int.n = -1;   n.frac = 252;}
+fn __0p03125(struct ifp16 n)      {n.int.n = -1;   n.frac = 248;}
+fn __0p0625(struct ifp16 n)       {n.int.n = -1;   n.frac = 240;}
+fn __0p125(struct ifp16 n)        {n.int.n = -1;   n.frac = 224;}
+fn __0p25(struct ifp16 n)         {n.int.n = -1;   n.frac = 192;}
+fn __0p5(struct ifp16 n)          {n.int.n = -1;   n.frac = 128;}
+fn __0p99609375(struct ifp16 n)   {n.int.n = -1;   n.frac = 1;}
+fn _1p5(struct ifp16 n)           {n.int.n = 1;    n.frac = 128;}
+fn _2p5(struct ifp16 n)           {n.int.n = 2;    n.frac = 128;}
+fn _7p75(struct ifp16 n)          {n.int.n = 2;    n.frac = 192;}
+fn __0p5(struct ifp16 n)          {n.int.n = -1;   n.frac = 128;}
+fn __1p5(struct ifp16 n)          {n.int.n = -2;   n.frac = 128;}
+fn __2p5(struct ifp16 n)          {n.int.n = -3;   n.frac = 128;}
+fn __6p25(struct ifp16 n)         {n.int.n = -7;   n.frac = 192;}
+fn _99p99609375(struct ifp16 n)   {n.int.n = 99;   n.frac = 255;}
+fn __99p99609375(struct ifp16 n)  {n.int.n = 100;  n.frac = 1;}
+fn _127p12890625(struct ifp16 n)  {n.int.n = 127;  n.frac = 33;}
+fn __127p12890625(struct ifp16 n) {n.int.n = -128;  n.frac = 223;}
+
+fn MIN(struct ifp16 n) {__128(n);}
+fn MAX(struct ifp16 n) {_127p99609375(n);}
+fn EPSILON(struct ifp16 n) {_0p00390625(n);}
+
+
+
+/// read an fp16 from stdin, wraps integer digits, truncates fractional part
+fn read(struct ifp16 self) {
+  
+}
+
+/// format and print to 2 decimal places
+fn print(struct ifp16 self) {
+  
+}

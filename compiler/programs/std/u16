@@ -39,10 +39,17 @@ fn _65535(struct u16 n) {n.n1 = 255; n.n0 = 255;}
 
 fn MAX(struct u16 n) {_65535(n);}
 
-/// copy one u16 into another
-fn cpy(struct u16 src, struct u16 dest) {
+/// set one u16 to be a copy of another
+fn set(struct u16 src, struct u16 dest) {
   dest.n0 = src.n0;
   dest.n1 = src.n1;
+}
+/// set destructively
+fn set_d(struct u16 src, struct u16 dest) {
+  dest.n0 = 0;
+  drain src.n0 into dest.n0;
+  dest.n1 = 0;
+  drain src.n1 into dest.n1;
 }
 
 /// increment a u16 by 1
@@ -137,7 +144,7 @@ fn mult_10(struct u16 self) {
   // naively multiply by 10
   // it is unclear if there is a better way with bitshifts
   struct u16 n;
-  cpy(self, n);
+  set(self, n);
   drain 9 {
     add(self, n);
   }
@@ -166,16 +173,9 @@ fn print(struct u16 self) {
     drain ds.stack[3] into ds.stack[2];
     drain ds.stack[4] into ds.stack[3];
   }
-  fn debug_stack() {
-    output '0' + ds.stack[0];
-    output '0' + ds.stack[1];
-    output '0' + ds.stack[2];
-    output '0' + ds.stack[3];
-    output '0' + ds.stack[4];
-  }
 
   struct u16 n;
-  cpy(self, n);
+  set(self, n);
   // essentially repeatedly divide by 10
   drain 5 {
     shift_stack();
@@ -198,7 +198,7 @@ fn print(struct u16 self) {
       }
     }
     // copy new quotient to value so we start again
-    cpy(m, n);
+    set_d(m, n);
   }
 
   {
@@ -235,7 +235,7 @@ fn read(struct u16 n) {
 }
 
 // debug/test code:
-#include "print.mmi"
+// #include <u8>
 // struct u16 j;
 // struct u16 k; _256(k);
 // read(j);
