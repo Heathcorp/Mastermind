@@ -9,8 +9,8 @@ import {
 } from "solid-js";
 import { useAppContext } from "../App";
 import { Portal } from "solid-js/web";
-import JSZip from "jszip";
-import downloadBlob from "../utils/downloadBlob";
+// import JSZip from "jszip";
+// import downloadBlob from "../utils/downloadBlob";
 
 type FileBrowserProps = {
   editingFile: Accessor<string | undefined>;
