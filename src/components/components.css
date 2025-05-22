@@ -52,6 +52,7 @@
   margin-top: 10px;
   border: var(--default-border);
   width: 100%;
+  min-width: 320px;
   min-height: 100px;
   display: flex;
   flex-direction: column;

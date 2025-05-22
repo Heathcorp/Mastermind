@@ -9,10 +9,8 @@ import {
 } from "solid-js";
 import { useAppContext } from "../App";
 import { Portal } from "solid-js/web";
-import { AiOutlineFileZip, AiOutlineUpload } from "solid-icons/ai";
-import JSZip from "jszip";
-import downloadBlob from "../utils/downloadBlob";
-import { createDropzone } from "@soorria/solid-dropzone";
+// import JSZip from "jszip";
+// import downloadBlob from "../utils/downloadBlob";
 
 type FileBrowserProps = {
   editingFile: Accessor<string | undefined>;
@@ -48,28 +46,6 @@ export default function FileBrowserModal({
     setEditingFile(fileId);
   };
 
-  const zipAndSave = async () => {
-    const zip = new JSZip();
-    app.fileStates.forEach((fileState) => {
-      const blob = new Blob([fileState.editorState.doc.toString()], {
-        type: "text/plain",
-      });
-      zip.file(fileState.label, blob);
-    });
-    await zip.generateAsync({ type: "blob" }).then((x) => {
-      downloadBlob(x);
-    });
-  };
-
-  const onDrop = (acceptedFiles: File[]) => {
-    acceptedFiles.forEach(async (file: File) => {
-      const newId = await app.createFile(file);
-      switchToFile(newId);
-      app.setFileBrowserOpen(false);
-    });
-  };
-  const dropzone = createDropzone({ onDrop });
-
   return (
     <Show when={app.fileBrowserOpen()}>
       <Portal>
@@ -88,36 +64,6 @@ export default function FileBrowserModal({
                   />
                 )}
               </For>
-              <div
-                classList={{ ["file-tile"]: true, ["file-tile-utility"]: true }}
-                onClick={async () => {
-                  const newId = await app.createFile();
-                  setEditingFile(newId);
-                  switchToFile(newId);
-                }}
-              >
-                +
-              </div>
-              <div
-                classList={{ ["file-tile"]: true, ["file-tile-utility"]: true }}
-                onClick={() => {
-                  zipAndSave();
-                }}
-              >
-                <AiOutlineFileZip size={24} />
-              </div>
-            </div>
-            <div
-              onClick={(e) => {
-                e.stopPropagation();
-              }}
-            >
-              <div class="file-upload-drop-zone" {...dropzone.getRootProps()}>
-                <span style={{ display: "flex", gap: "15px" }}>
-                  <AiOutlineUpload size={24} />
-                  Click or drop files here to upload
-                </span>
-              </div>
             </div>
           </div>
         </div>
