@@ -1,3 +1,4 @@
+// TODO: make unit tests for this
 use crate::builder::{BrainfuckCodeBuilder, Opcode, TapeCell};
 
 // basically, most ascii characters are large numbers, which are more efficient to calculate with multiplication than with a bunch of + or -
@@ -13,7 +14,8 @@ pub fn calculate_optimal_addition(
 	target_cell: TapeCell,
 	temp_cell: TapeCell,
 ) -> BrainfuckCodeBuilder {
-	let abs_value = value.abs();
+	// can't abs() i8 directly because there is no +128i8, so abs(-128i8) crashes
+	let abs_value = (value as i32).abs();
 
 	// STAGE 0:
 	// for efficiency's sake, calculate the cost of just adding the constant to the cell
