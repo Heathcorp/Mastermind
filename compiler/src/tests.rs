@@ -2828,6 +2828,7 @@ output a + 3;
 		let program = String::from(
 			r#"
 			cell[15] arr @1;
+			cell a = 'G';
 			"#,
 		);
 		let cfg = MastermindConfig {
@@ -2900,6 +2901,22 @@ output i;
 	}
 
 	#[test]
+	fn tiles_memory_allocation_3() {
+		let program = String::from(
+			r#"
+cell a @2,4 = 1;
+cell[4] b @0,4;
+"#,
+		);
+		let code = compile_program(program, Some(&OPT_NONE_TILES));
+		assert!(code.is_err());
+		assert!(code
+			.unwrap_err()
+			.to_string()
+			.contains("Location specifier @0,4 conflicts with another allocation"));
+	}
+
+	#[test]
 	fn zig_zag_memory_allocation_1() -> Result<(), String> {
 		let program = String::from(
 			r#"
@@ -2956,6 +2973,22 @@ output i;
 	}
 
 	#[test]
+	fn zig_zag_memory_allocation_3() {
+		let program = String::from(
+			r#"
+cell a @2,4 = 1;
+cell[4] b @0,4;
+"#,
+		);
+		let code = compile_program(program, Some(&OPT_NONE_ZIG_ZAG));
+		assert!(code.is_err());
+		assert!(code
+			.unwrap_err()
+			.to_string()
+			.contains("Location specifier @0,4 conflicts with another allocation"));
+	}
+
+	#[test]
 	fn spiral_memory_allocation_1() -> Result<(), String> {
 		let program = String::from(
 			r#"
@@ -3009,5 +3042,21 @@ output i;
 		assert_eq!(desired_output, run_code(BVM_CONFIG_2D, code, input, None));
 
 		Ok(())
+	}
+
+	#[test]
+	fn spiral_memory_allocation_3() {
+		let program = String::from(
+			r#"
+cell a @2,4 = 1;
+cell[4] b @0,4;
+"#,
+		);
+		let code = compile_program(program, Some(&OPT_NONE_SPIRAL));
+		assert!(code.is_err());
+		assert!(code
+			.unwrap_err()
+			.to_string()
+			.contains("Location specifier @0,4 conflicts with another allocation"));
 	}
 }
