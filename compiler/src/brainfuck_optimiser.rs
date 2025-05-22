@@ -438,7 +438,7 @@ mod tests {
 		let v = BrainfuckOpcodes::from_str(
 			"-++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++",
 		);
-		let o: String = optimise_subset(v).to_string();
+		let o: String = optimise_subset(v, false).to_string();
 		println!("{o}");
 		assert_eq!(o.len(), 127);
 	}
@@ -448,7 +448,7 @@ mod tests {
 		let v = BrainfuckOpcodes::from_str(
 			"++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++",
 		);
-		let o: String = optimise_subset(v).to_string();
+		let o: String = optimise_subset(v, false).to_string();
 		println!("{o}");
 		assert_eq!(o.len(), 128);
 	}
@@ -458,7 +458,7 @@ mod tests {
 		let v = BrainfuckOpcodes::from_str(
 			"+--------------------------------------------------------------------------------------------------------------------------------"
 		);
-		let o: String = optimise_subset(v).to_string();
+		let o: String = optimise_subset(v, false).to_string();
 		println!("{o}");
 		assert_eq!(o.len(), 127);
 	}
@@ -468,7 +468,7 @@ mod tests {
 		let v = BrainfuckOpcodes::from_str(
 			"--------------------------------------------------------------------------------------------------------------------------------"
 		);
-		let o: String = optimise_subset(v).to_string();
+		let o: String = optimise_subset(v, false).to_string();
 		println!("{o}");
 		assert_eq!(o.len(), 128);
 	}
@@ -478,7 +478,7 @@ mod tests {
 		let v = BrainfuckOpcodes::from_str(
 			"- --------------------------------------------------------------------------------------------------------------------------------"
 		);
-		let o: String = optimise_subset(v).to_string();
+		let o: String = optimise_subset(v, false).to_string();
 		println!("{o}");
 		assert_eq!(o.len(), 127);
 	}
@@ -488,7 +488,7 @@ mod tests {
 		let v = BrainfuckOpcodes::from_str(
 			"[-]--------------------------------------------------------------------------------------------------------------------------------"
 		);
-		let o: String = optimise_subset(v).to_string();
+		let o: String = optimise_subset(v, false).to_string();
 		println!("{o}");
 		assert_eq!(o.len(), 131);
 	}
