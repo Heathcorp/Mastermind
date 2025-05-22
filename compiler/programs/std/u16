@@ -8,6 +8,8 @@ struct u16 {
 }
 
 fn _65535(struct u16 n) {n.n1 = 255; n.n0 = 255;}
+fn _0(struct u16 n)     {n.n1 = 0;   n.n0 = 0;}
+fn _1(struct u16 n)     {n.n1 = 0;   n.n0 = 1;}
 fn _10(struct u16 n)    {n.n1 = 0;   n.n0 = 10;}
 fn _100(struct u16 n)   {n.n1 = 0;   n.n0 = 100;}
 fn _200(struct u16 n)   {n.n1 = 0;   n.n0 = 200;}
@@ -94,6 +96,24 @@ fn add(struct u16 self, struct u16 other) {
     if self.n0 {
       self.n1 -= 1;
     }
+  }
+}
+
+/// subtract a cell as a u8 from the current u16
+fn sub(struct u16 self, cell other) {
+  copy other {
+    dec(self);
+  }
+}
+// subtract overload for another u16
+fn sub(struct u16 self, struct u16 other) {
+  self.n1 -= other.n1;
+  copy other.n0 {
+    self.n1 -= 1;
+    if self.n0 {
+      self.n1 += 1;
+    }
+    self.n0 -= 1;
   }
 }
 
@@ -212,3 +232,47 @@ fn print(struct u16 self) {
 // add(a, b);
 // output "(a += b)\n";
 // output "a = "; print(a); output '\n';
+
+// struct u16 m; m.n0 = 1;
+// struct u16 n; n.n0 = 0;
+// print(m); output 10;
+// sub(m, n); output "-"; print(n); output ": "; print(m); output "\n";
+// _1(n);
+// sub(m, n); output "-"; print(n); output ": "; print(m); output "\n";
+// sub(m, n); output "-"; print(n); output ": "; print(m); output "\n";
+// add(m, n); output "+"; print(n); output ": "; print(m); output "\n";
+// _0(n); n.n1 = 1;
+// sub(m, n); output "-"; print(n); output ": "; print(m); output "\n";
+
+// output '\n';
+// struct u16 x; _10(x);
+// cell y = 4;
+// print(x); output " - "; print(y); output " = ";
+// sub(x, y);
+// print(x); output "\n";
+// y = 45;
+// print(x); output " - "; print(y); output " = ";
+// sub(x, y);
+// print(x); output "\n";
+// print(x); output " + "; print(y); output " = ";
+// add(x, y);
+// print(x); output "\n";
+// _50000(x);
+// y = 239;
+// print(x); output " - "; print(y); output " = ";
+// sub(x, y);
+// print(x); output "\n";
+// struct u16 z; _40000(z);
+// print(x); output " - "; print(z); output " = ";
+// sub(x, z);
+// print(x); output "\n";
+// _10000(z);
+// print(x); output " - "; print(z); output " = ";
+// sub(x, z);
+// print(x); output "\n";
+// z.n0 = 0; z.n1 = 0;
+// y = 239;
+// sub(z, y);
+// print(x); output " - "; print(z); output " = ";
+// sub(x, z);
+// print(x); output "\n";
