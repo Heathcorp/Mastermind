@@ -7,7 +7,6 @@ struct u16 {
   cell n0;
 }
 
-fn _65535(struct u16 n) {n.n1 = 255; n.n0 = 255;}
 fn _0(struct u16 n)     {n.n1 = 0;   n.n0 = 0;}
 fn _1(struct u16 n)     {n.n1 = 0;   n.n0 = 1;}
 fn _10(struct u16 n)    {n.n1 = 0;   n.n0 = 10;}
@@ -15,17 +14,28 @@ fn _100(struct u16 n)   {n.n1 = 0;   n.n0 = 100;}
 fn _200(struct u16 n)   {n.n1 = 0;   n.n0 = 200;}
 fn _300(struct u16 n)   {n.n1 = 1;   n.n0 = 44;}
 fn _1000(struct u16 n)  {n.n1 = 3;   n.n0 = 232;}
+fn _2(struct u16 n)     {n.n1 = 0;   n.n0 = 2;}
+fn _4(struct u16 n)     {n.n1 = 0;   n.n0 = 4;}
+fn _8(struct u16 n)     {n.n1 = 0;   n.n0 = 8;}
+fn _16(struct u16 n)    {n.n1 = 0;   n.n0 = 16;}
+fn _32(struct u16 n)    {n.n1 = 0;   n.n0 = 32;}
+fn _64(struct u16 n)    {n.n1 = 0;   n.n0 = 64;}
+fn _128(struct u16 n)   {n.n1 = 0;   n.n0 = 128;}
+fn _256(struct u16 n)   {n.n1 = 1;   n.n0 = 0;}
+fn _512(struct u16 n)   {n.n1 = 2;   n.n0 = 0;}
 fn _1024(struct u16 n)  {n.n1 = 4;   n.n0 = 0;}
 fn _2048(struct u16 n)  {n.n1 = 8;   n.n0 = 0;}
 fn _4096(struct u16 n)  {n.n1 = 16;  n.n0 = 0;}
 fn _8192(struct u16 n)  {n.n1 = 32;  n.n0 = 0;}
-fn _10000(struct u16 n) {n.n1 = 39;  n.n0 = 16;}
 fn _16384(struct u16 n) {n.n1 = 64;  n.n0 = 0;}
+fn _10000(struct u16 n) {n.n1 = 39;  n.n0 = 16;}
 fn _20000(struct u16 n) {n.n1 = 78;  n.n0 = 32;}
 fn _30000(struct u16 n) {n.n1 = 117; n.n0 = 48;}
 fn _40000(struct u16 n) {n.n1 = 156; n.n0 = 64;}
 fn _50000(struct u16 n) {n.n1 = 195; n.n0 = 80;}
 fn _60000(struct u16 n) {n.n1 = 234; n.n0 = 96;}
+fn _65280(struct u16 n) {n.n1 = 255; n.n0 = 0;}
+fn _65535(struct u16 n) {n.n1 = 255; n.n0 = 255;}
 
 fn MAX(struct u16 n) {_65535(n);}
 
@@ -83,13 +93,7 @@ fn add(struct u16 self, struct i8 other) {
 /// overload for another u16
 fn add(struct u16 self, struct u16 other) {
   // most significant first
-  copy other.n1 {
-    self.n1 += 1;
-    self.n0 += 1;
-    if self.n1 {
-      self.n0 -= 1;
-    }
-  }
+  self.n1 += other.n1;
   copy other.n0 {
     self.n0 += 1;
     self.n1 += 1;
@@ -125,6 +129,17 @@ fn ne_zero(struct u16 self, cell _output) {
   }
   if self.n1 {
     _output = true;
+  }
+}
+
+/// shift the numbers base-10 digits left, by multiplying by 10
+fn mult_10(struct u16 self) {
+  // naively multiply by 10
+  // it is unclear if there is a better way with bitshifts
+  struct u16 n;
+  cpy(self, n);
+  drain 9 {
+    add(self, n);
   }
 }
 
@@ -203,8 +218,29 @@ fn print(struct u16 self) {
   output ds.stack[0];
 }
 
+/// read a u16 number from stdin, assumes n = 0 and valid newline-terminated input
+fn read(struct u16 n) {
+  cell digit;
+  input digit;
+  digit -= '\n';
+  while digit {
+    digit += '\n' - '0';
+    // shift digits (times by 10) and add the new digit
+    mult_10(n);
+    add(n, digit);
+
+    input digit;
+    digit -= '\n';
+  }
+}
+
 // debug/test code:
-// #include "print.mmi"
+#include "print.mmi"
+// struct u16 j;
+// struct u16 k; _256(k);
+// read(j);
+// print(j); output '\n';
+
 // struct u16 a;
 // output "a = "; print(a); output "\n";
 // MAX(a);
