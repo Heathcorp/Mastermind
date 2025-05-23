@@ -56,6 +56,7 @@ fn __127p12890625(struct ifp16 n) {n.int.n = -128;  n.frac = 223;}
 fn MIN(struct ifp16 n) {__128(n);}
 fn MAX(struct ifp16 n) {_127p99609375(n);}
 fn EPSILON(struct ifp16 n) {_0p00390625(n);}
+fn _EPSILON(struct ifp16 n) {__0p00390625(n);}
 
 /// add-assign two ifp16 numbers
 fn add(struct ifp16 self, struct ifp16 other) {
@@ -77,42 +78,95 @@ fn read(struct ifp16 self) {
 
 /// format and print to 2 decimal places
 fn print(struct ifp16 self) {
-  print(self.int);
-  output '.';
+  cell int_abs;
+  cell neg;
+  to_u8(self.int, int_abs, neg);
 
   // convert from integer to decimal digits * 2^-8
   // (frac * 25) >> 6
   // (frac * 10 * 10) >> 8
   struct u16 n;
   n.n0 = self.frac;
+  if neg {
+    // minus sign
+    output '-';
+    n.n0 = -self.frac;
+    if self.frac {
+      // correct for sign stuff
+      int_abs -= 1;
+    }
+  }
   {
     cell c = 100;
     mult_n_d(n, c);
   }
+  // {
+  //   // round?
+  //   cell c = 7;
+  //   tshift_r(n.n0, 7);
+  //   drain n.n0 into n.n1;
+  // }
+
+  // integer part
+  print(int_abs);
+  // decimal point
+  output '.';
   print(n.n1);
+}
+
+/// print a debug representation of an ifp16
+fn debug(struct ifp16 self) {
+  // 11111111.11111111
+  debug(self.int.n);
+  output '.';
+  debug(self.frac);
 }
 
 // debug/test code:
 // struct ifp16 a;
 // struct ifp16 e; EPSILON(e);
-// _64(a); print(a); output "\n";
-// __128(a); print(a); output "\n";
-// _0p125(a); print(a); output "\n";
-// _0p5(a); print(a); output "\n";
-// _1p5(a); print(a); output "\n";
-// __0p5(a); print(a); output "\n";
-// __0p25(a); print(a); output "\n";
-// __6p25(a); print(a); output "\n";
-// _99p99609375(a); print(a); output "\n";
-// add(a, e); print(a); output "\n";
-// _127p12890625(a); print(a); output "\n";
-// __127p12890625(a); print(a); output "\n";
-// MAX(a); print(a); output "\n";
-// add(a, e); print(a); output "\n";
-
-// drain 100 {
-//   drain 100 {
-//     add(a, e); print(a); output "\n";
-//   }
-// }
+// struct ifp16 _e; _EPSILON(_e);
+// output "e = "; print(e); output " ("; debug(e); output ")\n";
+// _0p99609375(a); print(a); output " ("; debug(a); output ")\n";
+// add(a, e); print(a); output " ("; debug(a); output ")\n";
+// __128(a); print(a); output " ("; debug(a); output ")\n";
+// _64(a); print(a); output " ("; debug(a); output ")\n";
+// _32(a); print(a); output " ("; debug(a); output ")\n";
+// _16(a); print(a); output " ("; debug(a); output ")\n";
+// _8(a); print(a); output " ("; debug(a); output ")\n";
+// _4(a); print(a); output " ("; debug(a); output ")\n";
+// _2(a); print(a); output " ("; debug(a); output ")\n";
+// _1(a); print(a); output " ("; debug(a); output ")\n";
+// _0p5(a); print(a); output " ("; debug(a); output ")\n";
+// _0p25(a); print(a); output " ("; debug(a); output ")\n";
+// _0p125(a); print(a); output " ("; debug(a); output ")\n";
+// _0p0625(a); print(a); output " ("; debug(a); output ")\n";
+// _0p03125(a); print(a); output " ("; debug(a); output ")\n";
+// _0p015625(a); print(a); output " ("; debug(a); output ")\n";
+// _0p0078125(a); print(a); output " ("; debug(a); output ")\n";
+// _0p00390625(a); print(a); output " ("; debug(a); output ")\n";
+// _1p5(a); print(a); output " ("; debug(a); output ")\n";
+// __0p5(a); print(a); output " ("; debug(a); output ")\n";
+// __0p25(a); print(a); output " ("; debug(a); output ")\n";
+// __6p25(a); print(a); output " ("; debug(a); output ")\n";
+// _99p99609375(a); print(a); output " ("; debug(a); output ")\n";
+// add(a, e); print(a); output " ("; debug(a); output ")\n";
+// add(a, e); print(a); output " ("; debug(a); output ")\n";
+// __99p99609375(a); print(a); output " ("; debug(a); output ")\n";
+// add(a, _e); print(a); output " ("; debug(a); output ")\n";
+// add(a, _e); print(a); output " ("; debug(a); output ")\n";
+// add(a, _e); print(a); output " ("; debug(a); output ")\n";
+// add(a, e); print(a); output " ("; debug(a); output ")\n";
+// add(a, e); print(a); output " ("; debug(a); output ")\n";
+// add(a, e); print(a); output " ("; debug(a); output ")\n";
+// add(a, e); print(a); output " ("; debug(a); output ")\n";
+// add(a, e); print(a); output " ("; debug(a); output ")\n";
+// add(a, e); print(a); output " ("; debug(a); output ")\n";
+// add(a, e); print(a); output " ("; debug(a); output ")\n";
+// add(a, e); print(a); output " ("; debug(a); output ")\n";
+// add(a, e); print(a); output " ("; debug(a); output ")\n";
+// _127p12890625(a); print(a); output " ("; debug(a); output ")\n";
+// __127p12890625(a); print(a); output " ("; debug(a); output ")\n";
+// MAX(a); print(a); output " ("; debug(a); output ")\n";
+// add(a, e); print(a); output " ("; debug(a); output ")\n";
 

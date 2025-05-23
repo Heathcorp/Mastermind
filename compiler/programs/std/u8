@@ -89,6 +89,32 @@ fn print(cell self) {
   output ds[0];
 }
 
+/// shift left and truncate, return the truncated bit
+fn get_most_sig_d(cell self, cell _bit) {
+  _bit = 1;
+  {
+    cell n = self;
+    drain 128 {
+      if not n {
+        _bit = 0;
+      }
+      n -= 1;
+    }
+  }
+  self += self;
+}
+
+/// print the binary digits
+fn debug(cell self) {
+  cell n = self;
+  drain 8 {
+    cell bit;
+    get_most_sig_d(n, bit);
+    bit += '0';
+    output bit;
+  }
+}
+
 // debug/test code
 // cell a; read(a);
 // cell b; read(b);
@@ -98,3 +124,10 @@ fn print(cell self) {
 // print(a); output "\n";
 // add(a, b);
 // print(a); output "\n";
+// cell c = 0;
+// drain 2 {
+//   drain 128 {
+//     print(c); output " = 0b"; debug(c); output "\n";
+//     c += 1;
+//   }
+// }
