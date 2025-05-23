@@ -1,7 +1,9 @@
 import {Component, JSX} from "solid-js";
 import {useAppContext} from "../App.tsx";
 import {AiFillGithub, AiFillQuestionCircle, AiFillSetting} from "solid-icons/ai";
+import { FaSolidBookOpen } from 'solid-icons/fa'
 import HelpModal from "../components/Help.tsx";
+import DocsModal from "../components/Docs.tsx";
 import "./settings.css";
 import SettingsModal from "../components/Settings.tsx";
 
@@ -32,6 +34,14 @@ const SideBar: Component<{ style?: JSX.CSSProperties }> = (props) => {
             >
                 < AiFillSetting title="Settings"/>
                 <SettingsModal></SettingsModal>
+            </a>
+            <a
+                class="socials-icon text-button"
+                target="_blank"
+                onClick={() => app.setDocsOpen(true)}
+            >
+                < FaSolidBookOpen title="docs"/>
+                <DocsModal></DocsModal>
             </a>
         </div>
     );
