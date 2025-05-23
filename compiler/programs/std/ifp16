@@ -73,7 +73,43 @@ fn add(struct ifp16 self, struct ifp16 other) {
 
 /// read an fp16 from stdin, wraps integer digits, truncates fractional part
 fn read(struct ifp16 self) {
-  
+  cell sign_neg = false;
+  cell digit;
+  input digit;
+  if not digit - '-' {
+    sign_neg = true;
+    input digit;
+  }
+  // input the abs integer amount
+  cell abs_int;
+  {
+    cell iterating = true;
+    while iterating {
+      if not digit - '.' {
+        iterating = false;
+      }
+      if not digit - '\n' {
+        iterating = false;
+      }
+      if iterating {
+        // shift digits (times by 10) and add the new digit
+        mult_10(abs_int);
+        abs_int += digit - '0';
+    
+        input digit;
+      }
+    }
+  }
+
+  // read the decimal part if needed
+  if not digit - '.' {
+    
+  }
+
+
+  if sign_neg {
+    self.int.n
+  }
 }
 
 /// format and print to 2 decimal places
