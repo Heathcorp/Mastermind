@@ -258,3 +258,16 @@ fn debug(struct ifp16 self) {
 // MAX(a); print(a); output " ("; debug(a); output ")\n";
 // add(a, e); print(a); output " ("; debug(a); output ")\n";
 
+
+// _16(a); print(a); output " x "; _2(e); print(e); output " = ";
+// mult(a, e); print(a); output " ("; debug(a); output ")\n";
+
+// _64(a); print(a); output " x "; __0p25(e); print(e); output " = ";
+// mult(a, e); print(a); output " ("; debug(a); output ")\n";
+
+// _0p125(a); print(a); output " x "; __6p25(e); print(e); output " = ";
+// mult(a, e); print(a); output " ("; debug(a); output ")\n";
+
+// _0p03125(a); print(a); output " x "; _0p0078125(e); print(e); output " = ";
+// mult(a, e); print(a); output " ("; debug(a); output ")\n";
+
