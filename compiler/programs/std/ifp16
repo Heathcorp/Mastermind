@@ -70,6 +70,58 @@ fn add(struct ifp16 self, struct ifp16 other) {
   }
 }
 
+/// multiply-assign two ifp16 numbers
+/// multiply-assign two ifp16 numbers
+fn mult(struct ifp16 self, struct ifp16 other) {
+    ///Setup our starting variables result
+    cell int_result = 0;
+    cell frac_result = 0;
+    cell sub_frac_result = 0;
+    cell int1 = self.int.n;
+    cell int2 = other.int.n;
+    ///Firstly  int_result = int_abs1 * int_abs2
+    copy int1 {
+        copy int2 {
+            int_result += 1;
+        }
+    }
+    /// Next frac_result = int_abs1 * frac_2 + int_abs2 * frac1
+    copy self.frac {
+        copy int2 {
+            frac_result += 1;
+            if not frac_result {
+                int_result += 1;
+            }
+        }
+    }
+    copy other.frac {
+        copy int1 {
+            frac_result += 1;
+            if not frac_result {
+                int_result += 1;
+            }
+        }
+    }
+    /// Finally we do sub_frac_result = frac_1 * frac_2
+    copy self.frac {
+        copy other.frac {
+            sub_frac_result += 1;
+            if not sub_frac_result {
+                frac_result += 1;
+                if not frac_result {
+                    int_result += 1;
+                }
+            }
+        }
+    }
+    self.int.n = int_result;
+    self.frac = frac_result;
+}
+
+/// divide-assign two ifp16 numbers
+/// fn divide(struct ifp16 self, struct ifp16 other) {
+/// }
+
 
 /// read an fp16 from stdin, wraps integer digits, truncates fractional part
 fn read(struct ifp16 self) {
