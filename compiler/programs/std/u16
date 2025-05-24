@@ -154,6 +154,12 @@ fn mult_10(struct u16 self) {
   }
 }
 
+/// divide by 10
+fn div_10(struct u16 self) {
+  // TODO:
+  STUB
+}
+
 /// multiply by 25, drains n
 fn mult_n_d(struct u16 self, cell n) {
   struct u16 c;

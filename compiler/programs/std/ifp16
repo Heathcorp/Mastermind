@@ -70,6 +70,26 @@ fn add(struct ifp16 self, struct ifp16 other) {
   }
 }
 
+///
+fn mult(struct ifp16 self, cell other) {
+
+}
+fn mult(struct ifp16 self, struct i8 other) {
+
+}
+fn mult(struct ifp16 self, struct ifp16 other) {
+
+}
+
+/// 1/n
+fn recip(struct ifp16 self) {
+
+}
+
+/// 
+fn div(struct ifp16 self, struct ifp16 other) {
+
+}
 
 /// read an fp16 from stdin, wraps integer digits, truncates fractional part
 fn read(struct ifp16 self) {
@@ -103,12 +123,39 @@ fn read(struct ifp16 self) {
 
   // read the decimal part if needed
   if not digit - '.' {
+    // input a number up to 2 digits, count the leading zeros
+    // we input directly into the most-signifant byte of a u16
+    //  so it is automatically x256
+    struct u16 n;
+    {
+      cell frac_digit_count;
+      {
+        cell iterating = 2; // limit 2 digits for fp16
+        drain iterating {
+          input digit;
+          digit -= '\n';
+          if not digit {
+            iterating = false;
+          } else {
+            digit += '\n';
+            digit -= '0';
+            // another digit
+            frac_digit_count += 1;
     
-  }
+            mult_10(n.n1);
+            n.n1 += digit;
+          }
+        }
+      }
+  
+      // we have multiplied our integer by 256
+      // divide by 10^frac_digit_count
+      drain frac_digit_count {
+        div_10(n);
+      }
+    }
 
-
-  if sign_neg {
-    self.int.n
+    self.frac = n.n0;
   }
 }
 
@@ -159,6 +206,11 @@ fn debug(struct ifp16 self) {
 }
 
 // debug/test code:
+struct ifp16 h;
+read(h);
+print(h);
+
+
 // struct ifp16 a;
 // struct ifp16 e; EPSILON(e);
 // struct ifp16 _e; _EPSILON(_e);
