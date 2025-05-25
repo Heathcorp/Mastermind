@@ -14,6 +14,7 @@ struct ifp16 {
 // }
 // (+/-)(int + frac * 2^-8)
 
+fn _0(struct ifp16 n)             {n.int.n = 0;    n.frac = 0;}
 fn _1(struct ifp16 n)             {n.int.n = 1;    n.frac = 0;}
 fn _2(struct ifp16 n)             {n.int.n = 2;    n.frac = 0;}
 fn _4(struct ifp16 n)             {n.int.n = 4;    n.frac = 0;}
@@ -68,27 +69,6 @@ fn add(struct ifp16 self, struct ifp16 other) {
       dec(self.int);
     }
   }
-}
-
-///
-fn mult(struct ifp16 self, cell other) {
-
-}
-fn mult(struct ifp16 self, struct i8 other) {
-
-}
-fn mult(struct ifp16 self, struct ifp16 other) {
-
-}
-
-/// 1/n
-fn recip(struct ifp16 self) {
-
-}
-
-/// 
-fn div(struct ifp16 self, struct ifp16 other) {
-
 }
 
 /// multiply-assign an ifp16 and an u8 (cell)
@@ -243,7 +223,6 @@ fn divide(struct ifp16 self, struct ifp16 other) {
     print(quotient);
 }
 
-
 /// read an fp16 from stdin, wraps integer digits, truncates fractional part
 fn read(struct ifp16 self) {
   cell sign_neg = false;
@@ -284,31 +263,51 @@ fn read(struct ifp16 self) {
       cell frac_digit_count;
       {
         cell iterating = 2; // limit 2 digits for fp16
-        drain iterating {
-          input digit;
-          digit -= '\n';
+        input digit;
+        digit -= '\n';
+        while iterating {
           if not digit {
-            iterating = false;
+            iterating = 0;
           } else {
             digit += '\n';
             digit -= '0';
+
             // another digit
             frac_digit_count += 1;
     
             mult_10(n.n1);
             n.n1 += digit;
+
+            iterating -= 1;
+
+            input digit;
+            digit -= '\n';
           }
+        }
+        // read the rest of the line
+        while digit {
+          input digit;
+          digit -= '\n';
         }
       }
   
       // we have multiplied our integer by 256
-      // divide by 10^frac_digit_count
+      // divide by 10^(frac_digit_count)
       drain frac_digit_count {
         div_10(n);
       }
     }
 
-    self.frac = n.n0;
+    if sign_neg {
+      self.int.n = -abs_int;
+      self.frac = -n.n0;
+      if self.frac {
+        self.int.n -= 1;
+      }
+    } else {
+      self.int.n = abs_int;
+      self.frac = n.n0;
+    }
   }
 }
 
@@ -321,20 +320,21 @@ fn print(struct ifp16 self) {
   // convert from integer to decimal digits * 2^-8
   // (frac * 25) >> 6
   // (frac * 10 * 10) >> 8
-  struct u16 n;
-  n.n0 = self.frac;
+  struct u16 w;
+  w.n0 = self.frac;
   if neg {
     // minus sign
     output '-';
-    n.n0 = -self.frac;
+    w.n0 = -self.frac;
     if self.frac {
       // correct for sign stuff
       int_abs -= 1;
     }
   }
+  // x100
   {
     cell c = 100;
-    mult_n_d(n, c);
+    mult_n_d(w, c);
   }
   // {
   //   // round?
@@ -347,7 +347,51 @@ fn print(struct ifp16 self) {
   print(int_abs);
   // decimal point
   output '.';
-  print(n.n1);
+
+  // cannibilised print function:
+
+  {
+    cell[3] ds;
+    fn shift_stack() {
+      ds[2] = 0;
+      drain ds[1] into ds[2];
+      drain ds[0] into ds[1];
+    }
+    fn unshift_stack() {
+      ds[0] = 0;
+      drain ds[1] into ds[0];
+      drain ds[2] into ds[1];
+    }
+  
+    cell n = w.n1;
+    // essentially repeatedly divide by 10
+    drain 3 {
+      shift_stack();
+      cell dividing = true;
+      cell m; // quotient
+      ds[0] = 10; // remainder, add 1 for magic later on
+      while dividing {
+        drain 10 {
+          if n {
+            n -= 1;
+          } else {
+            ds[0] -= 1;
+            dividing = false;
+          }
+        }
+  
+        if dividing {
+          m += 1;
+        }
+      }
+      // copy new quotient to value so we start again
+      n = 0; drain m into n;
+    }
+  
+    drain '0' into ds[1] ds[2];
+    output ds[1];
+    output ds[2];
+  }
 }
 
 /// print a debug representation of an ifp16
@@ -359,9 +403,18 @@ fn debug(struct ifp16 self) {
 }
 
 // debug/test code:
-struct ifp16 h;
-read(h);
-print(h);
+// struct ifp16 h;
+// _0(h); read(h); print(h); output " ("; debug(h); output ")\n\n";
+// _0(h); read(h); print(h); output " ("; debug(h); output ")\n\n";
+// _0(h); read(h); print(h); output " ("; debug(h); output ")\n\n";
+// _0(h); read(h); print(h); output " ("; debug(h); output ")\n\n";
+// _0(h); read(h); print(h); output " ("; debug(h); output ")\n\n";
+// _0(h); read(h); print(h); output " ("; debug(h); output ")\n\n";
+
+// struct ifp16 t; _99p99609375(t); print(t); output " ("; debug(t); output ")\n";
+// struct ifp16 u; _16(u); print(u); output " ("; debug(u); output ")\n";
+// divide(t, u);
+
 
 
 // struct ifp16 a;
@@ -410,45 +463,4 @@ print(h);
 // __127p12890625(a); print(a); output " ("; debug(a); output ")\n";
 // MAX(a); print(a); output " ("; debug(a); output ")\n";
 // add(a, e); print(a); output " ("; debug(a); output ")\n";
-
-// FP * FP mult
-// _16(a); print(a); output " x "; _2(e); print(e); output " = ";
-// mult(a, e); print(a); output " ("; debug(a); output ")\n";
-
-// _64(a); print(a); output " x "; __0p25(e); print(e); output " = ";
-// mult(a, e); print(a); output " ("; debug(a); output ")\n";
-
-// _0p125(a); print(a); output " x "; __6p25(e); print(e); output " = ";
-// mult(a, e); print(a); output " ("; debug(a); output ")\n";
-
-// _0p03125(a); print(a); output " x "; _0p0078125(e); print(e); output " = ";
-// mult(a, e); print(a); output " ("; debug(a); output ")\n";
-
-// FP * CELL MULT
-// cell f;
-// _16(a); print(a); output " x "; f = 3; print(f); output " = ";
-// mult(a, f); print(a); output " ("; debug(a); output ")\n";
-
-// _64(a); print(a); output " x "; f = 2; print(f); output " = ";
-// mult(a, f); print(a); output " ("; debug(a); output ")\n";
-
-// _0p125(a); print(a); output " x "; f = 1; print(f); output " = ";
-// mult(a, f); print(a); output " ("; debug(a); output ")\n";
-
-// _0p03125(a); print(a); output " x "; f = 7; print(f); output " = ";
-// mult(a, f); print(a); output " ("; debug(a); output ")\n";
-
-
-// FP * FP DIV
-// _16(a); print(a); output " / "; _2(e); print(e); output " = ";
-// divide(a, e); output "\n";
-
-// _64(a); print(a); output " / "; __0p25(e); print(e); output " = ";
-// divide(a, e); output "\n";
-
-// _0p125(a); print(a); output " / "; __6p25(e); print(e); output " = ";
-// divide(a, e); output "\n";
-
-// _0p03125(a); print(a); output " / "; _0p0078125(e); print(e); output " = ";
-// divide(a, e); output "\n";
 

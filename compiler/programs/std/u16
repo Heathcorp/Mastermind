@@ -156,8 +156,23 @@ fn mult_10(struct u16 self) {
 
 /// divide by 10
 fn div_10(struct u16 self) {
-  // TODO:
-  STUB
+  struct u16 quotient;
+  cell dividing = true;
+  while dividing {
+    drain 10 {
+      cell o; ne_zero(self, o);
+      if o {
+        dec(self);
+      } else {
+        // remainder += 1;
+        dividing = false;
+      }
+    }
+    if dividing {
+      inc(quotient);
+    }
+  }
+  set_d(self, quotient);
 }
 
 /// multiply by 25, drains n
@@ -193,6 +208,13 @@ fn print(struct u16 self) {
     drain ds.stack[3] into ds.stack[2];
     drain ds.stack[4] into ds.stack[3];
   }
+  fn debug_stack() {
+    output ds.stack[0] + '0';
+    output ds.stack[1] + '0';
+    output ds.stack[2] + '0';
+    output ds.stack[3] + '0';
+    output ds.stack[4] + '0';
+  }
 
   struct u16 n;
   set(n, self);
@@ -221,6 +243,7 @@ fn print(struct u16 self) {
     set_d(m, n);
   }
 
+// debug_stack(); output 10;
   {
     cell not_leading = false;
     drain 4 {
@@ -236,6 +259,12 @@ fn print(struct u16 self) {
   }
   ds.stack[0] += '0';
   output ds.stack[0];
+}
+
+/// print the binary
+fn debug(struct u16 self) {
+  debug(self.n1);
+  debug(self.n0);
 }
 
 /// read a u16 number from stdin, assumes n = 0 and valid newline-terminated input
@@ -255,6 +284,14 @@ fn read(struct u16 n) {
 }
 
 // debug/test code:
+// struct u16 s; _20000(s);
+// output "s = "; print(s); output " ("; debug(s); output ")\n";
+// div_10(s); output "s/10 = "; print(s); output " ("; debug(s); output ")\n";
+// div_10(s); output "s/10 = "; print(s); output " ("; debug(s); output ")\n";
+// div_10(s); output "s/10 = "; print(s); output " ("; debug(s); output ")\n";
+// div_10(s); output "s/10 = "; print(s); output " ("; debug(s); output ")\n";
+// div_10(s); output "s/10 = "; print(s); output " ("; debug(s); output ")\n";
+
 // #include <u8>
 // struct u16 j;
 // struct u16 k; _256(k);
