@@ -91,6 +91,159 @@ fn div(struct ifp16 self, struct ifp16 other) {
 
 }
 
+/// multiply-assign an ifp16 and an u8 (cell)
+fn mult(struct ifp16 self, cell other) {
+    ///Setup our starting variables result
+    cell int_result = 0;
+    cell frac_result = 0;
+    cell sub_frac_result = 0;
+    cell int1 = self.int.n;
+    cell int2 = other;
+    ///Firstly  int_result = int_abs1 * int_abs2
+    copy int1 {
+        copy int2 {
+            int_result += 1;
+        }
+    }
+    /// Next frac_result = int_abs2 * frac1
+    copy self.frac {
+        copy int2 {
+            frac_result += 1;
+            if not frac_result {
+                int_result += 1;
+            }
+        }
+    }
+    self.int.n = int_result;
+    self.frac = frac_result;
+}
+
+/// multiply-assign an ifp16 and an i8
+fn mult(struct ifp16 self, struct i8 other) {
+    ///Setup our starting variables result
+    cell int_result = 0;
+    cell frac_result = 0;
+    cell sub_frac_result = 0;
+    cell int1 = self.int.n;
+    cell int2 = other.n;
+    ///Firstly  int_result = int_abs1 * int_abs2
+    copy int1 {
+        copy int2 {
+            int_result += 1;
+        }
+    }
+    /// Next frac_result = int_abs1 * frac_2 + int_abs2 * frac1
+    copy self.frac {
+        copy int2 {
+            frac_result += 1;
+            if not frac_result {
+                int_result += 1;
+            }
+        }
+    }
+    self.int.n = int_result;
+    self.frac = frac_result;
+}
+
+/// multiply-assign two ifp16 numbers
+fn mult(struct ifp16 self, struct ifp16 other) {
+    ///Setup our starting variables result
+    cell int_result = 0;
+    cell frac_result = 0;
+    cell sub_frac_result = 0;
+    cell int1 = self.int.n;
+    cell int2 = other.int.n;
+    ///Firstly  int_result = int_abs1 * int_abs2
+    copy int1 {
+        copy int2 {
+            int_result += 1;
+        }
+    }
+    /// Next frac_result = int_abs1 * frac_2 + int_abs2 * frac1
+    copy self.frac {
+        copy int2 {
+            frac_result += 1;
+            if not frac_result {
+                int_result += 1;
+            }
+        }
+    }
+    copy other.frac {
+        copy int1 {
+            frac_result += 1;
+            if not frac_result {
+                int_result += 1;
+            }
+        }
+    }
+    /// Finally we do sub_frac_result = frac_1 * frac_2
+    copy self.frac {
+        copy other.frac {
+            sub_frac_result += 1;
+            if not sub_frac_result {
+                frac_result += 1;
+                if not frac_result {
+                    int_result += 1;
+                }
+            }
+        }
+    }
+    self.int.n = int_result;
+    self.frac = frac_result;
+}
+
+/// divide-assign two ifp16 numbers
+/// self / other
+fn divide(struct ifp16 self, struct ifp16 other) {
+    cell int1 = self.int.n;
+    cell int2 = other.int.n;
+    cell quotient = 0;
+    // If this is false we have a div 0 error no clue what to do then
+    if int2 + other.frac {
+        //If this is false we have no dividend so return 0
+        if int1 + self.frac {
+            // So we want to drain our dividend and each time we reach the divisor we increment our result
+            cell counter_int = int1 + 1;
+            cell counter_frac = self.frac + 1;
+            cell result_frac = -1;
+            cell result_int = -1;
+            drain counter_int {
+                drain counter_frac {
+                    result_frac += 1;
+                    if not result_frac {
+                        result_int += 1;
+                    }
+                    // If we equal our result increment
+                    if not result_frac - other.frac {
+                        if not result_int - int2 {
+                            quotient += 1;
+                            result_int = 0;
+                            result_frac = 0;
+                        }
+                    }
+                }
+                // If not on first loop do an extra loop to counteract overflow
+                result_frac += 1;
+                if not result_frac {
+                    result_int += 1;
+                }
+                // If we equal our result increment
+                if not result_frac - other.frac {
+                    if not result_int - int2 {
+                        quotient += 1;
+                        result_int = 0;
+                        result_frac = 0;
+                    }
+                }
+                //Set to max
+                counter_frac -= 1;
+            }
+        }
+    }
+    print(quotient);
+}
+
+
 /// read an fp16 from stdin, wraps integer digits, truncates fractional part
 fn read(struct ifp16 self) {
   cell sign_neg = false;
@@ -257,4 +410,45 @@ print(h);
 // __127p12890625(a); print(a); output " ("; debug(a); output ")\n";
 // MAX(a); print(a); output " ("; debug(a); output ")\n";
 // add(a, e); print(a); output " ("; debug(a); output ")\n";
+
+// FP * FP mult
+// _16(a); print(a); output " x "; _2(e); print(e); output " = ";
+// mult(a, e); print(a); output " ("; debug(a); output ")\n";
+
+// _64(a); print(a); output " x "; __0p25(e); print(e); output " = ";
+// mult(a, e); print(a); output " ("; debug(a); output ")\n";
+
+// _0p125(a); print(a); output " x "; __6p25(e); print(e); output " = ";
+// mult(a, e); print(a); output " ("; debug(a); output ")\n";
+
+// _0p03125(a); print(a); output " x "; _0p0078125(e); print(e); output " = ";
+// mult(a, e); print(a); output " ("; debug(a); output ")\n";
+
+// FP * CELL MULT
+// cell f;
+// _16(a); print(a); output " x "; f = 3; print(f); output " = ";
+// mult(a, f); print(a); output " ("; debug(a); output ")\n";
+
+// _64(a); print(a); output " x "; f = 2; print(f); output " = ";
+// mult(a, f); print(a); output " ("; debug(a); output ")\n";
+
+// _0p125(a); print(a); output " x "; f = 1; print(f); output " = ";
+// mult(a, f); print(a); output " ("; debug(a); output ")\n";
+
+// _0p03125(a); print(a); output " x "; f = 7; print(f); output " = ";
+// mult(a, f); print(a); output " ("; debug(a); output ")\n";
+
+
+// FP * FP DIV
+// _16(a); print(a); output " / "; _2(e); print(e); output " = ";
+// divide(a, e); output "\n";
+
+// _64(a); print(a); output " / "; __0p25(e); print(e); output " = ";
+// divide(a, e); output "\n";
+
+// _0p125(a); print(a); output " / "; __6p25(e); print(e); output " = ";
+// divide(a, e); output "\n";
+
+// _0p03125(a); print(a); output " / "; _0p0078125(e); print(e); output " = ";
+// divide(a, e); output "\n";
 
