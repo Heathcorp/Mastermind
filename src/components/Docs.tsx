@@ -4,11 +4,32 @@ import remarkGfm from "remark-gfm";
 import {IoClose} from "solid-icons/io";
 import {Component, createEffect, createSignal, JSX, Show} from "solid-js";
 import { useAppContext } from "../App";
-import temp from "../../docs/temp.md?raw";
+import intro from "../../docs/intro.md?raw";
+import cells from "../../docs/cells.md?raw";
+import io from "../../docs/io.md?raw";
+import conditionals from "../../docs/conditionals.md?raw";
+import loops from "../../docs/loops.md?raw";
+import inlinebrainfuck from "../../docs/inlinebrainfuck.md?raw";
+import functions from "../../docs/functions.md?raw";
+import structs from "../../docs/structs.md?raw";
+import standardlib from "../../docs/standardlib.md?raw";
+import twodimensional from "../../docs/twodimensional.md?raw";
+import optimisations from "../../docs/optimisations.md?raw";
 import {FaSolidArrowLeftLong, FaSolidArrowRightLong} from "solid-icons/fa";
 const DocsModal: Component<{ style?: JSX.CSSProperties }> = () => {
     const app = useAppContext()!;
-    const docs = {'Temp': temp};
+    const docs = {'Introduction': intro,
+        'Cells (Variables)': cells,
+        'Input/Output': io,
+        'Conditionals': conditionals,
+        'Loops': loops,
+        'Inline Brainfuck': inlinebrainfuck,
+        'Functions': functions,
+        'Structs': structs,
+        'Standard Library': standardlib,
+        '2D Mastermind': twodimensional,
+        'Optimisations': optimisations,
+    };
     const titles = Object.keys(docs);
     const [selected, setSelected] = createSignal(titles[0]);
     const [docsContent, setDocsContent] = createSignal(docs[selected() as keyof typeof docs] ?? "")
