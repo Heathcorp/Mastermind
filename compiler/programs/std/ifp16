@@ -70,7 +70,61 @@ fn add(struct ifp16 self, struct ifp16 other) {
   }
 }
 
-/// multiply-assign two ifp16 numbers
+
+/// multiply-assign an ifp16 and an u8 (cell)
+fn mult(struct ifp16 self, cell other) {
+    ///Setup our starting variables result
+    cell int_result = 0;
+    cell frac_result = 0;
+    cell sub_frac_result = 0;
+    cell int1 = self.int.n;
+    cell int2 = other;
+    ///Firstly  int_result = int_abs1 * int_abs2
+    copy int1 {
+        copy int2 {
+            int_result += 1;
+        }
+    }
+    /// Next frac_result = int_abs2 * frac1
+    copy self.frac {
+        copy int2 {
+            frac_result += 1;
+            if not frac_result {
+                int_result += 1;
+            }
+        }
+    }
+    self.int.n = int_result;
+    self.frac = frac_result;
+}
+
+/// multiply-assign an ifp16 and an i8
+fn mult(struct ifp16 self, struct i8 other) {
+    ///Setup our starting variables result
+    cell int_result = 0;
+    cell frac_result = 0;
+    cell sub_frac_result = 0;
+    cell int1 = self.int.n;
+    cell int2 = other.n;
+    ///Firstly  int_result = int_abs1 * int_abs2
+    copy int1 {
+        copy int2 {
+            int_result += 1;
+        }
+    }
+    /// Next frac_result = int_abs1 * frac_2 + int_abs2 * frac1
+    copy self.frac {
+        copy int2 {
+            frac_result += 1;
+            if not frac_result {
+                int_result += 1;
+            }
+        }
+    }
+    self.int.n = int_result;
+    self.frac = frac_result;
+}
+
 /// multiply-assign two ifp16 numbers
 fn mult(struct ifp16 self, struct ifp16 other) {
     ///Setup our starting variables result
@@ -258,7 +312,7 @@ fn debug(struct ifp16 self) {
 // MAX(a); print(a); output " ("; debug(a); output ")\n";
 // add(a, e); print(a); output " ("; debug(a); output ")\n";
 
-
+// FP * FP mult
 // _16(a); print(a); output " x "; _2(e); print(e); output " = ";
 // mult(a, e); print(a); output " ("; debug(a); output ")\n";
 
@@ -270,4 +324,18 @@ fn debug(struct ifp16 self) {
 
 // _0p03125(a); print(a); output " x "; _0p0078125(e); print(e); output " = ";
 // mult(a, e); print(a); output " ("; debug(a); output ")\n";
+
+// FP * CELL MULT
+// cell f;
+// _16(a); print(a); output " x "; f = 3; print(f); output " = ";
+// mult(a, f); print(a); output " ("; debug(a); output ")\n";
+
+// _64(a); print(a); output " x "; f = 2; print(f); output " = ";
+// mult(a, f); print(a); output " ("; debug(a); output ")\n";
+
+// _0p125(a); print(a); output " x "; f = 1; print(f); output " = ";
+// mult(a, f); print(a); output " ("; debug(a); output ")\n";
+
+// _0p03125(a); print(a); output " x "; f = 7; print(f); output " = ";
+// mult(a, f); print(a); output " ("; debug(a); output ")\n";
 
