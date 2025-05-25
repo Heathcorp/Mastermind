@@ -10,7 +10,8 @@ const SettingsModal: Component<{ style?: JSX.CSSProperties }> = () => {
     "2D Mastermind - Zig Zag",
     "2D Mastermind - Spiral",
     "2D Mastermind - Tiles",
-    "2D Mastermind - Nearest",
+      //NOT IMPLEMENTED
+    // "2D Mastermind - Nearest",
   ];
 
     const tickboxKeys: (keyof OptimisationSettings)[] = [
