@@ -7,6 +7,10 @@ struct ifp16 {
   cell frac;
 }
 
+// 00000000.00000000
+// 01111111.11111111
+// 12.156
+
 // struct ifp16 {
 //   cell sign_neg;
 //   cell int;
@@ -58,6 +62,17 @@ fn MIN(struct ifp16 n) {__128(n);}
 fn MAX(struct ifp16 n) {_127p99609375(n);}
 fn EPSILON(struct ifp16 n) {_0p00390625(n);}
 fn _EPSILON(struct ifp16 n) {__0p00390625(n);}
+
+/// check if the number is non-zero
+fn ne_zero(struct ifp16 self, cell _non_zero) {
+  _non_zero = false;
+  if self.int.n {
+    _non_zero = true;
+  }
+  if self.frac {
+    _non_zero = true;
+  }
+}
 
 /// add-assign two ifp16 numbers
 fn add(struct ifp16 self, struct ifp16 other) {
@@ -413,7 +428,8 @@ fn debug(struct ifp16 self) {
 
 // struct ifp16 t; _99p99609375(t); print(t); output " ("; debug(t); output ")\n";
 // struct ifp16 u; _16(u); print(u); output " ("; debug(u); output ")\n";
-// divide(t, u);
+// mult(t, u);
+// print(t);
 
 
 

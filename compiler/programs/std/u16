@@ -47,6 +47,7 @@ fn set(struct u16 dest, struct u16 src) {
 /// set overload for u8
 fn set(struct u16 dest, cell src) {
   dest.n0 = src;
+  dest.n1 = 0;
 }
 /// set destructively
 fn set_d(struct u16 dest, struct u16 src) {
@@ -134,6 +135,7 @@ fn sub(struct u16 self, struct u16 other) {
 
 /// check if number is non-zero
 fn ne_zero(struct u16 self, cell _output) {
+  _output = false;
   // return n0 || n1
   if self.n0 {
     _output = true;
@@ -183,6 +185,12 @@ fn mult_n_d(struct u16 self, cell n) {
   drain n {
     add(self, c);
   }
+}
+
+/// print the binary
+fn debug(struct u16 self) {
+  debug(self.n1);
+  debug(self.n0);
 }
 
 /// print the u16 as a base-10 natural number [0, 65535]
@@ -240,7 +248,7 @@ fn print(struct u16 self) {
       }
     }
     // copy new quotient to value so we start again
-    set_d(m, n);
+    set_d(n, m);
   }
 
 // debug_stack(); output 10;
@@ -259,12 +267,6 @@ fn print(struct u16 self) {
   }
   ds.stack[0] += '0';
   output ds.stack[0];
-}
-
-/// print the binary
-fn debug(struct u16 self) {
-  debug(self.n1);
-  debug(self.n0);
 }
 
 /// read a u16 number from stdin, assumes n = 0 and valid newline-terminated input
