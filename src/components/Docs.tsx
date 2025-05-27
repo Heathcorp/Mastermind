@@ -15,6 +15,7 @@ import structs from "../../docs/structs.md?raw";
 import standardlib from "../../docs/standardlib.md?raw";
 import twodimensional from "../../docs/twodimensional.md?raw";
 import optimisations from "../../docs/optimisations.md?raw";
+import locationspecifiers from "../../docs/locationspecifiers.md?raw";
 import {FaSolidArrowLeftLong, FaSolidArrowRightLong} from "solid-icons/fa";
 const DocsModal: Component<{ style?: JSX.CSSProperties }> = () => {
     const app = useAppContext()!;
@@ -29,6 +30,7 @@ const DocsModal: Component<{ style?: JSX.CSSProperties }> = () => {
         'Standard Library': standardlib,
         '2D Mastermind': twodimensional,
         'Optimisations': optimisations,
+        'Location Specifiers': locationspecifiers,
     };
     const titles = Object.keys(docs);
     const [selected, setSelected] = createSignal(titles[0]);
