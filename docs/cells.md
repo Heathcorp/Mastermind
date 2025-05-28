@@ -5,12 +5,12 @@ Since the input and output use ASCII cells are converted to and from ASCCI when 
 
 ```
 // single-cell:
-let var = 56;
-let c = 'g';
-let bool = true; // true/false equivalent to 1/0
+cell var = 56;
+cell c = 'g';
+cell bool = true; // true/false equivalent to 1/0
 // multi-cell:
-let array[4] = [1, 2, 3, 4];
-let string[5] = "hello";
+cell array[4] = [1, 2, 3, 4];
+cell string[5] = "hello";
 ```
 
 multi cell structures can also be created but this is covered in the 'Structs' page of the documentation
