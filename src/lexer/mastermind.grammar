@@ -201,7 +201,9 @@ Clause {
     } |
     AssertClause {
         Assert { kw<"assert"> } VariableTarget ((Equals { kw<"equals"> } Constant) | Unknown { kw<"unknown"> }) Semicolon
-    }
+    } |
+
+    Braces<Clause*>
 }
 
 PreprocessorDirective {
