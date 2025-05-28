@@ -54,6 +54,7 @@ export default function FileBrowserModal({
           onClick={() => app.setFileBrowserOpen(false)}
         >
           <div class="file-browser-modal">
+            <h2 style={{"text-align": "left", "width": "100%"}}>FILES - {app.fileStates.length}</h2>
             <div class="file-browser-container">
               <For each={app.fileStates}>
                 {(state) => (
