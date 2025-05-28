@@ -49,7 +49,7 @@ fn __0p5(struct ifp16 n)          {n.int.n = -1;   n.frac = 128;}
 fn __0p99609375(struct ifp16 n)   {n.int.n = -1;   n.frac = 1;}
 fn _1p5(struct ifp16 n)           {n.int.n = 1;    n.frac = 128;}
 fn _2p5(struct ifp16 n)           {n.int.n = 2;    n.frac = 128;}
-fn _7p75(struct ifp16 n)          {n.int.n = 2;    n.frac = 192;}
+fn _7p75(struct ifp16 n)          {n.int.n = 7;    n.frac = 192;}
 fn __1p5(struct ifp16 n)          {n.int.n = -2;   n.frac = 128;}
 fn __2p5(struct ifp16 n)          {n.int.n = -3;   n.frac = 128;}
 fn __6p25(struct ifp16 n)         {n.int.n = -7;   n.frac = 192;}
@@ -312,17 +312,17 @@ fn read(struct ifp16 self) {
         div_10(n);
       }
     }
+    self.frac = n.n0;
+  }
 
-    if sign_neg {
-      self.int.n = -abs_int;
-      self.frac = -n.n0;
-      if self.frac {
-        self.int.n -= 1;
-      }
-    } else {
-      self.int.n = abs_int;
-      self.frac = n.n0;
+  if sign_neg {
+    self.int.n = -abs_int;
+    if self.frac {
+      self.int.n -= 1;
+      self.frac = -self.frac;
     }
+  } else {
+    self.int.n = abs_int;
   }
 }
 
