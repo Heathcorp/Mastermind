@@ -48,6 +48,7 @@ const CompilerPanel: Component<{ style?: JSX.CSSProperties }> = (props) => {
             <select
               value={app.entryFile()}
               onChange={(e) => app.setEntryFile(e.target.value)}
+              style={{"max-width": "10rem"}}
             >
               {/* TODO: fix an issue with file renaming not updating this list */}
               <For each={app.fileStates}>

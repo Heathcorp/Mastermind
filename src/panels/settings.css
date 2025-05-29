@@ -143,6 +143,18 @@ a:active.socials-icon {
   border: 1px solid var(--BORDER-0);
 }
 
+.file-browser-modal {
+  position: relative;
+  max-width: 900px;
+
+  padding: 0rem 2rem 1rem 2rem;
+  background-color: var(--BG-0);
+  border: 1px solid var(--BORDER-0);
+  display: flex;
+  align-items: center;
+  flex-direction: column;
+}
+
 .settings-modal {
   position: relative;
   max-width: 800px;

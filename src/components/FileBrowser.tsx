@@ -53,15 +53,16 @@ export default function FileBrowserModal({
           class="readme-modal-container"
           onClick={() => app.setFileBrowserOpen(false)}
         >
-          <div class="settings-modal">
+          <div class="file-browser-modal">
+            <h2 style={{"text-align": "left", "width": "100%"}}>FILES - {app.fileStates.length}</h2>
             <div class="file-browser-container">
               <For each={app.fileStates}>
                 {(state) => (
-                  <FileTile
-                    file={state}
-                    switchToFile={switchToFile}
-                    current={(state.id as string) === current()}
-                  />
+                    <FileTile
+                        file={state}
+                        switchToFile={switchToFile}
+                        current={(state.id as string) === current()}
+                    />
                 )}
               </For>
             </div>
