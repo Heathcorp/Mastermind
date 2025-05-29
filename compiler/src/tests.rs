@@ -1141,6 +1141,59 @@ output 10;
 	}
 
 	#[test]
+	fn function_overloads_1() {
+		let program = String::from(
+			r#"
+fn hello(cell h) {
+  output "hello: ";
+	output h;
+}
+fn hello() {
+	output "hello";
+}
+
+hello();
+output 10;
+cell g =  'g';
+hello(g);
+output 10;
+		"#,
+		);
+		let input = String::from("");
+		let desired_output = String::from("hello\nhello: g\n");
+		let output = compile_and_run(program, input).expect("");
+		println!("{output}");
+		assert_eq!(desired_output, output)
+	}
+
+	#[test]
+	fn function_overloads_1a() {
+		let program = String::from(
+			r#"
+fn hello() {
+  output "hello";
+}
+fn hello(cell h) {
+  hello();
+  output ": ";
+  output h;
+}
+
+hello();
+output 10;
+cell g =  'g';
+hello(g);
+output 10;
+		"#,
+		);
+		let input = String::from("");
+		let desired_output = String::from("hello\nhello: g\n");
+		let output = compile_and_run(program, input).expect("");
+		println!("{output}");
+		assert_eq!(desired_output, output)
+	}
+
+	#[test]
 	fn input_1() {
 		let program = String::from(
 			"

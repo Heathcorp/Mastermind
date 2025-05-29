@@ -1,0 +1,82 @@
+#include <bitops>
+#include <u8>
+
+struct i8 {
+  cell n;
+}
+// 0b11111111 = -1
+// 0b00000000 = 0
+// 0b00000001 = 1
+// 0b00000010 = 2
+// 0b01111111 = 127
+// 0b10000000 = -128
+// 0b10000001 = -127
+// 0b10000010 = -126
+
+// cell MAX_i8 = 127;
+// cell MIN_i8 = -128;
+
+fn is_neg(struct i8 self, cell _sign_neg) {
+  copy self.n into _sign_neg;
+  cell i = 7;
+  tshift_r(_sign_neg, i);
+}
+
+fn to_u8(struct i8 self, cell _abs, cell _sign_neg) {
+  copy self.n into _abs _sign_neg;
+
+  {
+    // shift so that _sign_neg is the most significant bit
+    cell i = 7;
+    tshift_r(_sign_neg, i);
+  }
+
+  if _sign_neg {
+    _abs = -_abs;
+  }
+}
+
+/// add-assign operator
+fn add(struct i8 self, struct i8 other) {
+  self.n += other.n;
+}
+
+/// increment operator
+fn inc(struct i8 self) {
+  self.n += 1;
+}
+
+/// decrement operator
+fn dec(struct i8 self) {
+  self.n -= 1;
+}
+
+/// print function for signed 8bit integers
+fn print(struct i8 self) {
+  cell abs;
+  cell neg;
+  to_u8(self, abs, neg);
+  if neg {
+    output '-';
+  }
+  print(abs);
+}
+
+// debug/test code:
+// #include "print.mmi"
+// struct i8 a;
+// a.n = 0;
+// drain 2 {
+//   drain 128 into a.n {
+//     cell abs;
+//     cell neg;
+//     to_u8(n, abs, neg);
+//     if not neg {
+//       output '+';
+//     } else {
+//       output '-';
+//     }
+//     print(abs);
+//     output '\n';
+//   }
+// }

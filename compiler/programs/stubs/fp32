@@ -1,0 +1,52 @@
+#include <u16>
+
+/// fixed-point 32bit unsigned number
+// struct ufp32 {
+//   struct u16 most_sig;
+//   struct u16 least_sig;
+//   // most_sig.least_sig
+// }
+// 00000000 00000000.00000000 00000000
+//     most_sig          least_sig
+
+// max number that could be represented by this:
+// = (2^32 - 1) * 2^-16 = 65535 + 65535 * 2^-16
+// = 65535 * (1 + 2^-16)
+// = 65535.9999847
+
+// struct ifp32 {
+//   struct i16 most_sig;
+//   struct u16 least_sig;
+// }
+
+struct ifp32 {
+  cell sign_neg;
+  struct u16 most_sig;
+  struct u16 least_sig;
+}
+
+/// add a u8 cell to the most significant (2^8) bits of this ufp32
+fn add_3(struct ifp32 self, cell other) {
+
+}
+
+/// add a u8 cell to the ones (2^0) digits of this ufp32
+fn add_2(struct ifp32 self, cell other) {
+
+}
+fn add(struct ifp32 self, cell other) {add_2(self, other);}
+
+/// add a u8 cell to the 2^-8 digits (most-sig below the decimal point)
+fn add_1(struct ifp32 self, cell other) {
+
+}
+
+/// add a u8 cell to the 2^-16 digits (most-sig below the decimal point)
+fn add_0(struct ifp32 self, cell other) {
+
+}
+
+/// overload for adding two fixed-point numbers
+fn add(struct ifp32 self, struct ifp32 other) {
+  
+}
