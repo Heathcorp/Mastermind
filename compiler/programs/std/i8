@@ -41,6 +41,11 @@ fn add(struct i8 self, struct i8 other) {
   self.n += other.n;
 }
 
+/// subtract-assign operator
+fn sub(struct i8 self, struct i8 other) {
+  self.n -= other.n;
+}
+
 /// increment operator
 fn inc(struct i8 self) {
   self.n += 1;
