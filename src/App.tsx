@@ -25,6 +25,12 @@ import brainfuckExample from "./assets/brainfuck.mmi?raw";
 import helloWorldExample from "./assets/hello_world.mmi?raw";
 import basicCalculatorExample from "./assets/basic_calculator.mmi?raw";
 
+import std_bitops from "./assets/bitops?raw";
+import std_i8 from "./assets/i8?raw";
+import std_u8 from "./assets/u8?raw";
+import std_u16 from "./assets/u16?raw";
+import std_ifp16 from "./assets/ifp16?raw";
+
 import "./App.css";
 import Divider from "./components/Divider";
 import EditorPanel from "./panels/EditorPanel";
@@ -37,12 +43,12 @@ import CompilerPanel from "./panels/CompilerPanel.tsx";
 import { defaultExtensions } from "./misc";
 import { makePersisted } from "@solid-primitives/storage";
 import { createStore } from "solid-js/store";
-import  { MastermindConfig } from "./components/Settings";
+import { MastermindConfig } from "./components/Settings";
 
 const AppContext = createContext<AppContextProps>();
 
 // update this when you want the user to see new syntax
-const MIGRATION_VERSION = 7;
+const MIGRATION_VERSION = 8;
 
 const App: Component = () => {
   const [version, setVersion] = makePersisted(createSignal<number>(), {
@@ -54,18 +60,20 @@ const App: Component = () => {
   const [fileUploaderOpen, setFileUploaderOpen] = createSignal(false);
   const [docsOpen, setDocsOpen] = createSignal(false);
   const [config, setConfig] = makePersisted(
-      createSignal<MastermindConfig>({
-    optimise_cell_clearing: false,
-    optimise_constants: false,
-    optimise_empty_blocks: false,
-    optimise_generated_code: false,
-    optimise_generated_all_permutations: false,
-    optimise_memory_allocation: false,
-    optimise_unreachable_loops: false,
-    optimise_variable_usage: false,
-    memory_allocation_method: 0,
-    enable_2d_grid: false,
-  }), { name:"mastermind_config"});
+    createSignal<MastermindConfig>({
+      optimise_cell_clearing: false,
+      optimise_constants: false,
+      optimise_empty_blocks: false,
+      optimise_generated_code: false,
+      optimise_generated_all_permutations: false,
+      optimise_memory_allocation: false,
+      optimise_unreachable_loops: false,
+      optimise_variable_usage: false,
+      memory_allocation_method: 0,
+      enable_2d_grid: false,
+    }),
+    { name: "mastermind_config" }
+  );
   createEffect(
     on([version], () => {
       const v = version();
@@ -161,6 +169,31 @@ const App: Component = () => {
         id: uuidv4(),
         label: "brainfuck.mmi",
         rawText: brainfuckExample,
+      },
+      {
+        id: uuidv4(),
+        label: "bitops",
+        rawText: std_bitops,
+      },
+      {
+        id: uuidv4(),
+        label: "i8",
+        rawText: std_i8,
+      },
+      {
+        id: uuidv4(),
+        label: "u8",
+        rawText: std_u8,
+      },
+      {
+        id: uuidv4(),
+        label: "u16",
+        rawText: std_u16,
+      },
+      {
+        id: uuidv4(),
+        label: "ifp16",
+        rawText: std_ifp16,
       },
     ].map((rawState) => ({
       // This could probably be common function, duplicate code of above deserialization and file creation functions (TODO: refactor)
