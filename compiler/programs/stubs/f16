@@ -1,0 +1,49 @@
+STUB CODE
+(plans changed, originally were doing floats, this is as far as we got)
+
+struct f16 {
+  cell mantissa;
+  struct i8 exponent;
+  cell sign_neg;
+}
+
+fn ZERO(struct f16 n) {
+  n.mantissa = 0;
+  n.exponent = 0; // does the exponent matter for 0.0?
+  n.sign_neg = false;
+}
+
+fn ONE(struct f16 n) {
+  n.mantissa = 1;
+  n.exponent = ;
+  n.sign_neg = false;
+}
+
+fn TWO(struct f16 n) {
+  n.mantissa = 2;
+  n.exponent = ;
+  n.sign_neg = false;
+}
+
+fn FOUR(struct f16 n) {
+  n.mantissa = 1;
+  n.exponent = ;
+  n.sign_neg = false;
+}
+
+fn cpy(struct f16 src, struct f16 _dest) {
+  _dest.mantissa = src.mantissa;
+  _dest.exponent = src.exponent;
+  _dest.sign = src.sign;
+}
+
+fn add(struct f16 a, struct f16 b, struct f16 _c) {
+  // create copies
+  struct float16 a_; cpy(a, a_);
+  struct float16 b_; cpy(b, b_);
+
+  // shift the 
+}
+
+
+
