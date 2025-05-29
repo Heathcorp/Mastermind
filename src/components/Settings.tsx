@@ -176,3 +176,16 @@ const optimisationLabels: Record<keyof OptimisationSettings, string> = {
   optimise_unreachable_loops: "unreachable loops",
   optimise_variable_usage: "variable usage",
 };
+
+export const DEFAULT_MASTERMIND_CONFIG = {
+      optimise_cell_clearing: false,
+      optimise_constants: false,
+      optimise_empty_blocks: false,
+      optimise_generated_code: false,
+      optimise_generated_all_permutations: false,
+      optimise_memory_allocation: false,
+      optimise_unreachable_loops: false,
+      optimise_variable_usage: false,
+      memory_allocation_method: 0,
+      enable_2d_grid: false,
+    };

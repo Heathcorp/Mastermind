@@ -43,7 +43,10 @@ import CompilerPanel from "./panels/CompilerPanel.tsx";
 import { defaultExtensions } from "./misc";
 import { makePersisted } from "@solid-primitives/storage";
 import { createStore } from "solid-js/store";
-import { MastermindConfig } from "./components/Settings";
+import {
+  DEFAULT_MASTERMIND_CONFIG,
+  MastermindConfig,
+} from "./components/Settings";
 
 const AppContext = createContext<AppContextProps>();
 
@@ -60,18 +63,7 @@ const App: Component = () => {
   const [fileUploaderOpen, setFileUploaderOpen] = createSignal(false);
   const [docsOpen, setDocsOpen] = createSignal(false);
   const [config, setConfig] = makePersisted(
-    createSignal<MastermindConfig>({
-      optimise_cell_clearing: false,
-      optimise_constants: false,
-      optimise_empty_blocks: false,
-      optimise_generated_code: false,
-      optimise_generated_all_permutations: false,
-      optimise_memory_allocation: false,
-      optimise_unreachable_loops: false,
-      optimise_variable_usage: false,
-      memory_allocation_method: 0,
-      enable_2d_grid: false,
-    }),
+    createSignal<MastermindConfig>(DEFAULT_MASTERMIND_CONFIG),
     { name: "mastermind_config" }
   );
   createEffect(
@@ -84,6 +76,10 @@ const App: Component = () => {
           );
         }
         loadExampleFiles();
+        setConfig((oldConfig) => ({
+          ...DEFAULT_MASTERMIND_CONFIG,
+          ...oldConfig,
+        }));
         setVersion(MIGRATION_VERSION);
         setHelpOpen(true);
       }
