@@ -190,52 +190,106 @@ fn mult(struct ifp16 self, struct ifp16 other) {
 /// divide-assign two ifp16 numbers
 /// self / other
 fn divide(struct ifp16 self, struct ifp16 other) {
-    cell int1 = self.int.n;
-    cell int2 = other.int.n;
-    cell quotient = 0;
-    // If this is false we have a div 0 error no clue what to do then
-    if int2 + other.frac {
-        //If this is false we have no dividend so return 0
-        if int1 + self.frac {
-            // So we want to drain our dividend and each time we reach the divisor we increment our result
-            cell counter_int = int1 + 1;
-            cell counter_frac = self.frac + 1;
-            cell result_frac = -1;
-            cell result_int = -1;
-            drain counter_int {
-                drain counter_frac {
-                    result_frac += 1;
-                    if not result_frac {
-                        result_int += 1;
-                    }
-                    // If we equal our result increment
-                    if not result_frac - other.frac {
-                        if not result_int - int2 {
-                            quotient += 1;
-                            result_int = 0;
-                            result_frac = 0;
-                        }
-                    }
-                }
-                // If not on first loop do an extra loop to counteract overflow
-                result_frac += 1;
-                if not result_frac {
-                    result_int += 1;
-                }
-                // If we equal our result increment
-                if not result_frac - other.frac {
-                    if not result_int - int2 {
-                        quotient += 1;
-                        result_int = 0;
-                        result_frac = 0;
-                    }
-                }
-                //Set to max
-                counter_frac -= 1;
-            }
-        }
+// let x = (u16)self
+// let y = (u16)other
+// let result = 0
+// let b = 8
+// while b > 0:
+//   let d = x // y
+//   result += d * (b ^ 2)
+//   if d == 0:
+//     x *= 2
+//   else:
+//     x = x % y
+//   b -= 1
+
+  struct u16 x;
+  struct u16 y;
+
+  cell output_neg;
+  {
+    x.n0 = self.frac;
+    cell self_neg;
+    to_u8(self.int, x.n1, self_neg);
+    if self_neg {
+      x.n1 -= 1;
+      x.n0 = -self.frac;
     }
-    print(quotient);
+    
+    y.n0 = other.frac;
+    cell other_neg;
+    to_u8(other.int, y.n1, other_neg);
+    if other_neg {
+      if other.frac {
+        y.n1 -= 1;
+      }
+      y.n0 = -other.frac;
+    }
+
+    // efficient xor
+    output_neg = self_neg - other_neg;
+  }
+
+
+  struct u16 result;
+  struct u16 b; _256(b);
+
+  cell b_ = true;
+  while b_ {
+    struct u16 d;
+    cell dividing = true;
+    while dividing {
+      // make a copy of y, then run a drain loop effectively
+      struct u16 yy; set(yy, y);
+      cell yy_ = true;
+      while yy_ {
+        cell x_; ne_zero(x, x_);
+        if not x_ {
+          // x is 0
+          dividing = false;
+        }
+        dec(x);
+        
+
+        dec(yy);
+        ne_zero(yy, yy_);
+      }
+      if not dividing {
+        cell x_; ne_zero(x, x_);
+        if x_ {
+          // there is a remainder
+          add(x, y);
+        }
+      } else {
+        inc(d);
+      }
+    }
+
+    cell d_; ne_zero(d, d_);
+    while d_ {
+      add(result, b);
+
+      dec(d);
+      ne_zero(d, d_);
+    }
+
+    div_2(b);
+    struct u16 xx; set(xx, x);
+    add(x, xx);
+    ne_zero(b, b_);
+  }
+
+  // cast the u16 back to self ifp16
+  if not output_neg {
+    self.int.n = result.n1;
+    self.frac = result.n0;
+  } else {
+    self.int.n = -result.n1;
+    if result.n0 {
+      self.int.n -= 1;
+    }
+    self.frac = -result.n0;
+  }
 }
 
 /// read an fp16 from stdin, wraps integer digits, truncates fractional part

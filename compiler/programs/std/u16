@@ -177,6 +177,28 @@ fn div_10(struct u16 self) {
   set_d(self, quotient);
 }
 
+/// lazy implementation of a divide by 2
+// TODO: make more efficient
+fn div_2(struct u16 self) {
+  struct u16 quotient;
+  cell dividing = true;
+  while dividing {
+    drain 2 {
+      cell o; ne_zero(self, o);
+      if o {
+        dec(self);
+      } else {
+        // remainder += 1;
+        dividing = false;
+      }
+    }
+    if dividing {
+      inc(quotient);
+    }
+  }
+  set_d(self, quotient);
+}
+
 /// multiply by 25, drains n
 fn mult_n_d(struct u16 self, cell n) {
   struct u16 c;
