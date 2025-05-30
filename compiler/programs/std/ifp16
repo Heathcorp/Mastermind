@@ -104,7 +104,9 @@ fn mult(struct ifp16 self, cell other) {
     cell int_result = 0;
     cell frac_result = 0;
     cell sub_frac_result = 0;
-    cell int1 = self.int.n;
+    cell int1;
+    cell neg1;
+    to_u8(self.int, int1, neg1);
     cell int2 = other;
     ///Firstly  int_result = int_abs1 * int_abs2
     copy int1 {
@@ -123,6 +125,9 @@ fn mult(struct ifp16 self, cell other) {
     }
     self.int.n = int_result;
     self.frac = frac_result;
+    if neg1 {
+        self.int.n = -self.int.n;
+    }
 }
 
 /// multiply-assign an ifp16 and an i8
@@ -131,8 +136,13 @@ fn mult(struct ifp16 self, struct i8 other) {
     cell int_result = 0;
     cell frac_result = 0;
     cell sub_frac_result = 0;
-    cell int1 = self.int.n;
-    cell int2 = other.n;
+    cell int1;
+    cell int2;
+    cell neg1;
+    cell neg2;
+    to_u8(self.int, int1, neg1);
+    to_u8(other, int2, neg2);
+    neg1 = neg1 - neg2;
     ///Firstly  int_result = int_abs1 * int_abs2
     copy int1 {
         copy int2 {
@@ -150,6 +160,9 @@ fn mult(struct ifp16 self, struct i8 other) {
     }
     self.int.n = int_result;
     self.frac = frac_result;
+    if neg1 {
+        self.int.n = -self.int.n;
+    }
 }
 
 /// multiply-assign two ifp16 numbers
@@ -158,8 +171,13 @@ fn mult(struct ifp16 self, struct ifp16 other) {
     cell int_result = 0;
     cell frac_result = 0;
     cell sub_frac_result = 0;
-    cell int1 = self.int.n;
-    cell int2 = other.int.n;
+    cell int1;
+    cell int2;
+    cell neg1;
+    cell neg2;
+    to_u8(self.int, int1, neg1);
+    to_u8(other.int, int2, neg2);
+    neg1 = neg1 - neg2;
     ///Firstly  int_result = int_abs1 * int_abs2
     copy int1 {
         copy int2 {
@@ -197,6 +215,9 @@ fn mult(struct ifp16 self, struct ifp16 other) {
     }
     self.int.n = int_result;
     self.frac = frac_result;
+    if neg1 {
+        self.int.n = -self.int.n;
+    }
 }
 
 /// divide-assign two ifp16 numbers
@@ -227,7 +248,7 @@ fn divide(struct ifp16 self, struct ifp16 other) {
       x.n1 -= 1;
       x.n0 = -self.frac;
     }
-    
+
     y.n0 = other.frac;
     cell other_neg;
     to_u8(other.int, y.n1, other_neg);
@@ -261,7 +282,7 @@ fn divide(struct ifp16 self, struct ifp16 other) {
           dividing = false;
         }
         dec(x);
-        
+
 
         dec(yy);
         ne_zero(yy, yy_);
@@ -328,7 +349,7 @@ fn read(struct ifp16 self) {
         // shift digits (times by 10) and add the new digit
         mult_10(abs_int);
         abs_int += digit - '0';
-    
+
         input digit;
       }
     }
@@ -355,7 +376,7 @@ fn read(struct ifp16 self) {
 
             // another digit
             frac_digit_count += 1;
-    
+
             mult_10(n.n1);
             n.n1 += digit;
 
@@ -371,7 +392,7 @@ fn read(struct ifp16 self) {
           digit -= '\n';
         }
       }
-  
+
       // we have multiplied our integer by 256
       // divide by 10^(frac_digit_count)
       drain frac_digit_count {
@@ -443,7 +464,7 @@ fn print(struct ifp16 self) {
       drain ds[1] into ds[0];
       drain ds[2] into ds[1];
     }
-  
+
     cell n = w.n1;
     // essentially repeatedly divide by 10
     drain 3 {
@@ -460,7 +481,7 @@ fn print(struct ifp16 self) {
             dividing = false;
           }
         }
-  
+
         if dividing {
           m += 1;
         }
@@ -468,7 +489,7 @@ fn print(struct ifp16 self) {
       // copy new quotient to value so we start again
       n = 0; drain m into n;
     }
-  
+
     drain '0' into ds[1] ds[2];
     output ds[1];
     output ds[2];
@@ -529,8 +550,8 @@ fn debug(struct ifp16 self) {
 // add(a, e); print(a); output " ("; debug(a); output ")\n";
 // add(a, e); print(a); output " ("; debug(a); output ")\n";
 // __99p99609375(a); print(a); output " ("; debug(a); output ")\n";
-// add(a, _e); print(a); output " ("; debug(a); output ")\n";
-// add(a, _e); print(a); output " ("; debug(a); output ")\n";
+// subtract(a, _e); print(a); output " ("; debug(a); output ")\n";
+// subtract(a, _e); print(a); output " ("; debug(a); output ")\n";
 // add(a, _e); print(a); output " ("; debug(a); output ")\n";
 // add(a, e); print(a); output " ("; debug(a); output ")\n";
 // add(a, e); print(a); output " ("; debug(a); output ")\n";
