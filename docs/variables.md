@@ -24,7 +24,7 @@ drain 5 {
 // stdout: 11bcd
 ```
 
-The simplest way to display text is to output valid ASCII characters, however if your Brainfuck implementation supports unicode, that is possible too by outputting multiple bytes.
+The simplest way to display text is to output valid ASCII characters, however if your Brainfuck implementation supports unicode, that is also possible by outputting multiple bytes.
 
 ```
 output 240;
