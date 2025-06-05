@@ -10,7 +10,6 @@ This documentation currently includes the following articles:
 
 - Brainfuck
 - Variables
-- Input/Output
 - Conditionals
 - Loops
 - Inline Brainfuck
