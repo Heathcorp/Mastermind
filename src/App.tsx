@@ -24,6 +24,7 @@ import christmasTreeExample from "./assets/christmas_trees.mmi?raw";
 import brainfuckExample from "./assets/brainfuck.mmi?raw";
 import helloWorldExample from "./assets/hello_world.mmi?raw";
 import basicCalculatorExample from "./assets/basic_calculator.mmi?raw";
+import fixedPointCalculatorExample from "./assets/ifp16calculator.mmi?raw";
 
 import std_bitops from "./assets/bitops?raw";
 import std_i8 from "./assets/i8?raw";
@@ -51,7 +52,7 @@ import {
 const AppContext = createContext<AppContextProps>();
 
 // update this when you want the user to see new syntax
-const MIGRATION_VERSION = 8;
+const MIGRATION_VERSION = 9;
 
 const App: Component = () => {
   const [version, setVersion] = makePersisted(createSignal<number>(), {
@@ -191,6 +192,11 @@ const App: Component = () => {
         label: "ifp16",
         rawText: std_ifp16,
       },
+      {
+        id: uuidv4(),
+        label: "Fixed Point Calculator",
+        rawText: fixedPointCalculatorExample,
+      }
     ].map((rawState) => ({
       // This could probably be common function, duplicate code of above deserialization and file creation functions (TODO: refactor)
       id: rawState.id,
