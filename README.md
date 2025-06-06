@@ -268,7 +268,7 @@ bf @4 {
 // compiled: >>>><><><>
 ```
 
-Alternatively if using the 2D enhancements you can use a comma seperated list with 2 values for a 2D location
+Alternatively if using the 2D grid you can use a comma seperated list with a second value:
 
 ```
 
