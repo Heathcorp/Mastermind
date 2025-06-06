@@ -97,6 +97,10 @@ struct S[3] three_S_structs;
 three_S_structs[1].matrix_of_T_structs[3][0] = '5';
 ```
 
+#### Note: Array indices must be compile-time constant integers
+
+This is a limitation of Brainfuck, getting around this problem requires more runtime code is worth including for the sake of optimisations. You can implement equivalent behaviour using in-line Brainfuck, structs, and functions.
+
 ### Location specifiers
 
 The exact memory cells occupied by a variable can be specified:
