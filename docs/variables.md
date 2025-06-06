@@ -1,4 +1,6 @@
-### Cells
+### Variables
+
+#### Cells
 
 The base data type in Mastermind is the `cell`, this corresponds to a a single 8-bit cell on the Brainfuck tape.
 
@@ -35,7 +37,7 @@ output 10;
 // displays 🤑 (emoji with green cash for tongue)
 ```
 
-### Cell Arrays
+#### Cell Arrays
 
 Variables can also be defined as contiguous arrays of cells.
 
@@ -47,7 +49,7 @@ cell[2] foo;
 foo[0] = 204;
 ```
 
-### Structs
+#### Structs
 
 Structure types can be defined with named fields, then instantiated as variables.
 
@@ -93,4 +95,50 @@ struct S {
 
 struct S[3] three_S_structs;
 three_S_structs[1].matrix_of_T_structs[3][0] = '5';
+```
+
+### Location specifiers
+
+The exact memory cells occupied by a variable can be specified:
+
+```
+cell a @4 = 1; // value 1 at tape position 4
+```
+
+#### Struct subfields
+
+The byte-order and positioning of a struct's subfields can be specified:
+
+```
+struct T {
+  cell a @1;
+  cell b[2] @3;
+}
+// struct T's layout:
+// (-, a, -, b[0], b[1])
+// '-' denotes an untracked padding cell
+```
+
+#### Variable
+
+When using in-line Brainfuck (see other document), the Brainfuck scope's starting position can be specified with variables:
+
+```
+cell d;
+bf @d {
+  // brainfuck code here
+}
+
+struct G {
+  cell h;
+  cell i;
+  cell j;
+}
+struct G g;
+
+bf @g {
+  // starts on the first cell of g's allocation
+}
+// equivalent to:
+bf @g.h {}
 ```
