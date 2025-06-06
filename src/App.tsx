@@ -52,7 +52,7 @@ import {
 const AppContext = createContext<AppContextProps>();
 
 // update this when you want the user to see new syntax
-const MIGRATION_VERSION = 9;
+const MIGRATION_VERSION = 10;
 
 const App: Component = () => {
   const [version, setVersion] = makePersisted(createSignal<number>(), {

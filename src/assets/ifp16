@@ -86,6 +86,18 @@ fn add(struct ifp16 self, struct ifp16 other) {
   }
 }
 
+/// subtract-assign two ifp16 numbers
+fn sub(struct ifp16 self, struct ifp16 other) {
+  sub(self.int, other.int);
+  copy other.frac {
+    self.frac -= 1;
+    dec(self.int);
+    if self.frac {
+      inc(self.int);
+    }
+  }
+}
+
 /// multiply-assign an ifp16 and an u8 (cell)
 fn mult(struct ifp16 self, cell other) {
     ///Setup our starting variables result
