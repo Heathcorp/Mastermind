@@ -12,9 +12,8 @@ This documentation currently includes the following articles:
 - Variables
 - Conditionals
 - Loops
-- Inline Brainfuck
 - Functions
-- Structs
+- Inline Brainfuck
 - Standard Library
 - 2D Mastermind
 - Optimisations
