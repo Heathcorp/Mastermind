@@ -1,53 +1,99 @@
-Functions in Mastermind work more like templates/macros, as they do not perform any passing by value. All functions are essentially inlined at compile time. This means multiple calls to a large function will significantly increase your compiled code size.
+### Functions
 
-Functions are created using the def command followed by the function name and a list of typed arguments inside of
-( ). 
-
-Functions currently do not support return values since they function as marcos and will instead just update the value of variables passed in
+Mastermind supports a minimal functions system: Functions can be defined with a name and a fixed number of typed arguments.
 
 ```
-def quote(cell arg) {
-   output 39; // ASCII single quote
-   output arg;
-   output 39;
+fn newline() { output '\n'; }
+
+fn print_zeros(cell num) {
+  copy num {
+    output '0';
+  }
+  newline();
 }
 
-cell N = 'g';
-quote<N>;
-N += 3;
-quote<N>;
-//OUTPUT 
-// 'g''j'
+// expressions as arguments are currently not supported,
+//  i.e. print_zeros(9)
+cell g = 9;
+print_zeros(g);
 ```
 
-When Structs are used in conjunction with Functions you are allowed to define multiple functions with the same name and it 
-will use the input to perform function overloading.
+Functions are in-lined at compile-time, and all arguments are passed by reference. Values can be returned by editing the arguments, or editing variables in an outer scope, although the latter makes a function less portable.
 
 ```
-struct test {
-    cell value;
+fn is_zero(cell in, cell out) {
+  out = true;
+  if in {
+    out = false;
+  }
 }
 
-def quote(struct test structarg) {
-   output 34; // ASCII double quote
-   output structarg.value;
-   output 34;
+cell value = 'h';
+cell falsy;
+is_zero(value, falsy);
+```
+
+Example showing a function reading a variable from an outer scope:
+
+```
+fn print_global_g(cell count) {
+  copy count {
+    output g;
+    output ' ';
+  }
 }
 
-def quote(cell arg) {
-   output 39; // ASCII single quote
-   output arg;
-   output 39;
+cell g = 'g';
+cell count = 11;
+print_global_g(count);
+// g g g g g g g g g g g
+
+{
+  // inner scope with a new 'g' allocation
+  cell g = 'G';
+  count = 4;
+  print_global_g(count);
+  // G G G G
 }
 
-struct test A;
-a.value = 'p';
-quote<A>;
-cell N = 'g';
-quote<N>;
-N += 3;
-quote<N>;
+// same call again, now the inner 'G' has been freed
+print_global_g(count);
+// g g g g
+```
 
-//OUTPUT
-// "p"'g''j'
+#### Structs and Overloads
+
+Example of supported behaviour:
+
+```
+fn func1() {
+  output '1';
+}
+fn func1(cell a) {
+  output '2';
+}
+fn func1(cell a, cell b) {
+  output '3';
+}
+struct X { cell a; }
+fn func1(struct X x) {
+  output '4';
+}
+struct Y { cell a; }
+fn func1(struct Y y) {
+  output '5';
+}
+fn func1(cell a, struct X x, struct Y y) {
+  output '6';
+}
+cell n;
+struct X x;
+struct Y y;
+func1();
+func1(n);
+func1(n, n);
+func1(x);
+func1(y);
+func1(n, x, y);
+// 123456
 ```

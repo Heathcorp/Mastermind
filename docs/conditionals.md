@@ -1,29 +1,27 @@
-Conditional Statements in Mastermind currently only exist in the format of an If/Else block which evaluates to True if a value is non 0 or false if it is 0.
-Currently not supported is the usage of logical operators such as && and || to link multiple statements together 
+### Conditionals
 
-
-### If/Else
-
-Note: If/Else blocks currently a little bit inefficient but work for most use cases.
-
-If/Else statements are very simple, they check if a value is positive. If you want to invert then you can use the `not` keyword.
-Examples:
+Mastermind supports basic `if`/`else` statements. An `if` statement takes in a single cell expression, if the expression is evaluated to be truthy, then the `if` block is executed, otherwise the optional `else` block is executed. This behaviour can be inverted using the `not` keyword.
 
 ```
 if 13 {
-   output "13";
+  output "13";
 }
 
+if not true {
+  // unreachable
+}
+
+cell var = 4;
 if var {
-   output "true";
+  output "true";
 } else {
-   output "false";
+  output "false";
 }
 
 // typical equivalence use-case:
 if not var - 10 {
-   // ==
+  // ==
 } else {
-   // !=
+  // !=
 }
 ```

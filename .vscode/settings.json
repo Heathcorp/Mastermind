@@ -1,6 +1,7 @@
 {
   "files.associations": {
-    "./compiler/programs/std/*": "mastermind",
-    "**.mmi": "mastermind",
+    "compiler/programs/std/*": "plaintext",
+    "**.mmi": "plaintext",
+    "src/assets/*": "plaintext",
   }
 }
