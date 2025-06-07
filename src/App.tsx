@@ -82,7 +82,7 @@ const App: Component = () => {
           ...oldConfig,
         }));
         setVersion(MIGRATION_VERSION);
-        setHelpOpen(true);
+        setDocsOpen(true);
       }
     })
   );
