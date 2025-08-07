@@ -78,13 +78,13 @@ pub mod tests {
 	};
 
 	const BVM_CONFIG_1D: BVMConfig = BVMConfig {
-		ENABLE_DEBUG_SYMBOLS: false,
-		ENABLE_2D_GRID: false,
+		enable_debug_symbols: false,
+		enable_2d_grid: false,
 	};
 
 	const BVM_CONFIG_2D: BVMConfig = BVMConfig {
-		ENABLE_DEBUG_SYMBOLS: false,
-		ENABLE_2D_GRID: true,
+		enable_debug_symbols: false,
+		enable_2d_grid: true,
 	};
 
 	const TESTING_BVM_MAX_STEPS: usize = 100_000_000;
@@ -2823,7 +2823,7 @@ bf {
 			bf {,.[-]+[--^-[^^+^-----vv]v--v---]^-.^^^+.^^..+++[.^]vvstvv.+++.------.vv-.^^^^+.}
 		"#,
 		);
-		let result = compile_program(program, None);
+		let _result = compile_program(program, None);
 	}
 
 	#[test]
@@ -2901,7 +2901,7 @@ output a + 3;
 			memory_allocation_method: 128,
 			enable_2d_grid: false,
 		};
-		let code = compile_program(program, Some(&cfg));
+		let _code = compile_program(program, Some(&cfg));
 	}
 	#[test]
 	fn tiles_memory_allocation_1() -> Result<(), String> {

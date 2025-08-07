@@ -8,9 +8,9 @@ use std::{
 	num::Wrapping,
 };
 
+use crate::macros::macros::r_panic;
 use wasm_bindgen::{JsCast, JsValue};
 use wasm_bindgen_futures::JsFuture;
-use crate::macros::macros::r_panic;
 
 struct Tape {
 	memory_map: HashMap<(i32, i32), Wrapping<u8>>,
@@ -121,8 +121,8 @@ impl fmt::Display for Tape {
 }
 
 pub struct BVMConfig {
-	pub ENABLE_DEBUG_SYMBOLS: bool,
-	pub ENABLE_2D_GRID: bool,
+	pub enable_debug_symbols: bool,
+	pub enable_2d_grid: bool,
 }
 
 pub struct BVM {
@@ -168,8 +168,8 @@ impl BVM {
 		while pc < self.program.len() {
 			match (
 				self.program[pc],
-				self.config.ENABLE_DEBUG_SYMBOLS,
-				self.config.ENABLE_2D_GRID,
+				self.config.enable_debug_symbols,
+				self.config.enable_2d_grid,
 			) {
 				('+', _, _) => self.tape.increment_current_cell(Wrapping(1)),
 				('-', _, _) => self.tape.increment_current_cell(Wrapping(-1i8 as u8)),
@@ -292,8 +292,8 @@ impl BVM {
 		while pc < self.program.len() {
 			match (
 				self.program[pc],
-				self.config.ENABLE_DEBUG_SYMBOLS,
-				self.config.ENABLE_2D_GRID,
+				self.config.enable_debug_symbols,
+				self.config.enable_2d_grid,
 			) {
 				('+', _, _) => self.tape.increment_current_cell(Wrapping(1)),
 				('-', _, _) => self.tape.increment_current_cell(Wrapping(-1i8 as u8)),
@@ -406,12 +406,12 @@ pub mod tests {
 		unsafe { String::from_utf8_unchecked(output_stream.into_inner()) }
 	}
 	const BVM_CONFIG_1D: BVMConfig = BVMConfig {
-		ENABLE_DEBUG_SYMBOLS: false,
-		ENABLE_2D_GRID: false,
+		enable_debug_symbols: false,
+		enable_2d_grid: false,
 	};
 	const BVM_CONFIG_2D: BVMConfig = BVMConfig {
-		ENABLE_DEBUG_SYMBOLS: false,
-		ENABLE_2D_GRID: true,
+		enable_debug_symbols: false,
+		enable_2d_grid: true,
 	};
 
 	#[test]
@@ -552,7 +552,9 @@ pub mod tests {
 
 	#[test]
 	fn test_bf2d_code() {
-		let program = String::from(",.[-]+[--^-[^^+^-----vv]v--v---]^-.^^^+.^^..+++[.^]vvvv.+++.------.vv-.^^^^+.");
+		let program = String::from(
+			",.[-]+[--^-[^^+^-----vv]v--v---]^-.^^^+.^^..+++[.^]vvvv.+++.------.vv-.^^^^+.",
+		);
 		let input = String::from("");
 		let desired_output = String::from("\0Hello, World!");
 		assert_eq!(

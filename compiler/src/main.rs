@@ -110,7 +110,9 @@ fn main() -> Result<(), String> {
 			let bf_program = builder.build(instructions, false)?;
 
 			match config.optimise_generated_code {
-				true => optimise(bf_program, config.optimise_generated_all_permutations).to_string(),
+				true => {
+					optimise(bf_program, config.optimise_generated_all_permutations).to_string()
+				}
 				false => bf_program.to_string(),
 			}
 		}
@@ -120,8 +122,8 @@ fn main() -> Result<(), String> {
 	if args.run || !args.compile {
 		// run brainfuck
 		let config = BVMConfig {
-			ENABLE_DEBUG_SYMBOLS: false,
-			ENABLE_2D_GRID: false,
+			enable_debug_symbols: false,
+			enable_2d_grid: false,
 		};
 		let mut bvm = BVM::new(config, bf_program.chars().collect());
 

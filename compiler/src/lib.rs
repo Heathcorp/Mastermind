@@ -74,8 +74,8 @@ pub async fn wasm_run_bf(
 	set_panic_hook();
 
 	let config = BVMConfig {
-		ENABLE_DEBUG_SYMBOLS: false,
-		ENABLE_2D_GRID: enable_2d_grid,
+		enable_debug_symbols: false,
+		enable_2d_grid: enable_2d_grid,
 	};
 	let mut bf = BVM::new(config, code.chars().collect());
 

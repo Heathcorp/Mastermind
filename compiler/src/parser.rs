@@ -3,7 +3,6 @@ use crate::{
 	macros::macros::{r_assert, r_panic},
 	tokeniser::Token,
 };
-use std::any::type_name;
 use std::{fmt::Display, mem::discriminant, num::Wrapping};
 
 // recursive function to create a tree representation of the program
@@ -243,7 +242,6 @@ fn parse_set_clause(clause: &[Token]) -> Result<Vec<Clause>, String> {
 	// TODO: what do we do about arrays and strings and structs?
 	let mut clauses: Vec<Clause> = Vec::new();
 	let mut i = 0usize;
-	let mut self_referencing = false;
 	let (var, len) = parse_var_target(&clause[i..])?;
 	i += len;
 
@@ -252,7 +250,7 @@ fn parse_set_clause(clause: &[Token]) -> Result<Vec<Clause>, String> {
 		Token::EqualsSign => {
 			i += 1;
 			let expr = Expression::parse(&clause[i..(clause.len() - 1)])?;
-			self_referencing = expr.check_self_referencing(&var);
+			let self_referencing = expr.check_self_referencing(&var);
 			clauses.push(Clause::SetVariable {
 				var,
 				value: expr,
@@ -276,7 +274,7 @@ fn parse_set_clause(clause: &[Token]) -> Result<Vec<Clause>, String> {
 				expr = expr.flipped_sign()?;
 			}
 
-			self_referencing = expr.check_self_referencing(&var);
+			let self_referencing = expr.check_self_referencing(&var);
 			clauses.push(Clause::AddToVariable {
 				var,
 				value: expr,
@@ -1178,31 +1176,19 @@ impl Expression {
 
 	//Recursively Check If This Is Self Referencing
 	pub fn check_self_referencing(&self, parent: &VariableTarget) -> bool {
-		let expr = self;
-		let mut self_referencing = false;
-		//For Expressions Recurse otherwise we only need to check variable references to see if they are self referencing
-		match expr {
-			Expression::SumExpression { sign, summands } => {
-				//Loop through sub expressions and check them all recursively if we find a self reference early we can break
-				for summand in summands {
-					if summand.check_self_referencing(parent) {
-						self_referencing = true;
-						break;
-					}
-				}
-			}
-			//If we are referencing the parent variable return true
-			Expression::VariableReference(var) => {
-				if *var == *parent {
-					self_referencing = true;
-				}
-			}
-			//Ignore these since they are not self referencing
+		// TODO: make sure nested values work correctly
+		match self {
+			Expression::SumExpression {
+				sign: _sign,
+				summands,
+			} => summands
+				.iter()
+				.any(|summand| summand.check_self_referencing(parent)),
+			Expression::VariableReference(var) => *var == *parent,
 			Expression::ArrayLiteral(_)
 			| Expression::StringLiteral(_)
-			| Expression::NaturalNumber(_) => {}
+			| Expression::NaturalNumber(_) => false,
 		}
-		self_referencing
 	}
 }
 

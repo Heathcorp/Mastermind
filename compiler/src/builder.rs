@@ -378,13 +378,12 @@ impl CellAllocator {
 	}
 
 	/// Checks if the memory size can be allocated to the right of a given location e.g. arrays
-	fn check_allocatable(
-		&mut self,
-		location: &TapeCell,
-		size: usize,
-	) -> bool {
+	fn check_allocatable(&mut self, location: &TapeCell, size: usize) -> bool {
 		for k in 0..size {
-			if self.alloc_map.contains(&(location.0 + k as i32, location.1)) {
+			if self
+				.alloc_map
+				.contains(&(location.0 + k as i32, location.1))
+			{
 				return false;
 			}
 		}
@@ -444,7 +443,7 @@ impl CellAllocator {
 				//Spiral
 				let mut found = false;
 				let mut loops = 1;
-				let mut directions = ['N', 'E', 'S', 'W'];
+				let directions = ['N', 'E', 'S', 'W'];
 				let mut i = region_start.0;
 				let mut j = region_start.1;
 				while !found {
@@ -510,7 +509,9 @@ impl CellAllocator {
 				while !found {
 					for i in -loops..=loops {
 						for j in -loops..=loops {
-							if self.check_allocatable(&(region_start.0 + i, region_start.1 + j), size) {
+							if self
+								.check_allocatable(&(region_start.0 + i, region_start.1 + j), size)
+							{
 								found = true;
 								region_start = (region_start.0 + i, region_start.1 + j);
 								break;
@@ -526,7 +527,6 @@ impl CellAllocator {
 				panic!("Memory Allocation Method not implemented");
 			}
 		}
-
 
 		// make all cells in the specified region allocated
 		for i in region_start.0..(region_start.0 + size as i32) {
