@@ -81,7 +81,13 @@ VariableTarget {
     }*
 }
 
-LocationSpecifier { At (Number | (Number Comma Number)) }
+LocationSpecifier {
+    At
+    (
+        (Number | (Number Comma Number)) |
+        VariableTarget
+    )
+}
 
 Constant {
     Number | Boolean | Character
@@ -195,7 +201,9 @@ Clause {
     } |
     AssertClause {
         Assert { kw<"assert"> } VariableTarget ((Equals { kw<"equals"> } Constant) | Unknown { kw<"unknown"> }) Semicolon
-    }
+    } |
+
+    Braces<Clause*>
 }
 
 PreprocessorDirective {

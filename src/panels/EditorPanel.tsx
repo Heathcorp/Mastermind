@@ -3,23 +3,54 @@ import { Component, createSignal, For, createEffect, on } from "solid-js";
 import "./editor.css";
 
 import { EditorView } from "@codemirror/view";
-import { AiOutlinePlus, AiOutlineUpload } from "solid-icons/ai";
+import {
+  AiOutlineFolder,
+  AiOutlinePlusCircle,
+  AiOutlineSave,
+  AiOutlineUpload,
+} from "solid-icons/ai";
 import {
   DragDropProvider,
   DragDropSensors,
-  createDroppable,
-  useDragDropContext,
+  // createDroppable,
+  // useDragDropContext,
 } from "@thisbeyond/solid-dnd";
 
 import { useAppContext } from "../App";
 import Tab from "../components/Tab";
-import { createDropzone } from "@soorria/solid-dropzone";
-import { IconTypes } from "solid-icons";
+// import { IconTypes } from "solid-icons";
+import FileBrowserModal from "../components/FileBrowser";
+import JSZip from "jszip";
+import downloadBlob from "../utils/downloadBlob";
+import FileUploaderModal from "../components/FileUploader";
 
 const EditorPanel: Component = () => {
   const app = useAppContext()!;
 
   const [editingFile, setEditingFile] = createSignal<string>();
+
+  const switchToFile = (fileId: string) => {
+    const firstId = app.fileStates[0]?.id;
+    if (!firstId) return;
+
+    // Grabbing the ID of the first file in the file state list
+    // and moving the selected file to the first slot, then opening it
+    app.reorderFiles(fileId, firstId);
+    setEditingFile(fileId);
+  };
+
+  const zipAndSave = async () => {
+    const zip = new JSZip();
+    app.fileStates.forEach((fileState) => {
+      const blob = new Blob([fileState.editorState.doc.toString()], {
+        type: "text/plain",
+      });
+      zip.file(fileState.label, blob);
+    });
+    await zip.generateAsync({ type: "blob" }).then((x) => {
+      downloadBlob(x);
+    });
+  };
 
   createEffect(
     on([() => app.fileStates, editingFile], () => {
@@ -65,53 +96,74 @@ const EditorPanel: Component = () => {
     })
   );
 
-  const onDrop = (acceptedFiles: File[]) => {
-    console.log(acceptedFiles);
-    acceptedFiles.forEach(async (file: File) => {
-      const newId = await app.createFile(file);
-      setEditingFile(newId);
-    });
-  };
-  const dropzone = createDropzone({ onDrop });
-
   return (
     <div class="panel">
-      <div class="tab-bar">
-        {/* tab rearranging logic for filestates in global file array */}
-        <DragDropProvider
-          onDragEnd={({ draggable, droppable }) =>
-            droppable &&
-            app.reorderFiles(
-              draggable.id as string,
-              droppable.id === TAB_END_ID ? null : (droppable.id as string)
-            )
-          }
-        >
-          <DragDropSensors>
-            <For each={app.fileStates}>
-              {(fileState) => (
-                <Tab
-                  fileId={fileState.id}
-                  fileLabel={fileState.label}
-                  fileActive={fileState.id === editingFile()}
-                  onSelect={() => setEditingFile(fileState.id)}
-                />
-              )}
-            </For>
-            <TabFiller
-              onClick={async () => {
-                const newId = await app.createFile();
-                setEditingFile(newId);
-                // setEditingLabel(newFile.id);
-              }}
-            />
-            <TabFiller
-              onClick={() => {}}
-              iconComponent={AiOutlineUpload}
-              dropzone={dropzone}
-            />
-          </DragDropSensors>
-        </DragDropProvider>
+      <div class="tab-container">
+        <div class="tab-bar">
+          {/* tab rearranging logic for filestates in global file array */}
+          <DragDropProvider
+            onDragEnd={({ draggable, droppable }) =>
+              droppable &&
+              app.reorderFiles(
+                draggable.id as string,
+                droppable.id === TAB_END_ID ? null : (droppable.id as string)
+              )
+            }
+          >
+            <DragDropSensors>
+              <For each={app.fileStates}>
+                {(fileState) => (
+                  <Tab
+                    fileId={fileState.id}
+                    fileLabel={fileState.label}
+                    fileActive={fileState.id === editingFile()}
+                    onSelect={() => setEditingFile(fileState.id)}
+                  />
+                )}
+              </For>
+            </DragDropSensors>
+          </DragDropProvider>
+        </div>
+        <div class="tab-controller">
+          <AiOutlinePlusCircle
+            size={24}
+            class="text-button"
+            onClick={async () => {
+              const newId = await app.createFile();
+              setEditingFile(newId);
+              switchToFile(newId);
+            }}
+          />
+          <AiOutlineUpload
+            size={24}
+            class="text-button"
+            onClick={() => {
+              app.setFileUploaderOpen(true);
+            }}
+          />
+
+          <div class="tab-controller-divider" />
+          <AiOutlineFolder
+            size={24}
+            class="text-button"
+            onClick={() => {
+              app.setFileBrowserOpen(true);
+            }}
+          />
+          <AiOutlineSave
+            size={24}
+            class="text-button"
+            onClick={() => {
+              zipAndSave();
+            }}
+          />
+
+          <FileBrowserModal
+            editingFile={editingFile}
+            setEditingFile={setEditingFile}
+          />
+          <FileUploaderModal setEditingFile={setEditingFile} />
+        </div>
       </div>
       <div class="code-panel" ref={editorRef} />
     </div>
@@ -121,30 +173,27 @@ const EditorPanel: Component = () => {
 export default EditorPanel;
 
 const TAB_END_ID = "end";
-const TabFiller: Component<{
-  onClick: () => void;
-  iconComponent?: IconTypes;
-  dropzone?: any;
-}> = (props) => {
-  // for dragging a file to the end of the list
-  // had to make this its own component because of dragDrop context issues
-  const droppableRef = createDroppable(TAB_END_ID);
-  const [isUnderDrag, setIsUnderDrag] = createSignal(false);
-  const [, { onDragOver, onDragEnd }] = useDragDropContext()!;
-
-  onDragOver(({ droppable }) => setIsUnderDrag(droppable?.id === TAB_END_ID));
-  onDragEnd(() => setIsUnderDrag(false));
-
-  const IconComponent = props.iconComponent ?? AiOutlinePlus;
-
-  return (
-    <div
-      ref={droppableRef}
-      class={props.dropzone ? "dropzone-root" : undefined}
-      classList={{ "tab-filler": true, "tab-insert-marker": isUnderDrag() }}
-      {...(props.dropzone ? props.dropzone.getRootProps() : {})}
-    >
-      <IconComponent class="text-button" onClick={props.onClick} />
-    </div>
-  );
-};
+// const TabFiller: Component<{
+//   onClick: () => void;
+//   iconComponent?: IconTypes;
+// }> = (props) => {
+//   // for dragging a file to the end of the list
+//   // had to make this its own component because of dragDrop context issues
+//   const droppableRef = createDroppable(TAB_END_ID);
+//   const [isUnderDrag, setIsUnderDrag] = createSignal(false);
+//   const [, { onDragOver, onDragEnd }] = useDragDropContext()!;
+//
+//   onDragOver(({ droppable }) => setIsUnderDrag(droppable?.id === TAB_END_ID));
+//   onDragEnd(() => setIsUnderDrag(false));
+//
+//   const IconComponent = props.iconComponent ?? AiOutlinePlus;
+//
+//   return (
+//     <div
+//       ref={droppableRef}
+//       classList={{ "tab-filler": true, "tab-insert-marker": isUnderDrag() }}
+//     >
+//       <IconComponent class="text-button" onClick={props.onClick} />
+//     </div>
+//   );
+// };

@@ -7,9 +7,11 @@ import { useAppContext } from "../App";
 const SettingsModal: Component<{ style?: JSX.CSSProperties }> = () => {
   const MemoryAllocationOptions: string[] = [
     "1D Mastermind",
+    "2D Mastermind - Zig Zag",
     "2D Mastermind - Spiral",
     "2D Mastermind - Tiles",
-    "2D Mastermind - Nearest",
+      //NOT IMPLEMENTED
+    // "2D Mastermind - Nearest",
   ];
 
     const tickboxKeys: (keyof OptimisationSettings)[] = [
@@ -17,6 +19,7 @@ const SettingsModal: Component<{ style?: JSX.CSSProperties }> = () => {
         "optimise_constants",
         "optimise_empty_blocks",
         "optimise_generated_code",
+        "optimise_generated_all_permutations",
         "optimise_memory_allocation",
         "optimise_unreachable_loops",
         "optimise_variable_usage",
@@ -148,6 +151,7 @@ interface OptimisationSettings {
   optimise_constants: boolean;
   optimise_empty_blocks: boolean;
   optimise_generated_code: boolean;
+  optimise_generated_all_permutations: boolean;
   optimise_memory_allocation: boolean;
   optimise_unreachable_loops: boolean;
   optimise_variable_usage: boolean;
@@ -167,7 +171,21 @@ const optimisationLabels: Record<keyof OptimisationSettings, string> = {
   optimise_constants: "constants",
   optimise_empty_blocks: "empty blocks",
   optimise_generated_code: "generated code",
+  optimise_generated_all_permutations: "generated code permutations (May slow larger projects)",
   optimise_memory_allocation: "memory allocations",
   optimise_unreachable_loops: "unreachable loops",
   optimise_variable_usage: "variable usage",
 };
+
+export const DEFAULT_MASTERMIND_CONFIG = {
+      optimise_cell_clearing: false,
+      optimise_constants: false,
+      optimise_empty_blocks: false,
+      optimise_generated_code: false,
+      optimise_generated_all_permutations: false,
+      optimise_memory_allocation: false,
+      optimise_unreachable_loops: false,
+      optimise_variable_usage: false,
+      memory_allocation_method: 0,
+      enable_2d_grid: false,
+    };

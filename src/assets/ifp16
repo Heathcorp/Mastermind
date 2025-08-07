@@ -1,0 +1,548 @@
+// #include <u8>
+// #include <i8>
+#include <u16>
+
+struct ifp16 {
+  struct i8 int;
+  cell frac;
+}
+
+// 00000000.00000000
+// 01111111.11111111
+// 12.156
+
+// struct ifp16 {
+//   cell sign_neg;
+//   cell int;
+//   cell frac;
+// }
+// (+/-)(int + frac * 2^-8)
+
+fn _0(struct ifp16 n)             {n.int.n = 0;    n.frac = 0;}
+fn _1(struct ifp16 n)             {n.int.n = 1;    n.frac = 0;}
+fn _2(struct ifp16 n)             {n.int.n = 2;    n.frac = 0;}
+fn _4(struct ifp16 n)             {n.int.n = 4;    n.frac = 0;}
+fn _8(struct ifp16 n)             {n.int.n = 8;    n.frac = 0;}
+fn _16(struct ifp16 n)            {n.int.n = 16;    n.frac = 0;}
+fn _32(struct ifp16 n)            {n.int.n = 32;    n.frac = 0;}
+fn _64(struct ifp16 n)            {n.int.n = 64;    n.frac = 0;}
+fn _127(struct ifp16 n)           {n.int.n = 127;  n.frac = 0;}
+fn _127p99609375(struct ifp16 n)  {n.int.n = 127;  n.frac = 255;}
+fn __128(struct ifp16 n)          {n.int.n = -128; n.frac = 0;}
+fn _0p99609375(struct ifp16 n)    {n.int.n = 0;    n.frac = 255;}
+fn _0p5(struct ifp16 n)           {n.int.n = 0;    n.frac = 128;}
+fn _0p25(struct ifp16 n)          {n.int.n = 0;    n.frac = 64;}
+fn _0p125(struct ifp16 n)         {n.int.n = 0;    n.frac = 32;}
+fn _0p0625(struct ifp16 n)        {n.int.n = 0;    n.frac = 16;}
+fn _0p03125(struct ifp16 n)       {n.int.n = 0;    n.frac = 8;}
+fn _0p015625(struct ifp16 n)      {n.int.n = 0;    n.frac = 4;}
+fn _0p0078125(struct ifp16 n)     {n.int.n = 0;    n.frac = 2;}
+fn _0p00390625(struct ifp16 n)    {n.int.n = 0;    n.frac = 1;}
+fn __0p00390625(struct ifp16 n)   {n.int.n = -1;   n.frac = 255;}
+fn __0p0078125(struct ifp16 n)    {n.int.n = -1;   n.frac = 254;}
+fn __0p015625(struct ifp16 n)     {n.int.n = -1;   n.frac = 252;}
+fn __0p03125(struct ifp16 n)      {n.int.n = -1;   n.frac = 248;}
+fn __0p0625(struct ifp16 n)       {n.int.n = -1;   n.frac = 240;}
+fn __0p125(struct ifp16 n)        {n.int.n = -1;   n.frac = 224;}
+fn __0p25(struct ifp16 n)         {n.int.n = -1;   n.frac = 192;}
+fn __0p5(struct ifp16 n)          {n.int.n = -1;   n.frac = 128;}
+fn __0p99609375(struct ifp16 n)   {n.int.n = -1;   n.frac = 1;}
+fn _1p5(struct ifp16 n)           {n.int.n = 1;    n.frac = 128;}
+fn _2p5(struct ifp16 n)           {n.int.n = 2;    n.frac = 128;}
+fn _7p75(struct ifp16 n)          {n.int.n = 7;    n.frac = 192;}
+fn __1p5(struct ifp16 n)          {n.int.n = -2;   n.frac = 128;}
+fn __2p5(struct ifp16 n)          {n.int.n = -3;   n.frac = 128;}
+fn __6p25(struct ifp16 n)         {n.int.n = -7;   n.frac = 192;}
+fn _99p99609375(struct ifp16 n)   {n.int.n = 99;   n.frac = 255;}
+fn __99p99609375(struct ifp16 n)  {n.int.n = -100;  n.frac = 1;}
+fn _127p12890625(struct ifp16 n)  {n.int.n = 127;  n.frac = 33;}
+fn __127p12890625(struct ifp16 n) {n.int.n = -128;  n.frac = 223;}
+
+fn MIN(struct ifp16 n) {__128(n);}
+fn MAX(struct ifp16 n) {_127p99609375(n);}
+fn EPSILON(struct ifp16 n) {_0p00390625(n);}
+fn _EPSILON(struct ifp16 n) {__0p00390625(n);}
+
+/// check if the number is non-zero
+fn ne_zero(struct ifp16 self, cell _non_zero) {
+  _non_zero = false;
+  if self.int.n {
+    _non_zero = true;
+  }
+  if self.frac {
+    _non_zero = true;
+  }
+}
+
+/// add-assign two ifp16 numbers
+fn add(struct ifp16 self, struct ifp16 other) {
+  add(self.int, other.int);
+  copy other.frac {
+    self.frac += 1;
+    inc(self.int);
+    if self.frac {
+      dec(self.int);
+    }
+  }
+}
+
+/// subtract-assign two ifp16 numbers
+fn sub(struct ifp16 self, struct ifp16 other) {
+  sub(self.int, other.int);
+  copy other.frac {
+    self.frac -= 1;
+    dec(self.int);
+    if self.frac {
+      inc(self.int);
+    }
+  }
+}
+
+/// multiply-assign an ifp16 and an u8 (cell)
+fn mult(struct ifp16 self, cell other) {
+    ///Setup our starting variables result
+    cell int_result = 0;
+    cell frac_result = 0;
+    cell sub_frac_result = 0;
+    cell int1 = self.int.n;
+    cell int2 = other;
+    ///Firstly  int_result = int_abs1 * int_abs2
+    copy int1 {
+        copy int2 {
+            int_result += 1;
+        }
+    }
+    /// Next frac_result = int_abs2 * frac1
+    copy self.frac {
+        copy int2 {
+            frac_result += 1;
+            if not frac_result {
+                int_result += 1;
+            }
+        }
+    }
+    self.int.n = int_result;
+    self.frac = frac_result;
+}
+
+/// multiply-assign an ifp16 and an i8
+fn mult(struct ifp16 self, struct i8 other) {
+    ///Setup our starting variables result
+    cell int_result = 0;
+    cell frac_result = 0;
+    cell sub_frac_result = 0;
+    cell int1 = self.int.n;
+    cell int2 = other.n;
+    ///Firstly  int_result = int_abs1 * int_abs2
+    copy int1 {
+        copy int2 {
+            int_result += 1;
+        }
+    }
+    /// Next frac_result = int_abs1 * frac_2 + int_abs2 * frac1
+    copy self.frac {
+        copy int2 {
+            frac_result += 1;
+            if not frac_result {
+                int_result += 1;
+            }
+        }
+    }
+    self.int.n = int_result;
+    self.frac = frac_result;
+}
+
+/// multiply-assign two ifp16 numbers
+fn mult(struct ifp16 self, struct ifp16 other) {
+    ///Setup our starting variables result
+    cell int_result = 0;
+    cell frac_result = 0;
+    cell sub_frac_result = 0;
+    cell int1 = self.int.n;
+    cell int2 = other.int.n;
+    ///Firstly  int_result = int_abs1 * int_abs2
+    copy int1 {
+        copy int2 {
+            int_result += 1;
+        }
+    }
+    /// Next frac_result = int_abs1 * frac_2 + int_abs2 * frac1
+    copy self.frac {
+        copy int2 {
+            frac_result += 1;
+            if not frac_result {
+                int_result += 1;
+            }
+        }
+    }
+    copy other.frac {
+        copy int1 {
+            frac_result += 1;
+            if not frac_result {
+                int_result += 1;
+            }
+        }
+    }
+    /// Finally we do sub_frac_result = frac_1 * frac_2
+    copy self.frac {
+        copy other.frac {
+            sub_frac_result += 1;
+            if not sub_frac_result {
+                frac_result += 1;
+                if not frac_result {
+                    int_result += 1;
+                }
+            }
+        }
+    }
+    self.int.n = int_result;
+    self.frac = frac_result;
+}
+
+/// divide-assign two ifp16 numbers
+/// self / other
+fn divide(struct ifp16 self, struct ifp16 other) {
+// let x = (u16)self
+// let y = (u16)other
+// let result = 0
+// let b = 8
+// while b > 0:
+//   let d = x // y
+//   result += d * (b ^ 2)
+//   if d == 0:
+//     x *= 2
+//   else:
+//     x = x % y
+//   b -= 1
+
+  struct u16 x;
+  struct u16 y;
+
+  cell output_neg;
+  {
+    x.n0 = self.frac;
+    cell self_neg;
+    to_u8(self.int, x.n1, self_neg);
+    if self_neg {
+      x.n1 -= 1;
+      x.n0 = -self.frac;
+    }
+    
+    y.n0 = other.frac;
+    cell other_neg;
+    to_u8(other.int, y.n1, other_neg);
+    if other_neg {
+      if other.frac {
+        y.n1 -= 1;
+      }
+      y.n0 = -other.frac;
+    }
+
+    // efficient xor
+    output_neg = self_neg - other_neg;
+  }
+
+
+  struct u16 result;
+  struct u16 b; _256(b);
+
+  cell b_ = true;
+  while b_ {
+    struct u16 d;
+    cell dividing = true;
+    while dividing {
+      // make a copy of y, then run a drain loop effectively
+      struct u16 yy; set(yy, y);
+      cell yy_ = true;
+      while yy_ {
+        cell x_; ne_zero(x, x_);
+        if not x_ {
+          // x is 0
+          dividing = false;
+        }
+        dec(x);
+        
+
+        dec(yy);
+        ne_zero(yy, yy_);
+      }
+      if not dividing {
+        cell x_; ne_zero(x, x_);
+        if x_ {
+          // there is a remainder
+          add(x, y);
+        }
+      } else {
+        inc(d);
+      }
+    }
+
+    cell d_; ne_zero(d, d_);
+    while d_ {
+      add(result, b);
+
+      dec(d);
+      ne_zero(d, d_);
+    }
+
+    div_2(b);
+    struct u16 xx; set(xx, x);
+    add(x, xx);
+    ne_zero(b, b_);
+  }
+
+  // cast the u16 back to self ifp16
+  if not output_neg {
+    self.int.n = result.n1;
+    self.frac = result.n0;
+  } else {
+    self.int.n = -result.n1;
+    if result.n0 {
+      self.int.n -= 1;
+    }
+    self.frac = -result.n0;
+  }
+}
+
+/// read an fp16 from stdin, wraps integer digits, truncates fractional part
+fn read(struct ifp16 self) {
+  cell sign_neg = false;
+  cell digit;
+  input digit;
+  if not digit - '-' {
+    sign_neg = true;
+    input digit;
+  }
+  // input the abs integer amount
+  cell abs_int;
+  {
+    cell iterating = true;
+    while iterating {
+      if not digit - '.' {
+        iterating = false;
+      }
+      if not digit - '\n' {
+        iterating = false;
+      }
+      if iterating {
+        // shift digits (times by 10) and add the new digit
+        mult_10(abs_int);
+        abs_int += digit - '0';
+    
+        input digit;
+      }
+    }
+  }
+
+  // read the decimal part if needed
+  if not digit - '.' {
+    // input a number up to 2 digits, count the leading zeros
+    // we input directly into the most-signifant byte of a u16
+    //  so it is automatically x256
+    struct u16 n;
+    {
+      cell frac_digit_count;
+      {
+        cell iterating = 2; // limit 2 digits for fp16
+        input digit;
+        digit -= '\n';
+        while iterating {
+          if not digit {
+            iterating = 0;
+          } else {
+            digit += '\n';
+            digit -= '0';
+
+            // another digit
+            frac_digit_count += 1;
+    
+            mult_10(n.n1);
+            n.n1 += digit;
+
+            iterating -= 1;
+
+            input digit;
+            digit -= '\n';
+          }
+        }
+        // read the rest of the line
+        while digit {
+          input digit;
+          digit -= '\n';
+        }
+      }
+  
+      // we have multiplied our integer by 256
+      // divide by 10^(frac_digit_count)
+      drain frac_digit_count {
+        div_10(n);
+      }
+    }
+    self.frac = n.n0;
+  }
+
+  if sign_neg {
+    self.int.n = -abs_int;
+    if self.frac {
+      self.int.n -= 1;
+      self.frac = -self.frac;
+    }
+  } else {
+    self.int.n = abs_int;
+  }
+}
+
+/// format and print to 2 decimal places
+fn print(struct ifp16 self) {
+  cell int_abs;
+  cell neg;
+  to_u8(self.int, int_abs, neg);
+
+  // convert from integer to decimal digits * 2^-8
+  // (frac * 25) >> 6
+  // (frac * 10 * 10) >> 8
+  struct u16 w;
+  w.n0 = self.frac;
+  if neg {
+    // minus sign
+    output '-';
+    w.n0 = -self.frac;
+    if self.frac {
+      // correct for sign stuff
+      int_abs -= 1;
+    }
+  }
+  // x100
+  {
+    cell c = 100;
+    mult_n_d(w, c);
+  }
+  // {
+  //   // round?
+  //   cell c = 7;
+  //   tshift_r(n.n0, 7);
+  //   drain n.n0 into n.n1;
+  // }
+
+  // integer part
+  print(int_abs);
+  // decimal point
+  output '.';
+
+  // cannibilised print function:
+
+  {
+    cell[3] ds;
+    fn shift_stack() {
+      ds[2] = 0;
+      drain ds[1] into ds[2];
+      drain ds[0] into ds[1];
+    }
+    fn unshift_stack() {
+      ds[0] = 0;
+      drain ds[1] into ds[0];
+      drain ds[2] into ds[1];
+    }
+  
+    cell n = w.n1;
+    // essentially repeatedly divide by 10
+    drain 3 {
+      shift_stack();
+      cell dividing = true;
+      cell m; // quotient
+      ds[0] = 10; // remainder, add 1 for magic later on
+      while dividing {
+        drain 10 {
+          if n {
+            n -= 1;
+          } else {
+            ds[0] -= 1;
+            dividing = false;
+          }
+        }
+  
+        if dividing {
+          m += 1;
+        }
+      }
+      // copy new quotient to value so we start again
+      n = 0; drain m into n;
+    }
+  
+    drain '0' into ds[1] ds[2];
+    output ds[1];
+    output ds[2];
+  }
+}
+
+/// print a debug representation of an ifp16
+fn debug(struct ifp16 self) {
+  // 11111111.11111111
+  debug(self.int.n);
+  output '.';
+  debug(self.frac);
+}
+
+// debug/test code:
+// struct ifp16 h;
+// _0(h); read(h); print(h); output " ("; debug(h); output ")\n\n";
+// _0(h); read(h); print(h); output " ("; debug(h); output ")\n\n";
+// _0(h); read(h); print(h); output " ("; debug(h); output ")\n\n";
+// _0(h); read(h); print(h); output " ("; debug(h); output ")\n\n";
+// _0(h); read(h); print(h); output " ("; debug(h); output ")\n\n";
+// _0(h); read(h); print(h); output " ("; debug(h); output ")\n\n";
+
+// struct ifp16 t; _99p99609375(t); print(t); output " ("; debug(t); output ")\n";
+// struct ifp16 u; _16(u); print(u); output " ("; debug(u); output ")\n";
+// mult(t, u);
+// print(t);
+
+
+
+// struct ifp16 a;
+// struct ifp16 e; EPSILON(e);
+// struct ifp16 _e; _EPSILON(_e);
+// output "e = "; print(e); output " ("; debug(e); output ")\n";
+// _0p99609375(a); print(a); output " ("; debug(a); output ")\n";
+// add(a, e); print(a); output " ("; debug(a); output ")\n";
+// __128(a); print(a); output " ("; debug(a); output ")\n";
+// _64(a); print(a); output " ("; debug(a); output ")\n";
+// _32(a); print(a); output " ("; debug(a); output ")\n";
+// _16(a); print(a); output " ("; debug(a); output ")\n";
+// _8(a); print(a); output " ("; debug(a); output ")\n";
+// _4(a); print(a); output " ("; debug(a); output ")\n";
+// _2(a); print(a); output " ("; debug(a); output ")\n";
+// _1(a); print(a); output " ("; debug(a); output ")\n";
+// _0p5(a); print(a); output " ("; debug(a); output ")\n";
+// _0p25(a); print(a); output " ("; debug(a); output ")\n";
+// _0p125(a); print(a); output " ("; debug(a); output ")\n";
+// _0p0625(a); print(a); output " ("; debug(a); output ")\n";
+// _0p03125(a); print(a); output " ("; debug(a); output ")\n";
+// _0p015625(a); print(a); output " ("; debug(a); output ")\n";
+// _0p0078125(a); print(a); output " ("; debug(a); output ")\n";
+// _0p00390625(a); print(a); output " ("; debug(a); output ")\n";
+// _1p5(a); print(a); output " ("; debug(a); output ")\n";
+// __0p5(a); print(a); output " ("; debug(a); output ")\n";
+// __0p25(a); print(a); output " ("; debug(a); output ")\n";
+// __6p25(a); print(a); output " ("; debug(a); output ")\n";
+// _99p99609375(a); print(a); output " ("; debug(a); output ")\n";
+// add(a, e); print(a); output " ("; debug(a); output ")\n";
+// add(a, e); print(a); output " ("; debug(a); output ")\n";
+// __99p99609375(a); print(a); output " ("; debug(a); output ")\n";
+// add(a, _e); print(a); output " ("; debug(a); output ")\n";
+// add(a, _e); print(a); output " ("; debug(a); output ")\n";
+// add(a, _e); print(a); output " ("; debug(a); output ")\n";
+// add(a, e); print(a); output " ("; debug(a); output ")\n";
+// add(a, e); print(a); output " ("; debug(a); output ")\n";
+// add(a, e); print(a); output " ("; debug(a); output ")\n";
+// add(a, e); print(a); output " ("; debug(a); output ")\n";
+// add(a, e); print(a); output " ("; debug(a); output ")\n";
+// add(a, e); print(a); output " ("; debug(a); output ")\n";
+// add(a, e); print(a); output " ("; debug(a); output ")\n";
+// add(a, e); print(a); output " ("; debug(a); output ")\n";
+// add(a, e); print(a); output " ("; debug(a); output ")\n";
+// _127p12890625(a); print(a); output " ("; debug(a); output ")\n";
+// __127p12890625(a); print(a); output " ("; debug(a); output ")\n";
+// MAX(a); print(a); output " ("; debug(a); output ")\n";
+// add(a, e); print(a); output " ("; debug(a); output ")\n";
+

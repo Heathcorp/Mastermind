@@ -133,6 +133,27 @@ a:active.socials-icon {
   background-color: var(--BG-0);
   border: 1px solid var(--BORDER-0);
 }
+.docs-modal {
+  position: relative;
+  max-width: 800px;
+  min-width: 800px;
+
+  padding: 2rem;
+  background-color: var(--BG-0);
+  border: 1px solid var(--BORDER-0);
+}
+
+.file-browser-modal {
+  position: relative;
+  max-width: 900px;
+
+  padding: 0rem 2rem 1rem 2rem;
+  background-color: var(--BG-0);
+  border: 1px solid var(--BORDER-0);
+  display: flex;
+  align-items: center;
+  flex-direction: column;
+}
 
 .settings-modal {
   position: relative;
@@ -141,5 +162,38 @@ a:active.socials-icon {
   padding: 2rem;
   background-color: var(--BG-0);
   border: 1px solid var(--BORDER-0);
+}
+
+.header-select {
+  font-size: 2rem;
+  font-weight: bold;
+  border: none;
+  background: transparent;
+  appearance: none;
+  -webkit-appearance: none;
+  -moz-appearance: none;
+  padding: 0;
+  margin: 0;
+  color: inherit;
+  cursor: pointer;
+  text-align: center;
+}
+
+.header-select:focus {
+  outline: none;
+}
+
+.header-select-wrapper {
+  position: relative;
+  display: inline-block;
+}
+
+.header-select-wrapper::after {
+  content: "▼";
+  position: absolute;
+  right: 0;
+  top: 50%;
+  transform: translateY(-50%);
+  pointer-events: none;
 }
 

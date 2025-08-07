@@ -1,0 +1,7 @@
+{
+  "files.associations": {
+    "compiler/programs/std/*": "plaintext",
+    "**.mmi": "plaintext",
+    "src/assets/*": "plaintext",
+  }
+}

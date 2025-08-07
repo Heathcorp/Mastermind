@@ -6,8 +6,8 @@ use crate::{
 	builder::{Builder, Opcode, TapeCell},
 	macros::macros::{r_assert, r_panic},
 	parser::{
-		Clause, Expression, ExtendedOpcode, Reference, VariableDefinition, VariableTarget,
-		VariableTargetReferenceChain, VariableTypeReference,
+		Clause, Expression, ExtendedOpcode, LocationSpecifier, Reference, VariableDefinition,
+		VariableTarget, VariableTargetReferenceChain, VariableTypeReference,
 	},
 	MastermindConfig,
 };
@@ -535,9 +535,19 @@ impl Compiler<'_> {
 							ExtendedOpcode::Down => expanded_bf.push(Opcode::Down),
 						}
 					}
+
+					// handle the location specifier
+					let location = match location_specifier {
+						LocationSpecifier::None => CellLocation::Unspecified,
+						LocationSpecifier::Cell(cell) => CellLocation::FixedCell(cell),
+						LocationSpecifier::Variable(var) => {
+							CellLocation::MemoryCell(scope.get_target_cell_reference(&var)?)
+						}
+					};
+
 					scope.push_instruction(Instruction::InsertBrainfuckAtCell(
 						expanded_bf,
-						location_specifier,
+						location,
 					));
 					// assert that we clobbered the variables
 					// not sure whether this should go before or after the actual bf code
@@ -562,24 +572,27 @@ impl Compiler<'_> {
 					arguments,
 				} => {
 					// create variable translations and recursively compile the inner variable block
-					let function_definition = scope.get_function(&function_name)?;
+
+					let calling_argument_types = arguments
+						.iter()
+						.map(|a| scope.get_target_type(&a))
+						.collect::<Result<Vec<_>, _>>()?;
+
+					let function_definition =
+						scope.get_function(&function_name, &calling_argument_types)?;
 
 					let mut argument_translation_scope = scope.open_inner();
 
-					// deal with arguments
-					r_assert!(
-						function_definition.arguments.len() == arguments.len(),
-						"Expected {} arguments in function \"{function_name}\", received {}.",
-						function_definition.arguments.len(),
-						arguments.len()
-					);
-					for (calling_argument, (arg_name, expected_type)) in
-						zip(arguments, function_definition.arguments.iter())
-					{
+					// TODO: refactor this mess
+					// deal with argument memory mappings:
+					for ((calling_argument, calling_argument_type), (arg_name, expected_type)) in
+						zip(
+							zip(arguments, calling_argument_types),
+							function_definition.arguments.iter(),
+						) {
 						// TODO: fix this duplicate call, get_target_type() internally gets the memory allocation details
 						// 	then these are gotten again in create_mapped_variable()
-						let argument_type = scope.get_target_type(&calling_argument)?;
-						r_assert!(argument_type == expected_type, "Expected argument of type \"{expected_type:#?}\" in function call \"{function_name}\", received argument of type \"{argument_type:#?}\".");
+						r_assert!(calling_argument_type == expected_type, "Expected argument of type \"{expected_type:#?}\" in function call \"{function_name}\", received argument of type \"{calling_argument_type:#?}\". This should not occur");
 						// register an argument translation in the scope
 						argument_translation_scope
 							.create_mapped_variable(arg_name.clone(), &calling_argument)?;
@@ -738,7 +751,7 @@ fn _copy_cell(
 // this is subject to change
 #[derive(Debug, Clone)]
 pub enum Instruction {
-	Allocate(Memory, Option<TapeCell>), // most of the below comments are wrong, usize is a unique id of an allocated cell
+	Allocate(Memory, Option<TapeCell>),
 	Free(MemoryId), // the number indicates which cell in the allocation stack should be freed (cell 0, is the top of the stack, 1 is the second element, etc)
 	OpenLoop(CellReference), // same with other numbers here, they indicate the cell in the allocation stack to use in the instruction
 	CloseLoop(CellReference), // pass in the cell id, this originally wasn't there but may be useful later on
@@ -747,7 +760,15 @@ pub enum Instruction {
 	ClearCell(CellReference), // not sure if this should be here, seems common enough that it should be
 	AssertCellValue(CellReference, Option<u8>), // allows the user to hand-tune optimisations further
 	OutputCell(CellReference),
-	InsertBrainfuckAtCell(Vec<Opcode>, Option<TapeCell>),
+	InsertBrainfuckAtCell(Vec<Opcode>, CellLocation),
+}
+
+#[derive(Debug, Clone)]
+/// Either a fixed constant cell or a reference to some existing memory
+pub enum CellLocation {
+	Unspecified,
+	FixedCell((i32, i32)),
+	MemoryCell(CellReference),
 }
 
 #[derive(Debug, Clone)]
@@ -823,7 +844,7 @@ pub struct Scope<'a> {
 	variable_memory: HashMap<String, (ValueType, Memory)>,
 
 	/// Functions accessible by any code within or in the current scope
-	functions: HashMap<String, Function>,
+	functions: Vec<(String, Vec<(String, ValueType)>, Vec<Clause>)>,
 	/// Struct types definitions
 	structs: HashMap<String, DictStructType>,
 
@@ -975,7 +996,7 @@ impl Scope<'_> {
 			types_only: false,
 			allocations: 0,
 			variable_memory: HashMap::new(),
-			functions: HashMap::new(),
+			functions: Vec::new(),
 			structs: HashMap::new(),
 			instructions: Vec::new(),
 		}
@@ -1037,7 +1058,7 @@ impl Scope<'_> {
 			types_only: false,
 			allocations: 0,
 			variable_memory: HashMap::new(),
-			functions: HashMap::new(),
+			functions: Vec::new(),
 			structs: HashMap::new(),
 			instructions: Vec::new(),
 		}
@@ -1051,7 +1072,7 @@ impl Scope<'_> {
 			types_only: true,
 			allocations: 0,
 			variable_memory: HashMap::new(),
-			functions: HashMap::new(),
+			functions: Vec::new(),
 			structs: HashMap::new(),
 			instructions: Vec::new(),
 		}
@@ -1083,11 +1104,17 @@ impl Scope<'_> {
 			r_panic!("Unreachable error occurred when allocating {var}");
 		};
 
+		// verify location specifier
+		let location = match var.location_specifier {
+			LocationSpecifier::None => None,
+			LocationSpecifier::Cell(cell) => Some(cell),
+			LocationSpecifier::Variable(_) => r_panic!(
+				"Cannot use variable as location specifier target when allocating variable: {var}"
+			),
+		};
+
 		// allocate
-		self.push_instruction(Instruction::Allocate(
-			memory.clone(),
-			var.location_specifier,
-		));
+		self.push_instruction(Instruction::Allocate(memory.clone(), location));
 
 		// return a reference to the created full type
 		Ok(&self.variable_memory.get(&var.name).unwrap().0)
@@ -1117,15 +1144,33 @@ impl Scope<'_> {
 		}
 	}
 
-	fn get_function(&self, name: &str) -> Result<&Function, String> {
+	fn get_function(
+		&self,
+		calling_name: &str,
+		calling_arg_types: &Vec<&ValueType>,
+	) -> Result<Function, String> {
 		// this function is unaffected by the self.fn_only flag
-		Ok(if let Some(func) = self.functions.get(name) {
-			func
-		} else if let Some(outer_scope) = self.outer_scope {
-			outer_scope.get_function(name)?
-		} else {
-			r_panic!("Could not find function \"{name}\" in current scope");
-		})
+		Ok(
+			if let Some(func) = self.functions.iter().find(|(name, args, _)| {
+				if name != calling_name || args.len() != calling_arg_types.len() {
+					return false;
+				}
+				for ((_, arg_type), calling_arg_type) in zip(args, calling_arg_types) {
+					if *arg_type != **calling_arg_type {
+						return false;
+					}
+				}
+				true
+			}) {
+				// TODO: stop cloning! This function overload stuff is tacked on and needs refactoring
+				let (_, arguments, block) = func.clone();
+				Function { arguments, block }
+			} else if let Some(outer_scope) = self.outer_scope {
+				outer_scope.get_function(calling_name, calling_arg_types)?
+			} else {
+				r_panic!("Could not find function \"{calling_name}\" with correct arguments in current scope");
+			},
+		)
 	}
 
 	/// Define a struct in this scope
@@ -1139,14 +1184,17 @@ impl Scope<'_> {
 		for var_def in fields {
 			let absolute_type = self.create_absolute_type(&var_def.var_type)?;
 			let non_neg_location_specifier = match &var_def.location_specifier {
-				None => None,
-				Some(l) => {
+				LocationSpecifier::None => None,
+				LocationSpecifier::Cell(l) => {
+					// assert the y coordinate is 0
+					r_assert!(l.1 == 0, "Struct field location specifiers do not support 2D grid cells: {var_def}");
 					r_assert!(
-						*l >= 0,
+						l.0 >= 0,
 						"Struct field location specifiers must be non-negative: {var_def}"
 					);
-					Some(*l as usize)
+					Some(l.0 as usize)
 				}
+				      LocationSpecifier::Variable(_) => r_panic!("Location specifiers in struct definitions must be relative, not variables: {var_def}"),  
 			};
 			absolute_fields.push((var_def.name, absolute_type, non_neg_location_specifier));
 		}
@@ -1164,30 +1212,37 @@ impl Scope<'_> {
 	/// Define a function in this scope
 	fn register_function_definition(
 		&mut self,
-		function_name: &str,
-		arguments: Vec<VariableDefinition>,
-		block: Vec<Clause>,
+		new_function_name: &str,
+		new_arguments: Vec<VariableDefinition>,
+		new_block: Vec<Clause>,
 	) -> Result<(), String> {
-		let absolute_arguments = arguments
+		let absolute_arguments = new_arguments
 			.into_iter()
 			.map(|f| {
-				r_assert!(
-					f.location_specifier.is_none(),
-					"Cannot specify variable location in function argument \"{f}\"."
-				);
+				let LocationSpecifier::None = f.location_specifier else {
+					r_panic!("Cannot specify variable location in function argument \"{f}\".");
+				};
 				Ok((f.name, self.create_absolute_type(&f.var_type)?))
 			})
-			.collect::<Result<Vec<(String, ValueType)>, String>>()?;
+			.collect::<Result<Vec<_>, _>>()?;
 
-		let None = self.functions.insert(
-			function_name.to_string(),
-			Function {
-				arguments: absolute_arguments,
-				block,
-			},
-		) else {
-			r_panic!("Cannot define function {function_name} more than once in same scope.");
-		};
+		// This is some fucked C-style loop break logic, basically GOTOs
+		// basically it only gets to the panic if the functions have identical signature (except argument names)
+		'func_loop: for (name, args, _) in self.functions.iter() {
+			if name != new_function_name || args.len() != absolute_arguments.len() {
+				continue;
+			}
+			for ((_, new_arg_type), (_, arg_type)) in zip(&absolute_arguments, args) {
+				if *new_arg_type != *arg_type {
+					// early continue if any of the arguments are different type
+					continue 'func_loop;
+				}
+			}
+			r_panic!("Cannot define a function with the same signature more than once in the same scope: \"{new_function_name}\"");
+		}
+
+		self.functions
+			.push((new_function_name.to_string(), absolute_arguments, new_block));
 
 		Ok(())
 	}
@@ -1336,33 +1391,28 @@ impl Scope<'_> {
 			(
 				Some(subfields),
 				ValueType::Array(_, _) | ValueType::DictStruct(_),
-				Memory::Cells { id, len }
+				Memory::Cells { id, len: _ }
 				| Memory::MappedCells {
 					id,
 					start_index: _,
-					len,
+					len: _,
 				},
 			) => {
-				let (subfield_type, _offset_index) = full_type.get_subfield(subfields)?;
+				let (subfield_type, offset_index) = full_type.get_subfield(subfields)?;
 				let ValueType::Array(arr_len, element_type) = subfield_type else {
 					r_panic!("Expected array type in subfield variable target \"{target}\".");
 				};
 				let ValueType::Cell = **element_type else {
 					r_panic!("Expected cell array in subfield variable target \"{target}\".");
 				};
-				r_assert!(
-					*arr_len == *len,
-					"Array memory incorrect length {len} for array length {arr_len}."
-				);
-				// TODO: any more assertions needed here?
 
 				(match memory {
-					Memory::Cells { id: _, len } => 0..*len,
+					Memory::Cells { id: _, len: _ } => offset_index..(offset_index + *arr_len),
 					Memory::MappedCells {
 						id: _,
 						start_index,
-						len,
-					} => *start_index..(*start_index + *len),
+						len: _,
+					} => (*start_index + offset_index)..(*start_index + offset_index + *arr_len),
 					_ => unreachable!(),
 				})
 				.map(|i| CellReference {
@@ -1412,6 +1462,50 @@ impl Scope<'_> {
 			) => r_panic!(
 				"Invalid memory for value type in target: {target}. This should not occur."
 			),
+		})
+	}
+
+	/// Return the first memory cell of a target allocation, used for location specifiers
+	fn get_target_cell_reference(&self, target: &VariableTarget) -> Result<CellReference, String> {
+		let (full_type, memory) = self.get_base_variable_memory(&target.name)?;
+		Ok(match &target.subfields {
+			None => match memory {
+				Memory::Cell { id } => CellReference {
+					memory_id: *id,
+					index: None,
+				},
+				Memory::MappedCell { id, index } => CellReference {
+					memory_id: *id,
+					index: *index,
+				},
+				Memory::Cells { id, len: _ } => CellReference {
+					memory_id: *id,
+					index: Some(0),
+				},
+				Memory::MappedCells {
+					id,
+					start_index,
+					len: _,
+				} => CellReference {
+					memory_id: *id,
+					index: Some(*start_index),
+				},
+			},
+			Some(subfield_chain) => {
+				let (_subfield_type, offset_index) = full_type.get_subfield(&subfield_chain)?;
+				match memory {
+					   Memory::Cell { id: _ } |Memory::MappedCell { id: _, index: _ } => r_panic!("Attempted to get cell reference of subfield of single cell memory: {target}"),  
+					Memory::Cells { id, len } | Memory::MappedCells { id, start_index: _, len } => {
+						r_assert!(offset_index < *len, "Subfield memory index out of allocation range. This should not occur. ({target})");
+						let index = match memory {
+							Memory::Cells { id: _, len: _ } => offset_index,
+							Memory::MappedCells { id: _, start_index, len: _ } => *start_index + offset_index,
+										Memory::Cell { id: _ } | Memory::MappedCell { id: _, index: _ } => unreachable!()
+								};
+						CellReference {memory_id: *id, index: Some(index)}
+					}
+				}
+			}
 		})
 	}
 
