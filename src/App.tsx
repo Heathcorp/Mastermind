@@ -17,20 +17,20 @@ import { EditorState } from "@codemirror/state";
 import { EditorView } from "@codemirror/view";
 import { v4 as uuidv4 } from "uuid";
 
-import divisorsExample from "./assets/divisors_example.mmi?raw";
-import printExample from "./assets/print.mmi?raw";
-import primeExample from "./assets/prime_1_to_100.mmi?raw";
-import christmasTreeExample from "./assets/christmas_trees.mmi?raw";
-import brainfuckExample from "./assets/brainfuck.mmi?raw";
-import helloWorldExample from "./assets/hello_world.mmi?raw";
-import basicCalculatorExample from "./assets/basic_calculator.mmi?raw";
-import fixedPointCalculatorExample from "./assets/ifp16calculator.mmi?raw";
+// Example programs and standard library: (TODO: organise this better, this should not be in the main App.tsx)
+import divisorsExample from "../programs/examples/divisors_example.mmi?raw";
+import primeExample from "../programs/examples/prime_1_to_100.mmi?raw";
+import christmasTreeExample from "../programs/examples/christmas_trees.mmi?raw";
+import brainfuckExample from "../programs/examples/brainfuck.mmi?raw";
+import helloWorldExample from "../programs/examples/hello_world.mmi?raw";
+import basicCalculatorExample from "../programs/examples/basic_calculator.mmi?raw";
+import ifp16CalculatorExample from "../programs/examples/ifp16calculator.mmi?raw";
 
-import std_bitops from "./assets/bitops?raw";
-import std_i8 from "./assets/i8?raw";
-import std_u8 from "./assets/u8?raw";
-import std_u16 from "./assets/u16?raw";
-import std_ifp16 from "./assets/ifp16?raw";
+import std_bitops from "../programs/std/bitops?raw";
+import std_i8 from "../programs/std/i8?raw";
+import std_u8 from "../programs/std/u8?raw";
+import std_u16 from "../programs/std/u16?raw";
+import std_ifp16 from "../programs/std/ifp16?raw";
 
 import "./App.css";
 import Divider from "./components/Divider";
@@ -155,7 +155,6 @@ const App: Component = () => {
         label: "divisors_example.mmi",
         rawText: divisorsExample,
       },
-      { id: uuidv4(), label: "print.mmi", rawText: printExample },
       { id: uuidv4(), label: "prime_1_to_100.mmi", rawText: primeExample },
       {
         id: uuidv4(),
@@ -195,8 +194,8 @@ const App: Component = () => {
       {
         id: uuidv4(),
         label: "Fixed Point Calculator",
-        rawText: fixedPointCalculatorExample,
-      }
+        rawText: ifp16CalculatorExample,
+      },
     ].map((rawState) => ({
       // This could probably be common function, duplicate code of above deserialization and file creation functions (TODO: refactor)
       id: rawState.id,
@@ -212,15 +211,30 @@ const App: Component = () => {
         ],
       }),
     }));
-    setFileStates((prev) => [
-      ...newFiles,
-      ...prev.map((oldFile) => ({
-        ...oldFile,
-        label: newFiles.find((newFile) => newFile.label == oldFile.label)
-          ? `old_${oldFile.label}`
-          : oldFile.label,
-      })),
-    ]);
+
+    setFileStates((prev) => {
+      const fileStates = [...prev];
+      const filteredNewFiles = newFiles.filter(
+        (newFile) =>
+          !fileStates.find(
+            (prevFile) =>
+              newFile.label === prevFile.label &&
+              newFile.editorState.doc.toString() ===
+                prevFile.editorState.doc.toString()
+          )
+      );
+      return [
+        ...filteredNewFiles,
+        ...prev.map((oldFile) => ({
+          ...oldFile,
+          label: filteredNewFiles.find(
+            (newFile) => newFile.label == oldFile.label
+          )
+            ? `old_${oldFile.label}`
+            : oldFile.label,
+        })),
+      ];
+    });
     setEntryFile(defaultFileId);
   };
 

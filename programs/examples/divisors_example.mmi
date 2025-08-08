@@ -1,4 +1,4 @@
-#include "print.mmi"
+#include <u8>
 
 cell N = 100;
 cell number = 1;

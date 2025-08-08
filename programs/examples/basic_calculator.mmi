@@ -5,7 +5,7 @@
 // ...and performs the provided operation on the two single digit numbers,
 // then outputs the result.
 
-#include "print.mmi"
+#include <u8>
 
 cell n1;
 input n1;

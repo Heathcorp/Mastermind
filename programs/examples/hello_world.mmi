@@ -1,4 +1,4 @@
-#include "print.mmi"
+#include <u8>
 
 // Print a constant string
 output "Hello world!";
