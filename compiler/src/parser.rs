@@ -1,10 +1,9 @@
-use std::{fmt::Display, mem::discriminant, num::Wrapping};
-
 use crate::{
 	builder::TapeCell,
 	macros::macros::{r_assert, r_panic},
 	tokeniser::Token,
 };
+use std::{fmt::Display, mem::discriminant, num::Wrapping};
 
 // recursive function to create a tree representation of the program
 pub fn parse(tokens: &[Token]) -> Result<Vec<Clause>, String> {
@@ -18,13 +17,17 @@ pub fn parse(tokens: &[Token]) -> Result<Vec<Clause>, String> {
 			&clause.get(1).unwrap_or(&Token::None),
 			&clause.get(2).unwrap_or(&Token::None),
 		) {
-			(Token::Let, _, _) => {
+			(Token::Cell, _, _)
+			| (Token::Struct, Token::Name(_), Token::Name(_) | Token::OpenSquareBracket) => {
 				clauses.push(parse_let_clause(clause)?);
+			}
+			(Token::Struct, Token::Name(_), Token::OpenBrace) => {
+				clauses.push(parse_struct_clause(clause)?);
 			}
 			(Token::Plus, Token::Plus, _) | (Token::Minus, Token::Minus, _) => {
 				clauses.push(parse_increment_clause(clause)?);
 			}
-			(Token::Name(_), Token::EqualsSign, _) => {
+			(Token::Name(_), Token::EqualsSign | Token::Dot | Token::OpenSquareBracket, _) => {
 				clauses.extend(parse_set_clause(clause)?);
 			}
 			(Token::Drain, _, _) => {
@@ -42,10 +45,10 @@ pub fn parse(tokens: &[Token]) -> Result<Vec<Clause>, String> {
 			(Token::Input, _, _) => {
 				clauses.push(parse_input_clause(clause)?);
 			}
-			(Token::Name(_), Token::OpenAngledBracket, _) => {
+			(Token::Name(_), Token::OpenParenthesis, _) => {
 				clauses.push(parse_function_call_clause(clause)?);
 			}
-			(Token::Def, _, _) => {
+			(Token::Fn, _, _) => {
 				clauses.push(parse_function_definition_clause(clause)?);
 			}
 			(Token::Name(_), Token::Plus | Token::Minus, Token::EqualsSign) => {
@@ -53,20 +56,6 @@ pub fn parse(tokens: &[Token]) -> Result<Vec<Clause>, String> {
 			}
 			(Token::If, _, _) => {
 				clauses.push(parse_if_else_clause(clause)?);
-			}
-			(Token::Name(_), Token::OpenSquareBracket, _)
-			| (Token::Asterisk, Token::Name(_), _) => {
-				let (_, len) = parse_var_target(clause)?;
-				let remaining = &clause[len..];
-				match (&remaining[0], &remaining[1]) {
-					(Token::EqualsSign, _) => {
-						clauses.extend(parse_set_clause(clause)?);
-					}
-					(Token::Plus | Token::Minus, Token::EqualsSign) => {
-						clauses.extend(parse_add_clause(clause)?);
-					}
-					_ => r_panic!("Invalid clause: {clause:#?}"),
-				}
 			}
 			(Token::OpenBrace, _, _) => {
 				let braced_tokens = get_braced_tokens(clause, BRACES)?;
@@ -90,8 +79,8 @@ pub fn parse(tokens: &[Token]) -> Result<Vec<Clause>, String> {
 				| Token::ClosingSquareBracket
 				| Token::OpenParenthesis
 				| Token::ClosingParenthesis
-				| Token::OpenAngledBracket
-				| Token::ClosingAngledBracket
+				| Token::LessThan
+				| Token::MoreThan
 				| Token::Comma
 				| Token::Plus
 				| Token::Minus
@@ -108,7 +97,9 @@ pub fn parse(tokens: &[Token]) -> Result<Vec<Clause>, String> {
 				| Token::Equals
 				| Token::Unknown
 				| Token::Dot
-				| Token::At,
+				| Token::At
+				| Token::Struct
+				| Token::UpToken,
 				_,
 				_,
 			) => r_panic!("Invalid clause: {clause:#?}"),
@@ -120,17 +111,12 @@ pub fn parse(tokens: &[Token]) -> Result<Vec<Clause>, String> {
 }
 
 fn parse_let_clause(clause: &[Token]) -> Result<Clause, String> {
-	// let foo = 9;
-	// let arr[2] = ??;
-	// let g;
-	// let why[9];
-	let mut i = 1usize;
+	// cell x = 0;
+	// struct DummyStruct y
+	let mut i = 0usize;
 	// this kind of logic could probably be done with iterators, (TODO for future refactors)
 
-	let (var, len) = parse_var_definition(&clause[i..])?;
-	i += len;
-
-	let (location_specifier, len) = parse_location_specifier(&clause[i..])?;
+	let (var, len) = parse_var_definition(&clause[i..], true)?;
 	i += len;
 
 	if let Token::EqualsSign = &clause[i] {
@@ -139,19 +125,61 @@ fn parse_let_clause(clause: &[Token]) -> Result<Clause, String> {
 		let expr = Expression::parse(remaining)?;
 		// equivalent to set clause stuff
 		// except we need to convert a variable definition to a variable target
-		Ok(Clause::DefineVariable {
-			var,
-			location_specifier,
-			value: expr,
-		})
+		Ok(Clause::DefineVariable { var, value: expr })
 	} else if i < (clause.len() - 1) {
 		r_panic!("Invalid token in let clause: {clause:#?}");
 	} else {
-		Ok(Clause::DeclareVariable {
-			var,
-			location_specifier,
-		})
+		Ok(Clause::DeclareVariable { var })
 	}
+}
+
+/// Parse tokens representing a struct definition into a clause
+fn parse_struct_clause(clause: &[Token]) -> Result<Clause, String> {
+	let mut i = 0usize;
+	let Token::Struct = &clause[i] else {
+		r_panic!("Expected struct keyword in struct clause. This should never occur. {clause:#?}");
+	};
+	i += 1;
+
+	let Token::Name(struct_name) = &clause[i] else {
+		r_panic!("Expected identifier in struct clause. This should never occur. {clause:#?}");
+	};
+	i += 1;
+
+	let Token::OpenBrace = &clause[i] else {
+		r_panic!("Expected open brace in struct clause: {clause:#?}");
+	};
+	let braced_tokens = get_braced_tokens(&clause[i..], BRACES)?;
+
+	let mut fields = vec![];
+
+	let mut j = 0usize;
+	loop {
+		let (field, len) = parse_var_definition(&braced_tokens[j..], true)?;
+		j += len;
+		fields.push(field);
+		r_assert!(
+			j <= braced_tokens.len(),
+			"Struct definition field exceeded braces. This should never occur. {clause:#?}"
+		);
+		let Token::Semicolon = &braced_tokens[j] else {
+			r_panic!("Expected semicolon in struct definition field: {clause:#?}");
+		};
+		j += 1;
+		if j == braced_tokens.len() {
+			break;
+		}
+	}
+	r_assert!(
+		j == braced_tokens.len(),
+		"Struct definitions exceeded braces. This should never occur. {clause:#?}"
+	);
+	// i += j + 2;
+
+	Ok(Clause::DefineStruct {
+		name: struct_name.clone(),
+		fields,
+	})
 }
 
 fn parse_add_clause(clause: &[Token]) -> Result<Vec<Clause>, String> {
@@ -176,8 +204,14 @@ fn parse_add_clause(clause: &[Token]) -> Result<Vec<Clause>, String> {
 			summands: vec![raw_expr],
 		},
 	};
+	//Check if this add clause self references
+	let self_referencing = expr.check_self_referencing(&var);
 
-	clauses.push(Clause::AddToVariable { var, value: expr });
+	clauses.push(Clause::AddToVariable {
+		var,
+		value: expr,
+		self_referencing: self_referencing,
+	});
 
 	Ok(clauses)
 }
@@ -185,15 +219,17 @@ fn parse_add_clause(clause: &[Token]) -> Result<Vec<Clause>, String> {
 // currently just syntax sugar, should make it actually do post/pre increments
 fn parse_increment_clause(clause: &[Token]) -> Result<Clause, String> {
 	let (var, _) = parse_var_target(&clause[2..])?;
-
+	//An increment clause can never be self referencing since it just VAR++
 	Ok(match (&clause[0], &clause[1]) {
 		(Token::Plus, Token::Plus) => Clause::AddToVariable {
 			var,
 			value: Expression::NaturalNumber(1),
+			self_referencing: false,
 		},
 		(Token::Minus, Token::Minus) => Clause::AddToVariable {
 			var,
 			value: Expression::NaturalNumber((-1i8 as u8) as usize),
+			self_referencing: false,
 		},
 		_ => {
 			r_panic!("Invalid pattern in increment clause: {clause:#?}");
@@ -203,21 +239,50 @@ fn parse_increment_clause(clause: &[Token]) -> Result<Clause, String> {
 }
 
 fn parse_set_clause(clause: &[Token]) -> Result<Vec<Clause>, String> {
-	// TODO: what do we do about arrays and strings?
+	// TODO: what do we do about arrays and strings and structs?
 	let mut clauses: Vec<Clause> = Vec::new();
 	let mut i = 0usize;
 	let (var, len) = parse_var_target(&clause[i..])?;
 	i += len;
 
 	// definitely could use iterators instead (TODO for refactor)
-	let Token::EqualsSign = &clause[i] else {
-		r_panic!("Expected equals sign in set clause: {clause:#?}");
-	};
-	i += 1;
+	match &clause[i] {
+		Token::EqualsSign => {
+			i += 1;
+			let expr = Expression::parse(&clause[i..(clause.len() - 1)])?;
+			let self_referencing = expr.check_self_referencing(&var);
+			clauses.push(Clause::SetVariable {
+				var,
+				value: expr,
+				self_referencing,
+			});
+		}
+		Token::Plus | Token::Minus => {
+			let is_add = if let Token::Plus = &clause[i] {
+				true
+			} else {
+				false
+			};
+			i += 1;
+			let Token::EqualsSign = &clause[i] else {
+				r_panic!("Expected equals sign in add-assign operator: {clause:#?}");
+			};
+			i += 1;
 
-	let expr = Expression::parse(&clause[i..(clause.len() - 1)])?;
+			let mut expr = Expression::parse(&clause[i..(clause.len() - 1)])?;
+			if !is_add {
+				expr = expr.flipped_sign()?;
+			}
 
-	clauses.push(Clause::SetVariable { var, value: expr });
+			let self_referencing = expr.check_self_referencing(&var);
+			clauses.push(Clause::AddToVariable {
+				var,
+				value: expr,
+				self_referencing,
+			});
+		}
+		_ => r_panic!("Expected assignment operator in set clause: {clause:#?}"),
+	}
 
 	Ok(clauses)
 }
@@ -417,31 +482,79 @@ fn parse_assert_clause(clause: &[Token]) -> Result<Clause, String> {
 }
 
 // parse any memory location specifiers
-// let g @4 = 68;
-fn parse_location_specifier(tokens: &[Token]) -> Result<(Option<i32>, usize), String> {
+// let g @4,2 = 68;
+// or
+// let p @3 = 68;
+fn parse_location_specifier(tokens: &[Token]) -> Result<(LocationSpecifier, usize), String> {
+	if tokens.len() == 0 {
+		return Ok((LocationSpecifier::None, 0));
+	}
 	if let Token::At = &tokens[0] {
 		let mut i = 1;
-		let positive = if let Token::Minus = &tokens[i] {
-			i += 1;
-			false
-		} else {
-			true
-		};
 
-		let Token::Digits(raw) = &tokens[i] else {
-			r_panic!("Expected constant number in memory location specifier: {tokens:#?}");
-		};
-		i += 1;
+		match &tokens[i] {
+			Token::Digits(_) | Token::Minus => {
+				let x_offset = {
+					let mut positive = true;
+					if let Token::Minus = &tokens[i] {
+						i += 1;
+						positive = false;
+					}
+					let Token::Digits(raw) = &tokens[i] else {
+						r_panic!(
+							"Expected number after \"-\" in memory location specifier: {tokens:#?}"
+						);
+					};
+					i += 1;
 
-		// TODO: error handling
-		let mut offset: i32 = raw.parse().unwrap();
-		if !positive {
-			offset = -offset;
+					// TODO: error handling
+					let mut offset: i32 = raw.parse().unwrap();
+					if !positive {
+						offset = -offset;
+					}
+					offset
+				};
+
+				let y_offset = {
+					if let Token::Comma = &tokens[i] {
+						i += 1;
+						let mut positive = true;
+						if let Token::Minus = &tokens[i] {
+							i += 1;
+							positive = false;
+						}
+						let Token::Digits(raw) = &tokens[i] else {
+							r_panic!(
+							"Expected number after \"-\" in memory location specifier: {tokens:#?}"
+						);
+						};
+						i += 1;
+
+						// TODO: error handling
+						let mut offset: i32 = raw.parse().unwrap();
+						if !positive {
+							offset = -offset;
+						}
+						offset
+					} else {
+						0
+					}
+				};
+
+				return Ok((LocationSpecifier::Cell((x_offset, y_offset)), i));
+			}
+			Token::Name(_) => {
+				// variable location specifier
+				let (var, len) = parse_var_target(&tokens[i..])?;
+				i += len;
+
+				return Ok((LocationSpecifier::Variable(var), i));
+			}
+			_ => r_panic!("Expected constant or variable in location specifier: {tokens:#?}"),
 		}
-		Ok((Some(offset), i))
-	} else {
-		Ok((None, 0))
 	}
+
+	Ok((LocationSpecifier::None, 0))
 }
 
 fn parse_brainfuck_clause(clause: &[Token]) -> Result<Clause, String> {
@@ -486,12 +599,22 @@ fn parse_brainfuck_clause(clause: &[Token]) -> Result<Clause, String> {
 		match &bf_tokens[j] {
 			Token::Plus => ops.push(ExtendedOpcode::Add),
 			Token::Minus => ops.push(ExtendedOpcode::Subtract),
-			Token::ClosingAngledBracket => ops.push(ExtendedOpcode::Right),
-			Token::OpenAngledBracket => ops.push(ExtendedOpcode::Left),
+			Token::MoreThan => ops.push(ExtendedOpcode::Right),
+			Token::LessThan => ops.push(ExtendedOpcode::Left),
+			Token::UpToken => ops.push(ExtendedOpcode::Up),
 			Token::OpenSquareBracket => ops.push(ExtendedOpcode::OpenLoop),
 			Token::ClosingSquareBracket => ops.push(ExtendedOpcode::CloseLoop),
 			Token::Dot => ops.push(ExtendedOpcode::Output),
 			Token::Comma => ops.push(ExtendedOpcode::Input),
+			Token::Name(s) => {
+				for c in s.chars() {
+					if c == 'v' {
+						ops.push(ExtendedOpcode::Down);
+					} else {
+						panic!("Invalid Inline Brainfuck Characters in {s}");
+					}
+				}
+			}
 			Token::OpenBrace => {
 				// embedded mastermind
 				let block_tokens = get_braced_tokens(&bf_tokens[j..], BRACES)?;
@@ -520,18 +643,18 @@ fn parse_function_definition_clause(clause: &[Token]) -> Result<Clause, String> 
 	};
 	let mut args = Vec::new();
 	i += 1;
-	let Token::OpenAngledBracket = &clause[i] else {
+	let Token::OpenParenthesis = &clause[i] else {
 		r_panic!("Expected argument list in function definition clause: {clause:#?}");
 	};
-	let arg_tokens = get_braced_tokens(&clause[i..], ANGLED_BRACKETS)?;
+	let arg_tokens = get_braced_tokens(&clause[i..], PARENTHESES)?;
 	let mut j = 0usize;
 	// parse function argument names
 	while j < arg_tokens.len() {
-		// this used to be in the while condition but moved it here to check for the case of no arguments
-		let Token::Name(_) = &arg_tokens[j] else {
+		// break if no more arguments
+		let (Token::Cell | Token::Struct) = &arg_tokens[j] else {
 			break;
 		};
-		let (var, len) = parse_var_definition(&arg_tokens[j..])?;
+		let (var, len) = parse_var_definition(&arg_tokens[j..], false)?;
 		j += len;
 
 		args.push(var);
@@ -571,10 +694,10 @@ fn parse_function_call_clause(clause: &[Token]) -> Result<Clause, String> {
 	let mut args = Vec::new();
 	i += 1;
 
-	let Token::OpenAngledBracket = &clause[i] else {
+	let Token::OpenParenthesis = &clause[i] else {
 		r_panic!("Expected argument list in function call clause: {clause:#?}");
 	};
-	let arg_tokens = get_braced_tokens(&clause[i..], ANGLED_BRACKETS)?;
+	let arg_tokens = get_braced_tokens(&clause[i..], PARENTHESES)?;
 
 	let mut j = 0usize;
 	while j < arg_tokens.len() {
@@ -610,88 +733,134 @@ fn parse_function_call_clause(clause: &[Token]) -> Result<Clause, String> {
 
 fn parse_var_target(tokens: &[Token]) -> Result<(VariableTarget, usize), String> {
 	let mut i = 0usize;
-	let spread = if let Token::Asterisk = &tokens[i] {
-		// spread syntax
+	let is_spread = if let Token::Asterisk = &tokens[i] {
 		i += 1;
 		true
 	} else {
 		false
 	};
+
 	let Token::Name(var_name) = &tokens[i] else {
-		r_panic!("Expected identifier in variable identifier: {tokens:#?}");
+		r_panic!("Expected identifier in variable target identifier: {tokens:#?}");
 	};
 	i += 1;
 
-	if let Some(Token::OpenSquareBracket) = &tokens.get(i) {
-		if spread {
-			r_panic!(
-				"Cannot use spread operator and subscript on the same variable target: {tokens:#?}"
-			);
-		}
-		let subscript = get_braced_tokens(&tokens[i..], SQUARE_BRACKETS)?;
-		let Expression::NaturalNumber(index) = Expression::parse(subscript)? else {
-			r_panic!(
-				"Expected a constant array index specifier in variable identifier: {tokens:#?}"
-			);
-		};
-		i += 2 + subscript.len();
+	let mut ref_chain = vec![];
+	while i < tokens.len() {
+		match &tokens[i] {
+			Token::OpenSquareBracket => {
+				let (index, tokens_used) = parse_subscript(&tokens[i..])?;
+				i += tokens_used;
+				ref_chain.push(Reference::Index(index));
+			}
+			Token::Dot => {
+				i += 1;
+				let Token::Name(subfield_name) = &tokens[i] else {
+					r_panic!("Expected subfield name in variable target identifier: {tokens:#?}");
+				};
+				i += 1;
 
-		Ok((
-			VariableTarget::MultiCell {
-				name: var_name.clone(),
-				index,
-			},
-			i,
-		))
-	} else if spread {
-		Ok((
-			VariableTarget::MultiSpread {
-				name: var_name.clone(),
-			},
-			i,
-		))
-	} else {
-		Ok((
-			VariableTarget::Single {
-				name: var_name.clone(),
-			},
-			i,
-		))
+				ref_chain.push(Reference::NamedField(subfield_name.clone()));
+			}
+			_ => {
+				break;
+			}
+		}
 	}
-	// also return the length of tokens read
+
+	Ok((
+		VariableTarget {
+			name: var_name.clone(),
+			subfields: if ref_chain.len() > 0 {
+				Some(VariableTargetReferenceChain(ref_chain))
+			} else {
+				None
+			},
+			is_spread,
+		},
+		i,
+	))
 }
 
-fn parse_var_definition(tokens: &[Token]) -> Result<(VariableDefinition, usize), String> {
+/// convert tokens of a variable definition into data representation, e.g. `cell x`, `struct G g`, `cell[5] x_arr`, `struct H[100] hs`
+fn parse_var_definition(
+	tokens: &[Token],
+	allow_location: bool,
+) -> Result<(VariableDefinition, usize), String> {
 	let mut i = 0usize;
+	let mut var_type = match &tokens[i] {
+		Token::Cell => {
+			i += 1;
+
+			VariableTypeReference::Cell
+		}
+		Token::Struct => {
+			i += 1;
+
+			let Token::Name(struct_name) = &tokens[i] else {
+				r_panic!("Expected struct type name in variable definition: {tokens:#?}");
+			};
+			i += 1;
+
+			VariableTypeReference::Struct(struct_name.clone())
+		}
+		_ => {
+			r_panic!("Unexpected token in variable definition, this should not occur: {tokens:#?}")
+		}
+	};
+
+	// parse array specifiers
+	while let Token::OpenSquareBracket = &tokens[i] {
+		let (len, j) = parse_array_length(&tokens[i..])?;
+		i += j;
+
+		var_type = VariableTypeReference::Array(Box::new(var_type), len);
+	}
+
 	let Token::Name(var_name) = &tokens[i] else {
 		r_panic!("Expected identifier in variable definition: {tokens:#?}");
 	};
 	i += 1;
 
-	Ok((
-		if let Some(Token::OpenSquareBracket) = &tokens.get(i) {
-			let subscript = get_braced_tokens(&tokens[i..], SQUARE_BRACKETS)?;
-			let Expression::NaturalNumber(len) = Expression::parse(subscript)? else {
-				r_panic!("Expected a constant array length specifier in variable definition: {tokens:#?}");
-			};
-			r_assert!(
-				len > 0,
-				"Multi-byte variable cannot be zero-length: {tokens:#?}"
-			);
-			i += 2 + subscript.len();
+	let (location_specifier, len) = parse_location_specifier(&tokens[i..])?;
 
-			VariableDefinition::Multi {
-				name: var_name.clone(),
-				len,
-			}
-		} else {
-			VariableDefinition::Single {
-				name: var_name.clone(),
-			}
+	r_assert!(
+		location_specifier.is_none() || allow_location,
+		"Unexpected location specifier in variable definition: {tokens:#?}"
+	);
+	i += len;
+
+	Ok((
+		VariableDefinition {
+			var_type,
+			name: var_name.clone(),
+			location_specifier,
 		},
-		// also return the length of tokens read
 		i,
 	))
+}
+
+/// parse the subscript of an array variable, e.g. [4] [6]
+/// must be compile-time constant
+/// returns (array length, tokens used)
+/// assumes the first token is an open square bracket
+fn parse_subscript(tokens: &[Token]) -> Result<(usize, usize), String> {
+	let mut i = 0usize;
+	let subscript = get_braced_tokens(&tokens[i..], SQUARE_BRACKETS)?;
+	let Expression::NaturalNumber(len) = Expression::parse(subscript)? else {
+		r_panic!("Expected a compile-time constant in subscript: {tokens:#?}");
+	};
+
+	i += 2 + subscript.len();
+
+	Ok((len, i))
+}
+
+/// parse_array_subscript but with a length check
+fn parse_array_length(tokens: &[Token]) -> Result<(usize, usize), String> {
+	let (len, i) = parse_subscript(tokens)?;
+	r_assert!(len > 0, "Array variable cannot be zero-length: {tokens:#?}");
+	Ok((len, i))
 }
 
 // get a clause, typically a line, bounded by ;
@@ -732,21 +901,21 @@ fn get_clause_tokens(tokens: &[Token]) -> Result<Option<&[Token]>, String> {
 const SQUARE_BRACKETS: (Token, Token) = (Token::OpenSquareBracket, Token::ClosingSquareBracket);
 const BRACES: (Token, Token) = (Token::OpenBrace, Token::ClosingBrace);
 const PARENTHESES: (Token, Token) = (Token::OpenParenthesis, Token::ClosingParenthesis);
-const ANGLED_BRACKETS: (Token, Token) = (Token::OpenAngledBracket, Token::ClosingAngledBracket);
+const ANGLED_BRACKETS: (Token, Token) = (Token::LessThan, Token::MoreThan);
 // this should be a generic function but rust doesn't support enum variants as type arguments yet
 // find tokens bounded by matching brackets
 // TODO: make an impl for &[Token] and put all these functions in it
 fn get_braced_tokens(tokens: &[Token], braces: (Token, Token)) -> Result<&[Token], String> {
-	let _braces = (discriminant(&braces.0), discriminant(&braces.1));
+	let (open_brace, closing_brace) = (discriminant(&braces.0), discriminant(&braces.1));
 	// find corresponding bracket, the depth check is unnecessary but whatever
 	let len = {
 		let mut i = 1usize;
 		let mut depth = 1;
 		while i < tokens.len() && depth > 0 {
 			let g = discriminant(&tokens[i]);
-			if g == _braces.0 {
+			if g == open_brace {
 				depth += 1;
-			} else if g == _braces.1 {
+			} else if g == closing_brace {
 				depth -= 1;
 			}
 			i += 1;
@@ -755,7 +924,8 @@ fn get_braced_tokens(tokens: &[Token], braces: (Token, Token)) -> Result<&[Token
 	};
 
 	if len >= 2 {
-		if _braces.0 == discriminant(&tokens[0]) && _braces.1 == discriminant(&tokens[len - 1]) {
+		if open_brace == discriminant(&tokens[0]) && closing_brace == discriminant(&tokens[len - 1])
+		{
 			return Ok(&tokens[1..(len - 1)]);
 		}
 	}
@@ -930,11 +1100,33 @@ impl Expression {
 		}
 	}
 
+	/// flip the sign of an expression, equivalent to `x => -(x)`
+	pub fn flipped_sign(self) -> Result<Self, String> {
+		Ok(match self {
+			Expression::SumExpression { sign, summands } => Expression::SumExpression {
+				sign: sign.flipped(),
+				summands,
+			},
+			Expression::NaturalNumber(_) | Expression::VariableReference(_) => {
+				Expression::SumExpression {
+					sign: Sign::Negative,
+					summands: vec![self],
+				}
+			}
+			Expression::ArrayLiteral(_) | Expression::StringLiteral(_) => {
+				r_panic!(
+					"Attempted to invert sign of array or string literal, \
+	do not use += or -= on arrays or strings."
+				);
+			}
+		})
+	}
+
 	// not sure if this is the compiler's concern or if it should be the parser
 	// (constant to add, variables to add, variables to subtract)
 	// currently multiplication is not supported so order of operations and flattening is very trivial
 	// If we add multiplication in future it will likely be constant multiplication only, so no variable on variable multiplication
-	pub fn flatten(self) -> Result<(u8, Vec<VariableTarget>, Vec<VariableTarget>), String> {
+	pub fn flatten(&self) -> Result<(u8, Vec<VariableTarget>, Vec<VariableTarget>), String> {
 		let expr = self;
 		let mut imm_sum = Wrapping(0u8);
 		let mut additions = Vec::new();
@@ -969,10 +1161,10 @@ impl Expression {
 				};
 			}
 			Expression::NaturalNumber(number) => {
-				imm_sum += Wrapping(number as u8);
+				imm_sum += Wrapping(*number as u8);
 			}
 			Expression::VariableReference(var) => {
-				additions.push(var);
+				additions.push(var.clone());
 			}
 			Expression::ArrayLiteral(_) | Expression::StringLiteral(_) => {
 				r_panic!("Attempt to flatten an array-like expression: {expr:#?}");
@@ -980,6 +1172,23 @@ impl Expression {
 		}
 
 		Ok((imm_sum.0, additions, subtractions))
+	}
+
+	//Recursively Check If This Is Self Referencing
+	pub fn check_self_referencing(&self, parent: &VariableTarget) -> bool {
+		// TODO: make sure nested values work correctly
+		match self {
+			Expression::SumExpression {
+				sign: _sign,
+				summands,
+			} => summands
+				.iter()
+				.any(|summand| summand.check_self_referencing(parent)),
+			Expression::VariableReference(var) => *var == *parent,
+			Expression::ArrayLiteral(_)
+			| Expression::StringLiteral(_)
+			| Expression::NaturalNumber(_) => false,
+		}
 	}
 }
 
@@ -1002,25 +1211,37 @@ pub enum Sign {
 	Positive,
 	Negative,
 }
+impl Sign {
+	fn flipped(self) -> Sign {
+		match self {
+			Sign::Positive => Sign::Negative,
+			Sign::Negative => Sign::Positive,
+		}
+	}
+}
 
 #[derive(Debug, Clone)]
 pub enum Clause {
 	DeclareVariable {
 		var: VariableDefinition,
-		location_specifier: Option<TapeCell>,
 	},
 	DefineVariable {
 		var: VariableDefinition,
-		location_specifier: Option<TapeCell>,
 		value: Expression,
+	},
+	DefineStruct {
+		name: String,
+		fields: Vec<VariableDefinition>,
 	},
 	AddToVariable {
 		var: VariableTarget,
 		value: Expression,
+		self_referencing: bool,
 	},
 	SetVariable {
 		var: VariableTarget,
 		value: Expression,
+		self_referencing: bool,
 	},
 	AssertVariableValue {
 		var: VariableTarget,
@@ -1060,7 +1281,7 @@ pub enum Clause {
 	},
 	Block(Vec<Clause>),
 	InlineBrainfuck {
-		location_specifier: Option<TapeCell>,
+		location_specifier: LocationSpecifier,
 		clobbered_variables: Vec<VariableTarget>,
 		// TODO: make this support embedded mastermind
 		operations: Vec<ExtendedOpcode>,
@@ -1079,70 +1300,134 @@ pub enum ExtendedOpcode {
 	Output,
 	Input,
 	Block(Vec<Clause>),
+	Up,
+	Down,
 }
 
-// TODO: refactor to this instead:
 #[derive(Debug, Clone, Hash, PartialEq, Eq)]
-pub enum VariableDefinition {
-	Single { name: String },
-	Multi { name: String, len: usize },
+/// the type of a variable according to the user, not validated yet as the parser does not keep track of types
+// maybe it should keep track of types?
+pub enum VariableTypeReference {
+	Cell,
+	Struct(String),
+	Array(Box<VariableTypeReference>, usize),
+}
+
+#[derive(Debug, Clone, Hash, PartialEq, Eq)]
+pub enum LocationSpecifier {
+	None,
+	Cell(TapeCell),
+	Variable(VariableTarget),
+}
+impl LocationSpecifier {
+	fn is_none(&self) -> bool {
+		match self {
+			LocationSpecifier::None => true,
+			_ => false,
+		}
+	}
+}
+
+#[derive(Debug, Clone, Hash, PartialEq, Eq)]
+pub struct VariableDefinition {
+	pub name: String,
+	pub var_type: VariableTypeReference,
+	pub location_specifier: LocationSpecifier,
 	// Infinite {name: String, pattern: ???},
 }
 
 #[derive(Debug, Clone, Hash, PartialEq, Eq)]
-pub enum VariableTarget {
-	Single { name: String },
-	MultiCell { name: String, index: usize },
-	MultiSpread { name: String },
+pub enum Reference {
+	NamedField(String),
+	Index(usize),
 }
 
-impl VariableDefinition {
-	pub fn name(&self) -> &String {
-		match self {
-			VariableDefinition::Single { name } => name,
-			VariableDefinition::Multi { name, len: _ } => name,
-		}
-	}
-	pub fn len(&self) -> Option<usize> {
-		match self {
-			VariableDefinition::Single { name: _ } => None,
-			VariableDefinition::Multi { name: _, len } => Some(*len),
-		}
-	}
-	// get this variable definition as a variable target, strips length information and defaults to a spread reference
-	pub fn to_target(self) -> VariableTarget {
-		match self {
-			VariableDefinition::Single { name } => VariableTarget::Single { name },
-			VariableDefinition::Multi { name, len: _ } => VariableTarget::MultiSpread { name },
-		}
-	}
+/// Represents a list of subfield references after the `.` or `[x]` operators, e.g. `obj.h[6]` would have `['h', '[6]']`
+// a bit verbose, not quite sure about this
+#[derive(Debug, Clone, Hash, PartialEq, Eq)]
+pub struct VariableTargetReferenceChain(pub Vec<Reference>);
+/// Represents a target variable in an expression, this has no type informatino
+#[derive(Debug, Clone, Hash, PartialEq, Eq)]
+pub struct VariableTarget {
+	pub name: String,
+	pub subfields: Option<VariableTargetReferenceChain>,
+	pub is_spread: bool,
 }
-
 impl VariableTarget {
-	pub fn name(&self) -> &String {
-		match self {
-			VariableTarget::Single { name } => name,
-			VariableTarget::MultiCell { name, index: _ } => name,
-			VariableTarget::MultiSpread { name } => name,
+	/// converts a definition to a target for use with definition clauses (as opposed to declarations)
+	pub fn from_definition(var_def: &VariableDefinition) -> Self {
+		VariableTarget {
+			name: var_def.name.clone(),
+			subfields: None,
+			is_spread: false,
+		}
+	}
+}
+
+impl Display for VariableTypeReference {
+	fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+		match &self {
+			VariableTypeReference::Cell => f.write_str(&format!("cell")),
+			VariableTypeReference::Struct(struct_name) => {
+				f.write_str(&format!("struct {struct_name}"))
+			}
+			VariableTypeReference::Array(element_type, len) => {
+				f.write_str(&format!("{element_type}[{len}]"))
+			}
 		}
 	}
 }
 
 impl Display for VariableDefinition {
 	fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-		match self {
-			VariableDefinition::Single { name } => f.write_str(name),
-			VariableDefinition::Multi { name, len } => f.write_str(&format!("{name}[{len}]")),
+		f.write_str(&format!("{} {}", self.var_type, self.name))?;
+		match &self.location_specifier {
+			LocationSpecifier::Cell(_) | LocationSpecifier::Variable(_) => {
+				f.write_str(&format!(" {}", self.location_specifier))?
+			}
+			LocationSpecifier::None => (),
 		}
+
+		Ok(())
+	}
+}
+
+impl Display for LocationSpecifier {
+	fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+		f.write_str("@")?;
+		match self {
+			LocationSpecifier::Cell(cell) => f.write_str(&format!("{:?}", cell))?,
+			LocationSpecifier::Variable(var) => f.write_str(&format!("{}", var))?,
+			LocationSpecifier::None => (),
+		}
+
+		Ok(())
+	}
+}
+
+impl Display for Reference {
+	fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+		match self {
+			Reference::NamedField(subfield_name) => f.write_str(&format!(".{subfield_name}"))?,
+			Reference::Index(index) => f.write_str(&format!("[{index}]"))?,
+		}
+
+		Ok(())
 	}
 }
 
 impl Display for VariableTarget {
 	fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-		match self {
-			VariableTarget::Single { name } => f.write_str(name),
-			VariableTarget::MultiCell { name, index } => f.write_str(&format!("{name}[{index}]")),
-			VariableTarget::MultiSpread { name } => f.write_str(&format!("*{name}")),
+		if self.is_spread {
+			f.write_str("*")?;
 		}
+		f.write_str(&self.name)?;
+		if let Some(subfield_refs) = &self.subfields {
+			for ref_step in subfield_refs.0.iter() {
+				f.write_str(&format!("{ref_step}"))?;
+			}
+		}
+
+		Ok(())
 	}
 }

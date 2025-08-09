@@ -1,43 +1,43 @@
-#include "print.mmi"
+#include <u8>
 
-let N = 100;
-let number = 1;
+cell N = 100;
+cell number = 1;
 
 // a draining loop, loops n times, clearing the variable
 drain N into number {
   output "The factors of ";
-  print<number>;
+  print(number);
   output " are 1";
   
   if number - 1 {
 
-    let num_copy = number - 2;
-    let divisor = 2;
+    cell num_copy = number - 2;
+    cell divisor = 2;
     drain num_copy into divisor {
       // currently functions are more like macros
       // there are no arguments-by-values or return values
-      let result;
-      divisible<result, number, divisor>;
+      cell result;
+      divisible(result, number, divisor);
 
       if result {
         output ", ";
-        print<divisor>;
+        print(divisor);
       }
     }
 
     output " and ";
 
-    print<number>;
+    print(number);
   }
 
   output '\n';
 }
 
-def divisible<result, dividend, divisor> {
+fn divisible(cell result, cell dividend, cell divisor) {
   // result = 0 if dividend % divisor = 0
-  let b = dividend;
+  cell b = dividend;
 
-  let iterating = true;
+  cell iterating = true;
   
   while iterating {
     // a copying loop, loops n times without modifying the variable

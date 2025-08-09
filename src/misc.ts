@@ -69,56 +69,71 @@ export const defaultExtensions = [
 
 // TODO: work on the indent support
 function mastermindLanguageSupport() {
-  return new LanguageSupport(LRLanguage.define({
-    parser: parser.configure({
-      props: [styleTags({
-        "DefClause/Def": tags.function(tags.definitionKeyword),
-        "DefClause/Name": tags.function(tags.definition(tags.variableName)),
-        "CallClause/Name": tags.function(tags.variableName),
-        "LetClause/Let": tags.definitionKeyword,
-        "LocationSpecifier/At": tags.annotation,
-        "VariableDefinition/Name": tags.variableName,
+  return new LanguageSupport(
+    LRLanguage.define({
+      parser: parser.configure({
+        props: [
+          styleTags({
+            "FnClause/Fn": tags.function(tags.definitionKeyword),
+            "FnClause/Name": tags.function(tags.definition(tags.variableName)),
+            "CallClause/Name": tags.function(tags.variableName),
+            "LocationSpecifier/At": tags.annotation,
+            "VariableType/Cell VariableType/Struct": tags.definitionKeyword,
+            "VariableType/Name": tags.className,
+            "VariableDefinition/Name": tags.variableName,
 
-        "OutputClause/Output": tags.controlKeyword,
-        "InputClause/Input": tags.controlKeyword,
-        "DrainCopyClause/DrainCopy DrainCopyClause/Into": tags.controlKeyword,
-        "WhileClause/While": tags.controlKeyword,
-        "IfElseClause/If IfElseClause/Not IfElseClause/Else": tags.controlKeyword,
+            "StructClause/Struct": tags.definitionKeyword,
+            "StructClause/Name": tags.className,
 
-        Comment: tags.lineComment,
-        Include: tags.moduleKeyword,
-        IncludePath: tags.string,
+            "OutputClause/Output": tags.controlKeyword,
+            "InputClause/Input": tags.controlKeyword,
+            "DrainCopyClause/DrainCopy DrainCopyClause/Into":
+              tags.controlKeyword,
+            "WhileClause/While": tags.controlKeyword,
+            "IfElseClause/If IfElseClause/Not IfElseClause/Else":
+              tags.controlKeyword,
 
-        Boolean: tags.bool,
-        Number: tags.integer,
-        Character: tags.character,
-        String: tags.string,
-        "VariableTarget/Name": tags.variableName,
+            Comment: tags.lineComment,
+            Include: tags.moduleKeyword,
+            IncludePath: tags.string,
 
-        SquareBrackets: tags.squareBracket,
-        Parentheses: tags.paren,
-        Braces: tags.brace,
+            Boolean: tags.bool,
+            Number: tags.integer,
+            Character: tags.character,
+            String: tags.string,
+            "VariableTarget/Name": tags.variableName,
+            "VariableTarget/VariableSubfieldTarget/Name": tags.propertyName,
+            "VariableTarget/VariableSubfieldTarget/Dot": tags.separator,
+            "VariableTarget/VariableSubfieldTarget/SquareBrackets":
+              tags.squareBracket,
 
-        EqualOp: tags.updateOperator,
-        AddEqualOp: tags.updateOperator,
-        AddOp: tags.arithmeticOperator,
-        IncDecOp: tags.updateOperator,
-        "Semicolon Comma": tags.separator,
-        "Asterisk": tags.derefOperator,
+            SquareBrackets: tags.squareBracket,
+            Parentheses: tags.paren,
+            Braces: tags.brace,
 
-        "BrainfuckClause/Bf": tags.controlKeyword,
-        "BrainfuckClause/Clobbers": tags.controlKeyword,
-        "AssertClause/Assert AssertClause/Equals AssertClause/Unknown": tags.controlKeyword,
+            EqualOp: tags.updateOperator,
+            AddEqualOp: tags.updateOperator,
+            AddOp: tags.arithmeticOperator,
+            IncDecOp: tags.updateOperator,
+            "Semicolon Comma": tags.separator,
+            Asterisk: tags.derefOperator,
 
-        "EBrainfuck/BfPlus EBrainfuck/BfMinus": tags.arithmeticOperator,
-        "EBrainfuck/BfRight EBrainfuck/BfLeft": tags.angleBracket,
-        "EBrainfuck/BfOpenLoop EBrainfuck/BfCloseLoop": tags.squareBracket,
-        "EBrainfuck/BfOutput EBrainfuck/BfInput": tags.controlKeyword,
-        // "EBrainfuck/BfComment": tags.comment,
-      })]
-    }),
-    languageData: {
-      commentTokens: { line: "//" },
-    }
-  }));
-} 
+            "BrainfuckClause/Bf": tags.controlKeyword,
+            "BrainfuckClause/Clobbers": tags.controlKeyword,
+            "AssertClause/Assert AssertClause/Equals AssertClause/Unknown":
+              tags.controlKeyword,
+
+            "EBrainfuck/BfPlus EBrainfuck/BfMinus": tags.arithmeticOperator,
+            "EBrainfuck/BfRight EBrainfuck/BfLeft": tags.angleBracket,
+            "EBrainfuck/BfOpenLoop EBrainfuck/BfCloseLoop": tags.squareBracket,
+            "EBrainfuck/BfOutput EBrainfuck/BfInput": tags.controlKeyword,
+            // "EBrainfuck/BfComment": tags.comment,
+          }),
+        ],
+      }),
+      languageData: {
+        commentTokens: { line: "//" },
+      },
+    })
+  );
+}

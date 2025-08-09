@@ -2,92 +2,58 @@
 // this was the first thing added in this project and it has barely changed
 
 use std::{
+	collections::HashMap,
 	fmt,
 	io::{Read, Write},
 	num::Wrapping,
 };
 
+use crate::macros::macros::r_panic;
 use wasm_bindgen::{JsCast, JsValue};
 use wasm_bindgen_futures::JsFuture;
 
 struct Tape {
-	positive_array: Vec<Wrapping<u8>>,
-	negative_array: Vec<Wrapping<u8>>,
-
-	head_position: i32,
+	memory_map: HashMap<(i32, i32), Wrapping<u8>>,
+	head_position: (i32, i32),
 }
 
 impl Tape {
 	fn new() -> Self {
 		Tape {
-			positive_array: Vec::new(),
-			negative_array: Vec::new(),
-			head_position: 0,
+			memory_map: HashMap::new(),
+			head_position: (0, 0),
 		}
 	}
-	fn get_cell(&self, index: i32) -> Result<Wrapping<u8>, String> {
-		let array;
-		let i: usize = (match index < 0 {
-			true => {
-				array = &self.negative_array;
-				-index - 1
-			}
-			false => {
-				array = &self.positive_array;
-				index
-			}
-		})
-		.try_into()
-		.or(Err(
-			"Could not read current cell due to integer error, this should never occur.",
-		))?;
-
-		Ok(match i < array.len() {
-			true => array[i],
-			false => Wrapping(0u8),
-		})
-	}
-	fn move_head_position(&mut self, amount: i32) {
-		self.head_position += amount;
-	}
-	fn modify_current_cell(
-		&mut self,
-		amount: Wrapping<u8>,
-		clear: Option<bool>,
-	) -> Result<(), String> {
-		let array;
-		let i: usize = (match self.head_position < 0 {
-			true => {
-				array = &mut self.negative_array;
-				-self.head_position - 1
-			}
-			false => {
-				array = &mut self.positive_array;
-				self.head_position
-			}
-		})
-		.try_into()
-		.or(Err(
-			"Could not modify current cell due to integer error, this should never occur.",
-		))?;
-
-		if i >= array.len() {
-			array.resize(i + 1, Wrapping(0u8));
+	fn get_cell(&self, position: (i32, i32)) -> Wrapping<u8> {
+		match self.memory_map.get(&position) {
+			Some(val) => *val,
+			None => Wrapping(0),
 		}
-
-		array[i] = match clear.unwrap_or(false) {
-			true => amount,
-			false => array[i] + amount,
-		};
-
-		Ok(())
 	}
-	fn set_current_cell(&mut self, value: Wrapping<u8>) -> Result<(), String> {
-		Ok(self.modify_current_cell(value, Some(true))?)
+	fn move_head_position(&mut self, amount: (i32, i32)) {
+		self.head_position.0 += amount.0;
+		self.head_position.1 += amount.1;
+	}
+	fn increment_current_cell(&mut self, amount: Wrapping<u8>) {
+		let val = self.memory_map.get_mut(&self.head_position);
+		match val {
+			Some(val) => {
+				*val += amount;
+			}
+			None => {
+				self.memory_map.insert(self.head_position, amount);
+			}
+		}
+	}
+	fn set_current_cell(&mut self, value: Wrapping<u8>) {
+		self.memory_map.insert(self.head_position, value);
 	}
 	// TODO: simplify duplicated code? probably could use an optional mutable reference thing
-	fn get_current_cell(&self) -> Result<Wrapping<u8>, String> {
-		Ok(self.get_cell(self.head_position)?)
+	fn get_current_cell(&self) -> Wrapping<u8> {
+		match self.memory_map.get(&self.head_position) {
+			Some(val) => *val,
+			None => Wrapping(0),
+		}
 	}
 }
 
@@ -107,8 +73,8 @@ impl fmt::Display for Tape {
 		line_3.push('|');
 		line_4.push('|');
 
-		for pos in (self.head_position - 10)..(self.head_position + 10) {
-			let val = self.get_cell(pos).unwrap().0;
+		for pos in (self.head_position.1 - 10)..(self.head_position.1 + 10) {
+			let val = self.get_cell((pos, 0)).0;
 			let mut dis = 32u8;
 			if val.is_ascii_alphanumeric() || val.is_ascii_punctuation() {
 				dis = val;
@@ -125,7 +91,7 @@ impl fmt::Display for Tape {
 			line_3.push(' ');
 			line_3.push(dis as char);
 
-			line_4 += match pos == self.head_position {
+			line_4 += match pos == self.head_position.1 {
 				true => "^^^",
 				false => "---",
 			};
@@ -154,7 +120,13 @@ impl fmt::Display for Tape {
 	}
 }
 
+pub struct BVMConfig {
+	pub enable_debug_symbols: bool,
+	pub enable_2d_grid: bool,
+}
+
 pub struct BVM {
+	config: BVMConfig,
 	tape: Tape,
 	program: Vec<char>,
 }
@@ -168,8 +140,11 @@ pub trait ByteWriter {
 }
 
 impl BVM {
-	pub fn new(program: Vec<char>) -> Self {
+	const MAX_STEPS_DEFAULT: usize = (2 << 30) - 2;
+
+	pub fn new(config: BVMConfig, program: Vec<char>) -> Self {
 		BVM {
+			config,
 			tape: Tape::new(),
 			program,
 		}
@@ -177,6 +152,8 @@ impl BVM {
 
 	// TODO: refactor/rewrite this, can definitely be improved with async read/write traits or similar
 	// I don't love that I duplicated this to make it work with js
+	// TODO: this isn't covered by unit tests
+	// TODO: add a maximum step count
 	pub async fn run_async(
 		&mut self,
 		output_callback: &js_sys::Function,
@@ -189,14 +166,14 @@ impl BVM {
 		let mut output_bytes: Vec<u8> = Vec::new();
 
 		while pc < self.program.len() {
-			match self.program[pc] {
-				'+' => {
-					self.tape.modify_current_cell(Wrapping(1), None)?;
-				}
-				'-' => {
-					self.tape.modify_current_cell(Wrapping(-1i8 as u8), None)?;
-				}
-				',' => {
+			match (
+				self.program[pc],
+				self.config.enable_debug_symbols,
+				self.config.enable_2d_grid,
+			) {
+				('+', _, _) => self.tape.increment_current_cell(Wrapping(1)),
+				('-', _, _) => self.tape.increment_current_cell(Wrapping(-1i8 as u8)),
+				(',', _, _) => {
 					// https://github.com/rustwasm/wasm-bindgen/issues/2195
 					// let password_jsval: JsValue = func.call1(&this, &JsValue::from_bool(true))?;
 					// let password_promise_res: Result<js_sys::Promise, JsValue> =
@@ -225,11 +202,11 @@ impl BVM {
 						.as_f64()
 						.expect("Could not convert js number into f64 type");
 					let byte: u8 = num as u8; // I have no idea if this works (TODO: test)
-					self.tape.set_current_cell(Wrapping(byte))?;
+					self.tape.set_current_cell(Wrapping(byte));
 				}
-				'.' => {
+				('.', _, _) => {
 					// TODO: handle errors
-					let byte = self.tape.get_current_cell()?.0;
+					let byte = self.tape.get_current_cell().0;
 					let fnum: f64 = byte as f64; // I have no idea if this works (TODO: test again)
 					output_callback
 						.call1(&JsValue::null(), &JsValue::from_f64(fnum))
@@ -237,15 +214,15 @@ impl BVM {
 
 					output_bytes.push(byte);
 				}
-				'>' => {
-					self.tape.move_head_position(1);
+				('>', _, _) => {
+					self.tape.move_head_position((1, 0));
 				}
-				'<' => {
-					self.tape.move_head_position(-1);
+				('<', _, _) => {
+					self.tape.move_head_position((-1, 0));
 				}
-				'[' => {
+				('[', _, _) => {
 					// entering a loop
-					if self.tape.get_current_cell()?.0 == 0 {
+					if self.tape.get_current_cell().0 == 0 {
 						// skip the loop, (advance to the corresponding closing loop brace)
 						// TODO: make this more efficient by pre-computing a loops map
 						let mut loop_count = 1;
@@ -262,8 +239,8 @@ impl BVM {
 						loop_stack.push(pc);
 					}
 				}
-				']' => {
-					if self.tape.get_current_cell()?.0 == 0 {
+				(']', _, _) => {
+					if self.tape.get_current_cell().0 == 0 {
 						// exit the loop
 						loop_stack.pop();
 					} else {
@@ -272,10 +249,18 @@ impl BVM {
 						pc = loop_stack[loop_stack.len() - 1];
 					}
 				}
-				// '#' => {
+				('^', _, true) => self.tape.move_head_position((0, 1)),
+				('v', _, true) => self.tape.move_head_position((0, -1)),
+				('^', _, false) => {
+					r_panic!("2D Brainfuck currently disabled");
+				}
+				('v', _, false) => {
+					r_panic!("2D Brainfuck currently disabled");
+				}
+				// ('#', true, ) => {
 				// 	println!("{}", self.tape);
 				// }
-				// '@' => {
+				// ('@', true, _) => {
 				// 	print!("{}", self.tape.get_current_cell().0 as i32);
 				// }
 				_ => (),
@@ -293,37 +278,43 @@ impl BVM {
 		Ok(unsafe { String::from_utf8_unchecked(output_bytes) })
 	}
 
-	pub fn run(&mut self, input: &mut impl Read, output: &mut impl Write) -> Result<(), String> {
+	pub fn run(
+		&mut self,
+		input: &mut impl Read,
+		output: &mut impl Write,
+		max_steps: Option<usize>,
+	) -> Result<(), String> {
+		let mut steps = 0usize;
 		let mut pc: usize = 0;
 		// this could be more efficient with a pre-computed map
 		let mut loop_stack: Vec<usize> = Vec::new();
 
 		while pc < self.program.len() {
-			match self.program[pc] {
-				'+' => {
-					self.tape.modify_current_cell(Wrapping(1), None)?;
-				}
-				'-' => {
-					self.tape.modify_current_cell(Wrapping(-1i8 as u8), None)?;
-				}
-				',' => {
+			match (
+				self.program[pc],
+				self.config.enable_debug_symbols,
+				self.config.enable_2d_grid,
+			) {
+				('+', _, _) => self.tape.increment_current_cell(Wrapping(1)),
+				('-', _, _) => self.tape.increment_current_cell(Wrapping(-1i8 as u8)),
+				(',', _, _) => {
 					let mut buf = [0; 1];
 					let _ = input.read_exact(&mut buf);
-					self.tape.set_current_cell(Wrapping(buf[0]))?;
+					self.tape.set_current_cell(Wrapping(buf[0]));
 				}
-				'.' => {
-					let buf = [self.tape.get_current_cell()?.0];
+				('.', _, _) => {
+					let buf = [self.tape.get_current_cell().0];
 					let _ = output.write(&buf);
 				}
-				'>' => {
-					self.tape.move_head_position(1);
+				('>', _, _) => {
+					self.tape.move_head_position((1, 0));
 				}
-				'<' => {
-					self.tape.move_head_position(-1);
+				('<', _, _) => {
+					self.tape.move_head_position((-1, 0));
 				}
-				'[' => {
+				('[', _, _) => {
 					// entering a loop
-					if self.tape.get_current_cell()?.0 == 0 {
+					if self.tape.get_current_cell().0 == 0 {
 						// skip the loop, (advance to the corresponding closing loop brace)
 						// TODO: make this more efficient by pre-computing a loops map
 						let mut loop_count = 1;
@@ -340,8 +331,8 @@ impl BVM {
 						loop_stack.push(pc);
 					}
 				}
-				']' => {
-					if self.tape.get_current_cell()?.0 == 0 {
+				(']', _, _) => {
+					if self.tape.get_current_cell().0 == 0 {
 						// exit the loop
 						loop_stack.pop();
 					} else {
@@ -349,6 +340,14 @@ impl BVM {
 						// not sure what rust will do if the stack is empty
 						pc = loop_stack[loop_stack.len() - 1];
 					}
+				}
+				('^', _, true) => self.tape.move_head_position((0, 1)),
+				('v', _, true) => self.tape.move_head_position((0, -1)),
+				('^', _, false) => {
+					r_panic!("2D Brainfuck currently disabled");
+				}
+				('v', _, false) => {
+					r_panic!("2D Brainfuck currently disabled");
 				}
 				// '#' => {
 				// 	println!("{}", self.tape);
@@ -366,6 +365,15 @@ impl BVM {
 			// println!("{s}");
 			// println!("{}", self.tape);
 			pc += 1;
+
+			// cut the program short if it runs forever
+			steps += 1;
+			if steps > max_steps.unwrap_or(Self::MAX_STEPS_DEFAULT) {
+				// not sure if this should error out or just quit silently
+				return Err(String::from(
+					"Max steps reached in BVM, possibly an infinite loop.",
+				));
+			}
 		}
 
 		Ok(())
@@ -379,25 +387,42 @@ pub mod tests {
 
 	use std::io::Cursor;
 
-	pub fn run_code(code: String, input: String) -> String {
-		let mut bvm = BVM::new(code.chars().collect());
+	pub fn run_code(
+		config: BVMConfig,
+		code: String,
+		input: String,
+		max_steps_cutoff: Option<usize>,
+	) -> String {
+		let mut bvm = BVM::new(config, code.chars().collect());
 
 		let input_bytes: Vec<u8> = input.bytes().collect();
 		let mut input_stream = Cursor::new(input_bytes);
 		let mut output_stream = Cursor::new(Vec::new());
 
-		bvm.run(&mut input_stream, &mut output_stream).unwrap();
+		bvm.run(&mut input_stream, &mut output_stream, max_steps_cutoff)
+			.unwrap();
 
 		// TODO: fix this unsafe stuff
 		unsafe { String::from_utf8_unchecked(output_stream.into_inner()) }
 	}
+	const BVM_CONFIG_1D: BVMConfig = BVMConfig {
+		enable_debug_symbols: false,
+		enable_2d_grid: false,
+	};
+	const BVM_CONFIG_2D: BVMConfig = BVMConfig {
+		enable_debug_symbols: false,
+		enable_2d_grid: true,
+	};
 
 	#[test]
 	fn dummy_test() {
 		let program = String::from("");
 		let input = String::from("");
 		let desired_output = String::from("");
-		assert_eq!(desired_output, run_code(program, input))
+		assert_eq!(
+			desired_output,
+			run_code(BVM_CONFIG_1D, program, input, None)
+		)
 	}
 
 	#[test]
@@ -405,7 +430,10 @@ pub mod tests {
 		let program = String::from("++++++++[>++++[>++>+++>+++>+<<<<-]>+>+>->>+[<]<-]>>.>---.+++++++..+++.>>.<-.<.+++.------.--------.>>+.>++.");
 		let input = String::from("");
 		let desired_output = String::from("Hello World!\n");
-		assert_eq!(desired_output, run_code(program, input))
+		assert_eq!(
+			desired_output,
+			run_code(BVM_CONFIG_1D, program, input, None)
+		)
 	}
 
 	#[test]
@@ -415,7 +443,10 @@ pub mod tests {
 		);
 		let input = String::from("");
 		let desired_output = String::from("Hello, World!");
-		assert_eq!(desired_output, run_code(program, input))
+		assert_eq!(
+			desired_output,
+			run_code(BVM_CONFIG_1D, program, input, None)
+		)
 	}
 
 	#[test]
@@ -423,6 +454,112 @@ pub mod tests {
 		let program = String::from("+++++[>+++++[>++>++>+++>+++>++++>++++<<<<<<-]<-]+++++[>>[>]<[+.<<]>[++.>>>]<[+.<]>[-.>>]<[-.<<<]>[.>]<[+.<]<-]++++++++++.");
 		let input = String::from("");
 		let desired_output = String::from("eL34NfeOL454KdeJ44JOdefePK55gQ67ShfTL787KegJ77JTeghfUK88iV9:XjgYL:;:KfiJ::JYfijgZK;;k[<=]lh^L=>=KgkJ==J^gklh_K>>m`?@bnicL@A@KhmJ@@JchmnidKAA\n");
-		assert_eq!(desired_output, run_code(program, input))
+		assert_eq!(
+			desired_output,
+			run_code(BVM_CONFIG_1D, program, input, None)
+		)
+	}
+
+	#[test]
+	#[should_panic(expected = "2D Brainfuck currently disabled")]
+	fn grid_disabled_1() {
+		let program = String::from("++++++++[->++++++[->+>+<<]<]>>.>^+++.");
+		let input = String::from("");
+		run_code(BVM_CONFIG_1D, program, input, None);
+	}
+
+	#[test]
+	#[should_panic(expected = "2D Brainfuck currently disabled")]
+	fn grid_disabled_2() {
+		let program =
+			String::from("++++++++[->^^^+++vvvv+++[->^^^^+>+<vvvv<]<]>^^^^^^^^>.>vvvv+++.");
+		let input = String::from("");
+		run_code(BVM_CONFIG_1D, program, input, None);
+	}
+
+	// 2D tests:
+	#[test]
+	fn grid_regression_1() {
+		// hello world
+		let program = String::from("++++++++[>++++[>++>+++>+++>+<<<<-]>+>+>->>+[<]<-]>>.>---.+++++++..+++.>>.<-.<.+++.------.--------.>>+.>++.");
+		let input = String::from("");
+		let desired_output = String::from("Hello World!\n");
+		assert_eq!(
+			desired_output,
+			run_code(BVM_CONFIG_2D, program, input, None)
+		)
+	}
+
+	#[test]
+	fn grid_regression_2() {
+		// random mess
+		let program = String::from("+++++[>+++++[>++>++>+++>+++>++++>++++<<<<<<-]<-]+++++[>>[>]<[+.<<]>[++.>>>]<[+.<]>[-.>>]<[-.<<<]>[.>]<[+.<]<-]++++++++++.");
+		let input = String::from("");
+		let desired_output = String::from("eL34NfeOL454KdeJ44JOdefePK55gQ67ShfTL787KegJ77JTeghfUK88iV9:XjgYL:;:KfiJ::JYfijgZK;;k[<=]lh^L=>=KgkJ==J^gklh_K>>m`?@bnicL@A@KhmJ@@JchmnidKAA\n");
+		assert_eq!(
+			desired_output,
+			run_code(BVM_CONFIG_2D, program, input, None)
+		)
+	}
+
+	#[test]
+	fn grid_basic_1() {
+		let program = String::from("++++++++[-^++++++[->+v+<^]v]>+++++^.v.");
+		let input = String::from("");
+		let desired_output = String::from("05");
+		assert_eq!(
+			desired_output,
+			run_code(BVM_CONFIG_2D, program, input, None)
+		)
+	}
+
+	#[test]
+	fn grid_mover_1() {
+		let program = String::from(
+			"-<<<<<<<<<<<<^^^^^^^^^^^^-<^++++++++[->>vv+[->v+]->v++++++<^<^+[-<^+]-<^]>>vv+[->v+]->v...",
+		);
+		let input = String::from("");
+		let desired_output = String::from("000");
+		assert_eq!(
+			desired_output,
+			run_code(BVM_CONFIG_2D, program, input, None)
+		)
+	}
+
+	#[test]
+	fn grid_bfception_1() {
+		// run a hello world program within a 1d brainfuck interpreter implemented in 2d brainfuck
+		let program = String::from("-v>,[>,]^-<+[-<+]->+[-v------------------------------------------^>+]-<+[-<+]->+[-v[-^+^+vv]^[-v+^]^->+<[>-<->+<[>-<->+<[>-<->+<[>-<-------------->+<[>-<-->+<[>-<----------------------------->+<[>-<-->+<[>-<vv[-]^^[-]]>[[-]<[-]vv[-]++++++v++^^^>]<[-]]>[[-]<[-]vv[-]+++++v+^^^>]<[-]]>[[-]<[-]vv[-]+++^^>]<[-]]>[[-]<[-]vv[-]++++^^>]<[-]]>[[-]<[-]vv[-]+++++++^^>]<[-]]>[[-]<[-]vv[-]++^^>]<[-]]>[[-]<[-]vv[-]++++++++^^>]<[-]]>[[-]<[-]vv[-]+^^>]<vv^>+]-v-v-v-v-^^^^<+[-<+]<->v-v-v<-v->^^^^>vvv+^^^<+>+[-<->+v[-^^+^+vvv]^^[-vv+^^]^>+<-[>[-]<>+<-[>[-]<>+<-[>[-]<>+<-[>[-]<>+<-[>[-]<>+<-[>[-]<>+<-[>[-]<>+<-[>[-]<[-]]>[-<vvvvv+[-<+]->-[+>-]+v,^+[-<+]-<^^^+[->+]->-[+>-]+^^>]<]>[-<vvvvv+[-<+]->-[+>-]+v.^+[-<+]-<^^^+[->+]->-[+>-]+^^>]<]>[-<vvvvv+[-<+]->-[+>-]+v[-v+v+^^]v[-^+v]v[[-]^^^+[-<+]-^^^+[->+]-<+[>>-[+>-]<+vv[-^^^+^+vvvv]^^^[-vvv+^^^]^->+<[>-<->+<[>-<[-]]>[-<vv+[-<+]-<+>>-[+>-]+^^>]<]>[-<vv+[-<+]-<->>-[+>-]+^^>]<vv+[-<+]-<][-]>vvv+[-<+]->-[+>-]+vvv]^^^+[-<+]-<^^^+[->+]->-[+>-]+^^>]<]>[-<vvvvv+[-<+]->-[+>-]+v[-v+v+^^]v[-^+v]v>+<[>-<[-]]>[-<^^^+[-<+]-^^^+[->+]-<+[>>-[+>-]>+vv[-^^^+^+vvvv]^^^[-vvv+^^^]^->+<[>-<->+<[>-<[-]]>[-<vv+[-<+]-<->>-[+>-]+^^>]<]>[-<vv+[-<+]-<+>>-[+>-]+^^>]<vv+[-<+]-<][-]>vvv+[-<+]->-[+>-]+vvv>]<^^^+[-<+]-<^^^+[->+]->-[+>-]+^^>]<]>[-<vvvvv+[-<+]->-[+>-]+<<-v-^>+v+^[<+v+^>-v-^]+>-+[-<+]-<^^^+[->+]->-[+>-]+^^>]<]>[-<vvvvv+[-<+]->-[+>-]+>>-v-^<+v+^[>+v+^<-v-^]+<-+[-<+]-<^^^+[->+]->-[+>-]+^^>]<]>[-<vvvvv+[-<+]->-[+>-]+v-^+[-<+]-<^^^+[->+]->-[+>-]+^^>]<]>[-<vvvvv+[-<+]->-[+>-]+v+^+[-<+]-<^^^+[->+]->-[+>-]+^^>]<vv>+]-");
+		let input = String::from("++++++++[>++++[>++>+++>+++>+<<<<-]>+>+>->>+[<]<-]>>.>---.+++++++..+++.>>.<-.<.+++.------.--------.>>+.>++.\n");
+		let desired_output = String::from("Hello World!\n");
+		assert_eq!(
+			desired_output,
+			run_code(BVM_CONFIG_2D, program, input, None)
+		)
+	}
+
+	#[test]
+	fn grid_bfception_2() {
+		// random mess
+		let program = String::from("-v>,[>,]^-<+[-<+]->+[-v------------------------------------------^>+]-<+[-<+]->+[-v[-^+^+vv]^[-v+^]^->+<[>-<->+<[>-<->+<[>-<->+<[>-<-------------->+<[>-<-->+<[>-<----------------------------->+<[>-<-->+<[>-<vv[-]^^[-]]>[[-]<[-]vv[-]++++++v++^^^>]<[-]]>[[-]<[-]vv[-]+++++v+^^^>]<[-]]>[[-]<[-]vv[-]+++^^>]<[-]]>[[-]<[-]vv[-]++++^^>]<[-]]>[[-]<[-]vv[-]+++++++^^>]<[-]]>[[-]<[-]vv[-]++^^>]<[-]]>[[-]<[-]vv[-]++++++++^^>]<[-]]>[[-]<[-]vv[-]+^^>]<vv^>+]-v-v-v-v-^^^^<+[-<+]<->v-v-v<-v->^^^^>vvv+^^^<+>+[-<->+v[-^^+^+vvv]^^[-vv+^^]^>+<-[>[-]<>+<-[>[-]<>+<-[>[-]<>+<-[>[-]<>+<-[>[-]<>+<-[>[-]<>+<-[>[-]<>+<-[>[-]<[-]]>[-<vvvvv+[-<+]->-[+>-]+v,^+[-<+]-<^^^+[->+]->-[+>-]+^^>]<]>[-<vvvvv+[-<+]->-[+>-]+v.^+[-<+]-<^^^+[->+]->-[+>-]+^^>]<]>[-<vvvvv+[-<+]->-[+>-]+v[-v+v+^^]v[-^+v]v[[-]^^^+[-<+]-^^^+[->+]-<+[>>-[+>-]<+vv[-^^^+^+vvvv]^^^[-vvv+^^^]^->+<[>-<->+<[>-<[-]]>[-<vv+[-<+]-<+>>-[+>-]+^^>]<]>[-<vv+[-<+]-<->>-[+>-]+^^>]<vv+[-<+]-<][-]>vvv+[-<+]->-[+>-]+vvv]^^^+[-<+]-<^^^+[->+]->-[+>-]+^^>]<]>[-<vvvvv+[-<+]->-[+>-]+v[-v+v+^^]v[-^+v]v>+<[>-<[-]]>[-<^^^+[-<+]-^^^+[->+]-<+[>>-[+>-]>+vv[-^^^+^+vvvv]^^^[-vvv+^^^]^->+<[>-<->+<[>-<[-]]>[-<vv+[-<+]-<->>-[+>-]+^^>]<]>[-<vv+[-<+]-<+>>-[+>-]+^^>]<vv+[-<+]-<][-]>vvv+[-<+]->-[+>-]+vvv>]<^^^+[-<+]-<^^^+[->+]->-[+>-]+^^>]<]>[-<vvvvv+[-<+]->-[+>-]+<<-v-^>+v+^[<+v+^>-v-^]+>-+[-<+]-<^^^+[->+]->-[+>-]+^^>]<]>[-<vvvvv+[-<+]->-[+>-]+>>-v-^<+v+^[>+v+^<-v-^]+<-+[-<+]-<^^^+[->+]->-[+>-]+^^>]<]>[-<vvvvv+[-<+]->-[+>-]+v-^+[-<+]-<^^^+[->+]->-[+>-]+^^>]<]>[-<vvvvv+[-<+]->-[+>-]+v+^+[-<+]-<^^^+[->+]->-[+>-]+^^>]<vv>+]-");
+		let input = String::from("+++++[>+++++[>++>++>+++>+++>++++>++++<<<<<<-]<-]+++++[>>[>]<[+.<<]>[++.>>>]<[+.<]>[-.>>]<[-.<<<]>[.>]<[+.<]<-]++++++++++.\n");
+		let desired_output = String::from("eL34NfeOL454KdeJ44JOdefePK55gQ67ShfTL787KegJ77JTeghfUK88iV9:XjgYL:;:KfiJ::JYfijgZK;;k[<=]lh^L=>=KgkJ==J^gklh_K>>m`?@bnicL@A@KhmJ@@JchmnidKAA\n");
+		assert_eq!(
+			desired_output,
+			run_code(BVM_CONFIG_2D, program, input, None)
+		)
+	}
+
+	#[test]
+	fn test_bf2d_code() {
+		let program = String::from(
+			",.[-]+[--^-[^^+^-----vv]v--v---]^-.^^^+.^^..+++[.^]vvvv.+++.------.vv-.^^^^+.",
+		);
+		let input = String::from("");
+		let desired_output = String::from("\0Hello, World!");
+		assert_eq!(
+			desired_output,
+			run_code(BVM_CONFIG_2D, program, input, None)
+		)
 	}
 }

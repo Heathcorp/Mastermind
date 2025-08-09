@@ -1,5 +1,5 @@
 import initWasm, { wasm_compile, wasm_run_bf } from "../compiler/pkg";
-import { MastermindConfig } from "./panels/SettingsPanel";
+import {MastermindConfig} from "./components/Settings";
 
 import { v4 as uuidv4 } from "uuid";
 
@@ -19,14 +19,15 @@ self.addEventListener("message", ({ data }: MessageEvent<
     arguments: {
       fileMap: Record<string, string>,
       entryFileName: string,
-      optimisations: MastermindConfig
+      config: MastermindConfig
     }
   } |
   {
     transaction: string,
     command: "RUN",
     arguments: {
-      code: string
+      code: string,
+      enable_2d_grid: boolean
     }
   })
 >) => {
@@ -51,7 +52,7 @@ self.addEventListener("message", ({ data }: MessageEvent<
         const compiledCode = wasm_compile(
           data.arguments.fileMap,
           data.arguments.entryFileName,
-          data.arguments.optimisations
+          data.arguments.config
         );
 
         postMessage({
@@ -70,8 +71,7 @@ self.addEventListener("message", ({ data }: MessageEvent<
       break;
     case "RUN":
       try {
-
-        _run(data.arguments.code, data.transaction).then(codeOutput => {
+        _run(data.arguments.code, data.arguments.enable_2d_grid, data.transaction).then(codeOutput => {
           console.log(codeOutput);
           postMessage({
             transaction: data.transaction,
@@ -98,8 +98,8 @@ self.addEventListener("message", ({ data }: MessageEvent<
   }
 });
 
-function _run(code: string, runTransaction: string) {
-  const result = wasm_run_bf(code,
+function _run(code: string, enable_2d_grid: boolean, runTransaction: string) {
+  const result = wasm_run_bf(code, enable_2d_grid,
 
     function (byte: number) {
       // output a byte from the BVM

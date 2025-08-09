@@ -15,7 +15,7 @@ mod tokeniser; // 1. Tokenise
 mod misc;
 mod tests;
 
-use brainfuck::BVM;
+use brainfuck::{BVMConfig, BVM};
 use brainfuck_optimiser::optimise;
 use builder::{BrainfuckOpcodes, Builder};
 use compiler::Compiler;
@@ -110,7 +110,9 @@ fn main() -> Result<(), String> {
 			let bf_program = builder.build(instructions, false)?;
 
 			match config.optimise_generated_code {
-				true => optimise(bf_program).to_string(),
+				true => {
+					optimise(bf_program, config.optimise_generated_all_permutations).to_string()
+				}
 				false => bf_program.to_string(),
 			}
 		}
@@ -119,12 +121,16 @@ fn main() -> Result<(), String> {
 
 	if args.run || !args.compile {
 		// run brainfuck
-		let mut bvm = BVM::new(bf_program.chars().collect());
+		let config = BVMConfig {
+			enable_debug_symbols: false,
+			enable_2d_grid: false,
+		};
+		let mut bvm = BVM::new(config, bf_program.chars().collect());
 
 		if args.input.is_some() {
-			bvm.run(&mut Cursor::new(args.input.unwrap()), &mut stdout())?;
+			bvm.run(&mut Cursor::new(args.input.unwrap()), &mut stdout(), None)?;
 		} else {
-			bvm.run(&mut stdin(), &mut stdout())?;
+			bvm.run(&mut stdin(), &mut stdout(), None)?;
 		}
 	} else {
 		print!("{bf_program}");

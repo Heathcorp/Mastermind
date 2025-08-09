@@ -3,7 +3,7 @@
   height: 3rem;
   /* added these to fix a weird bug with heights changing */
   min-height: 3rem;
-  max-height: 3rem;;
+  max-height: 3rem;
   display: flex;
   flex-direction: row;
   justify-content: flex-start;
@@ -17,6 +17,7 @@
 
   /* draggability things */
   /* z-index: 1; */
+  border-right: var(--default-border);
 }
 
 .tab-bar::-webkit-scrollbar {
@@ -36,7 +37,7 @@
 
 .tab {
   background-color: var(--BG-1);
-  border-right: var(--default-border);
+  border-left: var(--default-border);
   border-bottom: var(--default-border);
 
   display: flex;
@@ -73,7 +74,7 @@
   border: none;
   outline: none;
   background-color: unset;
-  
+
   cursor: inherit;
 }
 
@@ -83,4 +84,26 @@
 
 .file-label-text {
   font-size: 1rem;
+}
+
+.tab-container {
+  margin: 0;
+  padding: 0;
+  width: 100%;
+  display: flex;
+  justify-content: space-between;
+}
+
+.tab-controller {
+  display: flex;
+  flex-direction: row;
+  gap: 5px;
+  padding: 5px;
+}
+
+.tab-controller-divider {
+  border: var(--default-border);
+  border-width: 0.5px;
+  height: 100%;
+  border-radius: 2px;
 }

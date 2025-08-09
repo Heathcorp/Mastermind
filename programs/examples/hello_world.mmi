@@ -1,0 +1,16 @@
+#include <u8>
+
+// Print a constant string
+output "Hello world!";
+
+// Use \n for newline character.
+// Single characters are represented with single quotes
+// Strings are represented with double quotes
+output '\n';
+
+// Printing a number variable
+// Requires 'print' module
+cell number = 123;
+output "The number is: ";
+print(number);
+output '\n';

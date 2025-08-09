@@ -1,0 +1,45 @@
+#include <u8>
+
+cell N = 99;
+cell number = 2;
+
+// a draining loop, loops n times, clearing the variable
+drain N into number {
+  cell result1;
+  is_prime(result1, number);
+  if not result1 {
+    print(number);
+    output "\n";
+  }
+}
+
+fn is_prime(cell result1, cell num) {
+    result1 = false;
+    cell divisor = num - 1;
+    drain divisor{
+      if divisor - 1 {
+        divisible(result1, num, divisor);
+      }
+    }
+}
+
+fn divisible(cell result1, cell dividend, cell divisor) {
+  // result2 = 0 if dividend % divisor = 0
+  cell b = dividend;
+
+  cell iterating = true;
+
+  while iterating {
+    // a copying loop, loops n times without modifying the variable
+    copy divisor {
+      b -= 1;
+      if not b {
+        iterating = false;
+      }
+    }
+  }
+  // if there is no remainder then we are divisible
+  if not b {
+    result1 = true;
+  }
+}

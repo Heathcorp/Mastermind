@@ -2,6 +2,7 @@
 pub struct MastermindConfig {
 	// basic pure brainfuck optimisations
 	pub optimise_generated_code: bool,
+	pub optimise_generated_all_permutations: bool,
 	// track cell value and clear with constant addition if possible
 	pub optimise_cell_clearing: bool,
 	// track cell value and skip loops which can never be entered
@@ -16,18 +17,29 @@ pub struct MastermindConfig {
 	pub optimise_constants: bool,
 	// TODO: recursively prune if statements/loops if they do nothing
 	pub optimise_empty_blocks: bool,
+	// Memory Allocation Method
+	//'1D Mastermind'  0
+	//'2D Mastermind - ZigZag'  1
+	// '2D Mastermind - Spiral'  2
+	// '2D Mastermind - Tiles'  2
+	// '2D Mastermind - Nearest' 3
+	pub memory_allocation_method: u8,
+	pub enable_2d_grid: bool,
 }
 
 impl MastermindConfig {
 	pub fn new(optimise_bitmask: usize) -> MastermindConfig {
 		MastermindConfig {
 			optimise_generated_code: (optimise_bitmask & 0b00000001) > 0,
+			optimise_generated_all_permutations: (optimise_bitmask & 0b00001000) > 0,
 			optimise_cell_clearing: (optimise_bitmask & 0b00000010) > 0,
 			optimise_unreachable_loops: (optimise_bitmask & 0b00000100) > 0,
 			optimise_variable_usage: false,
 			optimise_memory_allocation: false,
 			optimise_constants: false,
 			optimise_empty_blocks: false,
+			memory_allocation_method: 0,
+			enable_2d_grid: false,
 		}
 	}
 }

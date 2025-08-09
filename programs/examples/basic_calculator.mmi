@@ -1,0 +1,39 @@
+// Takes a three characters as input input:
+//      
+//     single digit number  -  operator (either +/-)  -  single digit number
+//
+// ...and performs the provided operation on the two single digit numbers,
+// then outputs the result.
+
+#include <u8>
+
+cell n1;
+input n1;
+
+cell operator;
+input operator;
+
+cell n2;
+input n2;
+
+cell result;
+
+// Checking if character is equal to the operator we need
+if not operator - '+' {
+  result = n1 - '0' + n2 - '0';
+}
+
+if not operator - '-' {
+  result = (n1 - '0') - (n2 - '0');
+}
+
+// Nicely format the output
+output n1;
+output " ";
+output operator;
+output " ";
+output n2;
+output " ";
+output '=';
+output " ";
+print(result);

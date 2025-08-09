@@ -17,30 +17,56 @@ import { EditorState } from "@codemirror/state";
 import { EditorView } from "@codemirror/view";
 import { v4 as uuidv4 } from "uuid";
 
-import divisorsExample from "./assets/divisors_example.mmi?raw";
-import printExample from "./assets/print.mmi?raw";
+// Example programs and standard library: (TODO: organise this better, this should not be in the main App.tsx)
+import divisorsExample from "../programs/examples/divisors_example.mmi?raw";
+import primeExample from "../programs/examples/prime_1_to_100.mmi?raw";
+import christmasTreeExample from "../programs/examples/christmas_trees.mmi?raw";
+import brainfuckExample from "../programs/examples/brainfuck.mmi?raw";
+import helloWorldExample from "../programs/examples/hello_world.mmi?raw";
+import basicCalculatorExample from "../programs/examples/basic_calculator.mmi?raw";
+import ifp16CalculatorExample from "../programs/examples/ifp16calculator.mmi?raw";
+
+import std_bitops from "../programs/std/bitops?raw";
+import std_i8 from "../programs/std/i8?raw";
+import std_u8 from "../programs/std/u8?raw";
+import std_u16 from "../programs/std/u16?raw";
+import std_ifp16 from "../programs/std/ifp16?raw";
 
 import "./App.css";
 import Divider from "./components/Divider";
 import EditorPanel from "./panels/EditorPanel";
 import InputPanel from "./panels/InputPanel";
+import BrainfuckPanel from "./panels/BrainfuckPanel.tsx";
+import SideBar from "./panels/SideBar.tsx";
 
 import OutputPanel from "./panels/OutputPanel";
-import SettingsPanel, { MastermindConfig } from "./panels/SettingsPanel";
+import CompilerPanel from "./panels/CompilerPanel.tsx";
 import { defaultExtensions } from "./misc";
 import { makePersisted } from "@solid-primitives/storage";
 import { createStore } from "solid-js/store";
+import {
+  DEFAULT_MASTERMIND_CONFIG,
+  MastermindConfig,
+} from "./components/Settings";
 
 const AppContext = createContext<AppContextProps>();
 
 // update this when you want the user to see new syntax
-const MIGRATION_VERSION = 3;
+const MIGRATION_VERSION = 11;
 
 const App: Component = () => {
   const [version, setVersion] = makePersisted(createSignal<number>(), {
     name: "mastermind_version",
   });
   const [helpOpen, setHelpOpen] = createSignal(false);
+  const [settingsOpen, setSettingsOpen] = createSignal(false);
+  const [fileBrowserOpen, setFileBrowserOpen] = createSignal(false);
+  const [fileUploaderOpen, setFileUploaderOpen] = createSignal(false);
+  const [docsOpen, setDocsOpen] = createSignal(false);
+  const [config, setConfig] = makePersisted(
+    createSignal<MastermindConfig>(DEFAULT_MASTERMIND_CONFIG),
+    { name: "mastermind_config" }
+  );
   createEffect(
     on([version], () => {
       const v = version();
@@ -51,8 +77,12 @@ const App: Component = () => {
           );
         }
         loadExampleFiles();
+        setConfig((oldConfig) => ({
+          ...DEFAULT_MASTERMIND_CONFIG,
+          ...oldConfig,
+        }));
         setVersion(MIGRATION_VERSION);
-        setHelpOpen(true);
+        setDocsOpen(true);
       }
     })
   );
@@ -108,43 +138,117 @@ const App: Component = () => {
   );
 
   const loadExampleFiles = () => {
-    const newId = uuidv4();
-    setFileStates((prev) => [
-      ...[
-        {
-          id: newId,
-          label: "divisors_example.mmi",
-          rawText: divisorsExample,
-        },
-        { id: uuidv4(), label: "print.mmi", rawText: printExample },
-      ].map((rawState) => ({
-        // This could probably be common function, duplicate code of above deserialization and file creation functions (TODO: refactor)
-        id: rawState.id,
-        label: rawState.label,
-        editorState: EditorState.create({
-          doc: rawState.rawText,
-          extensions: [
-            ...defaultExtensions,
-            EditorView.updateListener.of((e) => {
-              // this basically saves the editor every time it updates, this may be inefficient
-              saveFileState(rawState.id, e.state);
-            }),
-          ],
-        }),
-      })),
-      ...prev,
-    ]);
-    setEntryFile(newId);
+    const defaultFileId = uuidv4();
+    const newFiles = [
+      {
+        id: uuidv4(),
+        label: "hello_world.mmi",
+        rawText: helloWorldExample,
+      },
+      {
+        id: uuidv4(),
+        label: "basic_calculator.mmi",
+        rawText: basicCalculatorExample,
+      },
+      {
+        id: defaultFileId,
+        label: "divisors_example.mmi",
+        rawText: divisorsExample,
+      },
+      { id: uuidv4(), label: "prime_1_to_100.mmi", rawText: primeExample },
+      {
+        id: uuidv4(),
+        label: "christmas_trees.mmi",
+        rawText: christmasTreeExample,
+      },
+      {
+        id: uuidv4(),
+        label: "brainfuck.mmi",
+        rawText: brainfuckExample,
+      },
+      {
+        id: uuidv4(),
+        label: "bitops",
+        rawText: std_bitops,
+      },
+      {
+        id: uuidv4(),
+        label: "i8",
+        rawText: std_i8,
+      },
+      {
+        id: uuidv4(),
+        label: "u8",
+        rawText: std_u8,
+      },
+      {
+        id: uuidv4(),
+        label: "u16",
+        rawText: std_u16,
+      },
+      {
+        id: uuidv4(),
+        label: "ifp16",
+        rawText: std_ifp16,
+      },
+      {
+        id: uuidv4(),
+        label: "Fixed Point Calculator",
+        rawText: ifp16CalculatorExample,
+      },
+    ].map((rawState) => ({
+      // This could probably be common function, duplicate code of above deserialization and file creation functions (TODO: refactor)
+      id: rawState.id,
+      label: rawState.label,
+      editorState: EditorState.create({
+        doc: rawState.rawText,
+        extensions: [
+          ...defaultExtensions,
+          EditorView.updateListener.of((e) => {
+            // this basically saves the editor every time it updates, this may be inefficient
+            saveFileState(rawState.id, e.state);
+          }),
+        ],
+      }),
+    }));
+
+    setFileStates((prev) => {
+      const fileStates = [...prev];
+      const filteredNewFiles = newFiles.filter(
+        (newFile) =>
+          !fileStates.find(
+            (prevFile) =>
+              newFile.label === prevFile.label &&
+              newFile.editorState.doc.toString() ===
+                prevFile.editorState.doc.toString()
+          )
+      );
+      return [
+        ...filteredNewFiles,
+        ...prev.map((oldFile) => ({
+          ...oldFile,
+          label: filteredNewFiles.find(
+            (newFile) => newFile.label == oldFile.label
+          )
+            ? `old_${oldFile.label}`
+            : oldFile.label,
+        })),
+      ];
+    });
+    setEntryFile(defaultFileId);
   };
 
-  const createFile = () => {
+  const createFile = async (file?: File) => {
     const newId = uuidv4();
+    let rawText: string | undefined;
+    if (file) rawText = await file.text();
     setFileStates((prev) => [
       ...prev,
       {
         id: newId,
-        label: `untitled_${prev.length}`,
+        label: file?.name ?? `untitled_${prev.length}`,
         editorState: EditorState.create({
+          doc: rawText,
           extensions: [
             ...defaultExtensions,
             EditorView.updateListener.of((e) => {
@@ -209,7 +313,7 @@ const App: Component = () => {
     setInput((prev) => ({ text: prev.text, amountRead: null }));
   };
 
-  const compile = (entryFileId: string, optimisations: MastermindConfig) => {
+  const compile = (entryFileId: string, config: MastermindConfig) => {
     return new Promise<string>((resolve, reject) => {
       let entryFileName: string | undefined;
       const fileMap = Object.fromEntries(
@@ -233,7 +337,11 @@ const App: Component = () => {
         removeCallback();
         setBusy(false);
         if (e.data.success) {
-          setOutput({ type: "BF", content: e.data.message });
+          setBrainfuck({ text: e.data.message, amountRead: null });
+          setOutput({
+            type: "OUTPUT",
+            content: "Successfully Compiled Program",
+          });
           setStatus("IDLE");
           resolve(e.data.message);
         } else {
@@ -255,7 +363,7 @@ const App: Component = () => {
         arguments: {
           fileMap,
           entryFileName,
-          optimisations,
+          config,
         },
       });
 
@@ -264,7 +372,7 @@ const App: Component = () => {
     });
   };
 
-  const run = (code: string) => {
+  const run = (code: string, enable_2d_grid: boolean) => {
     return new Promise<string>((resolve, reject) => {
       const transaction = uuidv4();
       const callback = (e: {
@@ -338,14 +446,14 @@ const App: Component = () => {
       compilerWorker.postMessage({
         command: "RUN",
         transaction,
-        arguments: { code },
+        arguments: { code, enable_2d_grid },
       });
     });
   };
 
   const [output, setOutput] = makePersisted(
     createSignal<{
-      type: "BF" | "ERROR" | "OUTPUT" | "LIVE_OUTPUT";
+      type: "ERROR" | "OUTPUT" | "LIVE_OUTPUT";
       content: string;
     }>(),
     { name: "mastermind_output" }
@@ -357,6 +465,13 @@ const App: Component = () => {
       amountRead: null,
     }),
     { name: "mastermind_input" }
+  );
+  const [brainfuck, setBrainfuck] = makePersisted(
+    createSignal<{ text: string; amountRead: number | null }>({
+      text: "Brainfuck goes here...",
+      amountRead: null,
+    }),
+    { name: "bvm_input" }
   );
   // to fix a bug for when the program starts and it saved the amount read in the state:
   onMount(() => setInput((prev) => ({ ...prev, amountRead: null })));
@@ -425,17 +540,35 @@ const App: Component = () => {
         setHelpOpen,
         enableBlockingInput,
         setEnableBlockingInput,
+        settingsOpen,
+        setSettingsOpen,
+        fileBrowserOpen,
+        setFileBrowserOpen,
+        fileUploaderOpen,
+        setFileUploaderOpen,
+        docsOpen,
+        setDocsOpen,
+        config,
+        setConfig,
+        brainfuck,
+        setBrainfuck,
       }}
     >
       <div id="window">
         <EditorPanel />
         <Divider />
         <div class="panel">
-          <SettingsPanel style={{ flex: 3 }} />
+          <CompilerPanel style={{ flex: 0.8 }} />
           <Divider />
-          <InputPanel style={{ flex: 1 }} />
+          <BrainfuckPanel style={{ flex: 2.2 }} />
+          <Divider />
+          <InputPanel style={{ flex: 2 }} />
           <Divider />
           <OutputPanel style={{ flex: 4 }} />
+        </div>
+        <Divider />
+        <div>
+          <SideBar />
         </div>
       </div>
     </AppContext.Provider>
@@ -452,37 +585,37 @@ interface AppContextProps {
   fileStates: FileState[];
   entryFile: Accessor<string | undefined>;
   setEntryFile: Setter<string | undefined>;
-  createFile: () => string;
+  createFile: (file?: File) => Promise<string>;
   deleteFile: (id: string) => void;
   saveFileState: (id: string, state: EditorState) => void;
   setFileLabel: (id: string, label: string) => void;
   setOutput: Setter<
     | {
-        type: "BF" | "ERROR" | "OUTPUT" | "LIVE_OUTPUT";
+        type: "ERROR" | "OUTPUT" | "LIVE_OUTPUT";
         content: string;
       }
     | undefined
   >;
   output: Accessor<
     | {
-        type: "BF" | "ERROR" | "OUTPUT" | "LIVE_OUTPUT";
+        type: "ERROR" | "OUTPUT" | "LIVE_OUTPUT";
         content: string;
       }
     | undefined
   >;
   input: Accessor<{ text: string; amountRead: number | null }>;
   setInput: Setter<{ text: string; amountRead: number | null }>;
+  //Not Needed yet but we might want to do stopping and starting
+  brainfuck: Accessor<{ text: string; amountRead: number | null }>;
+  setBrainfuck: Setter<{ text: string; amountRead: number | null }>;
 
   enableBlockingInput: Accessor<boolean>;
   setEnableBlockingInput: Setter<boolean>;
 
   reorderFiles: (from: string, to: string | null) => void;
 
-  compile: (
-    entryFileId: string,
-    optimisations: MastermindConfig
-  ) => Promise<string>;
-  run: (code: string) => Promise<string>;
+  compile: (entryFileId: string, settings: MastermindConfig) => Promise<string>;
+  run: (code: string, enable_2d_grid: boolean) => Promise<string>;
 
   busy: Accessor<boolean>;
   status: Accessor<"COMPILING" | "RUNNING" | "INPUT_BLOCKED" | "IDLE">;
@@ -491,6 +624,21 @@ interface AppContextProps {
 
   helpOpen: Accessor<boolean>;
   setHelpOpen: Setter<boolean>;
+
+  settingsOpen: Accessor<boolean>;
+  setSettingsOpen: Setter<boolean>;
+
+  fileBrowserOpen: Accessor<boolean>;
+  setFileBrowserOpen: Setter<boolean>;
+
+  fileUploaderOpen: Accessor<boolean>;
+  setFileUploaderOpen: Setter<boolean>;
+
+  docsOpen: Accessor<boolean>;
+  setDocsOpen: Setter<boolean>;
+
+  setConfig: Setter<MastermindConfig>;
+  config: Accessor<MastermindConfig>;
 }
 
 interface FileState {

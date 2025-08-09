@@ -1,0 +1,61 @@
+
+def is_num<bool, number> {
+  bool = 0;
+  if not number - '0' {
+    bool = 1;
+  }
+  if not number - '1' {
+    bool = 1;
+  }
+  if not number - '2' {
+    bool = 1;
+  }
+  if not number - '3' {
+    bool = 1;
+  }
+  if not number - '4' {
+    bool = 1;
+  }
+  if not number - '5' {
+    bool = 1;
+  }
+  if not number - '6' {
+    bool = 1;
+  }
+  if not number - '7' {
+    bool = 1;
+  }
+  if not number - '8' {
+    bool = 1;
+  }
+  if not number - '9' {
+    bool = 1;
+  }
+}
+
+
+//Accepts input as a number with a space afterwards
+def num_input<num> {
+  num = 0;
+  let cur_input;
+  //If we have a space skip
+  input cur_input;
+  let iterating;
+  is_num<iterating, cur_input>;
+  while iterating{
+    cur_input -= '0';
+    let loops = 10;
+    let mult = num;
+    num = 0;
+    drain loops {
+      copy mult {
+        num += 1;
+      }
+    }
+    drain cur_input {
+      num += 1;
+    }
+    input cur_input;
+    is_num<iterating, cur_input>;
+  }
+}

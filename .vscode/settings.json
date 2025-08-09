@@ -1,0 +1,6 @@
+{
+  "files.associations": {
+    "**.mmi": "plaintext",
+    "programs/**": "plaintext",
+  }
+}

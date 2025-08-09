@@ -21,6 +21,17 @@
   overflow: hidden;
 }
 
+.sidebar {
+  flex: 1;
+
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  overflow: hidden;
+}
+
+
 .code-panel {
   position: relative;
   background-color: var(--BG-2);
@@ -96,4 +107,8 @@
 
 .text-button:hover:not(.text-button-disabled) {
   background-color: rgb(0, 0, 0, 0.25);
+}
+
+.dropzone-root {
+  position: relative;
 }
