@@ -1,8 +1,6 @@
-// TODO: refactor this tokeniser, needs some fixes and could be made simpler/cleaner
-
 use regex_lite::Regex;
 
-use crate::macros::macros::r_assert;
+use crate::macros::macros::{r_assert, r_panic};
 
 pub fn tokenise(source: &String) -> Result<Vec<Token>, String> {
 	let stripped = source
@@ -16,16 +14,12 @@ pub fn tokenise(source: &String) -> Result<Vec<Token>, String> {
 		(";", Token::Semicolon),
 		("output", Token::Output),
 		("input", Token::Input),
-		// ("#debug", Token::Debug),
-		// ("let", Token::Let),
 		("cell", Token::Cell),
 		("struct", Token::Struct),
 		("=", Token::EqualsSign),
 		("while", Token::While),
 		("drain", Token::Drain),
 		("into", Token::Into),
-		// ("clear", Token::Clear),
-		// ("loop", Token::Loop),
 		("else", Token::Else),
 		("copy", Token::Copy),
 		("bf", Token::Bf),
@@ -33,17 +27,7 @@ pub fn tokenise(source: &String) -> Result<Vec<Token>, String> {
 		("assert", Token::Assert),
 		("equals", Token::Equals),
 		("unknown", Token::Unknown),
-		// ("call", Token::Call),
-		// ("bool", Token::Bool),
-		// ("free", Token::Free),
-		// ("push", Token::Push),
-		// ("deal", Token::Deal),
-		// ("def", Token::Def),
 		("fn", Token::Fn),
-		// ("int", Token::Int),
-		// ("add", Token::Add),
-		// ("sub", Token::Sub),
-		// ("pop", Token::Pop),
 		("if", Token::If),
 		("not", Token::Not),
 		("else", Token::Else),
@@ -79,76 +63,59 @@ pub fn tokenise(source: &String) -> Result<Vec<Token>, String> {
 	while chr_idx < stripped.len() {
 		let remaining = &stripped[chr_idx..];
 
-		let mut found = false;
-
-		/////////
-		if let Some(num_capture) = num_re.captures(remaining) {
-			found = true;
-			let substring = String::from(&num_capture[0]);
+		if let Some(substring) = num_re
+			.captures(remaining)
+			.map(|num_capture| String::from(&num_capture[0]))
+		{
 			chr_idx += substring.len();
 			tokens.push(Token::Digits(substring));
-		} else if let Some(name_capture) = name_re.captures(remaining) {
-			found = true;
-			let substring = String::from(&name_capture[0]);
-			if mappings
-				.iter()
-				// this could be made more efficient if we had a table of keywords vs symbols
-				.find(|(keyword, _)| substring == *keyword)
-				.is_some()
-			{
-				found = false;
-			} else {
-				chr_idx += substring.len();
-				tokens.push(Token::Name(substring));
-			}
-		} else if let Some(str_capture) = str_re.captures(remaining) {
-			found = true;
-			let substring = String::from(&str_capture[0]);
-			// not the most efficient way, this simply removes the quote characters
-			// could refactor this
+		} else if let Some(substring) = name_re
+			.captures(remaining)
+			.map(|name_capture| String::from(&name_capture[0]))
+			.take_if(|substring| {
+				mappings
+					.iter()
+					.find(|(keyword, _)| substring == *keyword)
+					.is_none()
+			}) {
 			chr_idx += substring.len();
-			let unescaped: String = serde_json::from_str(&substring)
-				.or(Err("Could not unescape string literal in tokenisation due to serde error, this should never occur."))?;
+			tokens.push(Token::Name(substring));
+		} else if let Some(substring) = str_re
+			.captures(remaining)
+			.map(|str_capture| String::from(&str_capture[0]))
+		{
+			chr_idx += substring.len();
+			let unescaped = serde_json::from_str(&substring)
+				.or(Err("Could not unescape string literal in tokenisation \
+due to serde error, this should never occur."))?;
 			tokens.push(Token::String(unescaped));
-		} else if let Some(chr_capture) = chr_re.captures(remaining) {
-			found = true;
-			let chr_literal = String::from(&chr_capture[0]);
-			// see above
-			chr_idx += chr_literal.len();
-			// this code sucks, TODO: refactor
-			// make a new double-quoted string because serde json doesn't like single quotes and I can't be bothered making my own unescaping function
-			let escaped_string =
-				String::new() + "\"" + &chr_literal[1..(chr_literal.len() - 1)] + "\"";
+		} else if let Some(substring) = chr_re
+			.captures(remaining)
+			.map(|chr_capture| String::from(&chr_capture[0]))
+		{
+			chr_idx += substring.len();
+			// hack: replace single quotes with double quotes, then use serde to unescape all the characters
+			let escaped_string = String::new() + "\"" + &substring[1..(substring.len() - 1)] + "\"";
 			let unescaped: String = serde_json::from_str(&escaped_string)
-				.or(Err("Could not unescape character literal in tokenisation due to serde error, this should never occur."))?;
-			// might need to change this for escaped characters (TODO)
+				.or(Err("Could not unescape character literal in tokenisation \
+due to serde error, this should never occur."))?;
+
 			r_assert!(unescaped.len() == 1, "Character literals must be length 1");
 			tokens.push(Token::Character(unescaped.chars().next().unwrap()));
+		} else if let Some((text, token)) = mappings
+			.iter()
+			.find(|(text, _)| remaining.starts_with(text))
+		{
+			tokens.push(token.clone());
+			chr_idx += (*text).len();
+		} else {
+			r_panic!("Unknown token found while tokenising program: \"{remaining}\"");
 		}
-		/////////
-
-		if !found {
-			for (text, token) in mappings.iter() {
-				if remaining.starts_with(*text) {
-					tokens.push(token.clone());
-					chr_idx += (*text).len();
-					found = true;
-					break;
-				}
-			}
-		}
-		r_assert!(
-			found,
-			"Unknown token found while tokenising program: \"{remaining}\""
-		);
 	}
 
 	Ok(tokens
 		.into_iter()
-		.filter(|t| match t {
-			Token::None => false,
-			_ => true,
-		})
+		.filter(|t| !matches!(t, Token::None))
 		// stick a None token on the end to fix some weird parsing errors (seems silly but why not?)
 		.chain([Token::None])
 		.collect())
@@ -175,19 +142,13 @@ pub enum Token {
 	None,
 	Output,
 	Input,
-	// Def,
 	Fn,
-	// Let,
 	Cell,
 	Struct,
-	// Assert,
-	// Free,
 	While,
 	If,
 	Not,
 	Else,
-	// Loop,
-	// Break,
 	OpenBrace,
 	ClosingBrace,
 	OpenSquareBracket,
@@ -208,10 +169,6 @@ pub enum Token {
 	Assert,
 	Equals,
 	Unknown,
-	// Push,
-	// Pop,
-	// Deal,
-	// Debug,
 	Name(String),
 	Digits(String),
 	String(String),
@@ -223,4 +180,67 @@ pub enum Token {
 	EqualsSign,
 	Semicolon,
 	UpToken,
+}
+
+mod tokeniser_tests {
+	use crate::tokeniser::{tokenise, Token};
+
+	fn _character_literal_test(input_str: &str, desired_output: &[Token]) {
+		let input_string = String::from(input_str);
+		let actual_output = tokenise(&input_string).unwrap();
+		println!("desired: {desired_output:#?}");
+		println!("actual: {actual_output:#?}");
+		assert!(actual_output.iter().eq(desired_output));
+	}
+
+	#[test]
+	fn character_literals_1() {
+		_character_literal_test(
+			r#"'a' 'b' 'c' ' '"#,
+			&[
+				Token::Character('a'),
+				Token::Character('b'),
+				Token::Character('c'),
+				Token::Character(' '),
+				// TODO: remove this None, fix the code that needs it
+				Token::None,
+			],
+		);
+	}
+
+	#[test]
+	fn character_literals_2() {
+		_character_literal_test(
+			r#"'\n'"#,
+			&[
+				Token::Character('\n'),
+				// TODO: remove this None, fix the code that needs it
+				Token::None,
+			],
+		);
+	}
+
+	#[test]
+	fn character_literals_3() {
+		_character_literal_test(
+			r#"'"'"#,
+			&[
+				Token::Character('"'),
+				// TODO: remove this None, fix the code that needs it
+				Token::None,
+			],
+		);
+	}
+
+	#[test]
+	fn character_literals_4() {
+		_character_literal_test(
+			r#"'\''"#,
+			&[
+				Token::Character('\''),
+				// TODO: remove this None, fix the code that needs it
+				Token::None,
+			],
+		);
+	}
 }

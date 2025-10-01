@@ -995,22 +995,19 @@ impl Expression {
 					}
 					current_sign = None;
 				}
-				(Some(sign), Token::True | Token::False) => {
-					let parsed_int = match &tokens[i] {
+				(Some(sign), token @ (Token::True | Token::False)) => {
+					let parsed_int = match token {
 						Token::True => 1,
-						Token::False => 0,
-						_ => r_panic!(
-							"Unreachable error occured while parsing boolean value: {tokens:#?}"
-						),
+						Token::False | _ => 0,
 					};
 					i += 1;
-					match sign {
-						Sign::Positive => summands.push(Expression::NaturalNumber(parsed_int)),
-						Sign::Negative => summands.push(Expression::SumExpression {
+					summands.push(match sign {
+						Sign::Positive => Expression::NaturalNumber(parsed_int),
+						Sign::Negative => Expression::SumExpression {
 							sign: Sign::Negative,
 							summands: vec![Expression::NaturalNumber(parsed_int)],
-						}),
-					}
+						},
+					});
 					current_sign = None;
 				}
 				(Some(sign), Token::Character(chr)) => {
@@ -1022,25 +1019,25 @@ impl Expression {
 					);
 
 					i += 1;
-					match sign {
-						Sign::Positive => summands.push(Expression::NaturalNumber(chr_int)),
-						Sign::Negative => summands.push(Expression::SumExpression {
+					summands.push(match sign {
+						Sign::Positive => Expression::NaturalNumber(chr_int),
+						Sign::Negative => Expression::SumExpression {
 							sign: Sign::Negative,
 							summands: vec![Expression::NaturalNumber(chr_int)],
-						}),
-					}
+						},
+					});
 					current_sign = None;
 				}
 				(Some(sign), Token::Name(_) | Token::Asterisk) => {
 					let (var, len) = parse_var_target(&tokens[i..])?;
 					i += len;
-					match sign {
-						Sign::Positive => summands.push(Expression::VariableReference(var)),
-						Sign::Negative => summands.push(Expression::SumExpression {
+					summands.push(match sign {
+						Sign::Positive => Expression::VariableReference(var),
+						Sign::Negative => Expression::SumExpression {
 							sign: Sign::Negative,
 							summands: vec![Expression::VariableReference(var)],
-						}),
-					}
+						},
+					});
 					current_sign = None;
 				}
 				(Some(sign), Token::OpenParenthesis) => {
@@ -1081,23 +1078,20 @@ impl Expression {
 					});
 					current_sign = None;
 				}
-				_ => {
-					r_panic!(
-						"Unexpected token {:#?} found in expression: {tokens:#?}",
-						tokens[i]
-					);
+				token => {
+					r_panic!("Unexpected token {token:#?} found in expression: {tokens:#?}");
 				}
 			}
 		}
 
-		match summands.len() {
-			1 => Ok(summands.into_iter().next().unwrap()),
-			1.. => Ok(Expression::SumExpression {
+		Ok(match summands.len() {
+			1 => summands.into_iter().next().unwrap(),
+			1.. => Expression::SumExpression {
 				sign: Sign::Positive,
 				summands,
-			}),
+			},
 			_ => r_panic!("Expected value in expression: {tokens:#?}"),
-		}
+		})
 	}
 
 	/// flip the sign of an expression, equivalent to `x => -(x)`
@@ -1283,7 +1277,6 @@ pub enum Clause {
 	InlineBrainfuck {
 		location_specifier: LocationSpecifier,
 		clobbered_variables: Vec<VariableTarget>,
-		// TODO: make this support embedded mastermind
 		operations: Vec<ExtendedOpcode>,
 	},
 }
@@ -1321,10 +1314,7 @@ pub enum LocationSpecifier {
 }
 impl LocationSpecifier {
 	fn is_none(&self) -> bool {
-		match self {
-			LocationSpecifier::None => true,
-			_ => false,
-		}
+		matches!(self, LocationSpecifier::None)
 	}
 }
 
