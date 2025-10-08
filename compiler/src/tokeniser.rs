@@ -186,7 +186,7 @@ pub enum Token {
 mod tokeniser_tests {
 	use crate::tokeniser::{tokenise, Token};
 
-	fn _character_literal_test(input_str: &str, desired_output: &[Token]) {
+	fn _tokenisation_test(input_str: &str, desired_output: &[Token]) {
 		let input_string = String::from(input_str);
 		let actual_output = tokenise(&input_string).unwrap();
 		println!("desired: {desired_output:#?}");
@@ -196,7 +196,7 @@ mod tokeniser_tests {
 
 	#[test]
 	fn character_literals_1() {
-		_character_literal_test(
+		_tokenisation_test(
 			r#"'a' 'b' 'c' ' '"#,
 			&[
 				Token::Character('a'),
@@ -211,7 +211,7 @@ mod tokeniser_tests {
 
 	#[test]
 	fn character_literals_2() {
-		_character_literal_test(
+		_tokenisation_test(
 			r#"'\n'"#,
 			&[
 				Token::Character('\n'),
@@ -223,7 +223,7 @@ mod tokeniser_tests {
 
 	#[test]
 	fn character_literals_3() {
-		_character_literal_test(
+		_tokenisation_test(
 			r#"'"'"#,
 			&[
 				Token::Character('"'),
@@ -235,10 +235,35 @@ mod tokeniser_tests {
 
 	#[test]
 	fn character_literals_4() {
-		_character_literal_test(
+		_tokenisation_test(
 			r#"'\''"#,
 			&[
 				Token::Character('\''),
+				// TODO: remove this None, fix the code that needs it
+				Token::None,
+			],
+		);
+	}
+
+	#[test]
+	fn string_literals_1() {
+		_tokenisation_test(
+			"\"hello\"",
+			&[
+				Token::String(String::from("hello")),
+				// TODO: remove this None, fix the code that needs it
+				Token::None,
+			],
+		);
+	}
+
+	#[test]
+	fn string_literals_() {
+		_tokenisation_test(
+			r#""\"" " ""#,
+			&[
+				Token::String(String::from("\"")),
+				Token::String(String::from(" ")),
 				// TODO: remove this None, fix the code that needs it
 				Token::None,
 			],
