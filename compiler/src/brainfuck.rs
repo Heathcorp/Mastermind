@@ -381,7 +381,7 @@ impl BVM {
 }
 
 #[cfg(test)]
-pub mod tests {
+pub mod bvm_tests {
 	// TODO: add unit tests for Tape
 	use super::*;
 

@@ -2,9 +2,9 @@
 
 // black box testing
 #[cfg(test)]
-pub mod tests {
+pub mod black_box_tests {
 	use crate::{
-		brainfuck::{tests::run_code, BVMConfig},
+		brainfuck::{bvm_tests::run_code, BVMConfig},
 		builder::{BrainfuckOpcodes, Builder, Opcode},
 		compiler::Compiler,
 		parser::parse,

@@ -594,8 +594,6 @@ fn parse_brainfuck_clause(clause: &[Token]) -> Result<Clause, String> {
 	let mut ops = Vec::new();
 	let mut j = 0;
 	while j < bf_tokens.len() {
-		// TODO: support embedded mastermind in the embedded brainfuck
-		// TODO: combine [-] into clear opcodes
 		match &bf_tokens[j] {
 			Token::Plus => ops.push(ExtendedOpcode::Add),
 			Token::Minus => ops.push(ExtendedOpcode::Subtract),

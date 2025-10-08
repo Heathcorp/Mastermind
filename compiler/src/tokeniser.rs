@@ -182,6 +182,7 @@ pub enum Token {
 	UpToken,
 }
 
+#[cfg(test)]
 mod tokeniser_tests {
 	use crate::tokeniser::{tokenise, Token};
 

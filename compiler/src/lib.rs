@@ -13,6 +13,8 @@ mod parser;
 mod preprocessor;
 mod tokeniser;
 
+mod tests;
+
 use brainfuck::{BVMConfig, BVM};
 use brainfuck_optimiser::optimise;
 use builder::{BrainfuckOpcodes, Builder};

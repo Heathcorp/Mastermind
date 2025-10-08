@@ -205,7 +205,7 @@ fn optimise_subset(run: Vec<Opcode>, exhaustive: bool) -> Vec<Opcode> {
 }
 
 #[cfg(test)]
-mod tests {
+mod bf_optimiser_tests {
 	use crate::builder::BrainfuckOpcodes;
 
 	use super::*;

@@ -214,7 +214,7 @@ outside of loop it was allocated"
 					// not sure if these optimisations should be in the builder step or in the compiler
 					if self.config.optimise_constants {
 						// ops.move_to_cell(&mut head_pos, cell);
-						// TODO: algorithm that finds the best combo of products and constants to make the number to minimise bf code
+						// here we use an algorithm that finds the best combo of products and constants to make the number to minimise bf code
 						// first we get the closest allocated cell so we can calculate the distance cost of multiplying
 						// TODO: instead find the nearest zero cell, doesn't matter if allocated or not
 						let temp_cell = allocator.allocate_temp_cell(cell);
