@@ -50,12 +50,10 @@ pub fn tokenise(source: &String) -> Result<Vec<Token>, String> {
 		("+", Token::Plus),
 	];
 	// check for numbers and variables
-	let num_re = Regex::new(r#"^[0-9]+"#).unwrap();
-	let name_re = Regex::new(r#"^[a-zA-Z_]\w*"#).unwrap();
-	// string regex taken from chatgpt
-	let str_re = Regex::new(r#"^"(?:[^"\\]|\\.)+""#).unwrap();
-	// char regex taken from chatgpt again
-	let chr_re = Regex::new(r#"^'(?:[^'\\]|\\.)'"#).unwrap();
+	let number_regex = Regex::new(r#"^[0-9]+"#).unwrap();
+	let name_regex = Regex::new(r#"^[a-zA-Z_]\w*"#).unwrap();
+	let string_regex = Regex::new(r#"^"(?:[^"\\]|\\.)*""#).unwrap();
+	let character_regex = Regex::new(r#"^'(?:[^'\\]|\\.)'"#).unwrap();
 
 	let mut tokens: Vec<Token> = Vec::new();
 
@@ -63,45 +61,50 @@ pub fn tokenise(source: &String) -> Result<Vec<Token>, String> {
 	while chr_idx < stripped.len() {
 		let remaining = &stripped[chr_idx..];
 
-		if let Some(substring) = num_re
+		if let Some(raw) = number_regex
 			.captures(remaining)
 			.map(|num_capture| String::from(&num_capture[0]))
 		{
-			chr_idx += substring.len();
-			tokens.push(Token::Digits(substring));
-		} else if let Some(substring) = name_re
+			chr_idx += raw.len();
+			tokens.push(Token::Digits(raw));
+		} else if let Some(raw) = name_regex
 			.captures(remaining)
 			.map(|name_capture| String::from(&name_capture[0]))
-			.take_if(|substring| {
+			.take_if(|raw| {
 				mappings
 					.iter()
-					.find(|(keyword, _)| substring == *keyword)
+					.find(|(keyword, _)| raw == *keyword)
 					.is_none()
 			}) {
-			chr_idx += substring.len();
-			tokens.push(Token::Name(substring));
-		} else if let Some(substring) = str_re
+			chr_idx += raw.len();
+			tokens.push(Token::Name(raw));
+		} else if let Some(raw) = string_regex
 			.captures(remaining)
 			.map(|str_capture| String::from(&str_capture[0]))
 		{
-			chr_idx += substring.len();
-			let unescaped = serde_json::from_str(&substring)
-				.or(Err("Could not unescape string literal in tokenisation \
-due to serde error, this should never occur."))?;
-			tokens.push(Token::String(unescaped));
-		} else if let Some(substring) = chr_re
+			chr_idx += raw.len();
+			r_assert!(
+				raw.len() >= 2,
+				"Not enough characters in string literal token, \
+this should never occur. {raw:#?}"
+			);
+			let oiasdhfidush = &raw[1..(raw.len() - 1)];
+			tokens.push(Token::String(tokenise_raw_string_literal(
+				&raw[1..(raw.len() - 1)],
+			)?));
+		} else if let Some(raw) = character_regex
 			.captures(remaining)
 			.map(|chr_capture| String::from(&chr_capture[0]))
 		{
-			chr_idx += substring.len();
-			// hack: replace single quotes with double quotes, then use serde to unescape all the characters
-			let escaped_string = String::new() + "\"" + &substring[1..(substring.len() - 1)] + "\"";
-			let unescaped: String = serde_json::from_str(&escaped_string)
-				.or(Err("Could not unescape character literal in tokenisation \
-due to serde error, this should never occur."))?;
-
-			r_assert!(unescaped.len() == 1, "Character literals must be length 1");
-			tokens.push(Token::Character(unescaped.chars().next().unwrap()));
+			chr_idx += raw.len();
+			r_assert!(
+				raw.len() >= 2,
+				"Not enough characters in character literal token, \
+this should never occur. {raw:#?}"
+			);
+			tokens.push(Token::Character(tokenise_raw_character_literal(
+				&raw[1..(raw.len() - 1)],
+			)?));
 		} else if let Some((text, token)) = mappings
 			.iter()
 			.find(|(text, _)| remaining.starts_with(text))
@@ -135,6 +138,53 @@ fn strip_line(line: &str) -> String {
 		.split_whitespace()
 		.collect::<Vec<&str>>()
 		.join(" ")
+}
+
+/// handle character escape sequences
+// supports Rust ASCII escapes
+fn tokenise_raw_character_literal(raw: &str) -> Result<char, String> {
+	let mut s_iter = raw.chars();
+	Ok(match s_iter.next() {
+		Some('\\') => match s_iter.next() {
+			Some(c) => match c {
+				'\'' => '\'',
+				'n' => '\n',
+				'r' => '\r',
+				't' => '\t',
+				'\\' => '\\',
+				'0' => '\0',
+				_ => r_panic!("Invalid escape sequence in character literal: {raw}"),
+			},
+			None => r_panic!("Expected escape sequence in character literal: {raw}"),
+		},
+		Some(first_char) => first_char,
+		None => r_panic!("Character literal must be length 1: {raw}"),
+	})
+}
+
+/// handle string escape sequences
+// supports Rust ASCII escapes
+fn tokenise_raw_string_literal(raw: &str) -> Result<String, String> {
+	let mut s_iter = raw.chars();
+	let mut built_string = String::with_capacity(raw.len());
+	while let Some(raw_char) = s_iter.next() {
+		built_string.push(match raw_char {
+			'\\' => match s_iter.next() {
+				Some(c) => match c {
+					'\"' => '"',
+					'n' => '\n',
+					'r' => '\r',
+					't' => '\t',
+					'\\' => '\\',
+					'0' => '\0',
+					_ => r_panic!("Invalid escape sequence in string literal: {raw}"),
+				},
+				None => r_panic!("Expected escape sequence in string literal: {raw}"),
+			},
+			c => c,
+		});
+	}
+	Ok(built_string)
 }
 
 #[derive(Debug, Clone, PartialEq)]
@@ -246,6 +296,32 @@ mod tokeniser_tests {
 	}
 
 	#[test]
+	#[should_panic]
+	fn character_literals_5() {
+		_tokenisation_test(
+			r#"'\'"#,
+			&[
+				Token::Character('\\'),
+				// TODO: remove this None, fix the code that needs it
+				Token::None,
+			],
+		);
+	}
+
+	#[test]
+	#[should_panic]
+	fn character_literals_6() {
+		_tokenisation_test(
+			r#"'aa'"#,
+			&[
+				Token::String(String::from("aa")),
+				// TODO: remove this None, fix the code that needs it
+				Token::None,
+			],
+		);
+	}
+
+	#[test]
 	fn string_literals_1() {
 		_tokenisation_test(
 			"\"hello\"",
@@ -258,7 +334,32 @@ mod tokeniser_tests {
 	}
 
 	#[test]
-	fn string_literals_() {
+	fn string_literals_2() {
+		_tokenisation_test(
+			r#""""#,
+			&[
+				Token::String(String::from("")),
+				// TODO: remove this None, fix the code that needs it
+				Token::None,
+			],
+		);
+	}
+
+	#[test]
+	fn string_literals_2a() {
+		_tokenisation_test(
+			r#""""""#,
+			&[
+				Token::String(String::from("")),
+				Token::String(String::from("")),
+				// TODO: remove this None, fix the code that needs it
+				Token::None,
+			],
+		);
+	}
+
+	#[test]
+	fn string_literals_3() {
 		_tokenisation_test(
 			r#""\"" " ""#,
 			&[
