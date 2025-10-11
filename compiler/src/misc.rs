@@ -43,3 +43,7 @@ impl MastermindConfig {
 		}
 	}
 }
+
+pub struct MastermindContext<'a> {
+	pub config: &'a MastermindConfig,
+}

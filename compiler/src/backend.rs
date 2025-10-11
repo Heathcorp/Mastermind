@@ -7,38 +7,46 @@
 
 use std::{
 	collections::{HashMap, HashSet},
+	fmt::Display,
 	num::Wrapping,
 };
 
 use crate::{
-	compiler::{CellLocation, Instruction, MemoryId},
 	constants_optimiser::calculate_optimal_addition,
+	frontend::{CellLocation, Instruction, MemoryId},
 	macros::macros::{r_assert, r_panic},
-	MastermindConfig,
+	misc::MastermindContext,
 };
 
-pub struct Builder<'a> {
-	pub config: &'a MastermindConfig,
-}
-
 type LoopDepth = usize;
-pub type TapeCell = (i32, i32);
 type TapeValue = u8;
 
-impl Builder<'_> {
-	pub fn build(
+#[derive(PartialEq, Clone, Hash, Eq, Copy)]
+pub struct TapeCell2D(pub i32, pub i32);
+
+impl Display for TapeCell2D {
+	fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+		f.write_fmt(format_args!("({},{})", self.0, self.1))?;
+		Ok(())
+	}
+}
+
+impl MastermindContext<'_> {
+	pub fn ir_to_bf(
 		&self,
-		instructions: Vec<Instruction>,
+		instructions: Vec<Instruction<TapeCell2D>>,
 		return_to_origin: bool,
 	) -> Result<Vec<Opcode>, String> {
 		let mut allocator = CellAllocator::new();
-		let mut alloc_map: HashMap<MemoryId, (TapeCell, usize, LoopDepth, Vec<Option<TapeValue>>)> =
-			HashMap::new();
+		let mut alloc_map: HashMap<
+			MemoryId,
+			(TapeCell2D, usize, LoopDepth, Vec<Option<TapeValue>>),
+		> = HashMap::new();
 
-		let mut loop_stack: Vec<TapeCell> = Vec::new();
+		let mut loop_stack: Vec<TapeCell2D> = Vec::new();
 		let mut current_loop_depth: LoopDepth = 0;
 		let mut skipped_loop_depth: Option<LoopDepth> = None;
-		let mut ops = BrainfuckCodeBuilder::new();
+		let mut ops = BFBuilder::new();
 
 		for instruction in instructions {
 			if let Some(depth) = skipped_loop_depth {
@@ -138,7 +146,7 @@ outside of loop it was allocated"
 						mem_idx < *size,
 						"Attempted to access memory outside of allocation"
 					);
-					let cell = (cell_base.0 + mem_idx as i32, cell_base.1);
+					let cell = TapeCell2D(cell_base.0 + mem_idx as i32, cell_base.1);
 					let known_value = &mut known_values[mem_idx];
 
 					let mut open = true;
@@ -175,7 +183,7 @@ outside of loop it was allocated"
 						mem_idx < *size,
 						"Attempted to access memory outside of allocation"
 					);
-					let cell = (cell_base.0 + mem_idx as i32, cell_base.1);
+					let cell = TapeCell2D(cell_base.0 + mem_idx as i32, cell_base.1);
 					let known_value = &mut known_values[mem_idx];
 
 					let Some(stack_cell) = loop_stack.pop() else {
@@ -206,7 +214,7 @@ outside of loop it was allocated"
 						mem_idx < *size,
 						"Attempted to access memory outside of allocation"
 					);
-					let cell = (cell_base.0 + mem_idx as i32, cell_base.1);
+					let cell = TapeCell2D(cell_base.0 + mem_idx as i32, cell_base.1);
 					let known_value = &mut known_values[mem_idx];
 
 					// TODO: fix bug, if only one multiplication then we can have a value already in the cell, but never otherwise
@@ -219,7 +227,7 @@ outside of loop it was allocated"
 						// TODO: instead find the nearest zero cell, doesn't matter if allocated or not
 						let temp_cell = allocator.allocate_temp_cell(cell);
 
-						let optimised_ops: BrainfuckCodeBuilder =
+						let optimised_ops: BFBuilder =
 							calculate_optimal_addition(imm as i8, ops.head_pos, cell, temp_cell);
 
 						ops.head_pos = optimised_ops.head_pos;
@@ -254,7 +262,7 @@ outside of loop it was allocated"
 						mem_idx < *size,
 						"Attempted to access memory outside of allocation"
 					);
-					let cell = (cell_base.0 + mem_idx as i32, cell_base.1);
+					let cell = TapeCell2D(cell_base.0 + mem_idx as i32, cell_base.1);
 					let known_value = &mut known_values[mem_idx];
 
 					ops.move_to_cell(cell);
@@ -275,7 +283,7 @@ outside of loop it was allocated"
 						mem_idx < *size,
 						"Attempted to access memory outside of allocation"
 					);
-					let cell = (cell_base.0 + mem_idx as i32, cell_base.1);
+					let cell = TapeCell2D(cell_base.0 + mem_idx as i32, cell_base.1);
 					let known_value = &mut known_values[mem_idx];
 
 					ops.move_to_cell(cell);
@@ -323,7 +331,7 @@ outside of loop it was allocated"
 						mem_idx < *size,
 						"Attempted to access memory outside of allocation"
 					);
-					let cell = (cell_base.0 + mem_idx as i32, cell_base.1);
+					let cell = TapeCell2D(cell_base.0 + mem_idx as i32, cell_base.1);
 
 					ops.move_to_cell(cell);
 					ops.push(Opcode::Output);
@@ -343,7 +351,7 @@ outside of loop it was allocated"
 								mem_idx < *size,
 								"Attempted to access memory outside of allocation"
 							);
-							let cell = (cell_base.0 + mem_idx as i32, cell_base.1);
+							let cell = TapeCell2D(cell_base.0 + mem_idx as i32, cell_base.1);
 							ops.move_to_cell(cell);
 						}
 						CellLocation::Unspecified => (),
@@ -357,7 +365,7 @@ outside of loop it was allocated"
 
 		// this is used in embedded brainfuck contexts to preserve head position
 		if return_to_origin {
-			ops.move_to_cell((0, 0));
+			ops.move_to_cell(TapeCell2D(0, 0));
 		}
 
 		Ok(ops.opcodes)
@@ -365,7 +373,7 @@ outside of loop it was allocated"
 }
 
 struct CellAllocator {
-	alloc_map: HashSet<TapeCell>,
+	alloc_map: HashSet<TapeCell2D>,
 }
 
 // allocator will not automatically allocate negative-index cells
@@ -378,11 +386,11 @@ impl CellAllocator {
 	}
 
 	/// Checks if the memory size can be allocated to the right of a given location e.g. arrays
-	fn check_allocatable(&mut self, location: &TapeCell, size: usize) -> bool {
+	fn check_allocatable(&mut self, location: &TapeCell2D, size: usize) -> bool {
 		for k in 0..size {
 			if self
 				.alloc_map
-				.contains(&(location.0 + k as i32, location.1))
+				.contains(&TapeCell2D(location.0 + k as i32, location.1))
 			{
 				return false;
 			}
@@ -395,11 +403,11 @@ impl CellAllocator {
 	/// Uses a variety of memory allocation methods based on settings
 	fn allocate(
 		&mut self,
-		location: Option<TapeCell>,
+		location: Option<TapeCell2D>,
 		size: usize,
 		method: u8,
-	) -> Result<TapeCell, String> {
-		let mut region_start = location.unwrap_or((0, 0));
+	) -> Result<TapeCell2D, String> {
+		let mut region_start = location.unwrap_or(TapeCell2D(0, 0));
 		//Check specified memory allocation above to ensure that this works nicely with all algorithms
 		if let Some(l) = location {
 			if !self.check_allocatable(&l, size) {
@@ -413,8 +421,8 @@ impl CellAllocator {
 			// should the region start at the current tape head?
 			if method == 0 {
 				for i in region_start.0.. {
-					if self.alloc_map.contains(&(i, region_start.1)) {
-						region_start = (i + 1, region_start.1);
+					if self.alloc_map.contains(&TapeCell2D(i, region_start.1)) {
+						region_start = TapeCell2D(i + 1, region_start.1);
 					} else if i - region_start.0 == (size as i32 - 1) {
 						break;
 					}
@@ -429,9 +437,9 @@ impl CellAllocator {
 					i = region_start.0 + loops;
 					j = region_start.1;
 					for _ in 0..=loops {
-						if self.check_allocatable(&(i, j), size) {
+						if self.check_allocatable(&TapeCell2D(i, j), size) {
 							found = true;
-							region_start = (i, j);
+							region_start = TapeCell2D(i, j);
 							break;
 						}
 						i = i - 1;
@@ -452,9 +460,9 @@ impl CellAllocator {
 							'N' => {
 								for _ in 0..loops {
 									j += 1;
-									if self.check_allocatable(&(i, j), size) {
+									if self.check_allocatable(&TapeCell2D(i, j), size) {
 										found = true;
-										region_start = (i, j);
+										region_start = TapeCell2D(i, j);
 										break;
 									}
 								}
@@ -462,9 +470,9 @@ impl CellAllocator {
 							'E' => {
 								for _ in 0..loops {
 									i += 1;
-									if self.check_allocatable(&(i, j), size) {
+									if self.check_allocatable(&TapeCell2D(i, j), size) {
 										found = true;
-										region_start = (i, j);
+										region_start = TapeCell2D(i, j);
 										break;
 									}
 								}
@@ -472,9 +480,9 @@ impl CellAllocator {
 							'S' => {
 								for _ in 0..loops {
 									j -= 1;
-									if self.check_allocatable(&(i, j), size) {
+									if self.check_allocatable(&TapeCell2D(i, j), size) {
 										found = true;
-										region_start = (i, j);
+										region_start = TapeCell2D(i, j);
 										break;
 									}
 								}
@@ -482,9 +490,9 @@ impl CellAllocator {
 							'W' => {
 								for _ in 0..loops {
 									i -= 1;
-									if self.check_allocatable(&(i, j), size) {
+									if self.check_allocatable(&TapeCell2D(i, j), size) {
 										found = true;
-										region_start = (i, j);
+										region_start = TapeCell2D(i, j);
 										break;
 									}
 								}
@@ -509,11 +517,12 @@ impl CellAllocator {
 				while !found {
 					for i in -loops..=loops {
 						for j in -loops..=loops {
-							if self
-								.check_allocatable(&(region_start.0 + i, region_start.1 + j), size)
-							{
+							if self.check_allocatable(
+								&TapeCell2D(region_start.0 + i, region_start.1 + j),
+								size,
+							) {
 								found = true;
-								region_start = (region_start.0 + i, region_start.1 + j);
+								region_start = TapeCell2D(region_start.0 + i, region_start.1 + j);
 								break;
 							}
 						}
@@ -530,8 +539,8 @@ impl CellAllocator {
 
 		// make all cells in the specified region allocated
 		for i in region_start.0..(region_start.0 + size as i32) {
-			if !self.alloc_map.contains(&(i, region_start.1)) {
-				self.alloc_map.insert((i, region_start.1));
+			if !self.alloc_map.contains(&TapeCell2D(i, region_start.1)) {
+				self.alloc_map.insert(TapeCell2D(i, region_start.1));
 			}
 		}
 
@@ -541,7 +550,7 @@ impl CellAllocator {
 	// allocate but start looking close to the given cell, used for optimising constants as you need an extra cell to multiply
 	// again not sure if this stuff should be in the builder step or the compiler step ? This seems the simplest for now
 	// but I'm wary that complex systems often evolve from simple ones, and any optimisations introduce complexity
-	fn allocate_temp_cell(&mut self, location: TapeCell) -> TapeCell {
+	fn allocate_temp_cell(&mut self, location: TapeCell2D) -> TapeCell2D {
 		// this will allocate the given cell if unallocated so beware
 		if self.alloc_map.insert(location) {
 			return location;
@@ -554,29 +563,28 @@ impl CellAllocator {
 		loop {
 			if let Some(i) = left_iter.next() {
 				// unallocated cell, allocate it and return
-				if self.alloc_map.insert((i, location.1)) {
-					return (i, location.1);
-				} else {
+				if self.alloc_map.insert(TapeCell2D(i, location.1)) {
+					return TapeCell2D(i, location.1);
 				}
 			}
 
 			if let Some(i) = right_iter.next() {
-				if self.alloc_map.insert((i, location.1)) {
-					return (i, location.1);
+				if self.alloc_map.insert(TapeCell2D(i, location.1)) {
+					return TapeCell2D(i, location.1);
 				}
 			}
 		}
 	}
 
-	fn free(&mut self, cell: TapeCell, size: usize) -> Result<(), String> {
+	fn free(&mut self, cell: TapeCell2D, size: usize) -> Result<(), String> {
 		for i in cell.0..(cell.0 + size as i32) {
 			r_assert!(
-				self.alloc_map.contains(&(i, cell.1)),
+				self.alloc_map.contains(&TapeCell2D(i, cell.1)),
 				"Cannot free cell @{0},{1} as it is not allocated.",
 				i,
 				cell.1
 			);
-			self.alloc_map.remove(&(i, cell.1));
+			self.alloc_map.remove(&TapeCell2D(i, cell.1));
 		}
 
 		Ok(())
@@ -598,9 +606,9 @@ pub enum Opcode {
 	Down,
 }
 
-pub struct BrainfuckCodeBuilder {
+pub struct BFBuilder {
 	opcodes: Vec<Opcode>,
-	pub head_pos: TapeCell,
+	pub head_pos: TapeCell2D,
 }
 
 pub trait BrainfuckOpcodes {
@@ -659,24 +667,24 @@ impl BrainfuckOpcodes for Vec<Opcode> {
 	}
 }
 
-impl BrainfuckOpcodes for BrainfuckCodeBuilder {
+impl BrainfuckOpcodes for BFBuilder {
 	fn to_string(self) -> String {
 		self.opcodes.to_string()
 	}
 
 	fn from_str(s: &str) -> Self {
-		BrainfuckCodeBuilder {
+		BFBuilder {
 			opcodes: BrainfuckOpcodes::from_str(s),
-			head_pos: (0, 0),
+			head_pos: TapeCell2D(0, 0),
 		}
 	}
 }
 
-impl BrainfuckCodeBuilder {
-	pub fn new() -> BrainfuckCodeBuilder {
-		BrainfuckCodeBuilder {
+impl BFBuilder {
+	pub fn new() -> BFBuilder {
+		BFBuilder {
 			opcodes: Vec::new(),
-			head_pos: (0, 0),
+			head_pos: TapeCell2D(0, 0),
 		}
 	}
 	pub fn len(&self) -> usize {
@@ -691,7 +699,7 @@ impl BrainfuckCodeBuilder {
 	{
 		self.opcodes.extend(ops);
 	}
-	pub fn move_to_cell(&mut self, cell: TapeCell) {
+	pub fn move_to_cell(&mut self, cell: TapeCell2D) {
 		let x = cell.0;
 		let y = cell.1;
 		let x_pos = self.head_pos.0;

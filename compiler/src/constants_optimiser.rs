@@ -1,5 +1,5 @@
 // TODO: make unit tests for this
-use crate::builder::{BrainfuckCodeBuilder, Opcode, TapeCell};
+use crate::backend::{BFBuilder, Opcode, TapeCell2D};
 
 // basically, most ascii characters are large numbers, which are more efficient to calculate with multiplication than with a bunch of + or -
 // an optimising brainfuck runtime will prefer a long string of +++++ or ----- however the goal of mastermind is to be used for code golf, which is not about speed
@@ -10,17 +10,17 @@ use crate::builder::{BrainfuckCodeBuilder, Opcode, TapeCell};
 // 5 * 5 * 7 : +++++[>+++++<-]>[<+++++++>-]<
 pub fn calculate_optimal_addition(
 	value: i8,
-	start_cell: TapeCell,
-	target_cell: TapeCell,
-	temp_cell: TapeCell,
-) -> BrainfuckCodeBuilder {
+	start_cell: TapeCell2D,
+	target_cell: TapeCell2D,
+	temp_cell: TapeCell2D,
+) -> BFBuilder {
 	// can't abs() i8 directly because there is no +128i8, so abs(-128i8) crashes
 	let abs_value = (value as i32).abs();
 
 	// STAGE 0:
 	// for efficiency's sake, calculate the cost of just adding the constant to the cell
 	let naive_solution = {
-		let mut ops = BrainfuckCodeBuilder::new();
+		let mut ops = BFBuilder::new();
 		ops.head_pos = start_cell;
 		ops.move_to_cell(target_cell);
 		ops.add_to_current_cell(value);
@@ -71,7 +71,7 @@ pub fn calculate_optimal_addition(
 
 		assert_eq!(best_combinations.len(), (abs_value as usize) + 1);
 		let (a, b, c) = best_combinations.into_iter().last().unwrap();
-		let mut ops = BrainfuckCodeBuilder::new();
+		let mut ops = BFBuilder::new();
 		ops.head_pos = start_cell;
 
 		ops.move_to_cell(temp_cell);

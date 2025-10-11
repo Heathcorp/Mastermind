@@ -4,9 +4,9 @@
 #[cfg(test)]
 pub mod black_box_tests {
 	use crate::{
+		backend::{BrainfuckOpcodes, Opcode},
 		brainfuck::{bvm_tests::run_code, BVMConfig},
-		builder::{BrainfuckOpcodes, Builder, Opcode},
-		compiler::Compiler,
+		misc::MastermindContext,
 		parser::parse,
 		tokeniser::{tokenise, Token},
 		MastermindConfig,
@@ -90,19 +90,13 @@ pub mod black_box_tests {
 	const TESTING_BVM_MAX_STEPS: usize = 100_000_000;
 
 	fn compile_and_run(program: String, input: String) -> Result<String, String> {
-		// println!("{program}");
-		// compile mastermind
+		let ctx = MastermindContext { config: &OPT_NONE };
 		let tokens: Vec<Token> = tokenise(&program)?;
-		// println!("{tokens:#?}");
 		let clauses = parse(&tokens)?;
-		// println!("{clauses:#?}");
-		let instructions = Compiler { config: &OPT_NONE }
-			.compile(&clauses, None)?
-			.finalise_instructions(false);
-		// println!("{instructions:#?}");
-		let bf_program = Builder { config: &OPT_NONE }.build(instructions, false)?;
+		let instructions = ctx.create_ir_scope(&clauses, None)?.build_ir(false);
+		let bf_program = ctx.ir_to_bf(instructions, false)?;
 		let bfs = bf_program.to_string();
-		// println!("{}", bfs);
+
 		// run generated brainfuck with input
 		Ok(run_code(
 			BVM_CONFIG_1D,
@@ -116,23 +110,13 @@ pub mod black_box_tests {
 		program: String,
 		config: Option<&MastermindConfig>,
 	) -> Result<Vec<Opcode>, String> {
-		// println!("{program}");
-		// compile mastermind
+		let ctx = MastermindContext {
+			config: config.unwrap_or(&OPT_NONE),
+		};
 		let tokens: Vec<Token> = tokenise(&program)?;
-		// println!("{tokens:#?}");
 		let clauses = parse(&tokens)?;
-		// println!("{clauses:#?}");
-		let instructions = Compiler {
-			config: config.unwrap_or(&OPT_NONE),
-		}
-		.compile(&clauses, None)?
-		.finalise_instructions(false);
-		// println!("{instructions:#?}");
-		let bf_code = Builder {
-			config: config.unwrap_or(&OPT_NONE),
-		}
-		.build(instructions, false)?;
-		// println!("{}", bfs);
+		let instructions = ctx.create_ir_scope(&clauses, None)?.build_ir(false);
+		let bf_code = ctx.ir_to_bf(instructions, false)?;
 
 		Ok(bf_code)
 	}

@@ -3,8 +3,9 @@
 use std::{collections::HashMap, iter::zip};
 
 use crate::{
-	builder::{Builder, Opcode, TapeCell},
+	backend::{Opcode, TapeCell2D},
 	macros::macros::{r_assert, r_panic},
+	misc::MastermindContext,
 	parser::{
 		Clause, Expression, ExtendedOpcode, LocationSpecifier, Reference, VariableDefinition,
 		VariableTarget, VariableTargetReferenceChain, VariableTypeReference,
@@ -14,25 +15,21 @@ use crate::{
 
 // memory stuff is all WIP and some comments may be incorrect
 
-pub struct Compiler<'a> {
-	pub config: &'a MastermindConfig,
-}
-
-impl Compiler<'_> {
-	pub fn compile<'a>(
+impl MastermindContext<'_> {
+	pub fn create_ir_scope<'a>(
 		&'a self,
-		clauses: &[Clause],
-		outer_scope: Option<&'a Scope>,
-	) -> Result<Scope<'a>, String> {
+		clauses: &[Clause<TapeCell2D>],
+		outer_scope: Option<&'a ScopeBuilder<TapeCell2D>>,
+	) -> Result<ScopeBuilder<'a, TapeCell2D>, String> {
 		let mut scope = if let Some(outer) = outer_scope {
 			outer.open_inner()
 		} else {
-			Scope::new()
+			ScopeBuilder::new()
 		};
 
 		// TODO: fix unnecessary clones, and reimplement this with iterators somehow
 		// hoist structs, then functions to top
-		let mut filtered_clauses_1: Vec<Clause> = vec![];
+		let mut filtered_clauses_1: Vec<Clause<TapeCell2D>> = vec![];
 		// first stage: structs (these need to be defined before functions, so they can be used as arguments)
 		for clause in clauses {
 			match clause {
@@ -43,7 +40,7 @@ impl Compiler<'_> {
 			}
 		}
 		// second stage: functions
-		let mut filtered_clauses_2: Vec<Clause> = vec![];
+		let mut filtered_clauses_2: Vec<Clause<TapeCell2D>> = vec![];
 		for clause in filtered_clauses_1 {
 			match clause {
 				Clause::DefineFunction {
@@ -317,10 +314,8 @@ impl Compiler<'_> {
 
 					// recursively compile instructions
 					// TODO: when recursively compiling, check which things changed based on a return info value
-					let loop_scope = self.compile(&block, Some(&scope))?;
-					scope
-						.instructions
-						.extend(loop_scope.finalise_instructions(true));
+					let loop_scope = self.create_ir_scope(&block, Some(&scope))?;
+					scope.instructions.extend(loop_scope.build_ir(true));
 
 					// close the loop
 					scope.push_instruction(Instruction::CloseLoop(cell));
@@ -372,11 +367,9 @@ impl Compiler<'_> {
 					scope.push_instruction(Instruction::OpenLoop(source_cell));
 
 					// recurse
-					let loop_scope = self.compile(&block, Some(&scope))?;
+					let loop_scope = self.create_ir_scope(&block, Some(&scope))?;
 					// TODO: refactor, make a function in scope trait to do this automatically
-					scope
-						.instructions
-						.extend(loop_scope.finalise_instructions(true));
+					scope.instructions.extend(loop_scope.build_ir(true));
 
 					// copy into each target and decrement the source
 					for target in targets {
@@ -456,10 +449,8 @@ impl Compiler<'_> {
 
 					// recursively compile if block
 					if let Some(block) = if_block {
-						let if_scope = self.compile(&block, Some(&new_scope))?;
-						new_scope
-							.instructions
-							.extend(if_scope.finalise_instructions(true));
+						let if_scope = self.create_ir_scope(&block, Some(&new_scope))?;
+						new_scope.instructions.extend(if_scope.build_ir(true));
 					};
 
 					// close if block
@@ -475,25 +466,19 @@ impl Compiler<'_> {
 						// recursively compile else block
 						// TODO: fix this bad practice unwrap
 						let block = else_block.unwrap();
-						let else_scope = self.compile(&block, Some(&new_scope))?;
-						new_scope
-							.instructions
-							.extend(else_scope.finalise_instructions(true));
+						let else_scope = self.create_ir_scope(&block, Some(&new_scope))?;
+						new_scope.instructions.extend(else_scope.build_ir(true));
 
 						new_scope.push_instruction(Instruction::CloseLoop(cell));
 						new_scope.push_instruction(Instruction::Free(cell.memory_id));
 					}
 
 					// extend the inner scopes instructions onto the outer one
-					scope
-						.instructions
-						.extend(new_scope.finalise_instructions(true));
+					scope.instructions.extend(new_scope.build_ir(true));
 				}
 				Clause::Block(clauses) => {
-					let new_scope = self.compile(&clauses, Some(&scope))?;
-					scope
-						.instructions
-						.extend(new_scope.finalise_instructions(true));
+					let new_scope = self.create_ir_scope(&clauses, Some(&scope))?;
+					scope.instructions.extend(new_scope.build_ir(true));
 				}
 				Clause::InlineBrainfuck {
 					location_specifier,
@@ -509,18 +494,15 @@ impl Compiler<'_> {
 								let functions_scope = scope.open_inner_templates_only();
 								// compile the block and extend the operations
 
-								let compiler = Compiler {
+								let ctx = MastermindContext {
 									config: &self.config,
 								};
-								let instructions = compiler
-									.compile(&mm_clauses, Some(&functions_scope))?
-									.finalise_instructions(false);
+								let instructions = ctx
+									.create_ir_scope(&mm_clauses, Some(&functions_scope))?
+									.build_ir(false);
 								// compile without cleaning up top level variables, this is the brainfuck programmer's responsibility
 								// it is also the brainfuck programmer's responsibility to return to the start position
-								let builder = Builder {
-									config: &self.config,
-								};
-								let built_code = builder.build(instructions, true)?;
+								let built_code = ctx.ir_to_bf(instructions, true)?;
 								expanded_bf.extend(built_code);
 							}
 							ExtendedOpcode::Add => expanded_bf.push(Opcode::Add),
@@ -599,19 +581,19 @@ impl Compiler<'_> {
 					}
 
 					// recurse
-					let function_scope = self.compile(
+					let function_scope = self.create_ir_scope(
 						&function_definition.block,
 						Some(&argument_translation_scope),
 					)?;
 					argument_translation_scope
 						.instructions
-						.extend(function_scope.finalise_instructions(true));
+						.extend(function_scope.build_ir(true));
 
 					// extend the inner scope instructions onto the outer scope
 					// maybe function call compiling should be its own function?
 					scope
 						.instructions
-						.extend(argument_translation_scope.finalise_instructions(false));
+						.extend(argument_translation_scope.build_ir(false));
 				}
 				Clause::DefineStruct { name: _, fields: _ }
 				| Clause::DefineFunction {
@@ -630,7 +612,7 @@ impl Compiler<'_> {
 // helper function for a common use-case
 // flatten an expression and add it to a specific cell (using copies and adds, etc)
 fn _add_expr_to_cell(
-	scope: &mut Scope,
+	scope: &mut ScopeBuilder<TapeCell2D>,
 	expr: &Expression,
 	cell: CellReference,
 ) -> Result<(), String> {
@@ -659,7 +641,7 @@ fn _add_expr_to_cell(
 //This function allows you to add a self referencing expression to the cell
 //Separate this to ensure that normal expression don't require the overhead of copying
 fn _add_self_referencing_expr_to_cell(
-	scope: &mut Scope,
+	scope: &mut ScopeBuilder<TapeCell2D>,
 	expr: Expression,
 	cell: CellReference,
 	pre_clear: bool,
@@ -716,7 +698,7 @@ fn _add_self_referencing_expr_to_cell(
 /// Helper function to copy a cell from one to another leaving the original unaffected
 // TODO: make one for draining a cell
 fn _copy_cell(
-	scope: &mut Scope,
+	scope: &mut ScopeBuilder<TapeCell2D>,
 	source_cell: CellReference,
 	target_cell: CellReference,
 	constant: i32,
@@ -750,7 +732,7 @@ fn _copy_cell(
 
 // this is subject to change
 #[derive(Debug, Clone)]
-pub enum Instruction {
+pub enum Instruction<TapeCell> {
 	Allocate(Memory, Option<TapeCell>),
 	Free(MemoryId), // the number indicates which cell in the allocation stack should be freed (cell 0, is the top of the stack, 1 is the second element, etc)
 	OpenLoop(CellReference), // same with other numbers here, they indicate the cell in the allocation stack to use in the instruction
@@ -760,14 +742,14 @@ pub enum Instruction {
 	ClearCell(CellReference), // not sure if this should be here, seems common enough that it should be
 	AssertCellValue(CellReference, Option<u8>), // allows the user to hand-tune optimisations further
 	OutputCell(CellReference),
-	InsertBrainfuckAtCell(Vec<Opcode>, CellLocation),
+	InsertBrainfuckAtCell(Vec<Opcode>, CellLocation<TapeCell>),
 }
 
 #[derive(Debug, Clone)]
 /// Either a fixed constant cell or a reference to some existing memory
-pub enum CellLocation {
+pub enum CellLocation<TapeCell> {
 	Unspecified,
-	FixedCell((i32, i32)),
+	FixedCell(TapeCell),
 	MemoryCell(CellReference),
 }
 
@@ -830,9 +812,9 @@ impl Memory {
 #[derive(Clone, Debug)]
 /// Scope type represents a Mastermind code block,
 /// any variables or functions defined within a {block} are owned by the scope and cleaned up before continuing
-pub struct Scope<'a> {
+pub struct ScopeBuilder<'a, TapeCell> {
 	/// a reference to the parent scope, for accessing things defined outside of this scope
-	outer_scope: Option<&'a Scope<'a>>,
+	outer_scope: Option<&'a ScopeBuilder<'a, TapeCell>>,
 	/// fn_only: true if syntactic context instead of normal context.
 	/// Used for embedded mm so that the inner mm can use outer functions but not variables.
 	types_only: bool,
@@ -844,18 +826,18 @@ pub struct Scope<'a> {
 	variable_memory: HashMap<String, (ValueType, Memory)>,
 
 	/// Functions accessible by any code within or in the current scope
-	functions: Vec<(String, Vec<(String, ValueType)>, Vec<Clause>)>,
+	functions: Vec<(String, Vec<(String, ValueType)>, Vec<Clause<TapeCell>>)>,
 	/// Struct types definitions
 	structs: HashMap<String, DictStructType>,
 
 	/// Intermediate instructions generated by the compiler
-	instructions: Vec<Instruction>,
+	instructions: Vec<Instruction<TapeCell>>,
 }
 
 #[derive(Clone, Debug)] // probably shouldn't be cloning here but whatever
-struct Function {
+struct Function<TapeCell> {
 	arguments: Vec<(String, ValueType)>,
-	block: Vec<Clause>,
+	block: Vec<Clause<TapeCell>>,
 }
 
 #[derive(Clone, Debug, PartialEq, Eq)]
@@ -989,9 +971,9 @@ impl ValueType {
 	}
 }
 
-impl Scope<'_> {
-	pub fn new() -> Scope<'static> {
-		Scope {
+impl ScopeBuilder<'_, TapeCell2D> {
+	pub fn new() -> ScopeBuilder<'static, TapeCell2D> {
+		ScopeBuilder {
 			outer_scope: None,
 			types_only: false,
 			allocations: 0,
@@ -1004,7 +986,7 @@ impl Scope<'_> {
 
 	// I don't love this system of deciding what to clean up at the end in this specific function, but I'm not sure what the best way to achieve this would be
 	// this used to be called "get_instructions" but I think this more implies things are being modified
-	pub fn finalise_instructions(mut self, clean_up_variables: bool) -> Vec<Instruction> {
+	pub fn build_ir(mut self, clean_up_variables: bool) -> Vec<Instruction<TapeCell2D>> {
 		if !clean_up_variables {
 			return self.instructions;
 		}
@@ -1047,13 +1029,13 @@ impl Scope<'_> {
 		self.instructions
 	}
 
-	fn push_instruction(&mut self, instruction: Instruction) {
+	fn push_instruction(&mut self, instruction: Instruction<TapeCell2D>) {
 		self.instructions.push(instruction);
 	}
 
 	/// Open a scope within the current one, any time there is a {} in Mastermind, this is called
-	fn open_inner(&self) -> Scope {
-		Scope {
+	fn open_inner(&self) -> ScopeBuilder<TapeCell2D> {
+		ScopeBuilder {
 			outer_scope: Some(self),
 			types_only: false,
 			allocations: 0,
@@ -1066,8 +1048,8 @@ impl Scope<'_> {
 
 	// syntactic context instead of normal context
 	// used for embedded mm so that the inner mm can use outer functions
-	fn open_inner_templates_only(&self) -> Scope {
-		Scope {
+	fn open_inner_templates_only(&self) -> ScopeBuilder<TapeCell2D> {
+		ScopeBuilder {
 			outer_scope: Some(self),
 			types_only: true,
 			allocations: 0,
@@ -1079,7 +1061,10 @@ impl Scope<'_> {
 	}
 
 	/// Get the correct variable type and allocate the right amount of cells for it
-	fn allocate_variable(&mut self, var: VariableDefinition) -> Result<&ValueType, String> {
+	fn allocate_variable(
+		&mut self,
+		var: VariableDefinition<TapeCell2D>,
+	) -> Result<&ValueType, String> {
 		r_assert!(
 			!self.variable_memory.contains_key(&var.name),
 			"Cannot allocate variable {var} twice in the same scope"
@@ -1148,7 +1133,7 @@ impl Scope<'_> {
 		&self,
 		calling_name: &str,
 		calling_arg_types: &Vec<&ValueType>,
-	) -> Result<Function, String> {
+	) -> Result<Function<TapeCell2D>, String> {
 		// this function is unaffected by the self.fn_only flag
 		Ok(
 			if let Some(func) = self.functions.iter().find(|(name, args, _)| {
@@ -1163,8 +1148,11 @@ impl Scope<'_> {
 				true
 			}) {
 				// TODO: stop cloning! This function overload stuff is tacked on and needs refactoring
-				let (_, arguments, block) = func.clone();
-				Function { arguments, block }
+				let (_, arguments, block) = func;
+				Function {
+					arguments: arguments.clone(),
+					block: block.clone(),
+				}
 			} else if let Some(outer_scope) = self.outer_scope {
 				outer_scope.get_function(calling_name, calling_arg_types)?
 			} else {
@@ -1177,7 +1165,7 @@ impl Scope<'_> {
 	fn register_struct_definition(
 		&mut self,
 		struct_name: &str,
-		fields: Vec<VariableDefinition>,
+		fields: Vec<VariableDefinition<TapeCell2D>>,
 	) -> Result<(), String> {
 		let mut absolute_fields = vec![];
 
@@ -1213,8 +1201,8 @@ impl Scope<'_> {
 	fn register_function_definition(
 		&mut self,
 		new_function_name: &str,
-		new_arguments: Vec<VariableDefinition>,
-		new_block: Vec<Clause>,
+		new_arguments: Vec<VariableDefinition<TapeCell2D>>,
+		new_block: Vec<Clause<TapeCell2D>>,
 	) -> Result<(), String> {
 		let absolute_arguments = new_arguments
 			.into_iter()

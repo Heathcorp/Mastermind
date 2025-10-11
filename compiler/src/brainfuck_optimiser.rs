@@ -1,4 +1,4 @@
-use crate::builder::Opcode;
+use crate::backend::Opcode;
 use itertools::Itertools;
 use std::{collections::HashMap, num::Wrapping};
 
@@ -206,7 +206,7 @@ fn optimise_subset(run: Vec<Opcode>, exhaustive: bool) -> Vec<Opcode> {
 
 #[cfg(test)]
 mod bf_optimiser_tests {
-	use crate::builder::BrainfuckOpcodes;
+	use crate::backend::BrainfuckOpcodes;
 
 	use super::*;
 

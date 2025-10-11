@@ -2,23 +2,21 @@
 
 mod macros;
 
-// Stages: (rust format has jumbled these)
-mod brainfuck; // 6. Run
-mod brainfuck_optimiser; // 5. Post-Optimise
-mod builder; // 4. Build (and pre-optimise)
-mod compiler; // 3. Compile
-mod constants_optimiser; // a component of 4
-mod parser; // 2. Parse
-mod preprocessor; // 0. Preprocess includes and macro-type stuff
-mod tokeniser; // 1. Tokenise
+mod backend;
+mod brainfuck;
+mod brainfuck_optimiser;
+mod constants_optimiser;
+mod frontend;
+mod parser;
+mod preprocessor;
+mod tokeniser;
 
 mod misc;
 mod tests;
 
+use backend::BrainfuckOpcodes;
 use brainfuck::{BVMConfig, BVM};
 use brainfuck_optimiser::optimise;
-use builder::{BrainfuckOpcodes, Builder};
-use compiler::Compiler;
 use misc::MastermindConfig;
 use parser::parse;
 use preprocessor::preprocess;
@@ -27,6 +25,8 @@ use tokeniser::tokenise;
 use std::io::{stdin, stdout, Cursor};
 
 use clap::Parser;
+
+use crate::misc::MastermindContext;
 
 #[derive(Parser, Default, Debug)]
 #[command(author = "Heathcorp", version = "0.1", about = "Mastermind: the Brainfuck interpreter and compilation tool", long_about = None)]
@@ -74,7 +74,9 @@ fn main() -> Result<(), String> {
 
 	let args = Arguments::parse();
 
+	// TODO: change this to not be a bitmask, or at least document it
 	let config = MastermindConfig::new(args.optimise);
+	let ctx = MastermindContext { config: &config };
 
 	let program;
 	match args.file {
@@ -101,19 +103,12 @@ fn main() -> Result<(), String> {
 			// 2 stage compilation step, first stage compiles syntax tree into low-level instructions
 			// 	second stage actually writes out the low-level instructions into brainfuck
 
-			let compiler = Compiler { config: &config };
-			let instructions = compiler
-				.compile(&clauses, None)?
-				.finalise_instructions(false);
-
-			let builder = Builder { config: &config };
-			let bf_program = builder.build(instructions, false)?;
+			let instructions = ctx.create_ir_scope(&clauses, None)?.build_ir(false);
+			let bf_code = ctx.ir_to_bf(instructions, false)?;
 
 			match config.optimise_generated_code {
-				true => {
-					optimise(bf_program, config.optimise_generated_all_permutations).to_string()
-				}
-				false => bf_program.to_string(),
+				true => optimise(bf_code, config.optimise_generated_all_permutations).to_string(),
+				false => bf_code.to_string(),
 			}
 		}
 		false => program,
