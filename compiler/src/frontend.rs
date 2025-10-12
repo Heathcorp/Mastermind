@@ -10,7 +10,6 @@ use crate::{
 		Clause, Expression, ExtendedOpcode, LocationSpecifier, Reference, VariableDefinition,
 		VariableTarget, VariableTargetReferenceChain, VariableTypeReference,
 	},
-	MastermindConfig,
 };
 
 // memory stuff is all WIP and some comments may be incorrect
@@ -502,8 +501,8 @@ impl MastermindContext<'_> {
 									.build_ir(false);
 								// compile without cleaning up top level variables, this is the brainfuck programmer's responsibility
 								// it is also the brainfuck programmer's responsibility to return to the start position
-								let built_code = ctx.ir_to_bf(instructions, true)?;
-								expanded_bf.extend(built_code);
+								let bf_code = ctx.ir_to_bf(instructions, true)?;
+								expanded_bf.extend(bf_code);
 							}
 							ExtendedOpcode::Add => expanded_bf.push(Opcode::Add),
 							ExtendedOpcode::Subtract => expanded_bf.push(Opcode::Subtract),

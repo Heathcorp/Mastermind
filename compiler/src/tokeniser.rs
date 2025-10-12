@@ -88,7 +88,6 @@ pub fn tokenise(source: &String) -> Result<Vec<Token>, String> {
 				"Not enough characters in string literal token, \
 this should never occur. {raw:#?}"
 			);
-			let oiasdhfidush = &raw[1..(raw.len() - 1)];
 			tokens.push(Token::String(tokenise_raw_string_literal(
 				&raw[1..(raw.len() - 1)],
 			)?));
@@ -119,8 +118,6 @@ this should never occur. {raw:#?}"
 	Ok(tokens
 		.into_iter()
 		.filter(|t| !matches!(t, Token::None))
-		// stick a None token on the end to fix some weird parsing errors (seems silly but why not?)
-		.chain([Token::None])
 		.collect())
 }
 
@@ -253,96 +250,45 @@ mod tokeniser_tests {
 				Token::Character('b'),
 				Token::Character('c'),
 				Token::Character(' '),
-				// TODO: remove this None, fix the code that needs it
-				Token::None,
 			],
 		);
 	}
 
 	#[test]
 	fn character_literals_2() {
-		_tokenisation_test(
-			r#"'\n'"#,
-			&[
-				Token::Character('\n'),
-				// TODO: remove this None, fix the code that needs it
-				Token::None,
-			],
-		);
+		_tokenisation_test(r#"'\n'"#, &[Token::Character('\n')]);
 	}
 
 	#[test]
 	fn character_literals_3() {
-		_tokenisation_test(
-			r#"'"'"#,
-			&[
-				Token::Character('"'),
-				// TODO: remove this None, fix the code that needs it
-				Token::None,
-			],
-		);
+		_tokenisation_test(r#"'"'"#, &[Token::Character('"')]);
 	}
 
 	#[test]
 	fn character_literals_4() {
-		_tokenisation_test(
-			r#"'\''"#,
-			&[
-				Token::Character('\''),
-				// TODO: remove this None, fix the code that needs it
-				Token::None,
-			],
-		);
+		_tokenisation_test(r#"'\''"#, &[Token::Character('\'')]);
 	}
 
 	#[test]
 	#[should_panic]
 	fn character_literals_5() {
-		_tokenisation_test(
-			r#"'\'"#,
-			&[
-				Token::Character('\\'),
-				// TODO: remove this None, fix the code that needs it
-				Token::None,
-			],
-		);
+		_tokenisation_test(r#"'\'"#, &[Token::Character('\\')]);
 	}
 
 	#[test]
 	#[should_panic]
 	fn character_literals_6() {
-		_tokenisation_test(
-			r#"'aa'"#,
-			&[
-				Token::String(String::from("aa")),
-				// TODO: remove this None, fix the code that needs it
-				Token::None,
-			],
-		);
+		_tokenisation_test(r#"'aa'"#, &[Token::String(String::from("aa"))]);
 	}
 
 	#[test]
 	fn string_literals_1() {
-		_tokenisation_test(
-			"\"hello\"",
-			&[
-				Token::String(String::from("hello")),
-				// TODO: remove this None, fix the code that needs it
-				Token::None,
-			],
-		);
+		_tokenisation_test("\"hello\"", &[Token::String(String::from("hello"))]);
 	}
 
 	#[test]
 	fn string_literals_2() {
-		_tokenisation_test(
-			r#""""#,
-			&[
-				Token::String(String::from("")),
-				// TODO: remove this None, fix the code that needs it
-				Token::None,
-			],
-		);
+		_tokenisation_test(r#""""#, &[Token::String(String::from(""))]);
 	}
 
 	#[test]
@@ -352,8 +298,6 @@ mod tokeniser_tests {
 			&[
 				Token::String(String::from("")),
 				Token::String(String::from("")),
-				// TODO: remove this None, fix the code that needs it
-				Token::None,
 			],
 		);
 	}
@@ -365,8 +309,6 @@ mod tokeniser_tests {
 			&[
 				Token::String(String::from("\"")),
 				Token::String(String::from(" ")),
-				// TODO: remove this None, fix the code that needs it
-				Token::None,
 			],
 		);
 	}

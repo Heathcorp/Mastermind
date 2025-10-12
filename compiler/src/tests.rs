@@ -154,6 +154,42 @@ pub mod black_box_tests {
 	}
 
 	#[test]
+	fn empty_program_1() {
+		let program = String::from("");
+		let input = String::from("");
+		let desired_output = String::from("");
+		let output = compile_and_run(program, input).expect("");
+		assert_eq!(desired_output, output)
+	}
+
+	#[test]
+	fn empty_program_2() {
+		let program = String::from(";");
+		let input = String::from("");
+		let desired_output = String::from("");
+		let output = compile_and_run(program, input).expect("");
+		assert_eq!(desired_output, output)
+	}
+
+	#[test]
+	fn empty_program_3() {
+		let program = String::from(";;;;;;");
+		let input = String::from("");
+		let desired_output = String::from("");
+		let output = compile_and_run(program, input).expect("");
+		assert_eq!(desired_output, output)
+	}
+
+	#[test]
+	fn empty_program_4() {
+		let program = String::from(";;{;{;};};;;");
+		let input = String::from("");
+		let desired_output = String::from("");
+		let output = compile_and_run(program, input).expect("");
+		assert_eq!(desired_output, output)
+	}
+
+	#[test]
 	fn hello_1() {
 		let program = String::from(
 			"
@@ -198,7 +234,7 @@ output 10;
 	#[test]
 	fn hello_3() {
 		let program = String::from(
-			r#";
+			r#"
 output  'h'  ;;;
 // comment
 cell[5] EEL =    "ello\n";
@@ -258,7 +294,7 @@ output ['o', '.',  '\n'];
 	#[test]
 	fn expressions_1() {
 		let program = String::from(
-			r#";
+			r#"
 output '@' + 256 + 1 + false + true + 'e' - '@';
 			"#,
 		);
@@ -272,7 +308,7 @@ output '@' + 256 + 1 + false + true + 'e' - '@';
 	#[test]
 	fn expressions_2() {
 		let program = String::from(
-			r#";
+			r#"
 cell p = 9 - (true + true -(-7));
 if not p {
 	output "Hi friend!\n";
@@ -297,7 +333,7 @@ if q {
 	#[test]
 	fn expressions_3() {
 		let program = String::from(
-			r#";
+			r#"
 if 56 - 7 {
 	output 'A';
 } else {
@@ -329,7 +365,7 @@ if not_a - 'a' {
 	#[test]
 	fn expressions_4() {
 		let program = String::from(
-			r#";
+			r#"
 cell x = 5;
 cell A = 'A';
 
@@ -351,7 +387,7 @@ output A;
 	#[test]
 	fn assignments_1() {
 		let program = String::from(
-			r#";
+			r#"
 cell x = 5;
 output '0' + x;
 x += 1;
@@ -368,7 +404,7 @@ output '0' + x;
 	#[test]
 	fn assignments_2() {
 		let program = String::from(
-			r#";
+			r#"
 cell x = 5;
 output '0' + x;
 x = x + 1;
@@ -384,7 +420,7 @@ output '0' + x;
 	#[test]
 	fn assignments_3() {
 		let program = String::from(
-			r#";
+			r#"
 cell x = 5;
 output '0' + x;
 x += 1 + x;
@@ -401,7 +437,7 @@ output '0' + x;
 	#[test]
 	fn assignments_4() {
 		let program = String::from(
-			r#";
+			r#"
 cell x = 2;
 output '0' + x;
 x = x + x + x;
@@ -418,7 +454,7 @@ output '0' + x;
 	#[test]
 	fn assignments_5() {
 		let program = String::from(
-			r#";
+			r#"
 cell x = 2;
 x = (2 + 3) - ((x + 4) + 1) + 4 - (12) + (3 + 10);
 output '0' + x;
@@ -434,7 +470,7 @@ output '0' + x;
 	#[test]
 	fn assignments_6() {
 		let program = String::from(
-			r#";
+			r#"
 cell[2] x = [4, 5];
 x[0] = x[0] + 4;
 x[1] = x[1] - 3;
@@ -454,7 +490,7 @@ output *x;
 	#[test]
 	fn assignments_7() {
 		let program = String::from(
-			r#";
+			r#"
 cell[2] x = [1, 2];
 x[0] = x[1] + 5; // 7
 x[1] = x[0] + x[1]; // 9
@@ -474,7 +510,7 @@ output *x;
 	#[test]
 	fn assignments_8() {
 		let program = String::from(
-			r#";
+			r#"
 cell x = 128;
 output x - 2;
 			"#,
@@ -489,7 +525,7 @@ output x - 2;
 	#[test]
 	fn assignments_8a() {
 		let program = String::from(
-			r#";
+			r#"
 cell x = 127;
 cell y = 64;
 x += y + y;
@@ -506,7 +542,7 @@ output x + 'f' + 1;
 	#[test]
 	fn assignments_8b() {
 		let program = String::from(
-			r#";
+			r#"
 cell x = 128;
 cell y = 64;
 x += y + y;
@@ -523,7 +559,7 @@ output x + 'f';
 	#[test]
 	fn assignments_9() -> Result<(), String> {
 		let program = String::from(
-			r#";
+			r#"
 cell x = 128;
 x += 128;
 output x + 'f';
@@ -542,7 +578,7 @@ output x + 'f';
 	#[test]
 	fn assignments_9a() -> Result<(), String> {
 		let program = String::from(
-			r#";
+			r#"
 cell x = 126;
 x += 2;
 x += 128;
@@ -1370,7 +1406,7 @@ output g[2][3];
 	#[test]
 	fn structs_1() {
 		let program = String::from(
-			r#";
+			r#"
 struct AA {
   cell green;
 	cell yellow;
@@ -1396,7 +1432,7 @@ output '0' + a.yellow;
 	#[test]
 	fn structs_2() {
 		let program = String::from(
-			r#";
+			r#"
 struct AA {
   cell green;
 	cell yellow;
@@ -1423,7 +1459,7 @@ output '0' + a.yellow;
 	#[test]
 	fn structs_3() {
 		let program = String::from(
-			r#";
+			r#"
 struct AA {
   cell green;
 	cell yellow;
@@ -1452,7 +1488,7 @@ output a.green;
 	#[test]
 	fn structs_3a() {
 		let program = String::from(
-			r#";
+			r#"
 struct AA a;
 
 fn input_AA(struct AA bbb) {
@@ -1485,7 +1521,7 @@ struct AA {
 	#[test]
 	fn structs_3b() {
 		let program = String::from(
-			r#";
+			r#"
 struct AA a;
 
 fn input_AA(struct AA bbb) {
@@ -1523,7 +1559,7 @@ struct AA {
 	#[test]
 	fn structs_4a() {
 		let program = String::from(
-			r#";
+			r#"
 struct AA a;
 input a.green;
 input a.yellow;
@@ -1557,7 +1593,7 @@ output '\n';
 	#[test]
 	fn structs_4b() {
 		let program = String::from(
-			r#";
+			r#"
 struct AA a;
 input a.green;
 input a.yellow;
@@ -1585,7 +1621,7 @@ output '\n';
 	#[test]
 	fn structs_4c() {
 		let program = String::from(
-			r#";
+			r#"
 struct AA a;
 input a.green;
 input a.yellow;
@@ -1624,7 +1660,7 @@ output '\n';
 	#[should_panic]
 	fn structs_4d() {
 		let program = String::from(
-			r#";
+			r#"
 struct AA a;
 input *a.reds;
 
@@ -1647,7 +1683,7 @@ output '\n';
 	#[test]
 	fn structs_5() {
 		let program = String::from(
-			r#";
+			r#"
 struct AA {
   cell green;
 }
@@ -1693,7 +1729,7 @@ struct AAA {
 	#[test]
 	fn structs_6() {
 		let program = String::from(
-			r#";
+			r#"
 struct AA {
   cell green;
 }
@@ -1730,7 +1766,7 @@ output as[1].green;
 	#[test]
 	fn structs_7() {
 		let program = String::from(
-			r#";
+			r#"
 struct BB {
 	cell green;
 }
@@ -1778,7 +1814,7 @@ output as[1].bbb[2].green;
 	#[test]
 	fn structs_7a() {
 		let program = String::from(
-			r#";
+			r#"
 struct BB {
 	cell green @2;
 }
@@ -1826,7 +1862,7 @@ output as[1].bbb[2].green;
 	#[test]
 	fn structs_bf_1() {
 		let program = String::from(
-			r#";
+			r#"
 struct Frame {
 	cell    marker     @3;
 	cell    value      @0;
@@ -1864,7 +1900,7 @@ bf @2 {
 	#[should_panic]
 	fn structs_bf_1a() {
 		let program = String::from(
-			r#";
+			r#"
 struct Frame {
 	cell    marker     @2;
 	cell    value      @0;
@@ -1887,7 +1923,7 @@ struct Frame f;
 	#[should_panic]
 	fn structs_bf_1b() {
 		let program = String::from(
-			r#";
+			r#"
 struct Frame {
 	cell    marker     @-2;
 	cell    value      @0;
@@ -1908,7 +1944,7 @@ struct Frame f;
 	#[should_panic]
 	fn structs_bf_1c() {
 		let program = String::from(
-			r#";
+			r#"
 struct G {
 	cell a @1;
 	cell b @1;
@@ -1932,7 +1968,7 @@ output g.b;
 	#[test]
 	fn structs_bf_2() {
 		let program = String::from(
-			r#";
+			r#"
 struct Green {
   // no @0 cell
   cell blue @1;
@@ -1957,7 +1993,7 @@ bf @4 {
 	#[test]
 	fn sizeof_0() {
 		let program = String::from(
-			r#";
+			r#"
 output '0' + sizeof(cell);
 			"#,
 		);
@@ -1972,7 +2008,7 @@ output '0' + sizeof(cell);
 	#[test]
 	fn sizeof_0a() {
 		let program = String::from(
-			r#";
+			r#"
 output '0' + sizeof(cell[5]);
 			"#,
 		);
@@ -1987,7 +2023,7 @@ output '0' + sizeof(cell[5]);
 	#[test]
 	fn sizeof_0b() {
 		let program = String::from(
-			r#";
+			r#"
 cell a;
 cell b[4];
 output '0' + sizeof(a);
@@ -2006,7 +2042,7 @@ output '0' + sizeof(b[2]);
 	#[test]
 	fn sizeof_1() {
 		let program = String::from(
-			r#";
+			r#"
 struct Green {
   cell blue;
 }
@@ -2025,7 +2061,7 @@ output '0' + s;
 	#[test]
 	fn sizeof_1a() {
 		let program = String::from(
-			r#";
+			r#"
 struct Green {
   cell blue;
 }
@@ -2044,7 +2080,7 @@ output '0' + s;
 	#[test]
 	fn sizeof_1b() {
 		let program = String::from(
-			r#";
+			r#"
 struct Green {
   cell blue;
 }
@@ -2063,7 +2099,7 @@ output '0' + s;
 	#[test]
 	fn sizeof_2() {
 		let program = String::from(
-			r#";
+			r#"
 struct Green {
   cell blue;
 	cell red;
@@ -2083,7 +2119,7 @@ output '0' + sizeof(g);
 	#[test]
 	fn sizeof_3() {
 		let program = String::from(
-			r#";
+			r#"
 struct Green {
   cell blue;
 	cell[5] red;
@@ -2107,7 +2143,7 @@ output '0' + sizeof(g[0].red);
 	#[test]
 	fn sizeof_4() {
 		let program = String::from(
-			r#";
+			r#"
 struct Green {
   cell blue @2;
 }
@@ -2128,7 +2164,7 @@ output '0' + sizeof(g[2].blue)
 	#[test]
 	fn sizeof_5() {
 		let program = String::from(
-			r#";
+			r#"
 struct Blue {
   cell[2] blues;
 }
