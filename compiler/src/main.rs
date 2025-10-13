@@ -16,7 +16,6 @@ mod tests;
 
 use backend::BrainfuckOpcodes;
 use brainfuck::{BVMConfig, BVM};
-use brainfuck_optimiser::optimise;
 use misc::MastermindConfig;
 use parser::parse;
 use preprocessor::preprocess;
@@ -74,9 +73,10 @@ fn main() -> Result<(), String> {
 
 	let args = Arguments::parse();
 
-	// TODO: change this to not be a bitmask, or at least document it
-	let config = MastermindConfig::new(args.optimise);
-	let ctx = MastermindContext { config: &config };
+	let ctx = MastermindContext {
+		// TODO: change this to not be a bitmask, or at least document it
+		config: MastermindConfig::new(args.optimise),
+	};
 
 	let program;
 	match args.file {
@@ -106,8 +106,8 @@ fn main() -> Result<(), String> {
 			let instructions = ctx.create_ir_scope(&clauses, None)?.build_ir(false);
 			let bf_code = ctx.ir_to_bf(instructions, None)?;
 
-			match config.optimise_generated_code {
-				true => optimise(bf_code, config.optimise_generated_all_permutations).to_string(),
+			match ctx.config.optimise_generated_code {
+				true => ctx.optimise_bf_code(bf_code).to_string(),
 				false => bf_code.to_string(),
 			}
 		}

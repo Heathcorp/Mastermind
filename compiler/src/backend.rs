@@ -31,7 +31,7 @@ impl Display for TapeCell2D {
 	}
 }
 
-impl MastermindContext<'_> {
+impl MastermindContext {
 	pub fn ir_to_bf(
 		&self,
 		instructions: Vec<Instruction<TapeCell2D>>,

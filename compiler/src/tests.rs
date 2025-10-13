@@ -6,10 +6,9 @@ pub mod black_box_tests {
 	use crate::{
 		backend::{BrainfuckOpcodes, Opcode2D},
 		brainfuck::{bvm_tests::run_code, BVMConfig},
-		misc::MastermindContext,
+		misc::{MastermindConfig, MastermindContext},
 		parser::parse,
 		tokeniser::{tokenise, Token},
-		MastermindConfig,
 	};
 	// TODO: run test suite with different optimisations turned on
 	const OPT_NONE: MastermindConfig = MastermindConfig {
@@ -90,7 +89,7 @@ pub mod black_box_tests {
 	const TESTING_BVM_MAX_STEPS: usize = 100_000_000;
 
 	fn compile_and_run(program: String, input: String) -> Result<String, String> {
-		let ctx = MastermindContext { config: &OPT_NONE };
+		let ctx = MastermindContext { config: OPT_NONE };
 		let tokens: Vec<Token> = tokenise(&program)?;
 		let clauses = parse(&tokens)?;
 		let instructions = ctx.create_ir_scope(&clauses, None)?.build_ir(false);
@@ -108,10 +107,10 @@ pub mod black_box_tests {
 
 	fn compile_program(
 		program: String,
-		config: Option<&MastermindConfig>,
+		config: Option<MastermindConfig>,
 	) -> Result<Vec<Opcode2D>, String> {
 		let ctx = MastermindContext {
-			config: config.unwrap_or(&OPT_NONE),
+			config: config.unwrap_or(OPT_NONE),
 		};
 		let tokens: Vec<Token> = tokenise(&program)?;
 		let clauses = parse(&tokens)?;
@@ -567,7 +566,7 @@ output x + 'f';
 		);
 		let input = String::from("");
 		let desired_output = String::from("f");
-		let code = compile_program(program, Some(&OPT_ALL))?;
+		let code = compile_program(program, Some(OPT_ALL))?;
 		assert_eq!(
 			desired_output,
 			run_code(BVM_CONFIG_1D, code.to_string(), input, None)
@@ -587,7 +586,7 @@ output x + 'f';
 		);
 		let input = String::from("");
 		let desired_output = String::from("f");
-		let code = compile_program(program, Some(&OPT_ALL))?;
+		let code = compile_program(program, Some(OPT_ALL))?;
 		assert_eq!(
 			desired_output,
 			run_code(BVM_CONFIG_1D, code.to_string(), input, None)
@@ -867,7 +866,7 @@ output 10;
 		);
 		let input = String::from("");
 		let desired_output = String::from("01231\n");
-		let code = compile_program(program, Some(&OPT_NONE))?.to_string();
+		let code = compile_program(program, Some(OPT_NONE))?.to_string();
 		println!("{}", code);
 		let output = run_code(BVM_CONFIG_1D, code, input, None);
 		println!("{output}");
@@ -2606,7 +2605,7 @@ a = 0;
 output a;
 "#,
 		);
-		let code = compile_program(program, Some(&OPT_ALL))?.to_string();
+		let code = compile_program(program, Some(OPT_ALL))?.to_string();
 		println!("{code}");
 
 		assert!(code.starts_with("+++++.--."));
@@ -2624,7 +2623,7 @@ a = 0;
 output a;
 "#,
 		);
-		let code = compile_program(program, Some(&OPT_ALL))?.to_string();
+		let code = compile_program(program, Some(OPT_ALL))?.to_string();
 		println!("{code}");
 
 		assert!(code.starts_with("++.[-]."));
@@ -2868,7 +2867,7 @@ output 'h';
 		let input = String::from("");
 		let desired_output = String::from("h");
 
-		let code = compile_program(program, Some(&OPT_ALL))?;
+		let code = compile_program(program, Some(OPT_ALL))?;
 		println!("{}", code.clone().to_string());
 		assert_eq!(
 			desired_output,
@@ -2894,7 +2893,7 @@ output a + 3;
 		let input = String::from("");
 		let desired_output = String::from("tIJ");
 
-		let code = compile_program(program, Some(&OPT_ALL))?.to_string();
+		let code = compile_program(program, Some(OPT_ALL))?.to_string();
 		println!("{}", code);
 		assert_eq!(desired_output, run_code(BVM_CONFIG_1D, code, input, None));
 
@@ -2921,7 +2920,7 @@ output a + 3;
 			memory_allocation_method: 128,
 			enable_2d_grid: false,
 		};
-		let _code = compile_program(program, Some(&cfg));
+		let _code = compile_program(program, Some(cfg));
 	}
 	#[test]
 	fn tiles_memory_allocation_1() -> Result<(), String> {
@@ -2940,7 +2939,7 @@ cell j = 1;
 		);
 		let desired_output = String::from("+<v+^+^+>vv+^^+>vv+^+^+");
 
-		let code = compile_program(program, Some(&OPT_NONE_TILES))?.to_string();
+		let code = compile_program(program, Some(OPT_NONE_TILES))?.to_string();
 		assert_eq!(desired_output, code);
 
 		Ok(())
@@ -2972,7 +2971,7 @@ output i;
 		let input = String::from("");
 		let desired_output = String::from("123456789");
 
-		let code = compile_program(program, Some(&OPT_NONE_TILES))?.to_string();
+		let code = compile_program(program, Some(OPT_NONE_TILES))?.to_string();
 		println!("{}", code);
 		assert_eq!(desired_output, run_code(BVM_CONFIG_2D, code, input, None));
 
@@ -2987,7 +2986,7 @@ cell a @2,4 = 1;
 cell[4] b @0,4;
 "#,
 		);
-		let code = compile_program(program, Some(&OPT_NONE_TILES));
+		let code = compile_program(program, Some(OPT_NONE_TILES));
 		assert!(code.is_err());
 		assert!(code
 			.unwrap_err()
@@ -3013,7 +3012,7 @@ output b[3];
 output a;
 "#,
 		);
-		let code = compile_program(program, Some(&OPT_NONE_TILES))?.to_string();
+		let code = compile_program(program, Some(OPT_NONE_TILES))?.to_string();
 		println!("{}", code);
 		let input = String::from("");
 		let desired_output = String::from("12345");
@@ -3038,7 +3037,7 @@ cell j = 1;
 		);
 		let desired_output = String::from("+>+<^+>>v+<^+<^+>>>vv+<^+<^+");
 
-		let code = compile_program(program, Some(&OPT_NONE_ZIG_ZAG))?.to_string();
+		let code = compile_program(program, Some(OPT_NONE_ZIG_ZAG))?.to_string();
 		assert_eq!(desired_output, code);
 
 		Ok(())
@@ -3070,7 +3069,7 @@ output i;
 		let input = String::from("");
 		let desired_output = String::from("123456789");
 
-		let code = compile_program(program, Some(&OPT_NONE_ZIG_ZAG))?.to_string();
+		let code = compile_program(program, Some(OPT_NONE_ZIG_ZAG))?.to_string();
 		println!("{}", code);
 		assert_eq!(desired_output, run_code(BVM_CONFIG_2D, code, input, None));
 
@@ -3085,7 +3084,7 @@ cell a @2,4 = 1;
 cell[4] b @0,4;
 "#,
 		);
-		let code = compile_program(program, Some(&OPT_NONE_ZIG_ZAG));
+		let code = compile_program(program, Some(OPT_NONE_ZIG_ZAG));
 		assert!(code.is_err());
 		assert!(code
 			.unwrap_err()
@@ -3111,7 +3110,7 @@ output b[3];
 output a;
 "#,
 		);
-		let code = compile_program(program, Some(&OPT_NONE_ZIG_ZAG))?.to_string();
+		let code = compile_program(program, Some(OPT_NONE_ZIG_ZAG))?.to_string();
 		println!("{}", code);
 		let input = String::from("");
 		let desired_output = String::from("12345");
@@ -3136,7 +3135,7 @@ cell j = 1;
 		);
 		let desired_output = String::from("^+>+v+<+<+^+^+>+>+");
 
-		let code = compile_program(program, Some(&OPT_NONE_SPIRAL))?.to_string();
+		let code = compile_program(program, Some(OPT_NONE_SPIRAL))?.to_string();
 		assert_eq!(desired_output, code);
 
 		Ok(())
@@ -3168,7 +3167,7 @@ output i;
 		let input = String::from("");
 		let desired_output = String::from("123456789");
 
-		let code = compile_program(program, Some(&OPT_NONE_SPIRAL))?.to_string();
+		let code = compile_program(program, Some(OPT_NONE_SPIRAL))?.to_string();
 		println!("{}", code);
 		assert_eq!(desired_output, run_code(BVM_CONFIG_2D, code, input, None));
 
@@ -3183,7 +3182,7 @@ cell a @2,4 = 1;
 cell[4] b @0,4;
 "#,
 		);
-		let code = compile_program(program, Some(&OPT_NONE_SPIRAL));
+		let code = compile_program(program, Some(OPT_NONE_SPIRAL));
 		assert!(code.is_err());
 		assert!(code
 			.unwrap_err()
@@ -3209,7 +3208,7 @@ output b[3];
 output a;
 "#,
 		);
-		let code = compile_program(program, Some(&OPT_NONE_SPIRAL))?.to_string();
+		let code = compile_program(program, Some(OPT_NONE_SPIRAL))?.to_string();
 		println!("{}", code);
 		let input = String::from("");
 		let desired_output = String::from("12345");

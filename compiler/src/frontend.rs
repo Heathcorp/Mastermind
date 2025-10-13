@@ -14,9 +14,9 @@ use crate::{
 
 // memory stuff is all WIP and some comments may be incorrect
 
-impl MastermindContext<'_> {
+impl MastermindContext {
 	pub fn create_ir_scope<'a>(
-		&'a self,
+		&self,
 		clauses: &[Clause<TapeCell2D>],
 		outer_scope: Option<&'a ScopeBuilder<TapeCell2D>>,
 	) -> Result<ScopeBuilder<'a, TapeCell2D>, String> {
@@ -492,16 +492,13 @@ impl MastermindContext<'_> {
 								// create a scope object for functions from the outside scope
 								let functions_scope = scope.open_inner_templates_only();
 								// compile the block and extend the operations
-
-								let ctx = MastermindContext {
-									config: &self.config,
-								};
-								let instructions = ctx
+								let instructions = self
 									.create_ir_scope(&mm_clauses, Some(&functions_scope))?
+									// compile without cleaning up top level variables, this is the brainfuck programmer's responsibility
 									.build_ir(false);
-								// compile without cleaning up top level variables, this is the brainfuck programmer's responsibility
 								// it is also the brainfuck programmer's responsibility to return to the start position
-								let bf_code = ctx.ir_to_bf(instructions, Some(TapeCell2D(0, 0)))?;
+								let bf_code =
+									self.ir_to_bf(instructions, Some(TapeCell2D(0, 0)))?;
 								expanded_bf.extend(bf_code);
 							}
 							ExtendedOpcode::Add => expanded_bf.push(Opcode2D::Add),

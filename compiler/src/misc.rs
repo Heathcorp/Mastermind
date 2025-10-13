@@ -2,6 +2,7 @@
 pub struct MastermindConfig {
 	// basic pure brainfuck optimisations
 	pub optimise_generated_code: bool,
+	// TODO: rename this: (turn on exhaustive search for solving 2D brainfuck optimisation)
 	pub optimise_generated_all_permutations: bool,
 	// track cell value and clear with constant addition if possible
 	pub optimise_cell_clearing: bool,
@@ -61,6 +62,6 @@ impl MastermindConfig {
 	}
 }
 
-pub struct MastermindContext<'a> {
-	pub config: &'a MastermindConfig,
+pub struct MastermindContext {
+	pub config: MastermindConfig,
 }

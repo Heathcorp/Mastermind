@@ -17,8 +17,6 @@ mod tests;
 
 use backend::BrainfuckOpcodes;
 use brainfuck::{BVMConfig, BVM};
-use brainfuck_optimiser::optimise;
-use misc::MastermindConfig;
 use parser::parse;
 use preprocessor::preprocess_from_memory;
 use tokeniser::tokenise;
@@ -46,8 +44,9 @@ pub fn wasm_compile(
 
 	let file_contents: HashMap<String, String> =
 		serde_wasm_bindgen::from_value(file_contents).unwrap();
-	let config: MastermindConfig = serde_wasm_bindgen::from_value(config).unwrap();
-	let ctx = MastermindContext { config: &config };
+	let ctx = MastermindContext {
+		config: serde_wasm_bindgen::from_value(config).unwrap(),
+	};
 
 	let preprocessed_file = preprocess_from_memory(&file_contents, entry_file_name)?;
 	let tokens = tokenise(&preprocessed_file)?;
@@ -55,8 +54,8 @@ pub fn wasm_compile(
 	let instructions = ctx.create_ir_scope(&parsed_syntax, None)?.build_ir(false);
 	let bf_code = ctx.ir_to_bf(instructions, None)?;
 
-	Ok(match config.optimise_generated_code {
-		true => optimise(bf_code, config.optimise_generated_all_permutations).to_string(),
+	Ok(match ctx.config.optimise_generated_code {
+		true => ctx.optimise_bf_code(bf_code).to_string(),
 		false => bf_code.to_string(),
 	})
 }
