@@ -4,7 +4,7 @@
 #[cfg(test)]
 pub mod black_box_tests {
 	use crate::{
-		backend::{BrainfuckOpcodes, Opcode},
+		backend::{BrainfuckOpcodes, Opcode2D},
 		brainfuck::{bvm_tests::run_code, BVMConfig},
 		misc::MastermindContext,
 		parser::parse,
@@ -94,7 +94,7 @@ pub mod black_box_tests {
 		let tokens: Vec<Token> = tokenise(&program)?;
 		let clauses = parse(&tokens)?;
 		let instructions = ctx.create_ir_scope(&clauses, None)?.build_ir(false);
-		let bf_program = ctx.ir_to_bf(instructions, false)?;
+		let bf_program = ctx.ir_to_bf(instructions, None)?;
 		let bfs = bf_program.to_string();
 
 		// run generated brainfuck with input
@@ -109,14 +109,14 @@ pub mod black_box_tests {
 	fn compile_program(
 		program: String,
 		config: Option<&MastermindConfig>,
-	) -> Result<Vec<Opcode>, String> {
+	) -> Result<Vec<Opcode2D>, String> {
 		let ctx = MastermindContext {
 			config: config.unwrap_or(&OPT_NONE),
 		};
 		let tokens: Vec<Token> = tokenise(&program)?;
 		let clauses = parse(&tokens)?;
 		let instructions = ctx.create_ir_scope(&clauses, None)?.build_ir(false);
-		let bf_code = ctx.ir_to_bf(instructions, false)?;
+		let bf_code = ctx.ir_to_bf(instructions, None)?;
 
 		Ok(bf_code)
 	}

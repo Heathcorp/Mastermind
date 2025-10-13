@@ -1,5 +1,5 @@
 // TODO: make unit tests for this
-use crate::backend::{BFBuilder, Opcode, TapeCell2D};
+use crate::backend::{BFBuilder, Opcode2D, TapeCell2D};
 
 // basically, most ascii characters are large numbers, which are more efficient to calculate with multiplication than with a bunch of + or -
 // an optimising brainfuck runtime will prefer a long string of +++++ or ----- however the goal of mastermind is to be used for code golf, which is not about speed
@@ -76,7 +76,7 @@ pub fn calculate_optimal_addition(
 
 		ops.move_to_cell(temp_cell);
 		ops.add_to_current_cell(a as i8);
-		ops.push(Opcode::OpenLoop);
+		ops.push(Opcode2D::OpenLoop);
 		ops.add_to_current_cell(-1);
 		ops.move_to_cell(target_cell);
 		if value < 0 {
@@ -85,7 +85,7 @@ pub fn calculate_optimal_addition(
 			ops.add_to_current_cell(b as i8);
 		}
 		ops.move_to_cell(temp_cell);
-		ops.push(Opcode::CloseLoop);
+		ops.push(Opcode2D::CloseLoop);
 		ops.move_to_cell(target_cell);
 		if value < 0 {
 			ops.add_to_current_cell(-(c as i8));

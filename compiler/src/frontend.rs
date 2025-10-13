@@ -3,7 +3,7 @@
 use std::{collections::HashMap, iter::zip};
 
 use crate::{
-	backend::{Opcode, TapeCell2D},
+	backend::{Opcode2D, TapeCell2D},
 	macros::macros::{r_assert, r_panic},
 	misc::MastermindContext,
 	parser::{
@@ -485,7 +485,7 @@ impl MastermindContext<'_> {
 					operations,
 				} => {
 					// loop through the opcodes
-					let mut expanded_bf: Vec<Opcode> = Vec::new();
+					let mut expanded_bf: Vec<Opcode2D> = Vec::new();
 					for op in operations {
 						match op {
 							ExtendedOpcode::Block(mm_clauses) => {
@@ -501,19 +501,19 @@ impl MastermindContext<'_> {
 									.build_ir(false);
 								// compile without cleaning up top level variables, this is the brainfuck programmer's responsibility
 								// it is also the brainfuck programmer's responsibility to return to the start position
-								let bf_code = ctx.ir_to_bf(instructions, true)?;
+								let bf_code = ctx.ir_to_bf(instructions, Some(TapeCell2D(0, 0)))?;
 								expanded_bf.extend(bf_code);
 							}
-							ExtendedOpcode::Add => expanded_bf.push(Opcode::Add),
-							ExtendedOpcode::Subtract => expanded_bf.push(Opcode::Subtract),
-							ExtendedOpcode::Right => expanded_bf.push(Opcode::Right),
-							ExtendedOpcode::Left => expanded_bf.push(Opcode::Left),
-							ExtendedOpcode::OpenLoop => expanded_bf.push(Opcode::OpenLoop),
-							ExtendedOpcode::CloseLoop => expanded_bf.push(Opcode::CloseLoop),
-							ExtendedOpcode::Output => expanded_bf.push(Opcode::Output),
-							ExtendedOpcode::Input => expanded_bf.push(Opcode::Input),
-							ExtendedOpcode::Up => expanded_bf.push(Opcode::Up),
-							ExtendedOpcode::Down => expanded_bf.push(Opcode::Down),
+							ExtendedOpcode::Add => expanded_bf.push(Opcode2D::Add),
+							ExtendedOpcode::Subtract => expanded_bf.push(Opcode2D::Subtract),
+							ExtendedOpcode::Right => expanded_bf.push(Opcode2D::Right),
+							ExtendedOpcode::Left => expanded_bf.push(Opcode2D::Left),
+							ExtendedOpcode::OpenLoop => expanded_bf.push(Opcode2D::OpenLoop),
+							ExtendedOpcode::CloseLoop => expanded_bf.push(Opcode2D::CloseLoop),
+							ExtendedOpcode::Output => expanded_bf.push(Opcode2D::Output),
+							ExtendedOpcode::Input => expanded_bf.push(Opcode2D::Input),
+							ExtendedOpcode::Up => expanded_bf.push(Opcode2D::Up),
+							ExtendedOpcode::Down => expanded_bf.push(Opcode2D::Down),
 						}
 					}
 
@@ -741,7 +741,7 @@ pub enum Instruction<TapeCell> {
 	ClearCell(CellReference), // not sure if this should be here, seems common enough that it should be
 	AssertCellValue(CellReference, Option<u8>), // allows the user to hand-tune optimisations further
 	OutputCell(CellReference),
-	InsertBrainfuckAtCell(Vec<Opcode>, CellLocation<TapeCell>),
+	InsertBrainfuckAtCell(Vec<Opcode2D>, CellLocation<TapeCell>),
 }
 
 #[derive(Debug, Clone)]

@@ -104,7 +104,7 @@ fn main() -> Result<(), String> {
 			// 	second stage actually writes out the low-level instructions into brainfuck
 
 			let instructions = ctx.create_ir_scope(&clauses, None)?.build_ir(false);
-			let bf_code = ctx.ir_to_bf(instructions, false)?;
+			let bf_code = ctx.ir_to_bf(instructions, None)?;
 
 			match config.optimise_generated_code {
 				true => optimise(bf_code, config.optimise_generated_all_permutations).to_string(),

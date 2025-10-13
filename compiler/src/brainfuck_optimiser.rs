@@ -1,4 +1,4 @@
-use crate::backend::Opcode;
+use crate::backend::{Opcode2D, TapeCell2D};
 use itertools::Itertools;
 use std::{collections::HashMap, num::Wrapping};
 
@@ -7,7 +7,7 @@ use std::{collections::HashMap, num::Wrapping};
 // simple naive brainfuck optimisations
 // TODO: factor in [-] into optimisations (doing)
 
-pub fn optimise(program: Vec<Opcode>, exhaustive: bool) -> Vec<Opcode> {
+pub fn optimise(program: Vec<Opcode2D>, exhaustive: bool) -> Vec<Opcode2D> {
 	let mut output = Vec::new();
 
 	// get stretch of characters to optimise (+-<>)
@@ -16,16 +16,16 @@ pub fn optimise(program: Vec<Opcode>, exhaustive: bool) -> Vec<Opcode> {
 	while i < program.len() {
 		let op = program[i];
 		match op {
-			Opcode::Add
-			| Opcode::Subtract
-			| Opcode::Right
-			| Opcode::Left
-			| Opcode::Clear
-			| Opcode::Up
-			| Opcode::Down => {
+			Opcode2D::Add
+			| Opcode2D::Subtract
+			| Opcode2D::Right
+			| Opcode2D::Left
+			| Opcode2D::Clear
+			| Opcode2D::Up
+			| Opcode2D::Down => {
 				subset.push(op);
 			}
-			Opcode::OpenLoop | Opcode::CloseLoop | Opcode::Input | Opcode::Output => {
+			Opcode2D::OpenLoop | Opcode2D::CloseLoop | Opcode2D::Input | Opcode2D::Output => {
 				// optimise subset and push
 				let optimised_subset = optimise_subset(subset, exhaustive);
 				output.extend(optimised_subset);
@@ -41,57 +41,57 @@ pub fn optimise(program: Vec<Opcode>, exhaustive: bool) -> Vec<Opcode> {
 }
 
 fn move_position(
-	mut program: Vec<Opcode>,
-	old_position: &(i32, i32),
-	new_position: &(i32, i32),
-) -> Vec<Opcode> {
+	mut program: Vec<Opcode2D>,
+	old_position: &TapeCell2D,
+	new_position: &TapeCell2D,
+) -> Vec<Opcode2D> {
 	if old_position != new_position {
 		if old_position.0 < new_position.0 {
 			for _ in 0..(new_position.0 - old_position.0) {
-				program.push(Opcode::Right);
+				program.push(Opcode2D::Right);
 			}
 		} else {
 			for _ in 0..(old_position.0 - new_position.0) {
-				program.push(Opcode::Left);
+				program.push(Opcode2D::Left);
 			}
 		}
 		if old_position.1 < new_position.1 {
 			for _ in 0..(new_position.1 - old_position.1) {
-				program.push(Opcode::Up);
+				program.push(Opcode2D::Up);
 			}
 		} else {
 			for _ in 0..(old_position.1 - new_position.1) {
-				program.push(Opcode::Down);
+				program.push(Opcode2D::Down);
 			}
 		}
 	}
 	program
 }
 
-fn optimise_subset(run: Vec<Opcode>, exhaustive: bool) -> Vec<Opcode> {
+fn optimise_subset(run: Vec<Opcode2D>, exhaustive: bool) -> Vec<Opcode2D> {
 	#[derive(Clone)]
 	enum Change {
 		Add(Wrapping<i8>),
 		Set(Wrapping<i8>),
 	}
-	let mut tape: HashMap<(i32, i32), Change> = HashMap::new();
-	let start = (0, 0);
-	let mut head = (0, 0);
+	let mut tape: HashMap<TapeCell2D, Change> = HashMap::new();
+	let start = TapeCell2D(0, 0);
+	let mut head = TapeCell2D(0, 0);
 	let mut i = 0;
 	//Generate a map of cells we change and how we plan to change them
 	while i < run.len() {
 		let op = run[i];
 		match op {
-			Opcode::Clear => {
+			Opcode2D::Clear => {
 				tape.insert(head, Change::Set(Wrapping(0i8)));
 			}
-			Opcode::Subtract | Opcode::Add => {
+			Opcode2D::Subtract | Opcode2D::Add => {
 				let mut change = tape.remove(&head).unwrap_or(Change::Add(Wrapping(0i8)));
 
 				let (Change::Add(val) | Change::Set(val)) = &mut change;
 				*val += match op {
-					Opcode::Add => 1,
-					Opcode::Subtract => -1,
+					Opcode2D::Add => 1,
+					Opcode2D::Subtract => -1,
 					_ => 0,
 				};
 
@@ -106,16 +106,16 @@ fn optimise_subset(run: Vec<Opcode>, exhaustive: bool) -> Vec<Opcode> {
 					}
 				}
 			}
-			Opcode::Right => {
+			Opcode2D::Right => {
 				head.0 += 1;
 			}
-			Opcode::Left => {
+			Opcode2D::Left => {
 				head.0 -= 1;
 			}
-			Opcode::Up => {
+			Opcode2D::Up => {
 				head.1 += 1;
 			}
-			Opcode::Down => {
+			Opcode2D::Down => {
 				head.1 -= 1;
 			}
 			_ => (),
@@ -155,14 +155,14 @@ fn optimise_subset(run: Vec<Opcode>, exhaustive: bool) -> Vec<Opcode> {
 			output = move_position(output, &position, cell);
 			position = *cell;
 			if let Change::Set(_) = change {
-				output.push(Opcode::Clear);
+				output.push(Opcode2D::Clear);
 			}
 			let (Change::Add(v) | Change::Set(v)) = change;
 			let v = v.0;
 			for _ in 0..(v as i32).abs() {
 				output.push(match v == -128 || v > 0 {
-					true => Opcode::Add,
-					false => Opcode::Subtract,
+					true => Opcode2D::Add,
+					false => Opcode2D::Subtract,
 				});
 			}
 		}
@@ -174,7 +174,7 @@ fn optimise_subset(run: Vec<Opcode>, exhaustive: bool) -> Vec<Opcode> {
 		for _ in 0..tape.len() {
 			if !tape.is_empty() {
 				let mut min_distance = i32::MAX;
-				let mut next_position = (0, 0);
+				let mut next_position = TapeCell2D(0, 0);
 				for (cell, _value) in tape.iter() {
 					if (cell.0 - position.0).abs() + (cell.1 - position.1).abs() < min_distance {
 						min_distance = (cell.0 - position.0).abs() + (cell.1 - position.1).abs();
@@ -187,14 +187,14 @@ fn optimise_subset(run: Vec<Opcode>, exhaustive: bool) -> Vec<Opcode> {
 				//Now Update the output with correct opcodes
 				let change = tape.remove(&next_position).unwrap();
 				if let Change::Set(_) = change {
-					output.push(Opcode::Clear);
+					output.push(Opcode2D::Clear);
 				}
 				let (Change::Add(v) | Change::Set(v)) = change;
 				let v = v.0;
 				for _ in 0..(v as i32).abs() {
 					output.push(match v == -128 || v > 0 {
-						true => Opcode::Add,
-						false => Opcode::Subtract,
+						true => Opcode2D::Add,
+						false => Opcode2D::Subtract,
 					});
 				}
 			}

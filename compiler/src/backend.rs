@@ -35,8 +35,8 @@ impl MastermindContext<'_> {
 	pub fn ir_to_bf(
 		&self,
 		instructions: Vec<Instruction<TapeCell2D>>,
-		return_to_origin: bool,
-	) -> Result<Vec<Opcode>, String> {
+		return_to_cell: Option<TapeCell2D>,
+	) -> Result<Vec<Opcode2D>, String> {
 		let mut allocator = CellAllocator::new();
 		let mut alloc_map: HashMap<
 			MemoryId,
@@ -164,7 +164,7 @@ outside of loop it was allocated"
 					// skip the loop if the optimisations are turned on and we know the value is 0
 					if open {
 						ops.move_to_cell(cell);
-						ops.push(Opcode::OpenLoop);
+						ops.push(Opcode2D::OpenLoop);
 						loop_stack.push(cell);
 						current_loop_depth += 1;
 					}
@@ -194,7 +194,7 @@ outside of loop it was allocated"
 					current_loop_depth -= 1;
 
 					ops.move_to_cell(cell);
-					ops.push(Opcode::CloseLoop);
+					ops.push(Opcode2D::CloseLoop);
 
 					// if a loop finishes on a cell then it is guaranteed to be 0 based on brainfuck itself
 					// I did encounter issues with nested loops here, interesting
@@ -266,7 +266,7 @@ outside of loop it was allocated"
 					let known_value = &mut known_values[mem_idx];
 
 					ops.move_to_cell(cell);
-					ops.push(Opcode::Input);
+					ops.push(Opcode2D::Input);
 					// no way to know at compile time what the input to the program will be
 					*known_value = None;
 				}
@@ -299,11 +299,11 @@ outside of loop it was allocated"
 							let imm = *known_value as i8;
 							if imm > 0 {
 								for _ in 0..imm {
-									ops.push(Opcode::Subtract);
+									ops.push(Opcode2D::Subtract);
 								}
 							} else if imm < 0 {
 								for _ in 0..-imm {
-									ops.push(Opcode::Add);
+									ops.push(Opcode2D::Add);
 								}
 							}
 							clear = false;
@@ -311,7 +311,7 @@ outside of loop it was allocated"
 					}
 
 					if clear {
-						ops.push(Opcode::Clear);
+						ops.push(Opcode2D::Clear);
 					}
 
 					if *alloc_loop_depth == current_loop_depth {
@@ -334,7 +334,7 @@ outside of loop it was allocated"
 					let cell = TapeCell2D(cell_base.0 + mem_idx as i32, cell_base.1);
 
 					ops.move_to_cell(cell);
-					ops.push(Opcode::Output);
+					ops.push(Opcode2D::Output);
 				}
 				Instruction::InsertBrainfuckAtCell(operations, location_specifier) => {
 					// move to the correct cell, based on the location specifier
@@ -364,8 +364,8 @@ outside of loop it was allocated"
 		}
 
 		// this is used in embedded brainfuck contexts to preserve head position
-		if return_to_origin {
-			ops.move_to_cell(TapeCell2D(0, 0));
+		if let Some(origin_cell) = return_to_cell {
+			ops.move_to_cell(origin_cell);
 		}
 
 		Ok(ops.opcodes)
@@ -591,8 +591,23 @@ impl CellAllocator {
 	}
 }
 
+// #[derive(Clone, Copy, Debug)]
+// pub enum Opcode {
+// 	Add,
+// 	Subtract,
+// 	Right,
+// 	Left,
+// 	OpenLoop,
+// 	CloseLoop,
+// 	Output,
+// 	Input,
+// 	Clear,
+// 	Up,
+// 	Down,
+// }
+
 #[derive(Clone, Copy, Debug)]
-pub enum Opcode {
+pub enum Opcode2D {
 	Add,
 	Subtract,
 	Right,
@@ -607,7 +622,7 @@ pub enum Opcode {
 }
 
 pub struct BFBuilder {
-	opcodes: Vec<Opcode>,
+	opcodes: Vec<Opcode2D>,
 	pub head_pos: TapeCell2D,
 }
 
@@ -616,47 +631,47 @@ pub trait BrainfuckOpcodes {
 	fn from_str(s: &str) -> Self;
 }
 
-impl BrainfuckOpcodes for Vec<Opcode> {
+impl BrainfuckOpcodes for Vec<Opcode2D> {
 	fn to_string(self) -> String {
 		let mut s = String::new();
 		self.into_iter().for_each(|o| {
 			s.push_str(match o {
-				Opcode::Add => "+",
-				Opcode::Subtract => "-",
-				Opcode::Right => ">",
-				Opcode::Left => "<",
-				Opcode::OpenLoop => "[",
-				Opcode::CloseLoop => "]",
-				Opcode::Output => ".",
-				Opcode::Input => ",",
-				Opcode::Clear => "[-]",
-				Opcode::Up => "^",
-				Opcode::Down => "v",
+				Opcode2D::Add => "+",
+				Opcode2D::Subtract => "-",
+				Opcode2D::Right => ">",
+				Opcode2D::Left => "<",
+				Opcode2D::OpenLoop => "[",
+				Opcode2D::CloseLoop => "]",
+				Opcode2D::Output => ".",
+				Opcode2D::Input => ",",
+				Opcode2D::Clear => "[-]",
+				Opcode2D::Up => "^",
+				Opcode2D::Down => "v",
 			})
 		});
 		s
 	}
 
-	fn from_str(s: &str) -> Self {
+	fn from_str(s: &str) -> Vec<Opcode2D> {
 		let mut ops = Vec::new();
 		let mut i = 0;
 		while i < s.len() {
 			let substr = &s[i..];
 			if substr.starts_with("[-]") {
-				ops.push(Opcode::Clear);
+				ops.push(Opcode2D::Clear);
 				i += 3;
 			} else {
 				match substr.chars().next().unwrap() {
-					'+' => ops.push(Opcode::Add),
-					'-' => ops.push(Opcode::Subtract),
-					'>' => ops.push(Opcode::Right),
-					'<' => ops.push(Opcode::Left),
-					'[' => ops.push(Opcode::OpenLoop),
-					']' => ops.push(Opcode::CloseLoop),
-					'.' => ops.push(Opcode::Output),
-					',' => ops.push(Opcode::Input),
-					'^' => ops.push(Opcode::Up),
-					'v' => ops.push(Opcode::Down),
+					'+' => ops.push(Opcode2D::Add),
+					'-' => ops.push(Opcode2D::Subtract),
+					'>' => ops.push(Opcode2D::Right),
+					'<' => ops.push(Opcode2D::Left),
+					'[' => ops.push(Opcode2D::OpenLoop),
+					']' => ops.push(Opcode2D::CloseLoop),
+					'.' => ops.push(Opcode2D::Output),
+					',' => ops.push(Opcode2D::Input),
+					'^' => ops.push(Opcode2D::Up),
+					'v' => ops.push(Opcode2D::Down),
 					_ => (), // could put a little special opcode in for other characters
 				}
 				i += 1;
@@ -674,7 +689,7 @@ impl BrainfuckOpcodes for BFBuilder {
 
 	fn from_str(s: &str) -> Self {
 		BFBuilder {
-			opcodes: BrainfuckOpcodes::from_str(s),
+			opcodes: Vec::from_str(s),
 			head_pos: TapeCell2D(0, 0),
 		}
 	}
@@ -690,12 +705,12 @@ impl BFBuilder {
 	pub fn len(&self) -> usize {
 		self.opcodes.len()
 	}
-	pub fn push(&mut self, op: Opcode) {
+	pub fn push(&mut self, op: Opcode2D) {
 		self.opcodes.push(op);
 	}
 	pub fn extend<T>(&mut self, ops: T)
 	where
-		T: IntoIterator<Item = Opcode>,
+		T: IntoIterator<Item = Opcode2D>,
 	{
 		self.opcodes.extend(ops);
 	}
@@ -707,23 +722,23 @@ impl BFBuilder {
 		//Move x level
 		if x_pos < x {
 			for _ in x_pos..x {
-				self.opcodes.push(Opcode::Right);
+				self.opcodes.push(Opcode2D::Right);
 			}
 		} else if x < x_pos {
 			// theoretically equivalent to cell..head_pos?
 			for _ in ((x + 1)..=x_pos).rev() {
-				self.opcodes.push(Opcode::Left);
+				self.opcodes.push(Opcode2D::Left);
 			}
 		}
 		//Move y level
 		if y_pos < y {
 			for _ in y_pos..y {
-				self.opcodes.push(Opcode::Up);
+				self.opcodes.push(Opcode2D::Up);
 			}
 		} else if y < y_pos {
 			// theoretically equivalent to cell..head_pos?
 			for _ in ((y + 1)..=y_pos).rev() {
-				self.opcodes.push(Opcode::Down);
+				self.opcodes.push(Opcode2D::Down);
 			}
 		}
 		self.head_pos = cell;
@@ -732,12 +747,12 @@ impl BFBuilder {
 	pub fn add_to_current_cell(&mut self, imm: i8) {
 		if imm > 0 {
 			for _ in 0..imm {
-				self.opcodes.push(Opcode::Add);
+				self.opcodes.push(Opcode2D::Add);
 			}
 		} else if imm < 0 {
 			// needs to be i32 because -(-128) = -128 in i8-land
 			for _ in 0..-(imm as i32) {
-				self.opcodes.push(Opcode::Subtract);
+				self.opcodes.push(Opcode2D::Subtract);
 			}
 		}
 	}

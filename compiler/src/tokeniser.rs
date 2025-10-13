@@ -9,6 +9,8 @@ pub fn tokenise(source: &String) -> Result<Vec<Token>, String> {
 		.collect::<Vec<String>>()
 		.join(" ");
 
+	// mappings are a list of key * value tuples because we are doing "starts with" searches,
+	//  meaning we can't look up in a hashtable
 	let mappings = [
 		(" ", Token::None),
 		(";", Token::Semicolon),

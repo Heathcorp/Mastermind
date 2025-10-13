@@ -53,7 +53,7 @@ pub fn wasm_compile(
 	let tokens = tokenise(&preprocessed_file)?;
 	let parsed_syntax = parse(&tokens)?;
 	let instructions = ctx.create_ir_scope(&parsed_syntax, None)?.build_ir(false);
-	let bf_code = ctx.ir_to_bf(instructions, false)?;
+	let bf_code = ctx.ir_to_bf(instructions, None)?;
 
 	Ok(match config.optimise_generated_code {
 		true => optimise(bf_code, config.optimise_generated_all_permutations).to_string(),
