@@ -8,29 +8,29 @@ use std::{
 	num::Wrapping,
 };
 
-use crate::macros::macros::r_panic;
+use crate::{backend::TapeCell2D, macros::macros::r_panic};
 use wasm_bindgen::{JsCast, JsValue};
 use wasm_bindgen_futures::JsFuture;
 
-struct Tape {
-	memory_map: HashMap<(i32, i32), Wrapping<u8>>,
-	head_position: (i32, i32),
+struct Tape<TapeCell> {
+	memory_map: HashMap<TapeCell, Wrapping<u8>>,
+	head_position: TapeCell,
 }
 
-impl Tape {
+impl Tape<TapeCell2D> {
 	fn new() -> Self {
 		Tape {
 			memory_map: HashMap::new(),
-			head_position: (0, 0),
+			head_position: TapeCell2D(0, 0),
 		}
 	}
-	fn get_cell(&self, position: (i32, i32)) -> Wrapping<u8> {
+	fn get_cell(&self, position: TapeCell2D) -> Wrapping<u8> {
 		match self.memory_map.get(&position) {
 			Some(val) => *val,
 			None => Wrapping(0),
 		}
 	}
-	fn move_head_position(&mut self, amount: (i32, i32)) {
+	fn move_head_position(&mut self, amount: TapeCell2D) {
 		self.head_position.0 += amount.0;
 		self.head_position.1 += amount.1;
 	}
@@ -57,69 +57,6 @@ impl Tape {
 	}
 }
 
-impl fmt::Display for Tape {
-	// absolutely horrible code here, not even used ever so should just get rid of it
-	fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
-		let mut line_0 = String::with_capacity(50);
-		let mut line_1 = String::with_capacity(50);
-		let mut line_2 = String::with_capacity(50);
-		let mut line_3 = String::with_capacity(50);
-		let mut line_4 = String::with_capacity(50);
-
-		// disgusting
-		line_0.push('|');
-		line_1.push('|');
-		line_2.push('|');
-		line_3.push('|');
-		line_4.push('|');
-
-		for pos in (self.head_position.1 - 10)..(self.head_position.1 + 10) {
-			let val = self.get_cell((pos, 0)).0;
-			let mut dis = 32u8;
-			if val.is_ascii_alphanumeric() || val.is_ascii_punctuation() {
-				dis = val;
-			}
-
-			// dodgy af, I don't know rust or the best way but I know this isn't
-			line_0.push_str(format!("{val:03}").as_str());
-
-			line_1.push_str(format!("{:3}", (val as i8)).as_str());
-
-			line_2.push_str(format!(" {val:02x}").as_str());
-
-			line_3.push(' ');
-			line_3.push(' ');
-			line_3.push(dis as char);
-
-			line_4 += match pos == self.head_position.1 {
-				true => "^^^",
-				false => "---",
-			};
-
-			line_0.push('|');
-			line_1.push('|');
-			line_2.push('|');
-			line_3.push('|');
-			line_4.push('|');
-		}
-
-		// disgusting but I just want this to work
-		let _ = f.write_str("\n");
-		let _ = f.write_str(&line_0);
-		let _ = f.write_str("\n");
-		let _ = f.write_str(&line_1);
-		let _ = f.write_str("\n");
-		let _ = f.write_str(&line_2);
-		let _ = f.write_str("\n");
-		let _ = f.write_str(&line_3);
-		let _ = f.write_str("\n");
-		let _ = f.write_str(&line_4);
-		let _ = f.write_str("\n");
-
-		Ok(())
-	}
-}
-
 pub struct BVMConfig {
 	pub enable_debug_symbols: bool,
 	pub enable_2d_grid: bool,
@@ -127,7 +64,7 @@ pub struct BVMConfig {
 
 pub struct BVM {
 	config: BVMConfig,
-	tape: Tape,
+	tape: Tape<TapeCell2D>,
 	program: Vec<char>,
 }
 
@@ -153,9 +90,8 @@ impl BVM {
 	// TODO: refactor/rewrite this, can definitely be improved with async read/write traits or similar
 	// I don't love that I duplicated this to make it work with js
 	// TODO: this isn't covered by unit tests
-	// TODO: add a maximum step count
 	pub async fn run_async(
-		&mut self,
+		mut self,
 		output_callback: &js_sys::Function,
 		input_callback: &js_sys::Function,
 	) -> Result<String, String> {
@@ -174,19 +110,6 @@ impl BVM {
 				('+', _, _) => self.tape.increment_current_cell(Wrapping(1)),
 				('-', _, _) => self.tape.increment_current_cell(Wrapping(-1i8 as u8)),
 				(',', _, _) => {
-					// https://github.com/rustwasm/wasm-bindgen/issues/2195
-					// let password_jsval: JsValue = func.call1(&this, &JsValue::from_bool(true))?;
-					// let password_promise_res: Result<js_sys::Promise, JsValue> =
-					// 	password_jsval.dyn_into();
-					// let password_promise = password_promise_res
-					// 	.map_err(|_| "Function askUnlockPassword does not return a Promise")
-					// 	.map_err(err_to_js)?;
-					// let password_jsstring = JsFuture::from(password_promise).await?;
-					// let password = password_jsstring
-					// 	.as_string()
-					// 	.ok_or("Promise didn't return a String")
-					// 	.map_err(err_to_js)?;
-
 					// TODO: handle errors
 					let jsval = input_callback
 						.call0(&JsValue::null())
@@ -215,10 +138,10 @@ impl BVM {
 					output_bytes.push(byte);
 				}
 				('>', _, _) => {
-					self.tape.move_head_position((1, 0));
+					self.tape.move_head_position(TapeCell2D(1, 0));
 				}
 				('<', _, _) => {
-					self.tape.move_head_position((-1, 0));
+					self.tape.move_head_position(TapeCell2D(-1, 0));
 				}
 				('[', _, _) => {
 					// entering a loop
@@ -249,8 +172,8 @@ impl BVM {
 						pc = loop_stack[loop_stack.len() - 1];
 					}
 				}
-				('^', _, true) => self.tape.move_head_position((0, 1)),
-				('v', _, true) => self.tape.move_head_position((0, -1)),
+				('^', _, true) => self.tape.move_head_position(TapeCell2D(0, 1)),
+				('v', _, true) => self.tape.move_head_position(TapeCell2D(0, -1)),
 				('^', _, false) => {
 					r_panic!("2D Brainfuck currently disabled");
 				}
@@ -279,7 +202,7 @@ impl BVM {
 	}
 
 	pub fn run(
-		&mut self,
+		mut self,
 		input: &mut impl Read,
 		output: &mut impl Write,
 		max_steps: Option<usize>,
@@ -307,10 +230,10 @@ impl BVM {
 					let _ = output.write(&buf);
 				}
 				('>', _, _) => {
-					self.tape.move_head_position((1, 0));
+					self.tape.move_head_position(TapeCell2D(1, 0));
 				}
 				('<', _, _) => {
-					self.tape.move_head_position((-1, 0));
+					self.tape.move_head_position(TapeCell2D(-1, 0));
 				}
 				('[', _, _) => {
 					// entering a loop
@@ -341,8 +264,8 @@ impl BVM {
 						pc = loop_stack[loop_stack.len() - 1];
 					}
 				}
-				('^', _, true) => self.tape.move_head_position((0, 1)),
-				('v', _, true) => self.tape.move_head_position((0, -1)),
+				('^', _, true) => self.tape.move_head_position(TapeCell2D(0, 1)),
+				('v', _, true) => self.tape.move_head_position(TapeCell2D(0, -1)),
 				('^', _, false) => {
 					r_panic!("2D Brainfuck currently disabled");
 				}

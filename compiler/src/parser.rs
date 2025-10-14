@@ -5,67 +5,67 @@ use crate::{
 };
 use std::{fmt::Display, mem::discriminant, num::Wrapping};
 
-// recursive function to create a tree representation of the program
+/// recursive function to create a tree representation of the program
 pub fn parse(tokens: &[Token]) -> Result<Vec<Clause<TapeCell2D>>, String> {
 	// basic steps:
 	// chew off tokens from the front, recursively parse blocks of tokens
 	let mut clauses = Vec::new();
 	let mut i = 0usize;
-	while let Some(clause) = get_clause_tokens(&tokens[i..])? {
+	while let Some(clause_tokens) = get_clause_tokens(&tokens[i..])? {
 		match (
-			&clause[0],
-			&clause.get(1).unwrap_or(&Token::None),
-			&clause.get(2).unwrap_or(&Token::None),
+			&clause_tokens[0],
+			&clause_tokens.get(1).unwrap_or(&Token::None),
+			&clause_tokens.get(2).unwrap_or(&Token::None),
 		) {
 			(Token::Cell, _, _)
 			| (Token::Struct, Token::Name(_), Token::Name(_) | Token::OpenSquareBracket) => {
-				clauses.push(parse_let_clause(clause)?);
+				clauses.push(parse_let_clause(clause_tokens)?);
 			}
 			(Token::Struct, Token::Name(_), Token::OpenBrace) => {
-				clauses.push(parse_struct_clause(clause)?);
+				clauses.push(parse_struct_clause(clause_tokens)?);
 			}
 			(Token::Plus, Token::Plus, _) | (Token::Minus, Token::Minus, _) => {
-				clauses.push(parse_increment_clause(clause)?);
+				clauses.push(parse_increment_clause(clause_tokens)?);
 			}
 			(Token::Name(_), Token::EqualsSign | Token::Dot | Token::OpenSquareBracket, _) => {
-				clauses.extend(parse_set_clause(clause)?);
+				clauses.extend(parse_set_clause(clause_tokens)?);
 			}
 			(Token::Drain, _, _) => {
-				clauses.push(parse_drain_copy_clause(clause, true)?);
+				clauses.push(parse_drain_copy_clause(clause_tokens, true)?);
 			}
 			(Token::Copy, _, _) => {
-				clauses.push(parse_drain_copy_clause(clause, false)?);
+				clauses.push(parse_drain_copy_clause(clause_tokens, false)?);
 			}
 			(Token::While, _, _) => {
-				clauses.push(parse_while_clause(clause)?);
+				clauses.push(parse_while_clause(clause_tokens)?);
 			}
 			(Token::Output, _, _) => {
-				clauses.push(parse_output_clause(clause)?);
+				clauses.push(parse_output_clause(clause_tokens)?);
 			}
 			(Token::Input, _, _) => {
-				clauses.push(parse_input_clause(clause)?);
+				clauses.push(parse_input_clause(clause_tokens)?);
 			}
 			(Token::Name(_), Token::OpenParenthesis, _) => {
-				clauses.push(parse_function_call_clause(clause)?);
+				clauses.push(parse_function_call_clause(clause_tokens)?);
 			}
 			(Token::Fn, _, _) => {
-				clauses.push(parse_function_definition_clause(clause)?);
+				clauses.push(parse_function_definition_clause(clause_tokens)?);
 			}
 			(Token::Name(_), Token::Plus | Token::Minus, Token::EqualsSign) => {
-				clauses.extend(parse_add_clause(clause)?);
+				clauses.extend(parse_add_clause(clause_tokens)?);
 			}
 			(Token::If, _, _) => {
-				clauses.push(parse_if_else_clause(clause)?);
+				clauses.push(parse_if_else_clause(clause_tokens)?);
 			}
 			(Token::OpenBrace, _, _) => {
-				let braced_tokens = get_braced_tokens(clause, BRACES)?;
+				let braced_tokens = get_braced_tokens(clause_tokens, BRACES)?;
 				let inner_clauses = parse(braced_tokens)?;
 				clauses.push(Clause::Block(inner_clauses));
 			}
 			(Token::Bf, _, _) => {
-				clauses.push(parse_brainfuck_clause(clause)?);
+				clauses.push(parse_brainfuck_clause(clause_tokens)?);
 			}
-			(Token::Assert, _, _) => clauses.push(parse_assert_clause(clause)?),
+			(Token::Assert, _, _) => clauses.push(parse_assert_clause(clause_tokens)?),
 			// empty clause
 			(Token::Semicolon, _, _) => (),
 			// the None token usually represents whitespace, it should be filtered out before reaching this function
@@ -102,9 +102,9 @@ pub fn parse(tokens: &[Token]) -> Result<Vec<Clause<TapeCell2D>>, String> {
 				| Token::UpToken,
 				_,
 				_,
-			) => r_panic!("Invalid clause: {clause:#?}"),
+			) => r_panic!("Invalid clause: {clause_tokens:#?}"),
 		};
-		i += clause.len();
+		i += clause_tokens.len();
 	}
 
 	Ok(clauses)
@@ -866,9 +866,9 @@ fn parse_array_length(tokens: &[Token]) -> Result<(usize, usize), String> {
 	Ok((len, i))
 }
 
-// get a clause, typically a line, bounded by ;
+/// get a clause's tokens, typically a line, bounded by ;
 fn get_clause_tokens(tokens: &[Token]) -> Result<Option<&[Token]>, String> {
-	if tokens.len() < 2 {
+	if tokens.len() == 0 {
 		Ok(None)
 	} else {
 		let mut i = 0usize;
@@ -1192,6 +1192,7 @@ impl Expression {
 // TODO: add multiplication
 // yes, but no variable * variable multiplication or division
 #[derive(Debug, Clone)]
+#[cfg_attr(test, derive(PartialEq))]
 pub enum Expression {
 	SumExpression {
 		sign: Sign,
@@ -1204,6 +1205,7 @@ pub enum Expression {
 }
 
 #[derive(Debug, Clone)]
+#[cfg_attr(test, derive(PartialEq))]
 pub enum Sign {
 	Positive,
 	Negative,
@@ -1218,6 +1220,7 @@ impl Sign {
 }
 
 #[derive(Debug, Clone)]
+#[cfg_attr(test, derive(PartialEq))]
 pub enum Clause<TapeCell> {
 	DeclareVariable {
 		var: VariableDefinition<TapeCell>,
@@ -1287,6 +1290,7 @@ pub enum Clause<TapeCell> {
 
 // extended brainfuck opcodes to include mastermind code blocks
 #[derive(Debug, Clone)]
+#[cfg_attr(test, derive(PartialEq))]
 pub enum ExtendedOpcode<TapeCell> {
 	Add,
 	Subtract,
@@ -1303,7 +1307,6 @@ pub enum ExtendedOpcode<TapeCell> {
 
 #[derive(Debug, Clone, Hash, PartialEq, Eq)]
 /// the type of a variable according to the user, not validated yet as the parser does not keep track of types
-// maybe it should keep track of types?
 pub enum VariableTypeReference {
 	Cell,
 	Struct(String),
@@ -1316,7 +1319,7 @@ pub enum LocationSpecifier<TapeCell> {
 	Cell(TapeCell),
 	Variable(VariableTarget),
 }
-impl<TapeCell> LocationSpecifier<TapeCell> {
+impl<T> LocationSpecifier<T> {
 	fn is_none(&self) -> bool {
 		matches!(self, LocationSpecifier::None)
 	}
@@ -1423,5 +1426,47 @@ impl Display for VariableTarget {
 		}
 
 		Ok(())
+	}
+}
+
+#[cfg(test)]
+mod parser_tests {
+	use super::*;
+
+	#[test]
+	fn parse_if_1() {
+		assert!(parse(&[
+			// if true {{}}
+			Token::If,
+			Token::True,
+			Token::OpenBrace,
+			Token::OpenBrace,
+			Token::ClosingBrace,
+			Token::ClosingBrace,
+		])
+		.unwrap()
+		.iter()
+		.eq(&[Clause::IfElse {
+			condition: Expression::NaturalNumber(1),
+			if_block: Some(vec![Clause::<TapeCell2D>::Block(vec![])]),
+			else_block: None,
+		}]));
+	}
+
+	#[test]
+	fn end_tokens_1() {
+		let _ = parse(&[Token::Clobbers]).expect_err("");
+	}
+
+	#[test]
+	fn end_tokens_2() {
+		let _ = parse(&[Token::Semicolon]).unwrap();
+		let _ = parse(&[Token::Semicolon, Token::Semicolon]).unwrap();
+		let _ = parse(&[Token::Semicolon, Token::Semicolon, Token::Semicolon]).unwrap();
+	}
+
+	#[test]
+	fn end_tokens_3() {
+		let _ = parse(&[Token::Cell, Token::Semicolon]).expect_err("");
 	}
 }

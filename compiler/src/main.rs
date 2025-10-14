@@ -101,7 +101,7 @@ fn main() -> Result<(), String> {
 			// compile syntax tree into brainfuck
 
 			// 2 stage compilation step, first stage compiles syntax tree into low-level instructions
-			// 	second stage actually writes out the low-level instructions into brainfuck
+			// 	second stage translates the low-level instructions into brainfuck
 
 			let instructions = ctx.create_ir_scope(&clauses, None)?.build_ir(false);
 			let bf_code = ctx.ir_to_bf(instructions, None)?;

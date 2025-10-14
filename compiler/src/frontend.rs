@@ -1171,14 +1171,19 @@ impl ScopeBuilder<'_, TapeCell2D> {
 				LocationSpecifier::None => None,
 				LocationSpecifier::Cell(l) => {
 					// assert the y coordinate is 0
-					r_assert!(l.1 == 0, "Struct field location specifiers do not support 2D grid cells: {var_def}");
+					r_assert!(
+						l.1 == 0,
+						"Struct field location specifiers do not support 2D grid cells: {var_def}"
+					);
 					r_assert!(
 						l.0 >= 0,
 						"Struct field location specifiers must be non-negative: {var_def}"
 					);
 					Some(l.0 as usize)
 				}
-				      LocationSpecifier::Variable(_) => r_panic!("Location specifiers in struct definitions must be relative, not variables: {var_def}"),  
+				LocationSpecifier::Variable(_) => {
+					r_panic!( "Location specifiers in struct definitions must be relative, not variables: {var_def}")
+				}
 			};
 			absolute_fields.push((var_def.name, absolute_type, non_neg_location_specifier));
 		}
@@ -1233,14 +1238,14 @@ impl ScopeBuilder<'_, TapeCell2D> {
 
 	/// Recursively find the definition of a struct type by searching up the scope call stack
 	fn get_struct_definition(&self, struct_name: &str) -> Result<&DictStructType, String> {
-		Ok(if let Some(struct_def) = self.structs.get(struct_name) {
-			struct_def
+		if let Some(struct_def) = self.structs.get(struct_name) {
+			Ok(struct_def)
 		} else if let Some(outer_scope) = self.outer_scope {
 			// recurse
-			outer_scope.get_struct_definition(struct_name)?
+			outer_scope.get_struct_definition(struct_name)
 		} else {
 			r_panic!("No definition found for struct \"{struct_name}\".");
-		})
+		}
 	}
 
 	/// Construct an absolute type from a type reference
@@ -1495,7 +1500,6 @@ impl ScopeBuilder<'_, TapeCell2D> {
 
 	/// Return the absolute type and memory allocation for a variable name
 	fn get_base_variable_memory(&self, var_name: &str) -> Result<(&ValueType, &Memory), String> {
-		// TODO: add function argument translations and embedded bf/mmi scope function restrictions
 		match (self.outer_scope, self.variable_memory.get(var_name)) {
 			(_, Some((value_type, memory))) => Ok((value_type, memory)),
 			(Some(outer_scope), None) => outer_scope.get_base_variable_memory(var_name),

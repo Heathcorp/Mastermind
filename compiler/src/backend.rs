@@ -21,7 +21,7 @@ use crate::{
 type LoopDepth = usize;
 type TapeValue = u8;
 
-#[derive(PartialEq, Clone, Hash, Eq, Copy)]
+#[derive(PartialEq, Clone, Hash, Eq, Copy, Debug)]
 pub struct TapeCell2D(pub i32, pub i32);
 
 impl Display for TapeCell2D {
