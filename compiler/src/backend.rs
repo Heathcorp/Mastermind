@@ -7,11 +7,11 @@
 
 use std::{
 	collections::{HashMap, HashSet},
-	fmt::Display,
 	num::Wrapping,
 };
 
 use crate::{
+	cells::TapeCell2D,
 	constants_optimiser::calculate_optimal_addition,
 	frontend::{CellLocation, Instruction, MemoryId},
 	macros::macros::{r_assert, r_panic},
@@ -20,16 +20,6 @@ use crate::{
 
 type LoopDepth = usize;
 type TapeValue = u8;
-
-#[derive(PartialEq, Clone, Hash, Eq, Copy, Debug)]
-pub struct TapeCell2D(pub i32, pub i32);
-
-impl Display for TapeCell2D {
-	fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-		f.write_fmt(format_args!("({},{})", self.0, self.1))?;
-		Ok(())
-	}
-}
 
 impl MastermindContext {
 	pub fn ir_to_bf(

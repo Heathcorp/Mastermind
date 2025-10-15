@@ -6,6 +6,7 @@ mod macros;
 mod backend;
 mod brainfuck;
 mod brainfuck_optimiser;
+mod cells;
 mod constants_optimiser;
 mod frontend;
 mod misc;
@@ -16,16 +17,14 @@ mod tokeniser;
 mod tests;
 
 use backend::BrainfuckOpcodes;
-use brainfuck::{BVMConfig, BVM};
+use brainfuck::{BrainfuckConfig, BrainfuckContext};
+use misc::MastermindContext;
 use parser::parse;
 use preprocessor::preprocess_from_memory;
 use tokeniser::tokenise;
 
 use std::collections::HashMap;
-
 use wasm_bindgen::{prelude::wasm_bindgen, JsValue};
-
-use crate::misc::MastermindContext;
 
 pub fn set_panic_hook() {
 	// copied from rustwasm.github.io
@@ -69,14 +68,16 @@ pub async fn wasm_run_bf(
 ) -> Result<String, JsValue> {
 	set_panic_hook();
 
-	let config = BVMConfig {
-		enable_debug_symbols: false,
-		enable_2d_grid: enable_2d_grid,
+	let ctx = BrainfuckContext {
+		config: BrainfuckConfig {
+			enable_debug_symbols: false,
+			enable_2d_grid: enable_2d_grid,
+		},
 	};
-	let mut bf = BVM::new(config, code.chars().collect());
 
-	// hack, TODO: refactor
-	let r = bf.run_async(output_callback, input_callback).await?;
+	let r = ctx
+		.run_async(code.chars().collect(), output_callback, input_callback)
+		.await?;
 
 	Ok(r)
 }

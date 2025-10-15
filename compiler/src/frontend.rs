@@ -3,7 +3,8 @@
 use std::{collections::HashMap, iter::zip};
 
 use crate::{
-	backend::{Opcode2D, TapeCell2D},
+	backend::Opcode2D,
+	cells::TapeCell2D,
 	macros::macros::{r_assert, r_panic},
 	misc::MastermindContext,
 	parser::{

@@ -5,7 +5,7 @@
 pub mod black_box_tests {
 	use crate::{
 		backend::{BrainfuckOpcodes, Opcode2D},
-		brainfuck::{bvm_tests::run_code, BVMConfig},
+		brainfuck::{bvm_tests::run_code, BrainfuckConfig},
 		misc::{MastermindConfig, MastermindContext},
 		parser::parse,
 		tokeniser::{tokenise, Token},
@@ -76,12 +76,12 @@ pub mod black_box_tests {
 		enable_2d_grid: false,
 	};
 
-	const BVM_CONFIG_1D: BVMConfig = BVMConfig {
+	const BVM_CONFIG_1D: BrainfuckConfig = BrainfuckConfig {
 		enable_debug_symbols: false,
 		enable_2d_grid: false,
 	};
 
-	const BVM_CONFIG_2D: BVMConfig = BVMConfig {
+	const BVM_CONFIG_2D: BrainfuckConfig = BrainfuckConfig {
 		enable_debug_symbols: false,
 		enable_2d_grid: true,
 	};

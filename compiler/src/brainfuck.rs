@@ -3,12 +3,11 @@
 
 use std::{
 	collections::HashMap,
-	fmt,
 	io::{Read, Write},
 	num::Wrapping,
 };
 
-use crate::{backend::TapeCell2D, macros::macros::r_panic};
+use crate::{cells::TapeCell2D, macros::macros::r_panic};
 use wasm_bindgen::{JsCast, JsValue};
 use wasm_bindgen_futures::JsFuture;
 
@@ -57,15 +56,13 @@ impl Tape<TapeCell2D> {
 	}
 }
 
-pub struct BVMConfig {
+pub struct BrainfuckConfig {
 	pub enable_debug_symbols: bool,
 	pub enable_2d_grid: bool,
 }
 
-pub struct BVM {
-	config: BVMConfig,
-	tape: Tape<TapeCell2D>,
-	program: Vec<char>,
+pub struct BrainfuckContext {
+	pub config: BrainfuckConfig,
 }
 
 pub trait AsyncByteReader {
@@ -76,39 +73,33 @@ pub trait ByteWriter {
 	fn write_byte(&mut self, byte: u8);
 }
 
-impl BVM {
+impl BrainfuckContext {
 	const MAX_STEPS_DEFAULT: usize = (2 << 30) - 2;
-
-	pub fn new(config: BVMConfig, program: Vec<char>) -> Self {
-		BVM {
-			config,
-			tape: Tape::new(),
-			program,
-		}
-	}
 
 	// TODO: refactor/rewrite this, can definitely be improved with async read/write traits or similar
 	// I don't love that I duplicated this to make it work with js
 	// TODO: this isn't covered by unit tests
 	pub async fn run_async(
-		mut self,
+		&self,
+		program: Vec<char>,
 		output_callback: &js_sys::Function,
 		input_callback: &js_sys::Function,
 	) -> Result<String, String> {
+		let mut tape = Tape::new();
 		let mut pc: usize = 0;
 		// this could be more efficient with a pre-computed map
 		let mut loop_stack: Vec<usize> = Vec::new();
 
 		let mut output_bytes: Vec<u8> = Vec::new();
 
-		while pc < self.program.len() {
+		while pc < program.len() {
 			match (
-				self.program[pc],
+				program[pc],
 				self.config.enable_debug_symbols,
 				self.config.enable_2d_grid,
 			) {
-				('+', _, _) => self.tape.increment_current_cell(Wrapping(1)),
-				('-', _, _) => self.tape.increment_current_cell(Wrapping(-1i8 as u8)),
+				('+', _, _) => tape.increment_current_cell(Wrapping(1)),
+				('-', _, _) => tape.increment_current_cell(Wrapping(-1i8 as u8)),
 				(',', _, _) => {
 					// TODO: handle errors
 					let jsval = input_callback
@@ -125,11 +116,11 @@ impl BVM {
 						.as_f64()
 						.expect("Could not convert js number into f64 type");
 					let byte: u8 = num as u8; // I have no idea if this works (TODO: test)
-					self.tape.set_current_cell(Wrapping(byte));
+					tape.set_current_cell(Wrapping(byte));
 				}
 				('.', _, _) => {
 					// TODO: handle errors
-					let byte = self.tape.get_current_cell().0;
+					let byte = tape.get_current_cell().0;
 					let fnum: f64 = byte as f64; // I have no idea if this works (TODO: test again)
 					output_callback
 						.call1(&JsValue::null(), &JsValue::from_f64(fnum))
@@ -138,20 +129,20 @@ impl BVM {
 					output_bytes.push(byte);
 				}
 				('>', _, _) => {
-					self.tape.move_head_position(TapeCell2D(1, 0));
+					tape.move_head_position(TapeCell2D(1, 0));
 				}
 				('<', _, _) => {
-					self.tape.move_head_position(TapeCell2D(-1, 0));
+					tape.move_head_position(TapeCell2D(-1, 0));
 				}
 				('[', _, _) => {
 					// entering a loop
-					if self.tape.get_current_cell().0 == 0 {
+					if tape.get_current_cell().0 == 0 {
 						// skip the loop, (advance to the corresponding closing loop brace)
 						// TODO: make this more efficient by pre-computing a loops map
 						let mut loop_count = 1;
 						while loop_count > 0 {
 							pc += 1;
-							loop_count += match self.program[pc] {
+							loop_count += match program[pc] {
 								'[' => 1,
 								']' => -1,
 								_ => 0,
@@ -163,7 +154,7 @@ impl BVM {
 					}
 				}
 				(']', _, _) => {
-					if self.tape.get_current_cell().0 == 0 {
+					if tape.get_current_cell().0 == 0 {
 						// exit the loop
 						loop_stack.pop();
 					} else {
@@ -172,8 +163,8 @@ impl BVM {
 						pc = loop_stack[loop_stack.len() - 1];
 					}
 				}
-				('^', _, true) => self.tape.move_head_position(TapeCell2D(0, 1)),
-				('v', _, true) => self.tape.move_head_position(TapeCell2D(0, -1)),
+				('^', _, true) => tape.move_head_position(TapeCell2D(0, 1)),
+				('v', _, true) => tape.move_head_position(TapeCell2D(0, -1)),
 				('^', _, false) => {
 					r_panic!("2D Brainfuck currently disabled");
 				}
@@ -181,10 +172,10 @@ impl BVM {
 					r_panic!("2D Brainfuck currently disabled");
 				}
 				// ('#', true, ) => {
-				// 	println!("{}", self.tape);
+				// 	println!("{}", tape);
 				// }
 				// ('@', true, _) => {
-				// 	print!("{}", self.tape.get_current_cell().0 as i32);
+				// 	print!("{}", tape.get_current_cell().0 as i32);
 				// }
 				_ => (),
 			};
@@ -194,7 +185,7 @@ impl BVM {
 			// 	.iter()
 			// 	.collect();
 			// println!("{s}");
-			// println!("{}", self.tape);
+			// println!("{}", tape);
 			pc += 1;
 		}
 
@@ -202,48 +193,50 @@ impl BVM {
 	}
 
 	pub fn run(
-		mut self,
+		&self,
+		program: Vec<char>,
 		input: &mut impl Read,
 		output: &mut impl Write,
 		max_steps: Option<usize>,
 	) -> Result<(), String> {
+		let mut tape = Tape::new();
 		let mut steps = 0usize;
 		let mut pc: usize = 0;
 		// this could be more efficient with a pre-computed map
 		let mut loop_stack: Vec<usize> = Vec::new();
 
-		while pc < self.program.len() {
+		while pc < program.len() {
 			match (
-				self.program[pc],
+				program[pc],
 				self.config.enable_debug_symbols,
 				self.config.enable_2d_grid,
 			) {
-				('+', _, _) => self.tape.increment_current_cell(Wrapping(1)),
-				('-', _, _) => self.tape.increment_current_cell(Wrapping(-1i8 as u8)),
+				('+', _, _) => tape.increment_current_cell(Wrapping(1)),
+				('-', _, _) => tape.increment_current_cell(Wrapping(-1i8 as u8)),
 				(',', _, _) => {
 					let mut buf = [0; 1];
 					let _ = input.read_exact(&mut buf);
-					self.tape.set_current_cell(Wrapping(buf[0]));
+					tape.set_current_cell(Wrapping(buf[0]));
 				}
 				('.', _, _) => {
-					let buf = [self.tape.get_current_cell().0];
+					let buf = [tape.get_current_cell().0];
 					let _ = output.write(&buf);
 				}
 				('>', _, _) => {
-					self.tape.move_head_position(TapeCell2D(1, 0));
+					tape.move_head_position(TapeCell2D(1, 0));
 				}
 				('<', _, _) => {
-					self.tape.move_head_position(TapeCell2D(-1, 0));
+					tape.move_head_position(TapeCell2D(-1, 0));
 				}
 				('[', _, _) => {
 					// entering a loop
-					if self.tape.get_current_cell().0 == 0 {
+					if tape.get_current_cell().0 == 0 {
 						// skip the loop, (advance to the corresponding closing loop brace)
 						// TODO: make this more efficient by pre-computing a loops map
 						let mut loop_count = 1;
 						while loop_count > 0 {
 							pc += 1;
-							loop_count += match self.program[pc] {
+							loop_count += match program[pc] {
 								'[' => 1,
 								']' => -1,
 								_ => 0,
@@ -255,7 +248,7 @@ impl BVM {
 					}
 				}
 				(']', _, _) => {
-					if self.tape.get_current_cell().0 == 0 {
+					if tape.get_current_cell().0 == 0 {
 						// exit the loop
 						loop_stack.pop();
 					} else {
@@ -264,8 +257,8 @@ impl BVM {
 						pc = loop_stack[loop_stack.len() - 1];
 					}
 				}
-				('^', _, true) => self.tape.move_head_position(TapeCell2D(0, 1)),
-				('v', _, true) => self.tape.move_head_position(TapeCell2D(0, -1)),
+				('^', _, true) => tape.move_head_position(TapeCell2D(0, 1)),
+				('v', _, true) => tape.move_head_position(TapeCell2D(0, -1)),
 				('^', _, false) => {
 					r_panic!("2D Brainfuck currently disabled");
 				}
@@ -273,10 +266,10 @@ impl BVM {
 					r_panic!("2D Brainfuck currently disabled");
 				}
 				// '#' => {
-				// 	println!("{}", self.tape);
+				// 	println!("{}", tape);
 				// }
 				// '@' => {
-				// 	print!("{}", self.tape.get_current_cell().0 as i32);
+				// 	print!("{}", tape.get_current_cell().0 as i32);
 				// }
 				_ => (),
 			};
@@ -286,7 +279,7 @@ impl BVM {
 			// 	.iter()
 			// 	.collect();
 			// println!("{s}");
-			// println!("{}", self.tape);
+			// println!("{}", tape);
 			pc += 1;
 
 			// cut the program short if it runs forever
@@ -311,28 +304,33 @@ pub mod bvm_tests {
 	use std::io::Cursor;
 
 	pub fn run_code(
-		config: BVMConfig,
+		config: BrainfuckConfig,
 		code: String,
 		input: String,
 		max_steps_cutoff: Option<usize>,
 	) -> String {
-		let mut bvm = BVM::new(config, code.chars().collect());
+		let ctx = BrainfuckContext { config };
 
 		let input_bytes: Vec<u8> = input.bytes().collect();
 		let mut input_stream = Cursor::new(input_bytes);
 		let mut output_stream = Cursor::new(Vec::new());
 
-		bvm.run(&mut input_stream, &mut output_stream, max_steps_cutoff)
-			.unwrap();
+		ctx.run(
+			code.chars().collect(),
+			&mut input_stream,
+			&mut output_stream,
+			max_steps_cutoff,
+		)
+		.unwrap();
 
 		// TODO: fix this unsafe stuff
 		unsafe { String::from_utf8_unchecked(output_stream.into_inner()) }
 	}
-	const BVM_CONFIG_1D: BVMConfig = BVMConfig {
+	const BVM_CONFIG_1D: BrainfuckConfig = BrainfuckConfig {
 		enable_debug_symbols: false,
 		enable_2d_grid: false,
 	};
-	const BVM_CONFIG_2D: BVMConfig = BVMConfig {
+	const BVM_CONFIG_2D: BrainfuckConfig = BrainfuckConfig {
 		enable_debug_symbols: false,
 		enable_2d_grid: true,
 	};

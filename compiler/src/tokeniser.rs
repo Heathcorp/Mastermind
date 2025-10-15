@@ -41,7 +41,7 @@ pub fn tokenise(source: &String) -> Result<Vec<Token>, String> {
 		(")", Token::ClosingParenthesis),
 		("<", Token::LessThan),
 		(">", Token::MoreThan),
-		("^", Token::UpToken),
+		("^", Token::Caret),
 		("true", Token::True),
 		("false", Token::False),
 		(",", Token::Comma),
@@ -228,7 +228,7 @@ pub enum Token {
 	Plus,
 	EqualsSign,
 	Semicolon,
-	UpToken,
+	Caret,
 }
 
 #[cfg(test)]

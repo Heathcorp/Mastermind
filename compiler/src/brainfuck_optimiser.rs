@@ -1,10 +1,7 @@
 use itertools::Itertools;
 use std::{collections::HashMap, num::Wrapping};
 
-use crate::{
-	backend::{Opcode2D, TapeCell2D},
-	misc::MastermindContext,
-};
+use crate::{backend::Opcode2D, cells::TapeCell2D, misc::MastermindContext};
 
 // originally trivial post-compilation brainfuck optimisations
 // extended to 2D which makes it more difficult

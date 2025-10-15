@@ -5,6 +5,7 @@ mod macros;
 mod backend;
 mod brainfuck;
 mod brainfuck_optimiser;
+mod cells;
 mod constants_optimiser;
 mod frontend;
 mod parser;
@@ -15,7 +16,6 @@ mod misc;
 mod tests;
 
 use backend::BrainfuckOpcodes;
-use brainfuck::{BVMConfig, BVM};
 use misc::MastermindConfig;
 use parser::parse;
 use preprocessor::preprocess;
@@ -25,7 +25,10 @@ use std::io::{stdin, stdout, Cursor};
 
 use clap::Parser;
 
-use crate::misc::MastermindContext;
+use crate::{
+	brainfuck::{BrainfuckConfig, BrainfuckContext},
+	misc::MastermindContext,
+};
 
 #[derive(Parser, Default, Debug)]
 #[command(author = "Heathcorp", version = "0.1", about = "Mastermind: the Brainfuck interpreter and compilation tool", long_about = None)]
@@ -116,16 +119,27 @@ fn main() -> Result<(), String> {
 
 	if args.run || !args.compile {
 		// run brainfuck
-		let config = BVMConfig {
-			enable_debug_symbols: false,
-			enable_2d_grid: false,
+		let ctx = BrainfuckContext {
+			config: BrainfuckConfig {
+				enable_debug_symbols: false,
+				enable_2d_grid: false,
+			},
 		};
-		let mut bvm = BVM::new(config, bf_program.chars().collect());
 
 		if args.input.is_some() {
-			bvm.run(&mut Cursor::new(args.input.unwrap()), &mut stdout(), None)?;
+			ctx.run(
+				bf_program.chars().collect(),
+				&mut Cursor::new(args.input.unwrap()),
+				&mut stdout(),
+				None,
+			)?;
 		} else {
-			bvm.run(&mut stdin(), &mut stdout(), None)?;
+			ctx.run(
+				bf_program.chars().collect(),
+				&mut stdin(),
+				&mut stdout(),
+				None,
+			)?;
 		}
 	} else {
 		print!("{bf_program}");

@@ -1,12 +1,12 @@
 use crate::{
-	backend::TapeCell2D,
+	cells::{TapeCell, TapeCell2D},
 	macros::macros::{r_assert, r_panic},
 	tokeniser::Token,
 };
 use std::{fmt::Display, mem::discriminant, num::Wrapping};
 
 /// recursive function to create a tree representation of the program
-pub fn parse(tokens: &[Token]) -> Result<Vec<Clause<TapeCell2D>>, String> {
+pub fn parse<TC: TapeCellLocation>(tokens: &[Token]) -> Result<Vec<Clause<TC>>, String> {
 	// basic steps:
 	// chew off tokens from the front, recursively parse blocks of tokens
 	let mut clauses = Vec::new();
@@ -99,7 +99,7 @@ pub fn parse(tokens: &[Token]) -> Result<Vec<Clause<TapeCell2D>>, String> {
 				| Token::Dot
 				| Token::At
 				| Token::Struct
-				| Token::UpToken,
+				| Token::Caret,
 				_,
 				_,
 			) => r_panic!("Invalid clause: {clause_tokens:#?}"),
@@ -110,7 +110,7 @@ pub fn parse(tokens: &[Token]) -> Result<Vec<Clause<TapeCell2D>>, String> {
 	Ok(clauses)
 }
 
-fn parse_let_clause(clause: &[Token]) -> Result<Clause<TapeCell2D>, String> {
+fn parse_let_clause<TC: TapeCellLocation>(clause: &[Token]) -> Result<Clause<TC>, String> {
 	// cell x = 0;
 	// struct DummyStruct y
 	let mut i = 0usize;
@@ -134,7 +134,7 @@ fn parse_let_clause(clause: &[Token]) -> Result<Clause<TapeCell2D>, String> {
 }
 
 /// Parse tokens representing a struct definition into a clause
-fn parse_struct_clause(clause: &[Token]) -> Result<Clause<TapeCell2D>, String> {
+fn parse_struct_clause<TC: TapeCellLocation>(clause: &[Token]) -> Result<Clause<TC>, String> {
 	let mut i = 0usize;
 	let Token::Struct = &clause[i] else {
 		r_panic!("Expected struct keyword in struct clause. This should never occur. {clause:#?}");
@@ -182,8 +182,8 @@ fn parse_struct_clause(clause: &[Token]) -> Result<Clause<TapeCell2D>, String> {
 	})
 }
 
-fn parse_add_clause(clause: &[Token]) -> Result<Vec<Clause<TapeCell2D>>, String> {
-	let mut clauses: Vec<Clause<TapeCell2D>> = Vec::new();
+fn parse_add_clause<T>(clause: &[Token]) -> Result<Vec<Clause<T>>, String> {
+	let mut clauses: Vec<Clause<T>> = Vec::new();
 	let mut i = 0usize;
 	let (var, len) = parse_var_target(&clause[i..])?;
 	i += len;
@@ -217,7 +217,7 @@ fn parse_add_clause(clause: &[Token]) -> Result<Vec<Clause<TapeCell2D>>, String>
 }
 
 // currently just syntax sugar, should make it actually do post/pre increments
-fn parse_increment_clause(clause: &[Token]) -> Result<Clause<TapeCell2D>, String> {
+fn parse_increment_clause<T>(clause: &[Token]) -> Result<Clause<T>, String> {
 	let (var, _) = parse_var_target(&clause[2..])?;
 	//An increment clause can never be self referencing since it just VAR++
 	Ok(match (&clause[0], &clause[1]) {
@@ -238,9 +238,9 @@ fn parse_increment_clause(clause: &[Token]) -> Result<Clause<TapeCell2D>, String
 	// assumed that the final token is a semicolon
 }
 
-fn parse_set_clause(clause: &[Token]) -> Result<Vec<Clause<TapeCell2D>>, String> {
+fn parse_set_clause<T>(clause: &[Token]) -> Result<Vec<Clause<T>>, String> {
 	// TODO: what do we do about arrays and strings and structs?
-	let mut clauses: Vec<Clause<TapeCell2D>> = Vec::new();
+	let mut clauses: Vec<Clause<T>> = Vec::new();
 	let mut i = 0usize;
 	let (var, len) = parse_var_target(&clause[i..])?;
 	i += len;
@@ -287,17 +287,17 @@ fn parse_set_clause(clause: &[Token]) -> Result<Vec<Clause<TapeCell2D>>, String>
 	Ok(clauses)
 }
 
-fn parse_drain_copy_clause(
+fn parse_drain_copy_clause<TC: TapeCellLocation>(
 	clause: &[Token],
 	is_draining: bool,
-) -> Result<Clause<TapeCell2D>, String> {
+) -> Result<Clause<TC>, String> {
 	// drain g {i += 1;};
 	// drain g into j;
 	// copy foo into bar {g += 2; etc;};
 	// TODO: make a tuple-parsing function and use it here instead of a space seperated list of targets
 
 	let mut targets = Vec::new();
-	let mut block: Vec<Clause<TapeCell2D>> = Vec::new();
+	let mut block = Vec::new();
 	let mut i = 1usize;
 
 	let condition_start_token = i;
@@ -353,17 +353,11 @@ fn parse_drain_copy_clause(
 	})
 }
 
-fn parse_while_clause(clause: &[Token]) -> Result<Clause<TapeCell2D>, String> {
+fn parse_while_clause<TC: TapeCellLocation>(clause: &[Token]) -> Result<Clause<TC>, String> {
 	// TODO: make this able to accept expressions
 	let mut i = 1usize;
 	let (var, len) = parse_var_target(&clause[i..])?;
 	i += len;
-	// loop {
-	// 	if let Token::OpenBrace = &clause[i] {
-	// 		break;
-	// 	};
-	// 	i += 1;
-	// }
 
 	// let expr = parse_expression(&clause[1..i]);
 	let block_tokens = get_braced_tokens(&clause[i..], BRACES)?;
@@ -375,7 +369,7 @@ fn parse_while_clause(clause: &[Token]) -> Result<Clause<TapeCell2D>, String> {
 	})
 }
 
-fn parse_if_else_clause(clause: &[Token]) -> Result<Clause<TapeCell2D>, String> {
+fn parse_if_else_clause<TC: TapeCellLocation>(clause: &[Token]) -> Result<Clause<TC>, String> {
 	// skip first token, assumed to start with if
 	let mut i = 1usize;
 	let mut not = false;
@@ -400,13 +394,13 @@ fn parse_if_else_clause(clause: &[Token]) -> Result<Clause<TapeCell2D>, String> 
 
 	let condition = Expression::parse(&clause[condition_start_token..i])?;
 
-	let block_one: Vec<Clause<TapeCell2D>> = {
+	let block_one = {
 		let block_tokens = get_braced_tokens(&clause[i..], BRACES)?;
 		i += 2 + block_tokens.len();
 		parse(block_tokens)?
 	};
 
-	let block_two: Option<Vec<Clause<TapeCell2D>>> = if let Some(Token::Else) = &clause.get(i) {
+	let block_two = if let Some(Token::Else) = &clause.get(i) {
 		i += 1;
 		let block_tokens = get_braced_tokens(&clause[i..], BRACES)?;
 		// i += 2 + block_tokens.len();
@@ -429,7 +423,7 @@ fn parse_if_else_clause(clause: &[Token]) -> Result<Clause<TapeCell2D>, String> 
 	})
 }
 
-fn parse_output_clause(clause: &[Token]) -> Result<Clause<TapeCell2D>, String> {
+fn parse_output_clause<T>(clause: &[Token]) -> Result<Clause<T>, String> {
 	let mut i = 1usize;
 
 	let expr_tokens = &clause[i..(clause.len() - 1)];
@@ -443,7 +437,7 @@ fn parse_output_clause(clause: &[Token]) -> Result<Clause<TapeCell2D>, String> {
 	Ok(Clause::OutputValue { value: expr })
 }
 
-fn parse_input_clause(clause: &[Token]) -> Result<Clause<TapeCell2D>, String> {
+fn parse_input_clause<T>(clause: &[Token]) -> Result<Clause<T>, String> {
 	let mut i = 1usize;
 
 	let (var, len) = parse_var_target(&clause[i..])?;
@@ -456,7 +450,7 @@ fn parse_input_clause(clause: &[Token]) -> Result<Clause<TapeCell2D>, String> {
 	Ok(Clause::InputVariable { var })
 }
 
-fn parse_assert_clause(clause: &[Token]) -> Result<Clause<TapeCell2D>, String> {
+fn parse_assert_clause<T>(clause: &[Token]) -> Result<Clause<T>, String> {
 	let mut i = 1usize;
 
 	let (var, len) = parse_var_target(&clause[i..])?;
@@ -484,19 +478,75 @@ fn parse_assert_clause(clause: &[Token]) -> Result<Clause<TapeCell2D>, String> {
 	}
 }
 
-// parse any memory location specifiers
-// let g @4,2 = 68;
-// or
-// let p @3 = 68;
-fn parse_location_specifier(
-	tokens: &[Token],
-) -> Result<(LocationSpecifier<TapeCell2D>, usize), String> {
-	if tokens.len() == 0 {
-		return Ok((LocationSpecifier::None, 0));
-	}
-	if let Token::At = &tokens[0] {
-		let mut i = 1;
+pub trait TapeCellLocation
+where
+	Self: Sized,
+{
+	// parse any memory location specifiers
+	// let g @(4,2) = 68;
+	// or
+	// let p @3 = 68;
+	fn parse_location_specifier(
+		tokens: &[Token],
+	) -> Result<(LocationSpecifier<Self>, usize), String>;
+}
 
+impl TapeCellLocation for TapeCell {
+	fn parse_location_specifier(
+		tokens: &[Token],
+	) -> Result<(LocationSpecifier<TapeCell>, usize), String> {
+		if tokens.len() == 0 {
+			return Ok((LocationSpecifier::None, 0));
+		}
+		let Token::At = &tokens[0] else {
+			return Ok((LocationSpecifier::None, 0));
+		};
+
+		let mut i = 1;
+		match &tokens[i] {
+			Token::Minus => {
+				let mut positive = true;
+				if let Token::Minus = &tokens[i] {
+					i += 1;
+					positive = false;
+				}
+
+				let Token::Digits(digits) = &tokens[i] else {
+					r_panic!("Expected number after \"-\" in location specifier: {tokens:#?}");
+				};
+				i += 1;
+
+				// TODO: error handling
+				let offset = digits.parse::<i32>().unwrap();
+				Ok((
+					LocationSpecifier::Cell(TapeCell(if positive { offset } else { -offset })),
+					i,
+				))
+			}
+			Token::Name(_) => {
+				// variable location specifier
+				let (var, len) = parse_var_target(&tokens[i..])?;
+				i += len;
+
+				Ok((LocationSpecifier::Variable(var), i))
+			}
+			_ => r_panic!("Invalid location specifier: {tokens:#?}"),
+		}
+	}
+}
+
+impl TapeCellLocation for TapeCell2D {
+	fn parse_location_specifier(
+		tokens: &[Token],
+	) -> Result<(LocationSpecifier<TapeCell2D>, usize), String> {
+		if tokens.len() == 0 {
+			return Ok((LocationSpecifier::None, 0));
+		}
+		let Token::At = &tokens[0] else {
+			return Ok((LocationSpecifier::None, 0));
+		};
+
+		let mut i = 1;
 		match &tokens[i] {
 			Token::Digits(_) | Token::Minus => {
 				let x_offset = {
@@ -513,11 +563,12 @@ fn parse_location_specifier(
 					i += 1;
 
 					// TODO: error handling
-					let mut offset: i32 = raw.parse().unwrap();
-					if !positive {
-						offset = -offset;
+					let offset = raw.parse::<i32>().unwrap();
+					if positive {
+						offset
+					} else {
+						-offset
 					}
-					offset
 				};
 
 				let y_offset = {
@@ -536,11 +587,12 @@ fn parse_location_specifier(
 						i += 1;
 
 						// TODO: error handling
-						let mut offset: i32 = raw.parse().unwrap();
-						if !positive {
-							offset = -offset;
+						let offset = raw.parse::<i32>().unwrap();
+						if positive {
+							offset
+						} else {
+							-offset
 						}
-						offset
 					} else {
 						0
 					}
@@ -558,11 +610,9 @@ fn parse_location_specifier(
 			_ => r_panic!("Expected constant or variable in location specifier: {tokens:#?}"),
 		}
 	}
-
-	Ok((LocationSpecifier::None, 0))
 }
 
-fn parse_brainfuck_clause(clause: &[Token]) -> Result<Clause<TapeCell2D>, String> {
+fn parse_brainfuck_clause<TC: TapeCellLocation>(clause: &[Token]) -> Result<Clause<TC>, String> {
 	// bf {++--<><}
 	// bf @3 {++--<><}
 	// bf clobbers var1 var2 {++--<><}
@@ -572,7 +622,7 @@ fn parse_brainfuck_clause(clause: &[Token]) -> Result<Clause<TapeCell2D>, String
 	let mut i = 1usize;
 
 	// check for location specifier
-	let (mem_offset, len) = parse_location_specifier(&clause[i..])?;
+	let (mem_offset, len) = TC::parse_location_specifier(&clause[i..])?;
 	i += len;
 
 	if let Token::Clobbers = &clause[i] {
@@ -604,7 +654,7 @@ fn parse_brainfuck_clause(clause: &[Token]) -> Result<Clause<TapeCell2D>, String
 			Token::Minus => ops.push(ExtendedOpcode::Subtract),
 			Token::MoreThan => ops.push(ExtendedOpcode::Right),
 			Token::LessThan => ops.push(ExtendedOpcode::Left),
-			Token::UpToken => ops.push(ExtendedOpcode::Up),
+			Token::Caret => ops.push(ExtendedOpcode::Up),
 			Token::OpenSquareBracket => ops.push(ExtendedOpcode::OpenLoop),
 			Token::ClosingSquareBracket => ops.push(ExtendedOpcode::CloseLoop),
 			Token::Dot => ops.push(ExtendedOpcode::Output),
@@ -638,7 +688,9 @@ fn parse_brainfuck_clause(clause: &[Token]) -> Result<Clause<TapeCell2D>, String
 	})
 }
 
-fn parse_function_definition_clause(clause: &[Token]) -> Result<Clause<TapeCell2D>, String> {
+fn parse_function_definition_clause<TC: TapeCellLocation>(
+	clause: &[Token],
+) -> Result<Clause<TC>, String> {
 	let mut i = 1usize;
 	// function name
 	let Token::Name(name) = &clause[i] else {
@@ -679,7 +731,7 @@ fn parse_function_definition_clause(clause: &[Token]) -> Result<Clause<TapeCell2
 	};
 
 	let block_tokens = get_braced_tokens(&clause[i..], BRACES)?;
-	let parsed_block: Vec<Clause<TapeCell2D>> = parse(block_tokens)?;
+	let parsed_block = parse(block_tokens)?;
 
 	Ok(Clause::DefineFunction {
 		name: name.clone(),
@@ -688,7 +740,7 @@ fn parse_function_definition_clause(clause: &[Token]) -> Result<Clause<TapeCell2
 	})
 }
 
-fn parse_function_call_clause(clause: &[Token]) -> Result<Clause<TapeCell2D>, String> {
+fn parse_function_call_clause<T>(clause: &[Token]) -> Result<Clause<T>, String> {
 	let mut i = 0usize;
 	// Okay I didn't know this rust syntax, could have used it all over the place
 	let Token::Name(name) = &clause[i] else {
@@ -786,10 +838,10 @@ fn parse_var_target(tokens: &[Token]) -> Result<(VariableTarget, usize), String>
 }
 
 /// convert tokens of a variable definition into data representation, e.g. `cell x`, `struct G g`, `cell[5] x_arr`, `struct H[100] hs`
-fn parse_var_definition(
+fn parse_var_definition<TC: TapeCellLocation>(
 	tokens: &[Token],
 	allow_location: bool,
-) -> Result<(VariableDefinition<TapeCell2D>, usize), String> {
+) -> Result<(VariableDefinition<TC>, usize), String> {
 	let mut i = 0usize;
 	let mut var_type = match &tokens[i] {
 		Token::Cell => {
@@ -825,7 +877,7 @@ fn parse_var_definition(
 	};
 	i += 1;
 
-	let (location_specifier, len) = parse_location_specifier(&tokens[i..])?;
+	let (location_specifier, len) = TC::parse_location_specifier(&tokens[i..])?;
 
 	r_assert!(
 		location_specifier.is_none() || allow_location,
@@ -1219,19 +1271,21 @@ impl Sign {
 	}
 }
 
+/// Clause type with TC (tape cell) as a type variable
+/// TC can be changed to implement 2D brainfuck, or other modifications
 #[derive(Debug, Clone)]
 #[cfg_attr(test, derive(PartialEq))]
-pub enum Clause<TapeCell> {
+pub enum Clause<TC> {
 	DeclareVariable {
-		var: VariableDefinition<TapeCell>,
+		var: VariableDefinition<TC>,
 	},
 	DefineVariable {
-		var: VariableDefinition<TapeCell>,
+		var: VariableDefinition<TC>,
 		value: Expression,
 	},
 	DefineStruct {
 		name: String,
-		fields: Vec<VariableDefinition<TapeCell>>,
+		fields: Vec<VariableDefinition<TC>>,
 	},
 	AddToVariable {
 		var: VariableTarget,
@@ -1252,12 +1306,12 @@ pub enum Clause<TapeCell> {
 	CopyLoop {
 		source: Expression,
 		targets: Vec<VariableTarget>,
-		block: Vec<Clause<TapeCell>>,
+		block: Vec<Clause<TC>>,
 		is_draining: bool,
 	},
 	WhileLoop {
 		var: VariableTarget,
-		block: Vec<Clause<TapeCell>>,
+		block: Vec<Clause<TC>>,
 	},
 	OutputValue {
 		value: Expression,
@@ -1268,8 +1322,8 @@ pub enum Clause<TapeCell> {
 	DefineFunction {
 		name: String,
 		// TODO: fix the type here, as function definitions don't actually need location specifiers and therefore don't need a tape cell type
-		arguments: Vec<VariableDefinition<TapeCell>>,
-		block: Vec<Clause<TapeCell>>,
+		arguments: Vec<VariableDefinition<TC>>,
+		block: Vec<Clause<TC>>,
 	},
 	CallFunction {
 		function_name: String,
@@ -1277,14 +1331,14 @@ pub enum Clause<TapeCell> {
 	},
 	IfElse {
 		condition: Expression,
-		if_block: Option<Vec<Clause<TapeCell>>>,
-		else_block: Option<Vec<Clause<TapeCell>>>,
+		if_block: Option<Vec<Clause<TC>>>,
+		else_block: Option<Vec<Clause<TC>>>,
 	},
-	Block(Vec<Clause<TapeCell>>),
+	Block(Vec<Clause<TC>>),
 	InlineBrainfuck {
-		location_specifier: LocationSpecifier<TapeCell>,
+		location_specifier: LocationSpecifier<TC>,
 		clobbered_variables: Vec<VariableTarget>,
-		operations: Vec<ExtendedOpcode<TapeCell>>,
+		operations: Vec<ExtendedOpcode<TC>>,
 	},
 }
 
@@ -1431,6 +1485,8 @@ impl Display for VariableTarget {
 
 #[cfg(test)]
 mod parser_tests {
+	use crate::cells::TapeCell;
+
 	use super::*;
 
 	#[test]
@@ -1455,18 +1511,76 @@ mod parser_tests {
 
 	#[test]
 	fn end_tokens_1() {
-		let _ = parse(&[Token::Clobbers]).expect_err("");
+		let _ = parse::<TapeCell>(&[Token::Clobbers]).expect_err("");
 	}
 
 	#[test]
 	fn end_tokens_2() {
-		let _ = parse(&[Token::Semicolon]).unwrap();
-		let _ = parse(&[Token::Semicolon, Token::Semicolon]).unwrap();
-		let _ = parse(&[Token::Semicolon, Token::Semicolon, Token::Semicolon]).unwrap();
+		let _ = parse::<TapeCell>(&[Token::Semicolon]).unwrap();
+		let _ = parse::<TapeCell>(&[Token::Semicolon, Token::Semicolon]).unwrap();
+		let _ = parse::<TapeCell>(&[Token::Semicolon, Token::Semicolon, Token::Semicolon]).unwrap();
 	}
 
 	#[test]
 	fn end_tokens_3() {
-		let _ = parse(&[Token::Cell, Token::Semicolon]).expect_err("");
+		let _ = parse::<TapeCell>(&[Token::Cell, Token::Semicolon]).expect_err("");
+	}
+
+	#[test]
+	fn while_condition_1() {
+		assert!(parse::<TapeCell>(&[
+			Token::While,
+			Token::Name(String::from("x")),
+			Token::OpenBrace,
+			Token::OpenBrace,
+			Token::ClosingBrace,
+			Token::ClosingBrace,
+		])
+		.unwrap()
+		.iter()
+		.eq(&[Clause::WhileLoop {
+			var: VariableTarget {
+				name: String::from("x"),
+				subfields: None,
+				is_spread: false
+			},
+			block: vec![Clause::Block(vec![])]
+		}]))
+	}
+
+	#[test]
+	fn two_dimensional_1() {
+		let _ = parse::<TapeCell>(&[
+			Token::Cell,
+			Token::Name(String::from("x")),
+			Token::At,
+			Token::Digits(String::from("0")),
+			Token::Comma,
+			Token::Digits(String::from("1")),
+			Token::Semicolon,
+		])
+		.expect_err("");
+	}
+
+	#[test]
+	fn two_dimensional_2() {
+		assert!(parse::<TapeCell2D>(&[
+			Token::Cell,
+			Token::Name(String::from("x")),
+			Token::At,
+			Token::Digits(String::from("0")),
+			Token::Comma,
+			Token::Digits(String::from("1")),
+			Token::Semicolon,
+		])
+		.unwrap()
+		.iter()
+		.eq(&[Clause::DeclareVariable {
+			var: VariableDefinition {
+				name: String::from("x"),
+				var_type: VariableTypeReference::Cell,
+				location_specifier: LocationSpecifier::Cell(TapeCell2D(0, 1))
+			}
+		}]));
 	}
 }

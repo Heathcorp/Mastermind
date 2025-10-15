@@ -1,5 +1,8 @@
 // TODO: make unit tests for this
-use crate::backend::{BFBuilder, Opcode2D, TapeCell2D};
+use crate::{
+	backend::{BFBuilder, Opcode2D},
+	cells::TapeCell2D,
+};
 
 // basically, most ascii characters are large numbers, which are more efficient to calculate with multiplication than with a bunch of + or -
 // an optimising brainfuck runtime will prefer a long string of +++++ or ----- however the goal of mastermind is to be used for code golf, which is not about speed
