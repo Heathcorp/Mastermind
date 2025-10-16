@@ -401,11 +401,7 @@ impl CellAllocator<TapeCell2D> {
 		//Check specified memory allocation above to ensure that this works nicely with all algorithms
 		if let Some(l) = location {
 			if !self.check_allocatable(&l, size) {
-				r_panic!(
-					"Location specifier @{0},{1} conflicts with another allocation",
-					l.0,
-					l.1
-				);
+				r_panic!("Location specifier @{l} conflicts with another allocation");
 			}
 		} else {
 			// should the region start at the current tape head?

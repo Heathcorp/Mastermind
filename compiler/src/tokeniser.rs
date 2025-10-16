@@ -1,8 +1,6 @@
 // project dependencies:
 use crate::macros::macros::{r_assert, r_panic};
 
-// stdlib dependencies:
-
 // external dependencies:
 use regex_lite::Regex;
 

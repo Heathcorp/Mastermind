@@ -1,8 +1,11 @@
+// project dependencies:
 use crate::{
-	cells::{TapeCell, TapeCell2D, TapeCellLocation},
+	cells::{TapeCell, TapeCell2D},
 	macros::macros::{r_assert, r_panic},
 	tokeniser::Token,
 };
+
+// stdlib dependencies
 use std::{fmt::Display, mem::discriminant, num::Wrapping};
 
 /// recursive function to create a tree representation of the program
@@ -478,6 +481,77 @@ fn parse_assert_clause<T>(clause: &[Token]) -> Result<Clause<T>, String> {
 	}
 }
 
+fn parse_integer(tokens: &[Token]) -> Result<(i32, usize), String> {
+	let mut i = 0;
+	let mut positive = true;
+	if let Token::Minus = &tokens[i] {
+		i += 1;
+		positive = false;
+	}
+
+	let Token::Digits(digits) = &tokens[i] else {
+		r_panic!("Expected number after \"-\" in integer");
+	};
+	i += 1;
+
+	// TODO: error handling
+	let offset = digits.parse::<i32>().unwrap();
+	Ok((if positive { offset } else { -offset }, i))
+}
+
+fn parse_integer_tuple<const LENGTH: usize>(
+	tokens: &[Token],
+) -> Result<([i32; LENGTH], usize), String> {
+	let mut i = 0;
+	r_assert!(
+		matches!(&tokens[i], Token::OpenParenthesis),
+		"Expected opening parenthesis in tuple: {:?}",
+		&tokens[0..(tokens.len().min(5))]
+	);
+	i += 1;
+
+	let mut tuple = [0; LENGTH];
+	for (j, element) in tuple.iter_mut().enumerate() {
+		let (offset, len) = parse_integer(&tokens[i..])?;
+		i += len;
+		*element = offset;
+
+		if j < LENGTH - 1 {
+			r_assert!(
+				matches!(&tokens[i], Token::Comma),
+				"Expected comma in tuple: {:?}",
+				&tokens[0..(tokens.len().min(5))]
+			);
+			i += 1;
+		}
+	}
+	r_assert!(
+		matches!(&tokens[i], Token::ClosingParenthesis),
+		"Expected closing parenthesis in tuple: {:?}",
+		&tokens[0..(tokens.len().min(5))]
+	);
+	i += 1;
+
+	Ok((tuple, i))
+}
+
+pub trait TapeCellLocation
+where
+	Self: Sized + Display,
+{
+	/// parse any memory location specifiers
+	/// let g @(4,2) = 68;
+	/// or
+	/// let p @3 = 68;
+	fn parse_location_specifier(
+		tokens: &[Token],
+	) -> Result<(LocationSpecifier<Self>, usize), String>;
+
+	/// safely cast a 2D or 1D location specifier into a 1D non-negative cell offset,
+	///  for use with struct fields
+	fn to_positive_cell_offset(&self) -> Result<usize, String>;
+}
+
 impl TapeCellLocation for TapeCell {
 	fn parse_location_specifier(
 		tokens: &[Token],
@@ -490,38 +564,26 @@ impl TapeCellLocation for TapeCell {
 		};
 
 		let mut i = 1;
-		match &tokens[i] {
+		let location_specifier = match &tokens[i] {
 			Token::Minus | Token::Digits(_) => {
-				let mut positive = true;
-				if let Token::Minus = &tokens[i] {
-					i += 1;
-					positive = false;
-				}
-
-				let Token::Digits(digits) = &tokens[i] else {
-					r_panic!("Expected number after \"-\" in location specifier: {tokens:#?}");
-				};
-				i += 1;
-
-				// TODO: error handling
-				let offset = digits.parse::<i32>().unwrap();
-				Ok((
-					LocationSpecifier::Cell(TapeCell(if positive { offset } else { -offset })),
-					i,
-				))
+				let (offset, len) = parse_integer(&tokens[i..])?;
+				i += len;
+				LocationSpecifier::Cell(TapeCell(offset))
 			}
 			Token::Name(_) => {
 				// variable location specifier
 				let (var, len) = parse_var_target(&tokens[i..])?;
 				i += len;
 
-				Ok((LocationSpecifier::Variable(var), i))
+				LocationSpecifier::Variable(var)
 			}
 			_ => r_panic!(
 				"Invalid location specifier: {:?}",
 				&tokens[0..(tokens.len().min(5))]
 			),
-		}
+		};
+
+		Ok((location_specifier, i))
 	}
 
 	fn to_positive_cell_offset(&self) -> Result<usize, String> {
@@ -542,68 +604,31 @@ impl TapeCellLocation for TapeCell2D {
 		};
 
 		let mut i = 1;
-		match &tokens[i] {
+		let location_specifier = match &tokens[i] {
+			Token::OpenParenthesis => {
+				// parse a 2-tuple
+				let (tuple, len) = parse_integer_tuple::<2>(&tokens[i..])?;
+				i += len;
+
+				LocationSpecifier::Cell(TapeCell2D(tuple[0], tuple[1]))
+			}
 			Token::Digits(_) | Token::Minus => {
-				let x_offset = {
-					let mut positive = true;
-					if let Token::Minus = &tokens[i] {
-						i += 1;
-						positive = false;
-					}
-					let Token::Digits(raw) = &tokens[i] else {
-						r_panic!(
-							"Expected number after \"-\" in memory location specifier: {tokens:#?}"
-						);
-					};
-					i += 1;
+				let (x_offset, len) = parse_integer(&tokens[i..])?;
+				i += len;
 
-					// TODO: error handling
-					let offset = raw.parse::<i32>().unwrap();
-					if positive {
-						offset
-					} else {
-						-offset
-					}
-				};
-
-				let y_offset = {
-					if let Token::Comma = &tokens[i] {
-						i += 1;
-						let mut positive = true;
-						if let Token::Minus = &tokens[i] {
-							i += 1;
-							positive = false;
-						}
-						let Token::Digits(raw) = &tokens[i] else {
-							r_panic!(
-							"Expected number after \"-\" in memory location specifier: {tokens:#?}"
-						);
-						};
-						i += 1;
-
-						// TODO: error handling
-						let offset = raw.parse::<i32>().unwrap();
-						if positive {
-							offset
-						} else {
-							-offset
-						}
-					} else {
-						0
-					}
-				};
-
-				return Ok((LocationSpecifier::Cell(TapeCell2D(x_offset, y_offset)), i));
+				LocationSpecifier::Cell(TapeCell2D(x_offset, 0))
 			}
 			Token::Name(_) => {
 				// variable location specifier
 				let (var, len) = parse_var_target(&tokens[i..])?;
 				i += len;
 
-				return Ok((LocationSpecifier::Variable(var), i));
+				LocationSpecifier::Variable(var)
 			}
 			_ => r_panic!("Expected constant or variable in location specifier: {tokens:#?}"),
-		}
+		};
+
+		Ok((location_specifier, i))
 	}
 
 	fn to_positive_cell_offset(&self) -> Result<usize, String> {
@@ -1602,17 +1627,38 @@ mod parser_tests {
 	}
 
 	#[test]
+	fn var_v() {
+		assert!(parse::<TapeCell>(&[
+			Token::Cell,
+			Token::Name(String::from("v")),
+			Token::Semicolon
+		])
+		.unwrap()
+		.iter()
+		.eq(&[Clause::DeclareVariable {
+			var: VariableDefinition {
+				name: String::from("v"),
+				var_type: VariableTypeReference::Cell,
+				location_specifier: LocationSpecifier::None
+			}
+		}]))
+	}
+
+	#[test]
 	fn two_dimensional_1() {
-		let _ = parse::<TapeCell>(&[
+		assert!(parse::<TapeCell>(&[
 			Token::Cell,
 			Token::Name(String::from("x")),
 			Token::At,
+			Token::OpenParenthesis,
 			Token::Digits(String::from("0")),
 			Token::Comma,
 			Token::Digits(String::from("1")),
+			Token::ClosingParenthesis,
 			Token::Semicolon,
 		])
-		.expect_err("");
+		.unwrap_err()
+		.contains("Invalid location specifier"));
 	}
 
 	#[test]
@@ -1621,9 +1667,11 @@ mod parser_tests {
 			Token::Cell,
 			Token::Name(String::from("x")),
 			Token::At,
+			Token::OpenParenthesis,
 			Token::Digits(String::from("0")),
 			Token::Comma,
 			Token::Digits(String::from("1")),
+			Token::ClosingParenthesis,
 			Token::Semicolon,
 		])
 		.unwrap()
@@ -1633,6 +1681,32 @@ mod parser_tests {
 				name: String::from("x"),
 				var_type: VariableTypeReference::Cell,
 				location_specifier: LocationSpecifier::Cell(TapeCell2D(0, 1))
+			}
+		}]));
+	}
+
+	#[test]
+	fn two_dimensional_3() {
+		assert!(parse::<TapeCell2D>(&[
+			Token::Cell,
+			Token::Name(String::from("xyz")),
+			Token::At,
+			Token::OpenParenthesis,
+			Token::Minus,
+			Token::Digits(String::from("10")),
+			Token::Comma,
+			Token::Minus,
+			Token::Digits(String::from("101")),
+			Token::ClosingParenthesis,
+			Token::Semicolon,
+		])
+		.unwrap()
+		.iter()
+		.eq(&[Clause::DeclareVariable {
+			var: VariableDefinition {
+				name: String::from("xyz"),
+				var_type: VariableTypeReference::Cell,
+				location_specifier: LocationSpecifier::Cell(TapeCell2D(-10, -101))
 			}
 		}]));
 	}

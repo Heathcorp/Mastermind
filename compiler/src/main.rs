@@ -1,7 +1,7 @@
 #![allow(dead_code)]
 // dead code is allowed because we have two different compile targets (wasm and command-line)
 
-// crate dependencies:
+// project dependencies:
 mod backend;
 mod brainfuck;
 mod brainfuck_optimiser;

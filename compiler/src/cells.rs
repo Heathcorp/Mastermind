@@ -1,6 +1,6 @@
 use std::fmt::Display;
 
-use crate::{parser::LocationSpecifier, tokeniser::Token};
+use crate::parser::TapeCellLocation;
 
 /// when making Brainfuck variants, for a cell location type, you must implement this trait
 /// for now this is implemented by TapeCell (1D location specifier), and TapeCell2D (2D)
@@ -28,7 +28,7 @@ impl Display for TapeCell {
 
 impl Display for TapeCell2D {
 	fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-		f.write_fmt(format_args!("({},{})", self.0, self.1))?;
+		f.write_fmt(format_args!("({}, {})", self.0, self.1))?;
 		Ok(())
 	}
 }
@@ -46,21 +46,4 @@ impl TapeOrigin for TapeCell2D {
 	fn origin_cell() -> TapeCell2D {
 		TapeCell2D(0, 0)
 	}
-}
-
-pub trait TapeCellLocation
-where
-	Self: Sized + Display,
-{
-	/// parse any memory location specifiers
-	/// let g @(4,2) = 68;
-	/// or
-	/// let p @3 = 68;
-	fn parse_location_specifier(
-		tokens: &[Token],
-	) -> Result<(LocationSpecifier<Self>, usize), String>;
-
-	/// safely cast a 2D or 1D location specifier into a 1D non-negative cell offset,
-	///  for use with struct fields
-	fn to_positive_cell_offset(&self) -> Result<usize, String>;
 }
