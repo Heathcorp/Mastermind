@@ -1,34 +1,34 @@
 #![allow(dead_code)]
+// dead code is allowed because we have two different compile targets (wasm and command-line)
 
-mod macros;
-
+// crate dependencies:
 mod backend;
 mod brainfuck;
 mod brainfuck_optimiser;
 mod cells;
 mod constants_optimiser;
 mod frontend;
+mod macros;
+mod misc;
 mod parser;
 mod preprocessor;
-mod tokeniser;
-
-mod misc;
 mod tests;
+mod tokeniser;
+use crate::{
+	backend::BrainfuckOpcodes,
+	brainfuck::{BrainfuckConfig, BrainfuckContext},
+	cells::{TapeCell, TapeCell2D},
+	misc::{MastermindConfig, MastermindContext},
+	parser::parse,
+	preprocessor::preprocess,
+	tokeniser::tokenise,
+};
 
-use backend::BrainfuckOpcodes;
-use misc::MastermindConfig;
-use parser::parse;
-use preprocessor::preprocess;
-use tokeniser::tokenise;
-
+// stdlib dependencies:
 use std::io::{stdin, stdout, Cursor};
 
+// external dependencies:
 use clap::Parser;
-
-use crate::{
-	brainfuck::{BrainfuckConfig, BrainfuckContext},
-	misc::MastermindContext,
-};
 
 #[derive(Parser, Default, Debug)]
 #[command(author = "Heathcorp", version = "0.1", about = "Mastermind: the Brainfuck interpreter and compilation tool", long_about = None)]
@@ -97,17 +97,16 @@ fn main() -> Result<(), String> {
 	let bf_program = match args.compile {
 		true => {
 			// compile the provided file
-
 			let tokens = tokenise(&program)?;
-			// parse tokens into syntax tree
-			let clauses = parse(&tokens)?;
-			// compile syntax tree into brainfuck
-
-			// 2 stage compilation step, first stage compiles syntax tree into low-level instructions
-			// 	second stage translates the low-level instructions into brainfuck
-
-			let instructions = ctx.create_ir_scope(&clauses, None)?.build_ir(false);
-			let bf_code = ctx.ir_to_bf(instructions, None)?;
+			let bf_code = if ctx.config.enable_2d_grid {
+				let parsed_syntax = parse::<TapeCell2D>(&tokens)?;
+				let instructions = ctx.create_ir_scope(&parsed_syntax, None)?.build_ir(false);
+				ctx.ir_to_bf(instructions, None)?
+			} else {
+				let parsed_syntax = parse::<TapeCell>(&tokens)?;
+				let instructions = ctx.create_ir_scope(&parsed_syntax, None)?.build_ir(false);
+				ctx.ir_to_bf(instructions, None)?
+			};
 
 			match ctx.config.optimise_generated_code {
 				true => ctx.optimise_bf_code(bf_code).to_string(),

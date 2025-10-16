@@ -22,10 +22,10 @@ type LoopDepth = usize;
 type TapeValue = u8;
 
 impl MastermindContext {
-	pub fn ir_to_bf(
+	pub fn ir_to_bf<TC: Into<TapeCell2D> + PartialEq>(
 		&self,
-		instructions: Vec<Instruction<TapeCell2D>>,
-		return_to_cell: Option<TapeCell2D>,
+		instructions: Vec<Instruction<TC>>,
+		return_to_cell: Option<TC>,
 	) -> Result<Vec<Opcode2D>, String> {
 		let mut allocator = CellAllocator::new();
 		let mut alloc_map: HashMap<
@@ -36,7 +36,7 @@ impl MastermindContext {
 		let mut loop_stack: Vec<TapeCell2D> = Vec::new();
 		let mut current_loop_depth: LoopDepth = 0;
 		let mut skipped_loop_depth: Option<LoopDepth> = None;
-		let mut ops = BFBuilder::new();
+		let mut ops = BFBuilder2D::new();
 
 		for instruction in instructions {
 			if let Some(depth) = skipped_loop_depth {
@@ -60,7 +60,7 @@ impl MastermindContext {
 				// however they will absolutely not be very efficient if used directly as cell locations
 				Instruction::Allocate(memory, location_specifier) => {
 					let cell = allocator.allocate(
-						location_specifier,
+						location_specifier.map(|c| c.into()),
 						memory.len(),
 						self.config.memory_allocation_method,
 					)?;
@@ -120,7 +120,7 @@ outside of loop it was allocated"
 						);
 					};
 
-					allocator.free(cell, size)?;
+					allocator.free(cell.into(), size)?;
 				}
 				Instruction::OpenLoop(cell_obj) => {
 					let Some((cell_base, size, alloc_loop_depth, known_values)) =
@@ -217,7 +217,7 @@ outside of loop it was allocated"
 						// TODO: instead find the nearest zero cell, doesn't matter if allocated or not
 						let temp_cell = allocator.allocate_temp_cell(cell);
 
-						let optimised_ops: BFBuilder =
+						let optimised_ops: BFBuilder2D =
 							calculate_optimal_addition(imm as i8, ops.head_pos, cell, temp_cell);
 
 						ops.head_pos = optimised_ops.head_pos;
@@ -329,7 +329,7 @@ outside of loop it was allocated"
 				Instruction::InsertBrainfuckAtCell(operations, location_specifier) => {
 					// move to the correct cell, based on the location specifier
 					match location_specifier {
-						CellLocation::FixedCell(cell) => ops.move_to_cell(cell),
+						CellLocation::FixedCell(cell) => ops.move_to_cell(cell.into()),
 						CellLocation::MemoryCell(cell_obj) => {
 							let Some((cell_base, size, _alloc_loop_depth, _known_values)) =
 								alloc_map.get(&cell_obj.memory_id)
@@ -355,21 +355,21 @@ outside of loop it was allocated"
 
 		// this is used in embedded brainfuck contexts to preserve head position
 		if let Some(origin_cell) = return_to_cell {
-			ops.move_to_cell(origin_cell);
+			ops.move_to_cell(origin_cell.into());
 		}
 
 		Ok(ops.opcodes)
 	}
 }
 
-struct CellAllocator {
-	alloc_map: HashSet<TapeCell2D>,
+struct CellAllocator<TC> {
+	alloc_map: HashSet<TC>,
 }
 
 // allocator will not automatically allocate negative-index cells
 // but users can
-impl CellAllocator {
-	fn new() -> CellAllocator {
+impl CellAllocator<TapeCell2D> {
+	fn new() -> CellAllocator<TapeCell2D> {
 		CellAllocator {
 			alloc_map: HashSet::new(),
 		}
@@ -611,7 +611,7 @@ pub enum Opcode2D {
 	Down,
 }
 
-pub struct BFBuilder {
+pub struct BFBuilder2D {
 	opcodes: Vec<Opcode2D>,
 	pub head_pos: TapeCell2D,
 }
@@ -672,22 +672,22 @@ impl BrainfuckOpcodes for Vec<Opcode2D> {
 	}
 }
 
-impl BrainfuckOpcodes for BFBuilder {
+impl BrainfuckOpcodes for BFBuilder2D {
 	fn to_string(self) -> String {
 		self.opcodes.to_string()
 	}
 
 	fn from_str(s: &str) -> Self {
-		BFBuilder {
+		BFBuilder2D {
 			opcodes: Vec::from_str(s),
 			head_pos: TapeCell2D(0, 0),
 		}
 	}
 }
 
-impl BFBuilder {
-	pub fn new() -> BFBuilder {
-		BFBuilder {
+impl BFBuilder2D {
+	pub fn new() -> BFBuilder2D {
+		BFBuilder2D {
 			opcodes: Vec::new(),
 			head_pos: TapeCell2D(0, 0),
 		}
@@ -747,3 +747,6 @@ impl BFBuilder {
 		}
 	}
 }
+
+#[cfg(test)]
+mod backend_tests {}

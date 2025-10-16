@@ -1,26 +1,31 @@
 // compile syntax tree into low-level instructions
 
-use std::{collections::HashMap, iter::zip};
+use std::{collections::HashMap, fmt::Display, iter::zip};
 
 use crate::{
 	backend::Opcode2D,
-	cells::TapeCell2D,
+	cells::{TapeCell, TapeCell2D, TapeCellVariant},
 	macros::macros::{r_assert, r_panic},
 	misc::MastermindContext,
 	parser::{
-		Clause, Expression, ExtendedOpcode, LocationSpecifier, Reference, VariableDefinition,
-		VariableTarget, VariableTargetReferenceChain, VariableTypeReference,
+		Clause, Expression, ExtendedOpcode, LocationSpecifier, Reference, StructFieldDefinition,
+		VariableDefinition, VariableTarget, VariableTargetReferenceChain, VariableTypeReference,
 	},
 };
 
-// memory stuff is all WIP and some comments may be incorrect
+// TODO: remove the need for this Into:
+impl Into<TapeCell2D> for TapeCell {
+	fn into(self) -> TapeCell2D {
+		TapeCell2D(self.0, 0)
+	}
+}
 
 impl MastermindContext {
-	pub fn create_ir_scope<'a>(
+	pub fn create_ir_scope<'a, TC: 'static + TapeCellVariant + Into<TapeCell2D>>(
 		&self,
-		clauses: &[Clause<TapeCell2D>],
-		outer_scope: Option<&'a ScopeBuilder<TapeCell2D>>,
-	) -> Result<ScopeBuilder<'a, TapeCell2D>, String> {
+		clauses: &[Clause<TC>],
+		outer_scope: Option<&'a ScopeBuilder<TC>>,
+	) -> Result<ScopeBuilder<'a, TC>, String> {
 		let mut scope = if let Some(outer) = outer_scope {
 			outer.open_inner()
 		} else {
@@ -29,18 +34,19 @@ impl MastermindContext {
 
 		// TODO: fix unnecessary clones, and reimplement this with iterators somehow
 		// hoist structs, then functions to top
-		let mut filtered_clauses_1: Vec<Clause<TapeCell2D>> = vec![];
+		let mut filtered_clauses_1: Vec<Clause<TC>> = vec![];
 		// first stage: structs (these need to be defined before functions, so they can be used as arguments)
 		for clause in clauses {
 			match clause {
 				Clause::DefineStruct { name, fields } => {
+					// convert fields with 2D or 1D location specifiers to valid struct location specifiers
 					scope.register_struct_definition(name, fields.clone())?;
 				}
 				_ => filtered_clauses_1.push(clause.clone()),
 			}
 		}
 		// second stage: functions
-		let mut filtered_clauses_2: Vec<Clause<TapeCell2D>> = vec![];
+		let mut filtered_clauses_2: Vec<Clause<TC>> = vec![];
 		for clause in filtered_clauses_1 {
 			match clause {
 				Clause::DefineFunction {
@@ -77,7 +83,7 @@ impl MastermindContext {
 							| Expression::VariableReference(_),
 						) => {
 							let cell = scope.get_cell(&VariableTarget::from_definition(&var))?;
-							_add_expr_to_cell(&mut scope, &value, cell)?;
+							scope._add_expr_to_cell(&value, cell)?;
 						}
 
 						// multi-cell arrays and (array literals or strings)
@@ -90,7 +96,7 @@ impl MastermindContext {
 								expressions.len()
 							);
 							for (cell, expr) in zip(cells, expressions) {
-								_add_expr_to_cell(&mut scope, expr, cell)?;
+								scope._add_expr_to_cell(expr, cell)?;
 							}
 						}
 						(ValueType::Array(_, _), Expression::StringLiteral(s)) => {
@@ -152,11 +158,11 @@ impl MastermindContext {
 					(false, false) => {
 						let cell = scope.get_cell(&var)?;
 						scope.push_instruction(Instruction::ClearCell(cell.clone()));
-						_add_expr_to_cell(&mut scope, &value, cell)?;
+						scope._add_expr_to_cell(&value, cell)?;
 					}
 					(false, true) => {
 						let cell = scope.get_cell(&var)?;
-						_add_self_referencing_expr_to_cell(&mut scope, value, cell, true)?;
+						scope._add_self_referencing_expr_to_cell(value, cell, true)?;
 					}
 					(true, _) => {
 						r_panic!("Unsupported operation, assigning to spread variable: {var}");
@@ -172,11 +178,11 @@ impl MastermindContext {
 				} => match (var.is_spread, self_referencing) {
 					(false, false) => {
 						let cell = scope.get_cell(&var)?;
-						_add_expr_to_cell(&mut scope, &value, cell)?;
+						scope._add_expr_to_cell(&value, cell)?;
 					}
 					(false, true) => {
 						let cell = scope.get_cell(&var)?;
-						_add_self_referencing_expr_to_cell(&mut scope, value, cell, false)?;
+						scope._add_self_referencing_expr_to_cell(value, cell, false)?;
 					}
 					(true, _) => {
 						r_panic!("Unsupported operation, add-assigning to spread variable: {var}");
@@ -258,7 +264,7 @@ impl MastermindContext {
 								index: None,
 							};
 
-							_add_expr_to_cell(&mut scope, &value, cell)?;
+							scope._add_expr_to_cell(&value, cell)?;
 							scope.push_instruction(Instruction::OutputCell(cell));
 							scope.push_instruction(Instruction::ClearCell(cell));
 
@@ -277,7 +283,7 @@ impl MastermindContext {
 							};
 
 							for value in expressions {
-								_add_expr_to_cell(&mut scope, &value, cell)?;
+								scope._add_expr_to_cell(&value, cell)?;
 								scope.push_instruction(Instruction::OutputCell(cell));
 								scope.push_instruction(Instruction::ClearCell(cell));
 							}
@@ -339,7 +345,7 @@ impl MastermindContext {
 								memory_id: id,
 								index: None,
 							};
-							_add_expr_to_cell(&mut scope, &source, new_cell)?;
+							scope._add_expr_to_cell(&source, new_cell)?;
 							(new_cell, true)
 						}
 						(false, Expression::VariableReference(var)) => {
@@ -356,7 +362,7 @@ impl MastermindContext {
 								index: None,
 							};
 
-							_copy_cell(&mut scope, cell, new_cell, 1);
+							scope._copy_cell(cell, new_cell, 1);
 
 							(new_cell, true)
 						}
@@ -435,7 +441,7 @@ impl MastermindContext {
 					};
 
 					// copy the condition expression to the temporary condition cell
-					_add_expr_to_cell(&mut new_scope, &condition, condition_cell)?;
+					new_scope._add_expr_to_cell(&condition, condition_cell)?;
 
 					new_scope.push_instruction(Instruction::OpenLoop(condition_cell));
 					// TODO: think about optimisations for clearing this variable, as the builder won't shorten it for safety as it doesn't know this loop is special
@@ -497,9 +503,10 @@ impl MastermindContext {
 									.create_ir_scope(&mm_clauses, Some(&functions_scope))?
 									// compile without cleaning up top level variables, this is the brainfuck programmer's responsibility
 									.build_ir(false);
+
 								// it is also the brainfuck programmer's responsibility to return to the start position
 								let bf_code =
-									self.ir_to_bf(instructions, Some(TapeCell2D(0, 0)))?;
+									self.ir_to_bf(instructions, Some(TC::origin_cell()))?;
 								expanded_bf.extend(bf_code);
 							}
 							ExtendedOpcode::Add => expanded_bf.push(Opcode2D::Add),
@@ -605,132 +612,10 @@ impl MastermindContext {
 	}
 }
 
-// not sure if this should be in the scope impl?
-// helper function for a common use-case
-// flatten an expression and add it to a specific cell (using copies and adds, etc)
-fn _add_expr_to_cell(
-	scope: &mut ScopeBuilder<TapeCell2D>,
-	expr: &Expression,
-	cell: CellReference,
-) -> Result<(), String> {
-	let (imm, adds, subs) = expr.flatten()?;
-
-	scope.push_instruction(Instruction::AddToCell(cell.clone(), imm));
-
-	let mut adds_set = HashMap::new();
-	for var in adds {
-		let n = adds_set.remove(&var).unwrap_or(0);
-		adds_set.insert(var, n + 1);
-	}
-	for var in subs {
-		let n = adds_set.remove(&var).unwrap_or(0);
-		adds_set.insert(var, n - 1);
-	}
-
-	for (source, constant) in adds_set {
-		let source_cell = scope.get_cell(&source)?;
-		_copy_cell(scope, source_cell, cell.clone(), constant);
-	}
-
-	Ok(())
-}
-
-//This function allows you to add a self referencing expression to the cell
-//Separate this to ensure that normal expression don't require the overhead of copying
-fn _add_self_referencing_expr_to_cell(
-	scope: &mut ScopeBuilder<TapeCell2D>,
-	expr: Expression,
-	cell: CellReference,
-	pre_clear: bool,
-) -> Result<(), String> {
-	//Create a new temp cell to store the current cell value
-	let temp_mem_id = scope.push_memory_id();
-	scope.push_instruction(Instruction::Allocate(
-		Memory::Cell { id: temp_mem_id },
-		None,
-	));
-	let temp_cell = CellReference {
-		memory_id: temp_mem_id,
-		index: None,
-	};
-	// TODO: make this more efficent by not requiring a clear cell after,
-	// i.e. simple move instead of copy by default for set operations (instead of +=)
-	_copy_cell(scope, cell, temp_cell, 1);
-	// Then if we are doing a += don't pre-clear otherwise Clear the current cell and run the same actions as _add_expr_to_cell
-	if pre_clear {
-		scope.push_instruction(Instruction::ClearCell(cell.clone()));
-	}
-
-	let (imm, adds, subs) = expr.flatten()?;
-
-	scope.push_instruction(Instruction::AddToCell(cell.clone(), imm));
-
-	let mut adds_set = HashMap::new();
-	for var in adds {
-		let n = adds_set.remove(&var).unwrap_or(0);
-		adds_set.insert(var, n + 1);
-	}
-	for var in subs {
-		let n = adds_set.remove(&var).unwrap_or(0);
-		adds_set.insert(var, n - 1);
-	}
-
-	for (source, constant) in adds_set {
-		let source_cell = scope.get_cell(&source)?;
-		//If we have an instance of the original cell being added simply use our temp cell value
-		// (crucial special sauce)
-		if source_cell.memory_id == cell.memory_id && source_cell.index == cell.index {
-			_copy_cell(scope, temp_cell, cell.clone(), constant);
-		} else {
-			_copy_cell(scope, source_cell, cell.clone(), constant);
-		}
-	}
-	//Cleanup
-	scope.push_instruction(Instruction::ClearCell(temp_cell));
-	scope.push_instruction(Instruction::Free(temp_mem_id));
-
-	Ok(())
-}
-
-/// Helper function to copy a cell from one to another leaving the original unaffected
-// TODO: make one for draining a cell
-fn _copy_cell(
-	scope: &mut ScopeBuilder<TapeCell2D>,
-	source_cell: CellReference,
-	target_cell: CellReference,
-	constant: i32,
-) {
-	if constant == 0 {
-		return;
-	}
-	// allocate a temporary cell
-	let temp_mem_id = scope.push_memory_id();
-	scope.push_instruction(Instruction::Allocate(
-		Memory::Cell { id: temp_mem_id },
-		None,
-	));
-	let temp_cell = CellReference {
-		memory_id: temp_mem_id,
-		index: None,
-	};
-	// copy source to target and temp
-	scope.push_instruction(Instruction::OpenLoop(source_cell));
-	scope.push_instruction(Instruction::AddToCell(target_cell, constant as u8));
-	scope.push_instruction(Instruction::AddToCell(temp_cell, 1));
-	scope.push_instruction(Instruction::AddToCell(source_cell, -1i8 as u8));
-	scope.push_instruction(Instruction::CloseLoop(source_cell));
-	// copy back from temp
-	scope.push_instruction(Instruction::OpenLoop(temp_cell));
-	scope.push_instruction(Instruction::AddToCell(source_cell, 1));
-	scope.push_instruction(Instruction::AddToCell(temp_cell, -1i8 as u8));
-	scope.push_instruction(Instruction::CloseLoop(temp_cell));
-	scope.push_instruction(Instruction::Free(temp_mem_id));
-}
-
 // this is subject to change
 #[derive(Debug, Clone)]
-pub enum Instruction<TapeCell> {
-	Allocate(Memory, Option<TapeCell>),
+pub enum Instruction<TC> {
+	Allocate(Memory, Option<TC>),
 	Free(MemoryId), // the number indicates which cell in the allocation stack should be freed (cell 0, is the top of the stack, 1 is the second element, etc)
 	OpenLoop(CellReference), // same with other numbers here, they indicate the cell in the allocation stack to use in the instruction
 	CloseLoop(CellReference), // pass in the cell id, this originally wasn't there but may be useful later on
@@ -739,14 +624,14 @@ pub enum Instruction<TapeCell> {
 	ClearCell(CellReference), // not sure if this should be here, seems common enough that it should be
 	AssertCellValue(CellReference, Option<u8>), // allows the user to hand-tune optimisations further
 	OutputCell(CellReference),
-	InsertBrainfuckAtCell(Vec<Opcode2D>, CellLocation<TapeCell>),
+	InsertBrainfuckAtCell(Vec<Opcode2D>, CellLocation<TC>),
 }
 
 #[derive(Debug, Clone)]
 /// Either a fixed constant cell or a reference to some existing memory
-pub enum CellLocation<TapeCell> {
+pub enum CellLocation<TC> {
 	Unspecified,
-	FixedCell(TapeCell),
+	FixedCell(TC),
 	MemoryCell(CellReference),
 }
 
@@ -832,9 +717,9 @@ pub struct ScopeBuilder<'a, TapeCell> {
 }
 
 #[derive(Clone, Debug)] // probably shouldn't be cloning here but whatever
-struct Function<TapeCell> {
+struct Function<TC> {
 	arguments: Vec<(String, ValueType)>,
-	block: Vec<Clause<TapeCell>>,
+	block: Vec<Clause<TC>>,
 }
 
 #[derive(Clone, Debug, PartialEq, Eq)]
@@ -968,8 +853,11 @@ impl ValueType {
 	}
 }
 
-impl ScopeBuilder<'_, TapeCell2D> {
-	pub fn new() -> ScopeBuilder<'static, TapeCell2D> {
+impl<TC> ScopeBuilder<'_, TC>
+where
+	TC: Display + Clone,
+{
+	pub fn new() -> ScopeBuilder<'static, TC> {
 		ScopeBuilder {
 			outer_scope: None,
 			types_only: false,
@@ -983,7 +871,7 @@ impl ScopeBuilder<'_, TapeCell2D> {
 
 	// I don't love this system of deciding what to clean up at the end in this specific function, but I'm not sure what the best way to achieve this would be
 	// this used to be called "get_instructions" but I think this more implies things are being modified
-	pub fn build_ir(mut self, clean_up_variables: bool) -> Vec<Instruction<TapeCell2D>> {
+	pub fn build_ir(mut self, clean_up_variables: bool) -> Vec<Instruction<TC>> {
 		if !clean_up_variables {
 			return self.instructions;
 		}
@@ -1026,12 +914,12 @@ impl ScopeBuilder<'_, TapeCell2D> {
 		self.instructions
 	}
 
-	fn push_instruction(&mut self, instruction: Instruction<TapeCell2D>) {
+	fn push_instruction(&mut self, instruction: Instruction<TC>) {
 		self.instructions.push(instruction);
 	}
 
 	/// Open a scope within the current one, any time there is a {} in Mastermind, this is called
-	fn open_inner(&self) -> ScopeBuilder<TapeCell2D> {
+	fn open_inner(&self) -> ScopeBuilder<TC> {
 		ScopeBuilder {
 			outer_scope: Some(self),
 			types_only: false,
@@ -1045,7 +933,7 @@ impl ScopeBuilder<'_, TapeCell2D> {
 
 	// syntactic context instead of normal context
 	// used for embedded mm so that the inner mm can use outer functions
-	fn open_inner_templates_only(&self) -> ScopeBuilder<TapeCell2D> {
+	fn open_inner_templates_only(&self) -> ScopeBuilder<TC> {
 		ScopeBuilder {
 			outer_scope: Some(self),
 			types_only: true,
@@ -1058,10 +946,7 @@ impl ScopeBuilder<'_, TapeCell2D> {
 	}
 
 	/// Get the correct variable type and allocate the right amount of cells for it
-	fn allocate_variable(
-		&mut self,
-		var: VariableDefinition<TapeCell2D>,
-	) -> Result<&ValueType, String> {
+	fn allocate_variable(&mut self, var: VariableDefinition<TC>) -> Result<&ValueType, String> {
 		r_assert!(
 			!self.variable_memory.contains_key(&var.name),
 			"Cannot allocate variable {var} twice in the same scope"
@@ -1130,7 +1015,7 @@ impl ScopeBuilder<'_, TapeCell2D> {
 		&self,
 		calling_name: &str,
 		calling_arg_types: &Vec<&ValueType>,
-	) -> Result<Function<TapeCell2D>, String> {
+	) -> Result<Function<TC>, String> {
 		// this function is unaffected by the self.fn_only flag
 		Ok(
 			if let Some(func) = self.functions.iter().find(|(name, args, _)| {
@@ -1162,31 +1047,17 @@ impl ScopeBuilder<'_, TapeCell2D> {
 	fn register_struct_definition(
 		&mut self,
 		struct_name: &str,
-		fields: Vec<VariableDefinition<TapeCell2D>>,
+		fields: Vec<StructFieldDefinition>,
 	) -> Result<(), String> {
 		let mut absolute_fields = vec![];
 
-		for var_def in fields {
-			let absolute_type = self.create_absolute_type(&var_def.var_type)?;
-			let non_neg_location_specifier = match &var_def.location_specifier {
-				LocationSpecifier::None => None,
-				LocationSpecifier::Cell(l) => {
-					// assert the y coordinate is 0
-					r_assert!(
-						l.1 == 0,
-						"Struct field location specifiers do not support 2D grid cells: {var_def}"
-					);
-					r_assert!(
-						l.0 >= 0,
-						"Struct field location specifiers must be non-negative: {var_def}"
-					);
-					Some(l.0 as usize)
-				}
-				LocationSpecifier::Variable(_) => {
-					r_panic!( "Location specifiers in struct definitions must be relative, not variables: {var_def}")
-				}
-			};
-			absolute_fields.push((var_def.name, absolute_type, non_neg_location_specifier));
+		for field_def in fields {
+			let absolute_type = self.create_absolute_type(&field_def.field_type)?;
+			absolute_fields.push((
+				field_def.name,
+				absolute_type,
+				field_def.location_offset_specifier,
+			));
 		}
 
 		let None = self
@@ -1203,8 +1074,8 @@ impl ScopeBuilder<'_, TapeCell2D> {
 	fn register_function_definition(
 		&mut self,
 		new_function_name: &str,
-		new_arguments: Vec<VariableDefinition<TapeCell2D>>,
-		new_block: Vec<Clause<TapeCell2D>>,
+		new_arguments: Vec<VariableDefinition<TC>>,
+		new_block: Vec<Clause<TC>>,
 	) -> Result<(), String> {
 		let absolute_arguments = new_arguments
 			.into_iter()
@@ -1613,5 +1484,123 @@ mapping: {mapped_var_name} -> {target}"
 		self.variable_memory
 			.insert(mapped_var_name, (var_type.clone(), mapped_memory));
 		Ok(())
+	}
+
+	/// helper function for a common use-case:
+	/// flatten an expression and add it to a specific cell (using copies and adds, etc)
+	fn _add_expr_to_cell(&mut self, expr: &Expression, cell: CellReference) -> Result<(), String> {
+		let (imm, adds, subs) = expr.flatten()?;
+
+		self.push_instruction(Instruction::AddToCell(cell.clone(), imm));
+
+		let mut adds_set = HashMap::new();
+		for var in adds {
+			let n = adds_set.remove(&var).unwrap_or(0);
+			adds_set.insert(var, n + 1);
+		}
+		for var in subs {
+			let n = adds_set.remove(&var).unwrap_or(0);
+			adds_set.insert(var, n - 1);
+		}
+
+		for (source, constant) in adds_set {
+			let source_cell = self.get_cell(&source)?;
+			self._copy_cell(source_cell, cell.clone(), constant);
+		}
+
+		Ok(())
+	}
+
+	/// helper function to add a self-referencing expression to a cell
+	/// this is separated because it requires another copy ontop of normal expressions
+	// TODO: refactor/fix underlying logic for this
+	fn _add_self_referencing_expr_to_cell(
+		&mut self,
+		expr: Expression,
+		cell: CellReference,
+		pre_clear: bool,
+	) -> Result<(), String> {
+		//Create a new temp cell to store the current cell value
+		let temp_mem_id = self.push_memory_id();
+		self.push_instruction(Instruction::Allocate(
+			Memory::Cell { id: temp_mem_id },
+			None,
+		));
+		let temp_cell = CellReference {
+			memory_id: temp_mem_id,
+			index: None,
+		};
+		// TODO: make this more efficent by not requiring a clear cell after,
+		// i.e. simple move instead of copy by default for set operations (instead of +=)
+		self._copy_cell(cell, temp_cell, 1);
+		// Then if we are doing a += don't pre-clear otherwise Clear the current cell and run the same actions as _add_expr_to_cell
+		if pre_clear {
+			self.push_instruction(Instruction::ClearCell(cell.clone()));
+		}
+
+		let (imm, adds, subs) = expr.flatten()?;
+
+		self.push_instruction(Instruction::AddToCell(cell.clone(), imm));
+
+		let mut adds_set = HashMap::new();
+		for var in adds {
+			let n = adds_set.remove(&var).unwrap_or(0);
+			adds_set.insert(var, n + 1);
+		}
+		for var in subs {
+			let n = adds_set.remove(&var).unwrap_or(0);
+			adds_set.insert(var, n - 1);
+		}
+
+		for (source, constant) in adds_set {
+			let source_cell = self.get_cell(&source)?;
+			//If we have an instance of the original cell being added simply use our temp cell value
+			// (crucial special sauce)
+			if source_cell.memory_id == cell.memory_id && source_cell.index == cell.index {
+				self._copy_cell(temp_cell, cell.clone(), constant);
+			} else {
+				self._copy_cell(source_cell, cell.clone(), constant);
+			}
+		}
+		//Cleanup
+		self.push_instruction(Instruction::ClearCell(temp_cell));
+		self.push_instruction(Instruction::Free(temp_mem_id));
+
+		Ok(())
+	}
+
+	/// Helper function to copy a cell from one to another, leaving the original unaffected
+	// TODO: make one for draining a cell
+	fn _copy_cell(
+		&mut self,
+		source_cell: CellReference,
+		target_cell: CellReference,
+		constant: i32,
+	) {
+		if constant == 0 {
+			return;
+		}
+		// allocate a temporary cell
+		let temp_mem_id = self.push_memory_id();
+		self.push_instruction(Instruction::Allocate(
+			Memory::Cell { id: temp_mem_id },
+			None,
+		));
+		let temp_cell = CellReference {
+			memory_id: temp_mem_id,
+			index: None,
+		};
+		// copy source to target and temp
+		self.push_instruction(Instruction::OpenLoop(source_cell));
+		self.push_instruction(Instruction::AddToCell(target_cell, constant as u8));
+		self.push_instruction(Instruction::AddToCell(temp_cell, 1));
+		self.push_instruction(Instruction::AddToCell(source_cell, -1i8 as u8));
+		self.push_instruction(Instruction::CloseLoop(source_cell));
+		// copy back from temp
+		self.push_instruction(Instruction::OpenLoop(temp_cell));
+		self.push_instruction(Instruction::AddToCell(source_cell, 1));
+		self.push_instruction(Instruction::AddToCell(temp_cell, -1i8 as u8));
+		self.push_instruction(Instruction::CloseLoop(temp_cell));
+		self.push_instruction(Instruction::Free(temp_mem_id));
 	}
 }

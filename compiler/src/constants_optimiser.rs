@@ -1,6 +1,6 @@
 // TODO: make unit tests for this
 use crate::{
-	backend::{BFBuilder, Opcode2D},
+	backend::{BFBuilder2D, Opcode2D},
 	cells::TapeCell2D,
 };
 
@@ -16,14 +16,14 @@ pub fn calculate_optimal_addition(
 	start_cell: TapeCell2D,
 	target_cell: TapeCell2D,
 	temp_cell: TapeCell2D,
-) -> BFBuilder {
+) -> BFBuilder2D {
 	// can't abs() i8 directly because there is no +128i8, so abs(-128i8) crashes
 	let abs_value = (value as i32).abs();
 
 	// STAGE 0:
 	// for efficiency's sake, calculate the cost of just adding the constant to the cell
 	let naive_solution = {
-		let mut ops = BFBuilder::new();
+		let mut ops = BFBuilder2D::new();
 		ops.head_pos = start_cell;
 		ops.move_to_cell(target_cell);
 		ops.add_to_current_cell(value);
@@ -74,7 +74,7 @@ pub fn calculate_optimal_addition(
 
 		assert_eq!(best_combinations.len(), (abs_value as usize) + 1);
 		let (a, b, c) = best_combinations.into_iter().last().unwrap();
-		let mut ops = BFBuilder::new();
+		let mut ops = BFBuilder2D::new();
 		ops.head_pos = start_cell;
 
 		ops.move_to_cell(temp_cell);

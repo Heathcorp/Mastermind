@@ -1,6 +1,10 @@
-use regex_lite::Regex;
-
+// project dependencies:
 use crate::macros::macros::{r_assert, r_panic};
+
+// stdlib dependencies:
+
+// external dependencies:
+use regex_lite::Regex;
 
 pub fn tokenise(source: &String) -> Result<Vec<Token>, String> {
 	let stripped = source

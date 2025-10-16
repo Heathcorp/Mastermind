@@ -7,13 +7,16 @@ use std::{
 	num::Wrapping,
 };
 
-use crate::{cells::TapeCell2D, macros::macros::r_panic};
+use crate::{
+	cells::{TapeCell2D, TapeCellVariant},
+	macros::macros::r_panic,
+};
 use wasm_bindgen::{JsCast, JsValue};
 use wasm_bindgen_futures::JsFuture;
 
-struct Tape<TapeCell> {
-	memory_map: HashMap<TapeCell, Wrapping<u8>>,
-	head_position: TapeCell,
+struct Tape<TC: TapeCellVariant> {
+	memory_map: HashMap<TC, Wrapping<u8>>,
+	head_position: TC,
 }
 
 impl Tape<TapeCell2D> {

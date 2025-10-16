@@ -1,5 +1,5 @@
 use crate::{
-	cells::{TapeCell, TapeCell2D},
+	cells::{TapeCell, TapeCell2D, TapeCellLocation},
 	macros::macros::{r_assert, r_panic},
 	tokeniser::Token,
 };
@@ -155,9 +155,9 @@ fn parse_struct_clause<TC: TapeCellLocation>(clause: &[Token]) -> Result<Clause<
 
 	let mut j = 0usize;
 	loop {
-		let (field, len) = parse_var_definition(&braced_tokens[j..], true)?;
+		let (field, len) = parse_var_definition::<TC>(&braced_tokens[j..], true)?;
 		j += len;
-		fields.push(field);
+		fields.push(field.try_into()?);
 		r_assert!(
 			j <= braced_tokens.len(),
 			"Struct definition field exceeded braces. This should never occur. {clause:#?}"
@@ -478,19 +478,6 @@ fn parse_assert_clause<T>(clause: &[Token]) -> Result<Clause<T>, String> {
 	}
 }
 
-pub trait TapeCellLocation
-where
-	Self: Sized,
-{
-	// parse any memory location specifiers
-	// let g @(4,2) = 68;
-	// or
-	// let p @3 = 68;
-	fn parse_location_specifier(
-		tokens: &[Token],
-	) -> Result<(LocationSpecifier<Self>, usize), String>;
-}
-
 impl TapeCellLocation for TapeCell {
 	fn parse_location_specifier(
 		tokens: &[Token],
@@ -504,7 +491,7 @@ impl TapeCellLocation for TapeCell {
 
 		let mut i = 1;
 		match &tokens[i] {
-			Token::Minus => {
+			Token::Minus | Token::Digits(_) => {
 				let mut positive = true;
 				if let Token::Minus = &tokens[i] {
 					i += 1;
@@ -530,8 +517,16 @@ impl TapeCellLocation for TapeCell {
 
 				Ok((LocationSpecifier::Variable(var), i))
 			}
-			_ => r_panic!("Invalid location specifier: {tokens:#?}"),
+			_ => r_panic!(
+				"Invalid location specifier: {:?}",
+				&tokens[0..(tokens.len().min(5))]
+			),
 		}
+	}
+
+	fn to_positive_cell_offset(&self) -> Result<usize, String> {
+		r_assert!(self.0 >= 0, "Expected non-negative cell offset.");
+		Ok(self.0 as usize)
 	}
 }
 
@@ -609,6 +604,14 @@ impl TapeCellLocation for TapeCell2D {
 			}
 			_ => r_panic!("Expected constant or variable in location specifier: {tokens:#?}"),
 		}
+	}
+
+	fn to_positive_cell_offset(&self) -> Result<usize, String> {
+		r_assert!(
+			self.1 == 0 && self.0 >= 0,
+			"Expected non-negative 1st dimensional cell offset (i.e. (x,y) where y=0)."
+		);
+		Ok(self.0 as usize)
 	}
 }
 
@@ -1285,7 +1288,7 @@ pub enum Clause<TC> {
 	},
 	DefineStruct {
 		name: String,
-		fields: Vec<VariableDefinition<TC>>,
+		fields: Vec<StructFieldDefinition>,
 	},
 	AddToVariable {
 		var: VariableTarget,
@@ -1368,9 +1371,9 @@ pub enum VariableTypeReference {
 }
 
 #[derive(Debug, Clone, Hash, PartialEq, Eq)]
-pub enum LocationSpecifier<TapeCell> {
+pub enum LocationSpecifier<TC> {
 	None,
-	Cell(TapeCell),
+	Cell(TC),
 	Variable(VariableTarget),
 }
 impl<T> LocationSpecifier<T> {
@@ -1380,11 +1383,61 @@ impl<T> LocationSpecifier<T> {
 }
 
 #[derive(Debug, Clone, Hash, PartialEq, Eq)]
-pub struct VariableDefinition<TapeCell> {
+pub struct VariableDefinition<TC> {
 	pub name: String,
 	pub var_type: VariableTypeReference,
-	pub location_specifier: LocationSpecifier<TapeCell>,
+	pub location_specifier: LocationSpecifier<TC>,
 	// Infinite {name: String, pattern: ???},
+}
+
+#[derive(Debug, Clone, PartialEq)]
+pub struct StructFieldDefinition {
+	pub name: String,
+	pub field_type: VariableTypeReference,
+	pub location_offset_specifier: Option<usize>,
+}
+// let non_neg_location_specifier = match &var_def.location_specifier {
+// 	LocationSpecifier::None => None,
+// 	LocationSpecifier::Cell(l) => {
+// 		// assert the y coordinate is 0
+// 		// r_assert!(
+// 		// 	l.1 == 0,
+// 		// 	"Struct field location specifiers do not support 2D grid cells: {var_def}"
+// 		// );
+// 		r_assert!(
+// 			l.0 >= 0,
+// 			"Struct field location specifiers must be non-negative: {var_def}"
+// 		);
+// 		Some(l.0 as usize)
+// 	}
+// 	LocationSpecifier::Variable(_) => {
+// 		r_panic!( "Location specifiers in struct definitions must be relative, not variables: {var_def}")
+// 	}
+// };
+impl<TC> TryInto<StructFieldDefinition> for VariableDefinition<TC>
+where
+	TC: TapeCellLocation,
+{
+	type Error = String;
+
+	fn try_into(self) -> Result<StructFieldDefinition, String> {
+		let location_offset_specifier = match &self.location_specifier {
+			LocationSpecifier::None => None,
+			LocationSpecifier::Cell(cell) => Some(match cell.to_positive_cell_offset() {
+				Ok(offset) => offset,
+				Err(err) => r_panic!("Cannot create struct field \"{self}\". {err}"),
+			}),
+			LocationSpecifier::Variable(_) => r_panic!(
+				"Location specifiers in struct definitions \
+must be relative, not variable."
+			),
+		};
+		Ok(StructFieldDefinition {
+			name: self.name,
+			field_type: self.var_type,
+			location_offset_specifier,
+		})
+	}
 }
 
 #[derive(Debug, Clone, Hash, PartialEq, Eq)]
