@@ -577,22 +577,22 @@ impl CellAllocator<TapeCell2D> {
 	}
 }
 
-// #[derive(Clone, Copy, Debug)]
-// pub enum Opcode {
-// 	Add,
-// 	Subtract,
-// 	Right,
-// 	Left,
-// 	OpenLoop,
-// 	CloseLoop,
-// 	Output,
-// 	Input,
-// 	Clear,
-// 	Up,
-// 	Down,
-// }
+#[derive(Clone, Copy, Debug)]
+#[cfg_attr(test, derive(PartialEq))]
+pub enum Opcode {
+	Add,
+	Subtract,
+	Right,
+	Left,
+	OpenLoop,
+	CloseLoop,
+	Output,
+	Input,
+	Clear,
+}
 
 #[derive(Clone, Copy, Debug)]
+#[cfg_attr(test, derive(PartialEq))]
 pub enum Opcode2D {
 	Add,
 	Subtract,

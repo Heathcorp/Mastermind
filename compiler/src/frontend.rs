@@ -23,7 +23,7 @@ impl Into<TapeCell2D> for TapeCell {
 impl MastermindContext {
 	pub fn create_ir_scope<'a, TC: 'static + TapeCellVariant + Into<TapeCell2D>>(
 		&self,
-		clauses: &[Clause<TC>],
+		clauses: &[Clause<TC, Opcode2D>],
 		outer_scope: Option<&'a ScopeBuilder<TC>>,
 	) -> Result<ScopeBuilder<'a, TC>, String> {
 		let mut scope = if let Some(outer) = outer_scope {
@@ -34,7 +34,7 @@ impl MastermindContext {
 
 		// TODO: fix unnecessary clones, and reimplement this with iterators somehow
 		// hoist structs, then functions to top
-		let mut filtered_clauses_1: Vec<Clause<TC>> = vec![];
+		let mut filtered_clauses_1 = vec![];
 		// first stage: structs (these need to be defined before functions, so they can be used as arguments)
 		for clause in clauses {
 			match clause {
@@ -46,7 +46,7 @@ impl MastermindContext {
 			}
 		}
 		// second stage: functions
-		let mut filtered_clauses_2: Vec<Clause<TC>> = vec![];
+		let mut filtered_clauses_2 = vec![];
 		for clause in filtered_clauses_1 {
 			match clause {
 				Clause::DefineFunction {
@@ -509,16 +509,7 @@ impl MastermindContext {
 									self.ir_to_bf(instructions, Some(TC::origin_cell()))?;
 								expanded_bf.extend(bf_code);
 							}
-							ExtendedOpcode::Add => expanded_bf.push(Opcode2D::Add),
-							ExtendedOpcode::Subtract => expanded_bf.push(Opcode2D::Subtract),
-							ExtendedOpcode::Right => expanded_bf.push(Opcode2D::Right),
-							ExtendedOpcode::Left => expanded_bf.push(Opcode2D::Left),
-							ExtendedOpcode::OpenLoop => expanded_bf.push(Opcode2D::OpenLoop),
-							ExtendedOpcode::CloseLoop => expanded_bf.push(Opcode2D::CloseLoop),
-							ExtendedOpcode::Output => expanded_bf.push(Opcode2D::Output),
-							ExtendedOpcode::Input => expanded_bf.push(Opcode2D::Input),
-							ExtendedOpcode::Up => expanded_bf.push(Opcode2D::Up),
-							ExtendedOpcode::Down => expanded_bf.push(Opcode2D::Down),
+							ExtendedOpcode::Opcode(opcode) => expanded_bf.push(opcode),
 						}
 					}
 
@@ -708,7 +699,11 @@ pub struct ScopeBuilder<'a, TapeCell> {
 	variable_memory: HashMap<String, (ValueType, Memory)>,
 
 	/// Functions accessible by any code within or in the current scope
-	functions: Vec<(String, Vec<(String, ValueType)>, Vec<Clause<TapeCell>>)>,
+	functions: Vec<(
+		String,
+		Vec<(String, ValueType)>,
+		Vec<Clause<TapeCell, Opcode2D>>,
+	)>,
 	/// Struct types definitions
 	structs: HashMap<String, DictStructType>,
 
@@ -719,7 +714,7 @@ pub struct ScopeBuilder<'a, TapeCell> {
 #[derive(Clone, Debug)] // probably shouldn't be cloning here but whatever
 struct Function<TC> {
 	arguments: Vec<(String, ValueType)>,
-	block: Vec<Clause<TC>>,
+	block: Vec<Clause<TC, Opcode2D>>,
 }
 
 #[derive(Clone, Debug, PartialEq, Eq)]
@@ -1075,7 +1070,7 @@ where
 		&mut self,
 		new_function_name: &str,
 		new_arguments: Vec<VariableDefinition<TC>>,
-		new_block: Vec<Clause<TC>>,
+		new_block: Vec<Clause<TC, Opcode2D>>,
 	) -> Result<(), String> {
 		let absolute_arguments = new_arguments
 			.into_iter()

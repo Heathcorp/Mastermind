@@ -4,6 +4,8 @@ use crate::macros::macros::{r_assert, r_panic};
 // external dependencies:
 use regex_lite::Regex;
 
+// TODO: refactor: combine tokeniser and parser into one
+//  make the inline brainfuck tokens contextual
 pub fn tokenise(source: &String) -> Result<Vec<Token>, String> {
 	let stripped = source
 		.lines()
