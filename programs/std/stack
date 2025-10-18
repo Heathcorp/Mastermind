@@ -1,0 +1,59 @@
+// NOTE: STACK OVERFLOWS/UNDERFLOWS WILL FUCK UP YOUR PROGRAM
+// Also, this has inline brainfuck in it, so it probably won't be readable.
+
+// This hasn't been tested very much because debugging brainfuck
+// is hell.
+
+struct stack16 {
+  cell start @0;
+  cell[32] arr @1; // each entry uses 2 cells. yes this is stupid.
+  cell one @33;
+  cell[2] end @34;
+}
+
+fn init_stack(struct stack16 stack) {
+  stack.one = 1;
+}
+
+fn get_to_current(struct stack16 stack) {
+  bf @stack.one {
+    [<<]>>>
+  }
+}
+
+fn get_back_to_one() {
+  bf {
+    <[>>]<<
+  }
+}
+
+fn push(struct stack16 stack, cell x) {
+  stack.one = 1;
+  cell in = x;
+  bf @stack.one {
+    [<<]+[>>]<<
+  }
+  while in {
+    in -= 1;
+    get_to_current(stack);
+    bf {+}
+    get_back_to_one();
+  }
+}
+
+fn pop(struct stack16 stack, cell return) {
+  stack.one = 1;
+  bf @return {[-]} // The compiler doesn't want to clear return
+  get_to_current(stack);
+  bf {[-}
+    get_back_to_one();
+    return += 1;
+    get_to_current(stack);
+  bf {]<->>>}
+  get_back_to_one();
+}
+
+
+
+
+
