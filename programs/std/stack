@@ -4,17 +4,25 @@
 // Also, this has inline brainfuck in it, so it probably won't be readable.
 
 struct stack255 {
-  cell start @0;
-  cell[510] arr @1;
-  cell one @511;
-  cell len @512;
-  cell end @513;
+  cell[510] arr;
+  cell one;
+  cell len;
+  cell end;
+}
+
+struct stack32 {
+  cell[64] arr;
+  cell one;
+  cell len;
+  cell end;
 }
 
 // == DOCUMENTATION ==
 
 // struct stack255        -- a stack object you can push to and pop from.
 //                           can hold up to 255 values.
+
+// struct stack32         -- smaller stack. holds 32 values.
 
 // push(stack, x)         -- pushes x to the stack
 
@@ -39,8 +47,12 @@ fn init_stack(struct stack255 stack) {
   stack.one = 1;
 }
 
+fn init_stack(struct stack32 stack) {
+  stack.one = 1;
+}
+
 fn move_to_current(cell one) { // move the pointer to the last value pushe
-  bf @one {                   // input is stack.one
+  bf @one {                    // input is stack.one
     [<<]>>>
   }
 }
@@ -55,7 +67,7 @@ fn push_d(struct stack255 stack, cell in) { // destructive version of push
   stack.len += 1;
   
   // set usage flag
-  bf @stack.one {
+  bf @stack.one clobbers *stack.arr {
     [<<]+[>>]<<
   }
   
@@ -63,21 +75,52 @@ fn push_d(struct stack255 stack, cell in) { // destructive version of push
   while in {
     in -= 1;
     move_to_current(stack.one);
-    bf {+}
+    bf clobbers *stack.arr {+}
+    move_to_one();
+  }
+}
+
+fn push_d(struct stack32 stack, cell in) {
+  stack.one = 1;
+  stack.len += 1;
+  
+  // set usage flag
+  bf @stack.one clobbers *stack.arr {
+    [<<]+[>>]<<
+  }
+  
+  // drain input to the array item
+  while in {
+    in -= 1;
+    move_to_current(stack.one);
+    bf clobbers *stack.arr {+}
     move_to_one();
   }
 }
 
 fn push(struct stack255 stack, cell x) {
-  cell in = x; // copy the input in case they want to keep it
+  cell in = x; // copy the input
   push_d(stack, in);
+}
+
+fn push(struct stack32 stack, cell x) {
+  cell in = x;
+  push_d(stack, x);
 }
 
 fn push_safe(struct stack255 stack, cell x) {
   if stack.len - 255 {
     push(stack, x);
   } else {
-    output "ERROR: STACK OVERFLOW";
+    output "STACK OVERFLOW";
+  }
+}
+
+fn push_safe(struct stack32 stack, cell x) {
+  if stack.len - 32 {
+    push(stack, x);
+  } else {
+    output "STACK OVERFLOW";
   }
 }
 
@@ -86,22 +129,44 @@ fn push_d_safe(struct stack255 stack, cell in) {
     push_d(stack, in);
   } else {
     in = 0;
-    output "ERROR: STACK OVERFLOW";
+    output "STACK OVERFLOW";
+  }
+}
+
+fn push_d_safe(struct stack32 stack, cell in) {
+  if stack.len - 32 {
+    push_d(stack, in);
+  } else {
+    in = 0;
+    output "STACK OVERFLOW";
   }
 }
 
 fn pop(struct stack255 stack, cell return) {
-  assert return unknown; // sometimes the compiler fucks up
   return = 0;
   stack.one = 1;
   stack.len -= 1;
   
   move_to_current(stack.one);
-  bf @stack.one {[-}
+  bf clobbers *stack.arr return {[-}
     move_to_one();
     return += 1;
     move_to_current(stack.one);
   bf {]<->>>}
+  move_to_one();
+}
+
+fn pop(struct stack32 stack, cell return) {
+  return = 0;
+  stack.one = 1;
+  stack.len -= 1;
+  
+  move_to_current(stack.one);
+  bf clobbers *stack.arr return {[-}
+    move_to_one();
+    return += 1;
+    move_to_current(stack.one);
+  bf clobbers *stack.arr {]<->>>}
   move_to_one();
 }
 
@@ -110,10 +175,18 @@ fn pop_safe(struct stack255 stack, cell return) {
     pop(stack, return);
   } else {
     return = 0;
-    output "ERROR: STACK UNDERFLOW";
+    output "STACK UNDERFLOW";
   }
 }
 
+fn pop_safe(struct stack32 stack, cell return) {
+  if stack.len {
+    pop(stack, return);
+  } else {
+    return = 0;
+    output "STACK UNDERFLOW";
+  }
+}
 
 
 
