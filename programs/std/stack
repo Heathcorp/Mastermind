@@ -1,57 +1,121 @@
+// stack program. by MSMissing on github
+
 // NOTE: STACK OVERFLOWS/UNDERFLOWS WILL FUCK UP YOUR PROGRAM
 // Also, this has inline brainfuck in it, so it probably won't be readable.
 
-// This hasn't been tested very much because debugging brainfuck
-// is hell.
-
-struct stack16 {
+struct stack255 {
   cell start @0;
-  cell[32] arr @1; // each entry uses 2 cells. yes this is stupid.
-  cell one @33;
-  cell[2] end @34;
+  cell[510] arr @1;
+  cell one @511;
+  cell len @512;
+  cell end @513;
 }
 
-fn init_stack(struct stack16 stack) {
+// == DOCUMENTATION ==
+
+// struct stack255        -- a stack object you can push to and pop from.
+//                           can hold up to 255 values.
+
+// push(stack, x)         -- pushes x to the stack
+
+// push_d(stack, x)       -- pushes x to the stack, destroying it in the
+//                           process. faster than push
+
+// push_safe(stack, x)    -- pushes x to the stack, and outputs an error if
+//                           if it can't. cannot end the program.
+
+// push_d_safe(stack, x) -- same as push_safe, but destructive
+
+// pop(stack, out)       -- pulls the last value from the stack and puts it
+//                          into out.
+
+// pop_safe(stack, out)  -- same as pop, but outputs an error if the stack
+//                          underflows. cannot end the program.
+
+
+
+// REMEMBER TO INITIALIZE YOUR STACKS OR THE CODE WILL LIKELY BE SLOWER
+fn init_stack(struct stack255 stack) {
   stack.one = 1;
 }
 
-fn get_to_current(struct stack16 stack) {
-  bf @stack.one {
+fn move_to_current(cell one) { // move the pointer to the last value pushe
+  bf @one {                   // input is stack.one
     [<<]>>>
   }
 }
-
-fn get_back_to_one() {
+fn move_to_one() { // move pointer to stack.one after calling move_to_current()
   bf {
     <[>>]<<
   }
 }
 
-fn push(struct stack16 stack, cell x) {
+fn push_d(struct stack255 stack, cell in) { // destructive version of push
   stack.one = 1;
-  cell in = x;
+  stack.len += 1;
+  
+  // set usage flag
   bf @stack.one {
     [<<]+[>>]<<
   }
+  
+  // drain input to the array item
   while in {
     in -= 1;
-    get_to_current(stack);
+    move_to_current(stack.one);
     bf {+}
-    get_back_to_one();
+    move_to_one();
   }
 }
 
-fn pop(struct stack16 stack, cell return) {
-  stack.one = 1;
-  bf @return {[-]} // The compiler doesn't want to clear return
-  get_to_current(stack);
-  bf {[-}
-    get_back_to_one();
-    return += 1;
-    get_to_current(stack);
-  bf {]<->>>}
-  get_back_to_one();
+fn push(struct stack255 stack, cell x) {
+  cell in = x; // copy the input in case they want to keep it
+  push_d(stack, in);
 }
+
+fn push_safe(struct stack255 stack, cell x) {
+  if stack.len - 255 {
+    push(stack, x);
+  } else {
+    output "ERROR: STACK OVERFLOW";
+  }
+}
+
+fn push_d_safe(struct stack255 stack, cell in) {
+  if stack.len - 255 {
+    push_d(stack, in);
+  } else {
+    in = 0;
+    output "ERROR: STACK OVERFLOW";
+  }
+}
+
+fn pop(struct stack255 stack, cell return) {
+  assert return unknown; // sometimes the compiler fucks up
+  return = 0;
+  stack.one = 1;
+  stack.len -= 1;
+  
+  move_to_current(stack.one);
+  bf @stack.one {[-}
+    move_to_one();
+    return += 1;
+    move_to_current(stack.one);
+  bf {]<->>>}
+  move_to_one();
+}
+
+fn pop_safe(struct stack255 stack, cell return) {
+  if stack.len {
+    pop(stack, return);
+  } else {
+    return = 0;
+    output "ERROR: STACK UNDERFLOW";
+  }
+}
+
+
+
 
 
 
