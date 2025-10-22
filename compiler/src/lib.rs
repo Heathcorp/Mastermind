@@ -5,7 +5,6 @@
 mod backend;
 mod brainfuck;
 mod brainfuck_optimiser;
-mod cells;
 mod constants_optimiser;
 mod frontend;
 mod macros;
@@ -15,9 +14,12 @@ mod preprocessor;
 mod tests;
 mod tokeniser;
 use crate::{
-	backend::BrainfuckOpcodes,
+	backend::{
+		bf::{Opcode, TapeCell},
+		bf2d::{Opcode2D, TapeCell2D},
+		common::BrainfuckProgram,
+	},
 	brainfuck::{BrainfuckConfig, BrainfuckContext},
-	cells::{TapeCell, TapeCell2D},
 	misc::MastermindContext,
 	parser::parse,
 	preprocessor::preprocess_from_memory,
@@ -53,20 +55,23 @@ pub fn wasm_compile(
 
 	let preprocessed_file = preprocess_from_memory(&file_contents, entry_file_name)?;
 	let tokens = tokenise(&preprocessed_file)?;
-	let bf_code = if ctx.config.enable_2d_grid {
-		let parsed_syntax = parse::<TapeCell2D>(&tokens)?;
+	if ctx.config.enable_2d_grid {
+		let parsed_syntax = parse::<TapeCell2D, Opcode2D>(&tokens)?;
 		let instructions = ctx.create_ir_scope(&parsed_syntax, None)?.build_ir(false);
-		ctx.ir_to_bf(instructions, None)?
+		let bf_code = ctx.ir_to_bf(instructions, None)?;
+		Ok(bf_code.to_string())
 	} else {
-		let parsed_syntax = parse::<TapeCell>(&tokens)?;
+		let parsed_syntax = parse::<TapeCell, Opcode>(&tokens)?;
 		let instructions = ctx.create_ir_scope(&parsed_syntax, None)?.build_ir(false);
-		ctx.ir_to_bf(instructions, None)?
-	};
+		let bf_code = ctx.ir_to_bf(instructions, None)?;
+		Ok(bf_code.to_string())
+	}
 
-	Ok(match ctx.config.optimise_generated_code {
-		true => ctx.optimise_bf_code(bf_code).to_string(),
-		false => bf_code.to_string(),
-	})
+	// TODO: fix optimisations
+	// Ok(match ctx.config.optimise_generated_code {
+	// 	true => ctx.optimise_bf_code(bf_code).to_string(),
+	// 	false => bf_code.to_string(),
+	// })
 }
 
 #[wasm_bindgen]

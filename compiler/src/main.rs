@@ -5,7 +5,6 @@
 mod backend;
 mod brainfuck;
 mod brainfuck_optimiser;
-mod cells;
 mod constants_optimiser;
 mod frontend;
 mod macros;
@@ -15,9 +14,7 @@ mod preprocessor;
 mod tests;
 mod tokeniser;
 use crate::{
-	backend::BrainfuckOpcodes,
 	brainfuck::{BrainfuckConfig, BrainfuckContext},
-	cells::{TapeCell, TapeCell2D},
 	misc::{MastermindConfig, MastermindContext},
 	parser::parse,
 	preprocessor::preprocess,
@@ -99,11 +96,11 @@ fn main() -> Result<(), String> {
 			// compile the provided file
 			let tokens = tokenise(&program)?;
 			let bf_code = if ctx.config.enable_2d_grid {
-				let parsed_syntax = parse::<TapeCell2D>(&tokens)?;
+				let parsed_syntax = parse::<TapeCell2D, Opcode2D>(&tokens)?;
 				let instructions = ctx.create_ir_scope(&parsed_syntax, None)?.build_ir(false);
 				ctx.ir_to_bf(instructions, None)?
 			} else {
-				let parsed_syntax = parse::<TapeCell>(&tokens)?;
+				let parsed_syntax = parse::<TapeCell, Opcode>(&tokens)?;
 				let instructions = ctx.create_ir_scope(&parsed_syntax, None)?.build_ir(false);
 				ctx.ir_to_bf(instructions, None)?
 			};

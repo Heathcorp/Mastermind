@@ -1,7 +1,10 @@
 use itertools::Itertools;
 use std::{collections::HashMap, num::Wrapping};
 
-use crate::{backend::Opcode2D, cells::TapeCell2D, misc::MastermindContext};
+use crate::{
+	backend::bf2d::{Opcode2D, TapeCell2D},
+	misc::MastermindContext,
+};
 
 // originally trivial post-compilation brainfuck optimisations
 // extended to 2D which makes it more difficult
@@ -209,7 +212,7 @@ fn _move_position(
 #[cfg(test)]
 mod bf_optimiser_tests {
 	use crate::{
-		backend::BrainfuckOpcodes,
+		backend::common::BrainfuckProgram,
 		misc::{MastermindConfig, MastermindContext},
 	};
 
@@ -245,21 +248,21 @@ mod bf_optimiser_tests {
 
 	#[test]
 	fn greedy_subset_equivalence_test_0() {
-		let v = BrainfuckOpcodes::from_str("+++>><<++>--->+++<><><><><<<<<+++"); //(3) 0  0 [5] -3 3
+		let v = BrainfuckProgram::from_str("+++>><<++>--->+++<><><><><<<<<+++"); //(3) 0  0 [5] -3 3
 		let o = CTX_OPT.optimise_subset(v).to_string();
 		assert_eq!(o, "+++++>--->+++<<<<<+++");
 	}
 
 	#[test]
 	fn greedy_program_equivalence_test_0() {
-		let v = BrainfuckOpcodes::from_str("<><><>++<+[--++>>+<<-]");
+		let v = BrainfuckProgram::from_str("<><><>++<+[--++>>+<<-]");
 		let o: String = CTX_OPT.optimise_bf_code(v).to_string();
 		assert_eq!(o, "++<+[->>+<<]");
 	}
 
 	#[test]
 	fn greedy_program_equivalence_test_1() {
-		let v = BrainfuckOpcodes::from_str(
+		let v = BrainfuckProgram::from_str(
 			"+++++++++>>+++>---->>>++++--<--++<<hello<++++[-<+>>++<+<->]++--->+",
 		); // [9] 0 (7) -4 0 0 2 // [(0)] 2 // -1 1
 		let o: String = CTX_OPT.optimise_bf_code(v).to_string();
@@ -268,28 +271,28 @@ mod bf_optimiser_tests {
 
 	#[test]
 	fn greedy_program_equivalence_test_2() {
-		let v = BrainfuckOpcodes::from_str(">><.");
+		let v = BrainfuckProgram::from_str(">><.");
 		let o: String = CTX_OPT.optimise_bf_code(v).to_string();
 		assert_eq!(o, ">.");
 	}
 
 	#[test]
 	fn greedy_subset_equivalence_test_1() {
-		let v = BrainfuckOpcodes::from_str("+++<+++>[-]+++"); //(3) 0  0 [5] -3 3
+		let v = BrainfuckProgram::from_str("+++<+++>[-]+++"); //(3) 0  0 [5] -3 3
 		let o = CTX_OPT.optimise_subset(v).to_string();
 		assert_eq!(o, "[-]+++<+++>");
 	}
 
 	#[test]
 	fn greedy_subset_equivalence_test_2() {
-		let v = BrainfuckOpcodes::from_str("+++<+++>[-]+++[-]<[-]--+>-"); //(3) 0  0 [5] -3 3
+		let v = BrainfuckProgram::from_str("+++<+++>[-]+++[-]<[-]--+>-"); //(3) 0  0 [5] -3 3
 		let o = CTX_OPT.optimise_subset(v).to_string();
 		assert_eq!(o, "[-]-<[-]->");
 	}
 
 	#[test]
 	fn greedy_program_equivalence_test_3() {
-		let v = BrainfuckOpcodes::from_str(
+		let v = BrainfuckProgram::from_str(
 			"+++++[-]+++++++++>>+++>---->>>++++--<--++<<hello<++++[[-]<+>>++<+<->]++--->+",
 		); // [9] 0 (7) -4 0 0 2 // [(0)] 2 // -1 1
 		let o: String = CTX_OPT.optimise_bf_code(v).to_string();
@@ -298,21 +301,21 @@ mod bf_optimiser_tests {
 
 	#[test]
 	fn greedy_two_dimensional_subset_equivalence_test_0() {
-		let v = BrainfuckOpcodes::from_str("+++^^vv++^---^+++v^v^v^v^vvvvv+++"); //(3) 0  0 [5] -3 3
+		let v = BrainfuckProgram::from_str("+++^^vv++^---^+++v^v^v^v^vvvvv+++"); //(3) 0  0 [5] -3 3
 		let o = CTX_OPT.optimise_subset(v).to_string();
 		assert_eq!(o, "+++++^---^+++vvvvv+++");
 	}
 
 	#[test]
 	fn greedy_two_dimensional_program_equivalence_test_0() {
-		let v = BrainfuckOpcodes::from_str("v^v^v^++v+[--++^^+vv-]");
+		let v = BrainfuckProgram::from_str("v^v^v^++v+[--++^^+vv-]");
 		let o: String = CTX_OPT.optimise_bf_code(v).to_string();
 		assert_eq!(o, "++v+[-^^+vv]");
 	}
 
 	#[test]
 	fn greedy_two_dimensional_program_equivalence_test_1() {
-		let v = BrainfuckOpcodes::from_str(
+		let v = BrainfuckProgram::from_str(
 			"+++++++++^^+++^----^^^++++--v--++vvhellov++++[-v+^^++v+v-^]++---^+",
 		); // [9] 0 (7) -4 0 0 2 // [(0)] 2 // -1 1
 		let o: String = CTX_OPT.optimise_bf_code(v).to_string();
@@ -321,28 +324,28 @@ mod bf_optimiser_tests {
 
 	#[test]
 	fn greedy_two_dimensional_program_equivalence_test_2() {
-		let v = BrainfuckOpcodes::from_str("^^v.");
+		let v = BrainfuckProgram::from_str("^^v.");
 		let o: String = CTX_OPT.optimise_bf_code(v).to_string();
 		assert_eq!(o, "^.");
 	}
 
 	#[test]
 	fn greedy_two_dimensional_subset_equivalence_test_1() {
-		let v = BrainfuckOpcodes::from_str("+++v+++^[-]+++"); //(3) 0  0 [5] -3 3
+		let v = BrainfuckProgram::from_str("+++v+++^[-]+++"); //(3) 0  0 [5] -3 3
 		let o = CTX_OPT.optimise_subset(v).to_string();
 		assert_eq!(o, "[-]+++v+++^");
 	}
 
 	#[test]
 	fn greedy_two_dimensional_subset_equivalence_test_2() {
-		let v = BrainfuckOpcodes::from_str("+++v+++^[-]+++[-]v[-]--+^-"); //(3) 0  0 [5] -3 3
+		let v = BrainfuckProgram::from_str("+++v+++^[-]+++[-]v[-]--+^-"); //(3) 0  0 [5] -3 3
 		let o = CTX_OPT.optimise_subset(v).to_string();
 		assert_eq!(o, "[-]-v[-]-^");
 	}
 
 	#[test]
 	fn greedy_two_dimensional_program_equivalence_test_3() {
-		let v = BrainfuckOpcodes::from_str(
+		let v = BrainfuckProgram::from_str(
 			"+++++[-]+++++++++^^+++^----^^^++++--v--++vvhellov++++[[-]v+^^++v+v-^]++---^+",
 		); // [9] 0 (7) -4 0 0 2 // [(0)] 2 // -1 1
 		let o: String = CTX_OPT.optimise_bf_code(v).to_string();
@@ -352,7 +355,7 @@ mod bf_optimiser_tests {
 	#[test]
 	#[ignore]
 	fn exhaustive_subset_equivalence_test_0() {
-		let v = BrainfuckOpcodes::from_str("+++>><<++>--->+++<><><><><<<<<+++"); //(3) 0  0 [5] -3 3
+		let v = BrainfuckProgram::from_str("+++>><<++>--->+++<><><><><<<<<+++"); //(3) 0  0 [5] -3 3
 		let o = CTX_OPT_EXHAUSTIVE.optimise_subset(v).to_string();
 		assert_eq!(o, ">--->+++<<+++++<<<+++");
 	}
@@ -360,7 +363,7 @@ mod bf_optimiser_tests {
 	#[test]
 	#[ignore]
 	fn exhaustive_program_equivalence_test_0() {
-		let v = BrainfuckOpcodes::from_str("<><><>++<+[--++>>+<<-]");
+		let v = BrainfuckProgram::from_str("<><><>++<+[--++>>+<<-]");
 		let o: String = CTX_OPT_EXHAUSTIVE.optimise_bf_code(v).to_string();
 		assert_eq!(o, "++<+[>>+<<-]");
 	}
@@ -368,7 +371,7 @@ mod bf_optimiser_tests {
 	#[test]
 	#[ignore]
 	fn exhaustive_program_equivalence_test_1() {
-		let v = BrainfuckOpcodes::from_str(
+		let v = BrainfuckProgram::from_str(
 			"+++++++++>>+++>---->>>++++--<--++<<hello<++++[-<+>>++<+<->]++--->+",
 		); // [9] 0 (7) -4 0 0 2 // [(0)] 2 // -1 1
 		let o: String = CTX_OPT_EXHAUSTIVE.optimise_bf_code(v).to_string();
@@ -378,7 +381,7 @@ mod bf_optimiser_tests {
 	#[test]
 	#[ignore]
 	fn exhaustive_program_equivalence_test_2() {
-		let v = BrainfuckOpcodes::from_str(">><.");
+		let v = BrainfuckProgram::from_str(">><.");
 		let o: String = CTX_OPT_EXHAUSTIVE.optimise_bf_code(v).to_string();
 		assert_eq!(o, ">.");
 	}
@@ -386,7 +389,7 @@ mod bf_optimiser_tests {
 	#[test]
 	#[ignore]
 	fn exhaustive_subset_equivalence_test_1() {
-		let v = BrainfuckOpcodes::from_str("+++<+++>[-]+++"); //(3) 0  0 [5] -3 3
+		let v = BrainfuckProgram::from_str("+++<+++>[-]+++"); //(3) 0  0 [5] -3 3
 		let o = CTX_OPT_EXHAUSTIVE.optimise_subset(v).to_string();
 		assert_eq!(o, "[-]+++<+++>");
 	}
@@ -394,7 +397,7 @@ mod bf_optimiser_tests {
 	#[test]
 	#[ignore]
 	fn exhaustive_subset_equivalence_test_2() {
-		let v = BrainfuckOpcodes::from_str("+++<+++>[-]+++[-]<[-]--+>-"); //(3) 0  0 [5] -3 3
+		let v = BrainfuckProgram::from_str("+++<+++>[-]+++[-]<[-]--+>-"); //(3) 0  0 [5] -3 3
 		let o = CTX_OPT_EXHAUSTIVE.optimise_subset(v).to_string();
 		assert_eq!(o, "[-]-<[-]->");
 	}
@@ -402,7 +405,7 @@ mod bf_optimiser_tests {
 	#[test]
 	#[ignore]
 	fn exhaustive_program_equivalence_test_3() {
-		let v = BrainfuckOpcodes::from_str(
+		let v = BrainfuckProgram::from_str(
 			"+++++[-]+++++++++>>+++>---->>>++++--<--++<<hello<++++[[-]<+>>++<+<->]++--->+",
 		); // [9] 0 (7) -4 0 0 2 // [(0)] 2 // -1 1
 		let o: String = CTX_OPT_EXHAUSTIVE.optimise_bf_code(v).to_string();
@@ -412,7 +415,7 @@ mod bf_optimiser_tests {
 	#[test]
 	#[ignore]
 	fn exhaustive_two_dimensional_subset_equivalence_test_0() {
-		let v = BrainfuckOpcodes::from_str("+++^^vv++^---^+++v^v^v^v^vvvvv+++"); //(3) 0  0 [5] -3 3
+		let v = BrainfuckProgram::from_str("+++^^vv++^---^+++v^v^v^v^vvvvv+++"); //(3) 0  0 [5] -3 3
 		let o = CTX_OPT_EXHAUSTIVE.optimise_subset(v).to_string();
 		assert_eq!(o, "^^+++v---v+++++vvv+++");
 	}
@@ -420,7 +423,7 @@ mod bf_optimiser_tests {
 	#[test]
 	#[ignore]
 	fn exhaustive_two_dimensional_program_equivalence_test_0() {
-		let v = BrainfuckOpcodes::from_str("v^v^v^++v+[--++^^+vv-]");
+		let v = BrainfuckProgram::from_str("v^v^v^++v+[--++^^+vv-]");
 		let o: String = CTX_OPT_EXHAUSTIVE.optimise_bf_code(v).to_string();
 		assert_eq!(o, "++v+[^^+vv-]");
 	}
@@ -428,7 +431,7 @@ mod bf_optimiser_tests {
 	#[test]
 	#[ignore]
 	fn exhaustive_two_dimensional_program_equivalence_test_1() {
-		let v = BrainfuckOpcodes::from_str(
+		let v = BrainfuckProgram::from_str(
 			"+++++++++^^+++^----^^^++++--v--++vvhellov++++[-v+^^++v+v-^]++---^+",
 		); // [9] 0 (7) -4 0 0 2 // [(0)] 2 // -1 1
 		let o: String = CTX_OPT_EXHAUSTIVE.optimise_bf_code(v).to_string();
@@ -438,7 +441,7 @@ mod bf_optimiser_tests {
 	#[test]
 	#[ignore]
 	fn exhaustive_two_dimensional_program_equivalence_test_2() {
-		let v = BrainfuckOpcodes::from_str("^^v.");
+		let v = BrainfuckProgram::from_str("^^v.");
 		let o: String = CTX_OPT_EXHAUSTIVE.optimise_bf_code(v).to_string();
 		assert_eq!(o, "^.");
 	}
@@ -446,7 +449,7 @@ mod bf_optimiser_tests {
 	#[test]
 	#[ignore]
 	fn exhaustive_two_dimensional_subset_equivalence_test_1() {
-		let v = BrainfuckOpcodes::from_str("+++v+++^[-]+++"); //(3) 0  0 [5] -3 3
+		let v = BrainfuckProgram::from_str("+++v+++^[-]+++"); //(3) 0  0 [5] -3 3
 		let o = CTX_OPT_EXHAUSTIVE.optimise_subset(v).to_string();
 		assert_eq!(o, "[-]+++v+++^");
 	}
@@ -454,7 +457,7 @@ mod bf_optimiser_tests {
 	#[test]
 	#[ignore]
 	fn exhaustive_two_dimensional_subset_equivalence_test_2() {
-		let v = BrainfuckOpcodes::from_str("+++v+++^[-]+++[-]v[-]--+^-"); //(3) 0  0 [5] -3 3
+		let v = BrainfuckProgram::from_str("+++v+++^[-]+++[-]v[-]--+^-"); //(3) 0  0 [5] -3 3
 		let o = CTX_OPT_EXHAUSTIVE.optimise_subset(v).to_string();
 		assert_eq!(o, "[-]-v[-]-^");
 	}
@@ -462,7 +465,7 @@ mod bf_optimiser_tests {
 	#[test]
 	#[ignore]
 	fn exhaustive_two_dimensional_program_equivalence_test_3() {
-		let v = BrainfuckOpcodes::from_str(
+		let v = BrainfuckProgram::from_str(
 			"+++++[-]+++++++++^^+++^----^^^++++--v--++vvhellov++++[[-]v+^^++v+v-^]++---^+",
 		); // [9] 0 (7) -4 0 0 2 // [(0)] 2 // -1 1
 		let o: String = CTX_OPT_EXHAUSTIVE.optimise_bf_code(v).to_string();
@@ -470,7 +473,7 @@ mod bf_optimiser_tests {
 	}
 
 	fn subset_edge_case_0() {
-		let v = BrainfuckOpcodes::from_str(
+		let v = BrainfuckProgram::from_str(
 			"-++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++",
 		);
 		let o: String = CTX_OPT.optimise_subset(v).to_string();
@@ -480,7 +483,7 @@ mod bf_optimiser_tests {
 
 	#[test]
 	fn subset_edge_case_1() {
-		let v = BrainfuckOpcodes::from_str(
+		let v = BrainfuckProgram::from_str(
 			"++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++",
 		);
 		let o: String = CTX_OPT.optimise_subset(v).to_string();
@@ -490,7 +493,7 @@ mod bf_optimiser_tests {
 
 	#[test]
 	fn subset_edge_case_2() {
-		let v = BrainfuckOpcodes::from_str(
+		let v = BrainfuckProgram::from_str(
 			"+--------------------------------------------------------------------------------------------------------------------------------"
 		);
 		let o: String = CTX_OPT.optimise_subset(v).to_string();
@@ -500,7 +503,7 @@ mod bf_optimiser_tests {
 
 	#[test]
 	fn subset_edge_case_3() {
-		let v = BrainfuckOpcodes::from_str(
+		let v = BrainfuckProgram::from_str(
 			"--------------------------------------------------------------------------------------------------------------------------------"
 		);
 		let o: String = CTX_OPT.optimise_subset(v).to_string();
@@ -510,7 +513,7 @@ mod bf_optimiser_tests {
 
 	#[test]
 	fn subset_edge_case_3a() {
-		let v = BrainfuckOpcodes::from_str(
+		let v = BrainfuckProgram::from_str(
 			"- --------------------------------------------------------------------------------------------------------------------------------"
 		);
 		let o: String = CTX_OPT.optimise_subset(v).to_string();
@@ -520,7 +523,7 @@ mod bf_optimiser_tests {
 
 	#[test]
 	fn subset_edge_case_4() {
-		let v = BrainfuckOpcodes::from_str(
+		let v = BrainfuckProgram::from_str(
 			"[-]--------------------------------------------------------------------------------------------------------------------------------"
 		);
 		let o: String = CTX_OPT.optimise_subset(v).to_string();

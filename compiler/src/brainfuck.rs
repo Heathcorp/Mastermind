@@ -8,7 +8,7 @@ use std::{
 };
 
 use crate::{
-	cells::{TapeCell2D, TapeCellVariant},
+	backend::{bf2d::TapeCell2D, common::TapeCellVariant},
 	macros::macros::r_panic,
 };
 use wasm_bindgen::{JsCast, JsValue};
