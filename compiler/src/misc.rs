@@ -1,4 +1,4 @@
-#[derive(serde::Deserialize)]
+#[derive(Clone, serde::Deserialize)]
 pub struct MastermindConfig {
 	// basic pure brainfuck optimisations
 	pub optimise_generated_code: bool,

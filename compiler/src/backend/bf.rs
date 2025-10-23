@@ -47,7 +47,7 @@ impl OpcodeVariant for Opcode {
 	}
 }
 
-impl CellAllocator<TapeCell> for CellAllocatorData<'_, TapeCell> {
+impl CellAllocator<TapeCell> for CellAllocatorData<TapeCell> {
 	/// Check if the desired number of cells can be allocated to the right of a given location
 	fn check_allocatable(&mut self, location: &TapeCell, size: usize) -> bool {
 		for k in 0..size {

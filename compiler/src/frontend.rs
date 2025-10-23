@@ -23,7 +23,7 @@ impl MastermindContext {
 	) -> Result<ScopeBuilder<'a, TC, OC>, String>
 	where
 		BrainfuckBuilderData<TC, OC>: BrainfuckBuilder<TC, OC>,
-		CellAllocatorData<'a, TC>: CellAllocator<TC>,
+		CellAllocatorData<TC>: CellAllocator<TC>,
 	{
 		let mut scope = if let Some(outer) = outer_scope {
 			outer.open_inner()

@@ -308,26 +308,25 @@ pub mod bvm_tests {
 
 	pub fn run_code(
 		config: BrainfuckConfig,
-		code: String,
-		input: String,
+		code: &str,
+		input: &str,
 		max_steps_cutoff: Option<usize>,
-	) -> String {
+	) -> Result<String, String> {
 		let ctx = BrainfuckContext { config };
 
 		let input_bytes: Vec<u8> = input.bytes().collect();
 		let mut input_stream = Cursor::new(input_bytes);
-		let mut output_stream = Cursor::new(Vec::new());
+		let mut output_stream = Cursor::new(vec![]);
 
 		ctx.run(
 			code.chars().collect(),
 			&mut input_stream,
 			&mut output_stream,
 			max_steps_cutoff,
-		)
-		.unwrap();
+		)?;
 
 		// TODO: fix this unsafe stuff
-		unsafe { String::from_utf8_unchecked(output_stream.into_inner()) }
+		Ok(unsafe { String::from_utf8_unchecked(output_stream.into_inner()) })
 	}
 	const BVM_CONFIG_1D: BrainfuckConfig = BrainfuckConfig {
 		enable_debug_symbols: false,
@@ -339,151 +338,224 @@ pub mod bvm_tests {
 	};
 
 	#[test]
-	fn dummy_test() {
-		let program = String::from("");
-		let input = String::from("");
-		let desired_output = String::from("");
-		assert_eq!(
-			desired_output,
-			run_code(BVM_CONFIG_1D, program, input, None)
-		)
-	}
-
-	#[test]
 	fn hello_world_1() {
-		let program = String::from("++++++++[>++++[>++>+++>+++>+<<<<-]>+>+>->>+[<]<-]>>.>---.+++++++..+++.>>.<-.<.+++.------.--------.>>+.>++.");
-		let input = String::from("");
-		let desired_output = String::from("Hello World!\n");
 		assert_eq!(
-			desired_output,
-			run_code(BVM_CONFIG_1D, program, input, None)
-		)
+			run_code(
+				BVM_CONFIG_1D,
+				"++++++++[>++++[>++>+++>+++>+<<<<-]>+>+>->>+[<]<-]>>.>---.+++++++..+++.>>.<-.<.\
++++.------.--------.>>+.>++.",
+				"",
+				None
+			)
+			.unwrap(),
+			"Hello World!\n"
+		);
 	}
 
 	#[test]
 	fn hello_world_2() {
-		let program = String::from(
-			"+[-->-[>>+>-----<<]<--<---]>-.>>>+.>>..+++[.>]<<<<.+++.------.<<-.>>>>+.",
-		);
-		let input = String::from("");
-		let desired_output = String::from("Hello, World!");
 		assert_eq!(
-			desired_output,
-			run_code(BVM_CONFIG_1D, program, input, None)
+			run_code(
+				BVM_CONFIG_1D,
+				"+[-->-[>>+>-----<<]<--<---]>-.>>>+.>>..+++[.>]<<<<.+++.------.<<-.>>>>+.",
+				"",
+				None
+			)
+			.unwrap(),
+			"Hello, World!"
 		)
 	}
 
 	#[test]
 	fn random_mess() {
-		let program = String::from("+++++[>+++++[>++>++>+++>+++>++++>++++<<<<<<-]<-]+++++[>>[>]<[+.<<]>[++.>>>]<[+.<]>[-.>>]<[-.<<<]>[.>]<[+.<]<-]++++++++++.");
-		let input = String::from("");
-		let desired_output = String::from("eL34NfeOL454KdeJ44JOdefePK55gQ67ShfTL787KegJ77JTeghfUK88iV9:XjgYL:;:KfiJ::JYfijgZK;;k[<=]lh^L=>=KgkJ==J^gklh_K>>m`?@bnicL@A@KhmJ@@JchmnidKAA\n");
+		// test case stolen from https://code.golf
 		assert_eq!(
-			desired_output,
-			run_code(BVM_CONFIG_1D, program, input, None)
+			run_code(
+				BVM_CONFIG_1D,
+				"+++++[>+++++[>++>++>+++>+++>++++>++++<<<<<<-]<-]+++++[>>[>]<[+.<<]>[++.>>>]<[+\
+.<]>[-.>>]<[-.<<<]>[.>]<[+.<]<-]++++++++++.",
+				"",
+				None
+			)
+			.unwrap(),
+			"eL34NfeOL454KdeJ44JOdefePK55gQ67ShfTL787KegJ77JTeghfUK88iV9:XjgYL:;:KfiJ::JYfi\
+jgZK;;k[<=]lh^L=>=KgkJ==J^gklh_K>>m`?@bnicL@A@KhmJ@@JchmnidKAA\n"
 		)
 	}
 
 	#[test]
-	#[should_panic(expected = "2D Brainfuck currently disabled")]
 	fn grid_disabled_1() {
-		let program = String::from("++++++++[->++++++[->+>+<<]<]>>.>^+++.");
-		let input = String::from("");
-		run_code(BVM_CONFIG_1D, program, input, None);
+		assert_eq!(
+			run_code(
+				BVM_CONFIG_1D,
+				"++++++++[->++++++[->+>+<<]<]>>.>^+++.",
+				"",
+				None,
+			)
+			.unwrap_err(),
+			"2D Brainfuck currently disabled"
+		);
 	}
 
 	#[test]
 	#[should_panic(expected = "2D Brainfuck currently disabled")]
 	fn grid_disabled_2() {
-		let program =
-			String::from("++++++++[->^^^+++vvvv+++[->^^^^+>+<vvvv<]<]>^^^^^^^^>.>vvvv+++.");
-		let input = String::from("");
-		run_code(BVM_CONFIG_1D, program, input, None);
+		assert_eq!(
+			run_code(
+				BVM_CONFIG_1D,
+				"++++++++[->^^^+++vvvv+++[->^^^^+>+<vvvv<]<]>^^^^^^^^>.>vvvv+++.",
+				"",
+				None,
+			)
+			.unwrap_err(),
+			"2D Brainfuck currently disabled"
+		);
 	}
 
 	// 2D tests:
 	#[test]
 	fn grid_regression_1() {
-		// hello world
-		let program = String::from("++++++++[>++++[>++>+++>+++>+<<<<-]>+>+>->>+[<]<-]>>.>---.+++++++..+++.>>.<-.<.+++.------.--------.>>+.>++.");
-		let input = String::from("");
-		let desired_output = String::from("Hello World!\n");
 		assert_eq!(
-			desired_output,
-			run_code(BVM_CONFIG_2D, program, input, None)
+			run_code(
+				BVM_CONFIG_2D,
+				"++++++++[>++++[>++>+++>+++>+<<<<-]>+>+>->>+[<]<-]>>.>---.+++++++..+++.>>.<-.<.\
++++.------.--------.>>+.>++.",
+				"",
+				None
+			)
+			.unwrap(),
+			"Hello World!\n"
 		)
 	}
 
 	#[test]
 	fn grid_regression_2() {
-		// random mess
-		let program = String::from("+++++[>+++++[>++>++>+++>+++>++++>++++<<<<<<-]<-]+++++[>>[>]<[+.<<]>[++.>>>]<[+.<]>[-.>>]<[-.<<<]>[.>]<[+.<]<-]++++++++++.");
-		let input = String::from("");
-		let desired_output = String::from("eL34NfeOL454KdeJ44JOdefePK55gQ67ShfTL787KegJ77JTeghfUK88iV9:XjgYL:;:KfiJ::JYfijgZK;;k[<=]lh^L=>=KgkJ==J^gklh_K>>m`?@bnicL@A@KhmJ@@JchmnidKAA\n");
+		// test case stolen from https://code.golf
 		assert_eq!(
-			desired_output,
-			run_code(BVM_CONFIG_2D, program, input, None)
+			run_code(
+				BVM_CONFIG_2D,
+				"+++++[>+++++[>++>++>+++>+++>++++>++++<<<<<<-]<-]+++++[>>[>]<[+.<<]>[++.>>>]<[+\
+.<]>[-.>>]<[-.<<<]>[.>]<[+.<]<-]++++++++++.",
+				"",
+				None
+			)
+			.unwrap(),
+			"eL34NfeOL454KdeJ44JOdefePK55gQ67ShfTL787KegJ77JTeghfUK88iV9:XjgYL:;:KfiJ::JYfi\
+jgZK;;k[<=]lh^L=>=KgkJ==J^gklh_K>>m`?@bnicL@A@KhmJ@@JchmnidKAA\n"
 		)
 	}
 
 	#[test]
 	fn grid_basic_1() {
-		let program = String::from("++++++++[-^++++++[->+v+<^]v]>+++++^.v.");
-		let input = String::from("");
-		let desired_output = String::from("05");
 		assert_eq!(
-			desired_output,
-			run_code(BVM_CONFIG_2D, program, input, None)
+			run_code(
+				BVM_CONFIG_2D,
+				"++++++++[-^++++++[->+v+<^]v]>+++++^.v.",
+				"",
+				None
+			)
+			.unwrap(),
+			"05"
 		)
 	}
 
 	#[test]
 	fn grid_mover_1() {
-		let program = String::from(
-			"-<<<<<<<<<<<<^^^^^^^^^^^^-<^++++++++[->>vv+[->v+]->v++++++<^<^+[-<^+]-<^]>>vv+[->v+]->v...",
-		);
-		let input = String::from("");
-		let desired_output = String::from("000");
 		assert_eq!(
-			desired_output,
-			run_code(BVM_CONFIG_2D, program, input, None)
+			run_code(
+				BVM_CONFIG_2D,
+				"-<<<<<<<<<<<<^^^^^^^^^^^^-<^++++++++[->>vv+[->v+]->v++++++<^<^+[-<^+]-<^]>>vv+\
+[->v+]->v...",
+				"",
+				None
+			)
+			.unwrap(),
+			"000",
 		)
 	}
 
 	#[test]
 	fn grid_bfception_1() {
-		// run a hello world program within a 1d brainfuck interpreter implemented in 2d brainfuck
-		let program = String::from("-v>,[>,]^-<+[-<+]->+[-v------------------------------------------^>+]-<+[-<+]->+[-v[-^+^+vv]^[-v+^]^->+<[>-<->+<[>-<->+<[>-<->+<[>-<-------------->+<[>-<-->+<[>-<----------------------------->+<[>-<-->+<[>-<vv[-]^^[-]]>[[-]<[-]vv[-]++++++v++^^^>]<[-]]>[[-]<[-]vv[-]+++++v+^^^>]<[-]]>[[-]<[-]vv[-]+++^^>]<[-]]>[[-]<[-]vv[-]++++^^>]<[-]]>[[-]<[-]vv[-]+++++++^^>]<[-]]>[[-]<[-]vv[-]++^^>]<[-]]>[[-]<[-]vv[-]++++++++^^>]<[-]]>[[-]<[-]vv[-]+^^>]<vv^>+]-v-v-v-v-^^^^<+[-<+]<->v-v-v<-v->^^^^>vvv+^^^<+>+[-<->+v[-^^+^+vvv]^^[-vv+^^]^>+<-[>[-]<>+<-[>[-]<>+<-[>[-]<>+<-[>[-]<>+<-[>[-]<>+<-[>[-]<>+<-[>[-]<>+<-[>[-]<[-]]>[-<vvvvv+[-<+]->-[+>-]+v,^+[-<+]-<^^^+[->+]->-[+>-]+^^>]<]>[-<vvvvv+[-<+]->-[+>-]+v.^+[-<+]-<^^^+[->+]->-[+>-]+^^>]<]>[-<vvvvv+[-<+]->-[+>-]+v[-v+v+^^]v[-^+v]v[[-]^^^+[-<+]-^^^+[->+]-<+[>>-[+>-]<+vv[-^^^+^+vvvv]^^^[-vvv+^^^]^->+<[>-<->+<[>-<[-]]>[-<vv+[-<+]-<+>>-[+>-]+^^>]<]>[-<vv+[-<+]-<->>-[+>-]+^^>]<vv+[-<+]-<][-]>vvv+[-<+]->-[+>-]+vvv]^^^+[-<+]-<^^^+[->+]->-[+>-]+^^>]<]>[-<vvvvv+[-<+]->-[+>-]+v[-v+v+^^]v[-^+v]v>+<[>-<[-]]>[-<^^^+[-<+]-^^^+[->+]-<+[>>-[+>-]>+vv[-^^^+^+vvvv]^^^[-vvv+^^^]^->+<[>-<->+<[>-<[-]]>[-<vv+[-<+]-<->>-[+>-]+^^>]<]>[-<vv+[-<+]-<+>>-[+>-]+^^>]<vv+[-<+]-<][-]>vvv+[-<+]->-[+>-]+vvv>]<^^^+[-<+]-<^^^+[->+]->-[+>-]+^^>]<]>[-<vvvvv+[-<+]->-[+>-]+<<-v-^>+v+^[<+v+^>-v-^]+>-+[-<+]-<^^^+[->+]->-[+>-]+^^>]<]>[-<vvvvv+[-<+]->-[+>-]+>>-v-^<+v+^[>+v+^<-v-^]+<-+[-<+]-<^^^+[->+]->-[+>-]+^^>]<]>[-<vvvvv+[-<+]->-[+>-]+v-^+[-<+]-<^^^+[->+]->-[+>-]+^^>]<]>[-<vvvvv+[-<+]->-[+>-]+v+^+[-<+]-<^^^+[->+]->-[+>-]+^^>]<vv>+]-");
-		let input = String::from("++++++++[>++++[>++>+++>+++>+<<<<-]>+>+>->>+[<]<-]>>.>---.+++++++..+++.>>.<-.<.+++.------.--------.>>+.>++.\n");
-		let desired_output = String::from("Hello World!\n");
+		// hello world run inside a brainfuck interpreter written in 2d brainfuck
 		assert_eq!(
-			desired_output,
-			run_code(BVM_CONFIG_2D, program, input, None)
+			run_code(
+				BVM_CONFIG_2D,
+				"-v>,[>,]^-<+[-<+]->+[-v------------------------------------------^>+]-<+[-<+]\
+->+[-v[-^+^+vv]^[-v+^]^->+<[>-<->+<[>-<->+<[>-<->+<[>-<-------------->+<[>-<-->\
++<[>-<----------------------------->+<[>-<-->+<[>-<vv[-]^^[-]]>[[-]<[-]vv[-]+++\
++++v++^^^>]<[-]]>[[-]<[-]vv[-]+++++v+^^^>]<[-]]>[[-]<[-]vv[-]+++^^>]<[-]]>[[-]<\
+[-]vv[-]++++^^>]<[-]]>[[-]<[-]vv[-]+++++++^^>]<[-]]>[[-]<[-]vv[-]++^^>]<[-]]>[[\
+-]<[-]vv[-]++++++++^^>]<[-]]>[[-]<[-]vv[-]+^^>]<vv^>+]-v-v-v-v-^^^^<+[-<+]<->v-\
+v-v<-v->^^^^>vvv+^^^<+>+[-<->+v[-^^+^+vvv]^^[-vv+^^]^>+<-[>[-]<>+<-[>[-]<>+<-[>\
+[-]<>+<-[>[-]<>+<-[>[-]<>+<-[>[-]<>+<-[>[-]<>+<-[>[-]<[-]]>[-<vvvvv+[-<+]->-[+>\
+-]+v,^+[-<+]-<^^^+[->+]->-[+>-]+^^>]<]>[-<vvvvv+[-<+]->-[+>-]+v.^+[-<+]-<^^^+[-\
+>+]->-[+>-]+^^>]<]>[-<vvvvv+[-<+]->-[+>-]+v[-v+v+^^]v[-^+v]v[[-]^^^+[-<+]-^^^+[\
+->+]-<+[>>-[+>-]<+vv[-^^^+^+vvvv]^^^[-vvv+^^^]^->+<[>-<->+<[>-<[-]]>[-<vv+[-<+]\
+-<+>>-[+>-]+^^>]<]>[-<vv+[-<+]-<->>-[+>-]+^^>]<vv+[-<+]-<][-]>vvv+[-<+]->-[+>-]\
++vvv]^^^+[-<+]-<^^^+[->+]->-[+>-]+^^>]<]>[-<vvvvv+[-<+]->-[+>-]+v[-v+v+^^]v[-^+\
+v]v>+<[>-<[-]]>[-<^^^+[-<+]-^^^+[->+]-<+[>>-[+>-]>+vv[-^^^+^+vvvv]^^^[-vvv+^^^]\
+^->+<[>-<->+<[>-<[-]]>[-<vv+[-<+]-<->>-[+>-]+^^>]<]>[-<vv+[-<+]-<+>>-[+>-]+^^>]\
+<vv+[-<+]-<][-]>vvv+[-<+]->-[+>-]+vvv>]<^^^+[-<+]-<^^^+[->+]->-[+>-]+^^>]<]>[-<\
+vvvvv+[-<+]->-[+>-]+<<-v-^>+v+^[<+v+^>-v-^]+>-+[-<+]-<^^^+[->+]->-[+>-]+^^>]<]>\
+[-<vvvvv+[-<+]->-[+>-]+>>-v-^<+v+^[>+v+^<-v-^]+<-+[-<+]-<^^^+[->+]->-[+>-]+^^>]\
+<]>[-<vvvvv+[-<+]->-[+>-]+v-^+[-<+]-<^^^+[->+]->-[+>-]+^^>]<]>[-<vvvvv+[-<+]->-\
+[+>-]+v+^+[-<+]-<^^^+[->+]->-[+>-]+^^>]<vv>+]-",
+				"++++++++[>++++[>++>+++>+++>+<<<<-]>+>+>->>+[<]<-]>>.>---.+++++++..+++.>>.<-.<.\
++++.------.--------.>>+.>++.\n",
+				None
+			)
+			.unwrap(),
+			"Hello World!\n"
 		)
 	}
 
 	#[test]
 	fn grid_bfception_2() {
-		// random mess
-		let program = String::from("-v>,[>,]^-<+[-<+]->+[-v------------------------------------------^>+]-<+[-<+]->+[-v[-^+^+vv]^[-v+^]^->+<[>-<->+<[>-<->+<[>-<->+<[>-<-------------->+<[>-<-->+<[>-<----------------------------->+<[>-<-->+<[>-<vv[-]^^[-]]>[[-]<[-]vv[-]++++++v++^^^>]<[-]]>[[-]<[-]vv[-]+++++v+^^^>]<[-]]>[[-]<[-]vv[-]+++^^>]<[-]]>[[-]<[-]vv[-]++++^^>]<[-]]>[[-]<[-]vv[-]+++++++^^>]<[-]]>[[-]<[-]vv[-]++^^>]<[-]]>[[-]<[-]vv[-]++++++++^^>]<[-]]>[[-]<[-]vv[-]+^^>]<vv^>+]-v-v-v-v-^^^^<+[-<+]<->v-v-v<-v->^^^^>vvv+^^^<+>+[-<->+v[-^^+^+vvv]^^[-vv+^^]^>+<-[>[-]<>+<-[>[-]<>+<-[>[-]<>+<-[>[-]<>+<-[>[-]<>+<-[>[-]<>+<-[>[-]<>+<-[>[-]<[-]]>[-<vvvvv+[-<+]->-[+>-]+v,^+[-<+]-<^^^+[->+]->-[+>-]+^^>]<]>[-<vvvvv+[-<+]->-[+>-]+v.^+[-<+]-<^^^+[->+]->-[+>-]+^^>]<]>[-<vvvvv+[-<+]->-[+>-]+v[-v+v+^^]v[-^+v]v[[-]^^^+[-<+]-^^^+[->+]-<+[>>-[+>-]<+vv[-^^^+^+vvvv]^^^[-vvv+^^^]^->+<[>-<->+<[>-<[-]]>[-<vv+[-<+]-<+>>-[+>-]+^^>]<]>[-<vv+[-<+]-<->>-[+>-]+^^>]<vv+[-<+]-<][-]>vvv+[-<+]->-[+>-]+vvv]^^^+[-<+]-<^^^+[->+]->-[+>-]+^^>]<]>[-<vvvvv+[-<+]->-[+>-]+v[-v+v+^^]v[-^+v]v>+<[>-<[-]]>[-<^^^+[-<+]-^^^+[->+]-<+[>>-[+>-]>+vv[-^^^+^+vvvv]^^^[-vvv+^^^]^->+<[>-<->+<[>-<[-]]>[-<vv+[-<+]-<->>-[+>-]+^^>]<]>[-<vv+[-<+]-<+>>-[+>-]+^^>]<vv+[-<+]-<][-]>vvv+[-<+]->-[+>-]+vvv>]<^^^+[-<+]-<^^^+[->+]->-[+>-]+^^>]<]>[-<vvvvv+[-<+]->-[+>-]+<<-v-^>+v+^[<+v+^>-v-^]+>-+[-<+]-<^^^+[->+]->-[+>-]+^^>]<]>[-<vvvvv+[-<+]->-[+>-]+>>-v-^<+v+^[>+v+^<-v-^]+<-+[-<+]-<^^^+[->+]->-[+>-]+^^>]<]>[-<vvvvv+[-<+]->-[+>-]+v-^+[-<+]-<^^^+[->+]->-[+>-]+^^>]<]>[-<vvvvv+[-<+]->-[+>-]+v+^+[-<+]-<^^^+[->+]->-[+>-]+^^>]<vv>+]-");
-		let input = String::from("+++++[>+++++[>++>++>+++>+++>++++>++++<<<<<<-]<-]+++++[>>[>]<[+.<<]>[++.>>>]<[+.<]>[-.>>]<[-.<<<]>[.>]<[+.<]<-]++++++++++.\n");
-		let desired_output = String::from("eL34NfeOL454KdeJ44JOdefePK55gQ67ShfTL787KegJ77JTeghfUK88iV9:XjgYL:;:KfiJ::JYfijgZK;;k[<=]lh^L=>=KgkJ==J^gklh_K>>m`?@bnicL@A@KhmJ@@JchmnidKAA\n");
+		// random mess test from https://code.golf run in brainfuck interpreter written in 2d brainfuck
 		assert_eq!(
-			desired_output,
-			run_code(BVM_CONFIG_2D, program, input, None)
+			run_code(
+				BVM_CONFIG_2D,
+				"-v>,[>,]^-<+[-<+]->+[-v------------------------------------------^>+]-<+[-<+]-\
+>+[-v[-^+^+vv]^[-v+^]^->+<[>-<->+<[>-<->+<[>-<->+<[>-<-------------->+<[>-<-->+\
+<[>-<----------------------------->+<[>-<-->+<[>-<vv[-]^^[-]]>[[-]<[-]vv[-]++++\
+++v++^^^>]<[-]]>[[-]<[-]vv[-]+++++v+^^^>]<[-]]>[[-]<[-]vv[-]+++^^>]<[-]]>[[-]<[\
+-]vv[-]++++^^>]<[-]]>[[-]<[-]vv[-]+++++++^^>]<[-]]>[[-]<[-]vv[-]++^^>]<[-]]>[[-\
+]<[-]vv[-]++++++++^^>]<[-]]>[[-]<[-]vv[-]+^^>]<vv^>+]-v-v-v-v-^^^^<+[-<+]<->v-v\
+-v<-v->^^^^>vvv+^^^<+>+[-<->+v[-^^+^+vvv]^^[-vv+^^]^>+<-[>[-]<>+<-[>[-]<>+<-[>[\
+-]<>+<-[>[-]<>+<-[>[-]<>+<-[>[-]<>+<-[>[-]<>+<-[>[-]<[-]]>[-<vvvvv+[-<+]->-[+>-\
+]+v,^+[-<+]-<^^^+[->+]->-[+>-]+^^>]<]>[-<vvvvv+[-<+]->-[+>-]+v.^+[-<+]-<^^^+[->\
++]->-[+>-]+^^>]<]>[-<vvvvv+[-<+]->-[+>-]+v[-v+v+^^]v[-^+v]v[[-]^^^+[-<+]-^^^+[-\
+>+]-<+[>>-[+>-]<+vv[-^^^+^+vvvv]^^^[-vvv+^^^]^->+<[>-<->+<[>-<[-]]>[-<vv+[-<+]-\
+<+>>-[+>-]+^^>]<]>[-<vv+[-<+]-<->>-[+>-]+^^>]<vv+[-<+]-<][-]>vvv+[-<+]->-[+>-]+\
+vvv]^^^+[-<+]-<^^^+[->+]->-[+>-]+^^>]<]>[-<vvvvv+[-<+]->-[+>-]+v[-v+v+^^]v[-^+v\
+]v>+<[>-<[-]]>[-<^^^+[-<+]-^^^+[->+]-<+[>>-[+>-]>+vv[-^^^+^+vvvv]^^^[-vvv+^^^]^\
+->+<[>-<->+<[>-<[-]]>[-<vv+[-<+]-<->>-[+>-]+^^>]<]>[-<vv+[-<+]-<+>>-[+>-]+^^>]<\
+vv+[-<+]-<][-]>vvv+[-<+]->-[+>-]+vvv>]<^^^+[-<+]-<^^^+[->+]->-[+>-]+^^>]<]>[-<v\
+vvvv+[-<+]->-[+>-]+<<-v-^>+v+^[<+v+^>-v-^]+>-+[-<+]-<^^^+[->+]->-[+>-]+^^>]<]>[\
+-<vvvvv+[-<+]->-[+>-]+>>-v-^<+v+^[>+v+^<-v-^]+<-+[-<+]-<^^^+[->+]->-[+>-]+^^>]<\
+]>[-<vvvvv+[-<+]->-[+>-]+v-^+[-<+]-<^^^+[->+]->-[+>-]+^^>]<]>[-<vvvvv+[-<+]->-[\
++>-]+v+^+[-<+]-<^^^+[->+]->-[+>-]+^^>]<vv>+]-",
+				"+++++[>+++++[>++>++>+++>+++>++++>++++<<<<<<-]<-]+++++[>>[>]<[+.<<]>[++.>>>]<[+\
+.<]>[-.>>]<[-.<<<]>[.>]<[+.<]<-]++++++++++.\n",
+				None
+			)
+			.unwrap(),
+			"eL34NfeOL454KdeJ44JOdefePK55gQ67ShfTL787KegJ77JTeghfUK88iV9:XjgYL:;:KfiJ::JYfi\
+jgZK;;k[<=]lh^L=>=KgkJ==J^gklh_K>>m`?@bnicL@A@KhmJ@@JchmnidKAA\n"
 		)
 	}
 
 	#[test]
 	fn test_bf2d_code() {
-		let program = String::from(
-			",.[-]+[--^-[^^+^-----vv]v--v---]^-.^^^+.^^..+++[.^]vvvv.+++.------.vv-.^^^^+.",
-		);
-		let input = String::from("");
-		let desired_output = String::from("\0Hello, World!");
 		assert_eq!(
-			desired_output,
-			run_code(BVM_CONFIG_2D, program, input, None)
+			run_code(
+				BVM_CONFIG_2D,
+				",.[-]+[--^-[^^+^-----vv]v--v---]^-.^^^+.^^..+++[.^]vvvv.+++.------.vv-.^^^^+.",
+				"",
+				None
+			)
+			.unwrap(),
+			"\0Hello, World!"
 		)
 	}
 }

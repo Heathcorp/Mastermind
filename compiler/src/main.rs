@@ -14,6 +14,11 @@ mod preprocessor;
 mod tests;
 mod tokeniser;
 use crate::{
+	backend::{
+		bf::{Opcode, TapeCell},
+		bf2d::{Opcode2D, TapeCell2D},
+		common::BrainfuckProgram,
+	},
 	brainfuck::{BrainfuckConfig, BrainfuckContext},
 	misc::{MastermindConfig, MastermindContext},
 	parser::parse,
@@ -95,20 +100,23 @@ fn main() -> Result<(), String> {
 		true => {
 			// compile the provided file
 			let tokens = tokenise(&program)?;
-			let bf_code = if ctx.config.enable_2d_grid {
+			if ctx.config.enable_2d_grid {
 				let parsed_syntax = parse::<TapeCell2D, Opcode2D>(&tokens)?;
 				let instructions = ctx.create_ir_scope(&parsed_syntax, None)?.build_ir(false);
-				ctx.ir_to_bf(instructions, None)?
+				let bf_code = ctx.ir_to_bf(instructions, None)?;
+				bf_code.to_string()
 			} else {
 				let parsed_syntax = parse::<TapeCell, Opcode>(&tokens)?;
 				let instructions = ctx.create_ir_scope(&parsed_syntax, None)?.build_ir(false);
-				ctx.ir_to_bf(instructions, None)?
-			};
-
-			match ctx.config.optimise_generated_code {
-				true => ctx.optimise_bf_code(bf_code).to_string(),
-				false => bf_code.to_string(),
+				let bf_code = ctx.ir_to_bf(instructions, None)?;
+				bf_code.to_string()
 			}
+
+			// TODO: fix optimisations
+			// match ctx.config.optimise_generated_code {
+			// 	true => ctx.optimise_bf_code(bf_code).to_string(),
+			// 	false => bf_code.to_string(),
+			// }
 		}
 		false => program,
 	};

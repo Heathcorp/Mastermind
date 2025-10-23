@@ -6,7 +6,7 @@ use regex_lite::Regex;
 
 // TODO: refactor: combine tokeniser and parser into one
 //  make the inline brainfuck tokens contextual
-pub fn tokenise(source: &String) -> Result<Vec<Token>, String> {
+pub fn tokenise(source: &str) -> Result<Vec<Token>, String> {
 	let stripped = source
 		.lines()
 		.map(strip_line)

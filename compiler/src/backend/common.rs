@@ -15,17 +15,17 @@ use std::{
 type LoopDepth = usize;
 type TapeValue = u8;
 
-impl MastermindContext {
-	pub fn ir_to_bf<'a, TC: TapeCellVariant, OC: OpcodeVariant>(
-		&'a self,
+impl<'a> MastermindContext {
+	pub fn ir_to_bf<TC: TapeCellVariant, OC: OpcodeVariant>(
+		&self,
 		instructions: Vec<Instruction<TC, OC>>,
 		return_to_cell: Option<TC>,
 	) -> Result<Vec<OC>, String>
 	where
 		BrainfuckBuilderData<TC, OC>: BrainfuckBuilder<TC, OC>,
-		CellAllocatorData<'a, TC>: CellAllocator<TC>,
+		CellAllocatorData<TC>: CellAllocator<TC>,
 	{
-		let mut allocator = CellAllocatorData::new(&self.config);
+		let mut allocator = CellAllocatorData::new(self.config.clone());
 
 		struct AllocationMapEntry<TC> {
 			cell_base: TC,
@@ -422,12 +422,12 @@ where
 	fn from_token(token: &Token) -> Result<Self, String>;
 }
 
-pub struct CellAllocatorData<'a, TC> {
+pub struct CellAllocatorData<TC> {
 	pub cells: HashSet<TC>,
-	pub config: &'a MastermindConfig,
+	pub config: MastermindConfig,
 }
-impl<T> CellAllocatorData<'_, T> {
-	fn new(config: &MastermindConfig) -> CellAllocatorData<T> {
+impl<T> CellAllocatorData<T> {
+	fn new(config: MastermindConfig) -> CellAllocatorData<T> {
 		CellAllocatorData {
 			cells: HashSet::new(),
 			config,
