@@ -5,7 +5,6 @@
 mod backend;
 mod brainfuck;
 mod brainfuck_optimiser;
-mod constants_optimiser;
 mod frontend;
 mod macros;
 mod misc;

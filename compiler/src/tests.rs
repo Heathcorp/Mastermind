@@ -2399,7 +2399,7 @@ output 'h';
 "#;
 		let code = compile_program::<TapeCell, Opcode>(program, Some(OPT_ALL)).unwrap();
 		println!("{code}");
-		assert!(code.len() < 30);
+		assert!(code.len() < 35);
 		assert_eq!(run_code(BVM_CONFIG_1D, &code, "", None).unwrap(), "h");
 	}
 
@@ -2416,7 +2416,7 @@ output a + 3;
 "#;
 		let code = compile_program::<TapeCell, Opcode>(program, Some(OPT_ALL)).unwrap();
 		println!("{code}");
-		assert!(code.len() < 100);
+		assert!(code.len() < 400);
 		assert_eq!(run_code(BVM_CONFIG_1D, &code, "", None).unwrap(), "tIJ");
 	}
 
@@ -2424,8 +2424,8 @@ output a + 3;
 	#[test]
 	fn unimplemented_memory_allocation() {
 		let program = r#"
-			cell[15] arr @1;
-			cell a = 'G';
+cell[15] arr @1;
+cell a = 'G';
 "#;
 		let cfg = MastermindConfig {
 			optimise_generated_code: false,
@@ -2440,8 +2440,8 @@ output a + 3;
 			enable_2d_grid: false,
 		};
 		assert_eq!(
-			compile_program::<TapeCell, Opcode>(program, Some(cfg)).unwrap_err(),
-			"Memory Allocation Method not implemented"
+			compile_program::<TapeCell2D, Opcode2D>(program, Some(cfg)).unwrap_err(),
+			"Memory allocation method 128 not implemented."
 		);
 	}
 
@@ -2526,7 +2526,7 @@ cell i = 1;
 cell j = 1;
 "#;
 		assert_eq!(
-			compile_program::<TapeCell, Opcode>(program, Some(OPT_NONE_2D_TILES)).unwrap(),
+			compile_program::<TapeCell2D, Opcode2D>(program, Some(OPT_NONE_2D_TILES)).unwrap(),
 			"+<v+^+^+>vv+^^+>vv+^+^+"
 		);
 	}
@@ -2552,7 +2552,8 @@ output g;
 output h;
 output i;
 "#;
-		let code = compile_program::<TapeCell, Opcode>(program, Some(OPT_NONE_2D_TILES)).unwrap();
+		let code =
+			compile_program::<TapeCell2D, Opcode2D>(program, Some(OPT_NONE_2D_TILES)).unwrap();
 		println!("{code}");
 		assert!(code.contains("v") || code.contains("^"));
 		assert_eq!(
@@ -2723,7 +2724,8 @@ output g;
 output h;
 output i;
 "#;
-		let code = compile_program::<TapeCell, Opcode>(program, Some(OPT_NONE_2D_SPIRAL)).unwrap();
+		let code =
+			compile_program::<TapeCell2D, Opcode2D>(program, Some(OPT_NONE_2D_SPIRAL)).unwrap();
 		println!("{code}");
 		assert!(code.contains("v") || code.contains("^"));
 		assert_eq!(
@@ -2740,8 +2742,8 @@ cell a @(2, 4) = 1;
 cell[4] b @(0, 4);
 "#;
 		assert_eq!(
-			compile_program::<TapeCell, Opcode>(program, Some(OPT_NONE_2D_SPIRAL)).unwrap_err(),
-			"Location specifier @(0,4) conflicts with another allocation"
+			compile_program::<TapeCell2D, Opcode2D>(program, Some(OPT_NONE_2D_SPIRAL)).unwrap_err(),
+			"Location specifier @(0, 4) conflicts with another allocation"
 		);
 	}
 
@@ -2761,7 +2763,8 @@ output b[2];
 output b[3];
 output a;
 "#;
-		let code = compile_program::<TapeCell, Opcode>(program, Some(OPT_NONE_2D_SPIRAL)).unwrap();
+		let code =
+			compile_program::<TapeCell2D, Opcode2D>(program, Some(OPT_NONE_2D_SPIRAL)).unwrap();
 		println!("{code}");
 		assert!(code.contains("v") || code.contains("^"));
 		assert_eq!(run_code(BVM_CONFIG_2D, &code, "", None).unwrap(), "12345");

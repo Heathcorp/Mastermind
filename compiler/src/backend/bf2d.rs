@@ -257,7 +257,10 @@ impl CellAllocator<TapeCell2D> for CellAllocatorData<TapeCell2D> {
 					loops += 1;
 				}
 			} else {
-				panic!("Memory Allocation Method not implemented");
+				r_panic!(
+					"Memory allocation method {} not implemented.",
+					self.config.memory_allocation_method
+				);
 			}
 		}
 

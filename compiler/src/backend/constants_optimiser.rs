@@ -1,6 +1,6 @@
-use crate::backend::{
-	bf2d::{Opcode2D, TapeCell2D},
-	common::{BrainfuckBuilder, BrainfuckBuilderData},
+use super::common::{
+	BrainfuckBuilder, BrainfuckBuilderData, CellAllocator, CellAllocatorData, OpcodeVariant,
+	TapeCellVariant,
 };
 
 // basically, most ascii characters are large numbers, which are more efficient to calculate with multiplication than with a bunch of + or -
@@ -11,12 +11,16 @@ use crate::backend::{
 // 7 * 4 : {>}(tricky)+++++++[<++++>-]<
 // 5 * 5 * 7 : +++++[>+++++<-]>[<+++++++>-]<
 // TODO: make unit tests for this
-pub fn calculate_optimal_addition(
+pub fn calculate_optimal_addition<TC: TapeCellVariant, OC: OpcodeVariant>(
 	value: i8,
-	start_cell: TapeCell2D,
-	target_cell: TapeCell2D,
-	temp_cell: TapeCell2D,
-) -> BrainfuckBuilderData<TapeCell2D, Opcode2D> {
+	start_cell: TC,
+	target_cell: TC,
+	temp_cell: TC,
+) -> BrainfuckBuilderData<TC, OC>
+where
+	BrainfuckBuilderData<TC, OC>: BrainfuckBuilder<TC, OC>,
+	CellAllocatorData<TC>: CellAllocator<TC>,
+{
 	// can't abs() i8 directly because there is no +128i8, so abs(-128i8) crashes
 	let abs_value = (value as i32).abs();
 
@@ -79,7 +83,7 @@ pub fn calculate_optimal_addition(
 
 		ops.move_to_cell(temp_cell);
 		ops.add_to_current_cell(a as i8);
-		ops.push(Opcode2D::OpenLoop);
+		ops.open_loop();
 		ops.add_to_current_cell(-1);
 		ops.move_to_cell(target_cell);
 		if value < 0 {
@@ -88,7 +92,7 @@ pub fn calculate_optimal_addition(
 			ops.add_to_current_cell(b as i8);
 		}
 		ops.move_to_cell(temp_cell);
-		ops.push(Opcode2D::CloseLoop);
+		ops.close_loop();
 		ops.move_to_cell(target_cell);
 		if value < 0 {
 			ops.add_to_current_cell(-(c as i8));

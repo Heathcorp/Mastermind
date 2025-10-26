@@ -1,5 +1,5 @@
+use super::constants_optimiser::calculate_optimal_addition;
 use crate::{
-	constants_optimiser::calculate_optimal_addition,
 	frontend::{CellLocation, Instruction, MemoryId},
 	macros::macros::{r_assert, r_panic},
 	misc::{MastermindConfig, MastermindContext},
@@ -229,28 +229,24 @@ outside of loop it was allocated"
 					// TODO: fix bug, if only one multiplication then we can have a value already in the cell, but never otherwise
 
 					// not sure if these optimisations should be in the builder step or in the compiler
-					// if self.config.optimise_constants {
-					// 	// ops.move_to_cell(&mut head_pos, cell);
-					// 	// here we use an algorithm that finds the best combo of products and constants to make the number to minimise bf code
-					// 	// first we get the closest allocated cell so we can calculate the distance cost of multiplying
-					// 	// TODO: instead find the nearest zero cell, doesn't matter if allocated or not
-					// 	let temp_cell = allocator.allocate_temp_cell(cell);
+					if self.config.optimise_constants {
+						// ops.move_to_cell(&mut head_pos, cell);
+						// here we use an algorithm that finds the best combo of products and constants to make the number to minimise bf code
+						// first we get the closest allocated cell so we can calculate the distance cost of multiplying
+						// TODO: instead find the nearest zero cell, doesn't matter if allocated or not
+						let temp_cell = allocator.allocate_temp_cell(cell);
 
-					// 	let optimised_ops =
-					// 		calculate_optimal_addition(imm as i8, ops.head_pos, cell, temp_cell);
+						let optimised_ops =
+							calculate_optimal_addition(imm as i8, ops.head_pos, cell, temp_cell);
 
-					// 	ops.head_pos = optimised_ops.head_pos;
-					// 	ops.extend(optimised_ops.opcodes);
+						ops.extend(optimised_ops.opcodes);
+						ops.head_pos = optimised_ops.head_pos;
 
-					// 	allocator.free(temp_cell, 1)?;
-					// } else {
-					// 	ops.move_to_cell(cell);
-					// 	ops.add_to_current_cell(imm as i8);
-					// }
-
-					// TODO: fix optimisations
-					ops.move_to_cell(cell);
-					ops.add_to_current_cell(imm as i8);
+						allocator.free(temp_cell, 1)?;
+					} else {
+						ops.move_to_cell(cell);
+						ops.add_to_current_cell(imm as i8);
+					}
 
 					if imm != 0 {
 						if *alloc_loop_depth != current_loop_depth {
