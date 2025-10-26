@@ -72,3 +72,10 @@ pub fn preprocess_from_memory(
 
 	Ok(acc)
 }
+
+#[cfg(test)]
+mod preprocessor_tests {
+	// fn def_ifdef_1() {
+
+	// }
+}
