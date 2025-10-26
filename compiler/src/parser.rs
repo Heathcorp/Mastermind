@@ -1741,9 +1741,10 @@ mod parser_tests {
 		]))
 	}
 
+	// TODO: make context-based parser for brainfuck and refactor these tests
 	#[test]
 	fn inline_bf_2() {
-		assert!(parse::<TapeCell, Opcode2D>(&[
+		assert!(parse::<TapeCell2D, Opcode2D>(&[
 			Token::Cell,
 			Token::Name(String::from("v")),
 			Token::Semicolon,
@@ -1788,7 +1789,7 @@ mod parser_tests {
 
 	#[test]
 	fn inline_bf_3() {
-		assert!(parse::<TapeCell, Opcode2D>(&[
+		assert!(parse::<TapeCell2D, Opcode2D>(&[
 			Token::Bf,
 			Token::OpenBrace,
 			Token::Name(String::from("vvvv")),

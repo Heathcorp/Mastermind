@@ -398,7 +398,6 @@ jgZK;;k[<=]lh^L=>=KgkJ==J^gklh_K>>m`?@bnicL@A@KhmJ@@JchmnidKAA\n"
 	}
 
 	#[test]
-	#[should_panic(expected = "2D Brainfuck currently disabled")]
 	fn grid_disabled_2() {
 		assert_eq!(
 			run_code(

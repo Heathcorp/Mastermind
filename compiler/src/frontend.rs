@@ -687,7 +687,7 @@ impl Memory {
 pub struct ScopeBuilder<'a, TC, OC> {
 	/// a reference to the parent scope, for accessing things defined outside of this scope
 	outer_scope: Option<&'a ScopeBuilder<'a, TC, OC>>,
-	/// fn_only: true if syntactic context instead of normal context.
+	/// If true, scope is not able to access variables from outer scope.
 	/// Used for embedded mm so that the inner mm can use outer functions but not variables.
 	types_only: bool,
 
@@ -1130,15 +1130,15 @@ where
 		// get the absolute type of the variable, as well as the memory allocations
 		let (full_type, memory) = self.get_base_variable_memory(&target.name)?;
 		// get the correct index within the memory and return
-		Ok(match (&target.subfields, full_type, memory) {
-			(None, ValueType::Cell, Memory::Cell { id }) => CellReference {
+		match (&target.subfields, full_type, memory) {
+			(None, ValueType::Cell, Memory::Cell { id }) => Ok(CellReference {
 				memory_id: *id,
 				index: None,
-			},
-			(None, ValueType::Cell, Memory::MappedCell { id, index }) => CellReference {
+			}),
+			(None, ValueType::Cell, Memory::MappedCell { id, index }) => Ok(CellReference {
 				memory_id: *id,
 				index: *index,
-			},
+			}),
 			(
 				Some(subfield_chain),
 				ValueType::Array(_, _) | ValueType::DictStruct(_),
@@ -1154,7 +1154,7 @@ where
 					r_panic!("Expected cell type in variable target: {target}");
 				};
 				r_assert!(cell_index < *len, "Cell reference out of bounds on variable target: {target}. This should not occur.");
-				CellReference {
+				Ok(CellReference {
 					memory_id: *id,
 					index: Some(match memory {
 						Memory::Cells { id: _, len: _ } => cell_index,
@@ -1165,7 +1165,7 @@ where
 						} => *start_index + cell_index,
 						_ => unreachable!(),
 					}),
-				}
+				})
 			}
 			// valid states, user error
 			(
@@ -1201,7 +1201,7 @@ where
 			) => r_panic!(
 				"Invalid memory for value type in target: {target}. This should not occur."
 			),
-		})
+		}
 	}
 
 	/// Return a list of cell references for an array of cells (not an array of structs)
@@ -1363,10 +1363,16 @@ where
 
 	/// Return the absolute type and memory allocation for a variable name
 	fn get_base_variable_memory(&self, var_name: &str) -> Result<(&ValueType, &Memory), String> {
-		match (self.outer_scope, self.variable_memory.get(var_name)) {
-			(_, Some((value_type, memory))) => Ok((value_type, memory)),
-			(Some(outer_scope), None) => outer_scope.get_base_variable_memory(var_name),
-			(None, None) => r_panic!("No variable found with name \"{var_name}\"."),
+		match (
+			self.outer_scope,
+			self.types_only,
+			self.variable_memory.get(var_name),
+		) {
+			(_, _, Some((value_type, memory))) => Ok((value_type, memory)),
+			(Some(outer_scope), false, None) => outer_scope.get_base_variable_memory(var_name),
+			(None, _, None) | (Some(_), true, None) => {
+				r_panic!("No variable found in scope with name \"{var_name}\".")
+			}
 		}
 	}
 
