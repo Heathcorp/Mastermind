@@ -3,7 +3,7 @@ use crate::{
 	frontend::{CellLocation, Instruction, MemoryId},
 	macros::macros::{r_assert, r_panic},
 	misc::{MastermindConfig, MastermindContext},
-	parser::types::{TapeCellLocation, Token},
+	parser::{tokeniser::Token, types::TapeCellLocation},
 };
 
 use std::{

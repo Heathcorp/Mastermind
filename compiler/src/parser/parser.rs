@@ -18,32 +18,44 @@ use crate::{
 	parser::types::VariableTypeDefinition,
 };
 
-pub fn parse_clause<TC: TapeCellVariant, OC: OpcodeVariant>(
+pub fn parse_program<TC: TapeCellVariant, OC: OpcodeVariant>(
+	raw: &str,
+) -> Result<Vec<Clause<TC, OC>>, String> {
+	let program_chars: Vec<char> = raw.chars().collect();
+	let mut chars_slice = &program_chars[..];
+	let mut clauses = vec![];
+	loop {
+		let clause = parse_clause(&mut chars_slice)?;
+		if let Clause::None = clause {
+			break;
+		}
+		clauses.push(clause);
+	}
+
+	Ok(clauses)
+}
+
+fn parse_clause<TC: TapeCellVariant, OC: OpcodeVariant>(
 	chars: &mut &[char],
 ) -> Result<Clause<TC, OC>, String> {
-	// TODO: refactor this? inconsistent function calling in different parsing functions
-	let next_token =
-		|s| next_token(s).map_err(|()| format!("Invalid token: {}", chars.iter().collect()));
-
-	let mut s = chars;
-	Ok(match next_token(s)? {
-		// None signifies end of input
-		None => None,
-		Token::If => parse_if_else_clause(chars)?,
-		Token::While => parse_while_clause(chars)?,
-		Token::Fn => parse_function_definition_clause(chars)?,
-		Token::Struct => {
-			let Token::Name(_) = next_token(s)? else {
+	let mut s = *chars;
+	Ok(match next_token(&mut s) {
+		Ok(Token::None) => Clause::None,
+		Ok(Token::If) => parse_if_else_clause(chars)?,
+		Ok(Token::While) => parse_while_clause(chars)?,
+		Ok(Token::Fn) => parse_function_definition_clause(chars)?,
+		Ok(Token::Struct) => {
+			let Ok(Token::Name(_)) = next_token(&mut s) else {
 				// TODO: add source snippet
 				r_panic!("Expected identifier after `struct` keyword.");
 			};
-			match next_token(s)? {
-				Token::OpenBrace => parse_struct_definition_clause(chars)?,
+			match next_token(&mut s) {
+				Ok(Token::OpenBrace) => parse_struct_definition_clause(chars)?,
 				_ => parse_let_clause(chars)?,
 			}
 		}
-		Token::Cell => parse_let_clause(chars)?,
-		_ => todo!(),
+		Ok(Token::Cell) => parse_let_clause(chars)?,
+		Err(()) | Ok(_) => r_panic!("Invalid starting token."),
 	})
 }
 
@@ -59,18 +71,20 @@ impl TapeCellLocation for TapeCell {
 	fn parse_location_specifier(
 		chars: &mut &[char],
 	) -> Result<LocationSpecifier<TapeCell>, String> {
-		let mut s = chars;
-		let Token::At = next_token(s)? else {
+		let mut s = *chars;
+		let Ok(Token::At) = next_token(&mut s) else {
 			return Ok(LocationSpecifier::None);
 		};
 		*chars = s;
 
-		match next_token(s)? {
-			Token::Minus | Token::Digits(_) => Ok(LocationSpecifier::Cell(parse_integer(chars)?)),
+		match next_token(&mut s) {
+			Ok(Token::Minus | Token::Digits(_)) => {
+				Ok(LocationSpecifier::Cell(parse_integer(chars)?))
+			}
 			// variable location specifier:
-			Token::Name(_) => Ok(LocationSpecifier::Variable(parse_var_target(chars)?)),
+			Ok(Token::Name(_)) => Ok(LocationSpecifier::Variable(parse_var_target(chars)?)),
 			// TODO: add source snippet
-			_ => r_panic!("Invalid location specifier: ",),
+			_ => r_panic!("Invalid location specifier.",),
 		}
 	}
 
@@ -84,26 +98,26 @@ impl TapeCellLocation for TapeCell2D {
 	fn parse_location_specifier(
 		chars: &mut &[char],
 	) -> Result<LocationSpecifier<TapeCell2D>, String> {
-		let mut s = chars;
-		let Token::At = next_token(s)? else {
+		let mut s = *chars;
+		let Ok(Token::At) = next_token(&mut s) else {
 			return Ok(LocationSpecifier::None);
 		};
 		*chars = s;
 
-		match next_token(s)? {
-			Token::OpenParenthesis => {
+		match next_token(&mut s) {
+			Ok(Token::OpenParenthesis) => {
 				// parse a 2-tuple
 				let tuple = parse_integer_tuple::<2>(chars)?;
 				Ok(LocationSpecifier::Cell(TapeCell2D(tuple[0], tuple[1])))
 			}
-			Token::Minus | Token::Digits(_) => Ok(LocationSpecifier::Cell(TapeCell2D(
+			Ok(Token::Minus | Token::Digits(_)) => Ok(LocationSpecifier::Cell(TapeCell2D(
 				parse_integer(chars)?,
 				0,
 			))),
 			// variable location specifier:
-			Token::Name(_) => Ok(LocationSpecifier::Variable(parse_var_target(chars)?)),
+			Ok(Token::Name(_)) => Ok(LocationSpecifier::Variable(parse_var_target(chars)?)),
 			// TODO: add source snippet
-			_ => r_panic!("Invalid location specifier: ",),
+			_ => r_panic!("Invalid location specifier."),
 		}
 	}
 
@@ -119,10 +133,10 @@ impl TapeCellLocation for TapeCell2D {
 fn parse_var_type_definition<TC: TapeCellLocation>(
 	chars: &mut &[char],
 ) -> Result<VariableTypeDefinition<TC>, String> {
-	let mut var_type = match next_token(chars)? {
-		Token::Cell => VariableTypeReference::Cell,
-		Token::Struct => {
-			let Token::Name(struct_name) = next_token(chars)? else {
+	let mut var_type = match next_token(chars) {
+		Ok(Token::Cell) => VariableTypeReference::Cell,
+		Ok(Token::Struct) => {
+			let Ok(Token::Name(struct_name)) = next_token(chars) else {
 				// TODO: add source snippet
 				r_panic!("Expected struct type name in variable definition.");
 			};
@@ -137,14 +151,14 @@ fn parse_var_type_definition<TC: TapeCellLocation>(
 
 	// parse array specifiers
 	{
-		let mut s = chars;
-		while let Token::OpenSquareBracket = next_token(s)? {
+		let mut s = *chars;
+		while let Ok(Token::OpenSquareBracket) = next_token(&mut s) {
 			var_type = VariableTypeReference::Array(Box::new(var_type), parse_array_length(chars)?);
 			s = chars;
 		}
 	}
 
-	let Token::Name(name) = next_token(chars)? else {
+	let Ok(Token::Name(name)) = next_token(chars) else {
 		// TODO: add source snippet
 		r_panic!("Expected name in variable definition.");
 	};
@@ -159,22 +173,22 @@ fn parse_var_type_definition<TC: TapeCellLocation>(
 /// parse the subscript of an array variable, e.g. [4] [6] [0]
 /// must be compile-time constant
 fn parse_subscript(chars: &mut &[char]) -> Result<usize, String> {
-	let Token::OpenSquareBracket = next_token(chars)? else {
+	let Ok(Token::OpenSquareBracket) = next_token(chars) else {
 		// TODO: add program snippet
 		r_panic!("Expected `[` in array subscript.");
 	};
-	let Token::Digits(digits) = next_token(chars)? else {
+	let Ok(Token::Digits(digits)) = next_token(chars) else {
 		// TODO: add program snippet
 		r_panic!("Expected natural number in array subscript.");
 	};
-	let Token::ClosingSquareBracket = next_token(chars)? else {
+	let Ok(Token::ClosingSquareBracket) = next_token(chars) else {
 		// TODO: add program snippet
 		r_panic!("Expected `]` in array subscript.");
 	};
 	// TODO: fix duplicate error here
 	digits
 		.parse::<usize>()
-		.map_err(|_| Err(format!("Expected natural number in array subscript.")))
+		.map_err(|_| format!("Expected natural number in array subscript."))
 }
 
 /// parse_array_subscript but with a length check
@@ -187,8 +201,8 @@ fn parse_array_length(chars: &mut &[char]) -> Result<usize, String> {
 
 fn parse_var_target(chars: &mut &[char]) -> Result<VariableTarget, String> {
 	let is_spread = {
-		let s = chars;
-		if let Token::Asterisk = next_token(s)? {
+		let mut s = *chars;
+		if let Ok(Token::Asterisk) = next_token(&mut s) {
 			*chars = s;
 			true
 		} else {
@@ -196,26 +210,28 @@ fn parse_var_target(chars: &mut &[char]) -> Result<VariableTarget, String> {
 		}
 	};
 
-	let Token::Name(base_var_name) = next_token(chars)? else {
+	let Ok(Token::Name(base_var_name)) = next_token(chars) else {
 		// TODO: add source snippet
 		r_panic!("Expected identifier in variable target identifier.");
 	};
 
 	let mut ref_chain = vec![];
-	let mut s = chars;
+	let mut s = *chars;
 	loop {
-		match next_token(s)? {
-			Token::OpenSquareBracket => {
+		match next_token(&mut s) {
+			Ok(Token::OpenSquareBracket) => {
 				let index = parse_subscript(chars)?;
 				ref_chain.push(Reference::Index(index));
 			}
-			Token::Dot => {
-				let Token::Name(subfield_name) = next_token(s)? else {
+			Ok(Token::Dot) => {
+				let Ok(Token::Name(subfield_name)) = next_token(&mut s) else {
 					// TODO: add source snippet
 					r_panic!("Expected subfield name in variable target identifier.");
 				};
 				ref_chain.push(Reference::NamedField(subfield_name));
 			}
+			// TODO: add source snippet
+			Err(_) => r_panic!("Unexpected token found in variable target."),
 			_ => {
 				break;
 			}
@@ -239,7 +255,7 @@ fn parse_integer(chars: &mut &[char]) -> Result<i32, String> {
 	let mut is_negative = false;
 	if let Ok(Token::Minus) = token {
 		is_negative = true;
-		token = next_token(chars)?;
+		token = next_token(chars);
 	}
 	let Ok(Token::Digits(digits)) = token else {
 		// TODO: add source snippet
@@ -253,7 +269,7 @@ fn parse_integer(chars: &mut &[char]) -> Result<i32, String> {
 			true => -(magnitude as i32),
 		})
 		// TODO: fix duplicate error here
-		.map_err(|_| Err(format!("Expected integer.")))
+		.map_err(|_| format!("Expected integer."))
 }
 
 fn parse_integer_tuple<const LENGTH: usize>(chars: &mut &[char]) -> Result<[i32; LENGTH], String> {
@@ -295,7 +311,7 @@ fn parse_if_else_clause<TC: TapeCellLocation, OC: OpcodeVariant>(
 
 	let is_not = {
 		let s = chars;
-		if let Token::Not = next_token(s)? {
+		if let Ok(Token::Not) = next_token(s) {
 			*chars = s;
 			true
 		} else {
@@ -314,7 +330,7 @@ fn parse_if_else_clause<TC: TapeCellLocation, OC: OpcodeVariant>(
 
 	let block_two = {
 		let mut s = chars;
-		if let Token::Else = next_token(s)? {
+		if let Ok(Token::Else) = next_token(s) {
 			*chars = s;
 			Some(parse_block(chars)?)
 		} else {
@@ -347,9 +363,9 @@ fn parse_if_else_clause<TC: TapeCellLocation, OC: OpcodeVariant>(
 fn parse_while_clause<TC: TapeCellVariant, OC: OpcodeVariant>(
 	chars: &mut &[char],
 ) -> Result<Clause<TC, OC>, String> {
-	let Token::While = next_token(chars)? else {
-		// TODO: add program snippet
-		r_panic!("Expected \"while\" in while clause.");
+	let Ok(Token::While) = next_token(chars) else {
+		// TODO: add source snippet
+		r_panic!("Expected `while` in while clause.");
 	};
 
 	let Ok(condition_char_len) = find_next(chars, '{') else {
@@ -375,37 +391,36 @@ fn parse_while_clause<TC: TapeCellVariant, OC: OpcodeVariant>(
 fn parse_function_definition_clause<TC: TapeCellVariant, OC: OpcodeVariant>(
 	chars: &mut &[char],
 ) -> Result<Clause<TC, OC>, String> {
-	let Token::Fn = next_token(chars)? else {
+	let Ok(Token::Fn) = next_token(chars) else {
 		// TODO: add source snippet
 		r_panic!("Expected `fn` in function definition clause.");
 	};
 
-	let Token::Name(function_name) = next_token(chars)? else {
+	let Ok(Token::Name(function_name)) = next_token(chars) else {
 		// TODO: add source snippet
 		r_panic!("Expected name in function definition clause.");
 	};
 
-	let Token::OpenParenthesis = next_token(chars)? else {
+	let Ok(Token::OpenParenthesis) = next_token(chars) else {
 		// TODO: add source snippet
 		r_panic!("Expected argument list in function definition clause.");
 	};
 	let mut arguments = vec![];
 	loop {
 		{
-			let mut s = chars;
-			if let Token::ClosingParenthesis = next_token(s)? {
+			let mut s = *chars;
+			if let Ok(Token::ClosingParenthesis) = next_token(&mut s) {
 				*chars = s;
 				break;
 			}
 		}
 		arguments.push(parse_var_type_definition(chars)?);
 
-		let token = next_token(chars)?;
-		match token {
-			Token::ClosingParenthesis => break,
-			Token::Comma => (),
-			Some(token) => r_panic!("Unexpected token in function argument list: `{token}`."),
-			None => r_panic!("Expected token in function argument list."),
+		match next_token(chars) {
+			Ok(Token::ClosingParenthesis) => break,
+			Ok(Token::Comma) => (),
+			// TODO: add source snippet
+			_ => r_panic!("Unexpected token in function argument list."),
 		}
 	}
 
@@ -437,7 +452,7 @@ fn parse_struct_definition_clause<TC: TapeCellLocation, O>(
 
 	let mut fields = vec![];
 	loop {
-		let field = parse_var_type_definition(chars)?;
+		let field = parse_var_type_definition::<TC>(chars)?;
 		fields.push(field.try_into()?);
 		let Ok(Token::Semicolon) = next_token(chars) else {
 			// TODO: add source snippet

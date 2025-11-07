@@ -4,7 +4,7 @@ use super::common::{
 };
 use crate::{
 	macros::macros::{r_assert, r_panic},
-	parser::types::Token,
+	parser::tokeniser::Token,
 };
 
 use std::{fmt::Display, hash::Hash};

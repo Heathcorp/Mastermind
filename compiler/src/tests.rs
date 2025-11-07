@@ -14,8 +14,7 @@ pub mod black_box_tests {
 		},
 		brainfuck::{bvm_tests::run_code, BrainfuckConfig},
 		misc::{MastermindConfig, MastermindContext},
-		parser::parse,
-		tokeniser::{tokenise, Token},
+		parser::parser::parse_program,
 	};
 	// TODO: run test suite with different optimisations turned on
 	const OPT_NONE: MastermindConfig = MastermindConfig {
@@ -105,8 +104,7 @@ pub mod black_box_tests {
 		Vec<OC>: BrainfuckProgram,
 	{
 		let ctx = MastermindContext { config: OPT_NONE };
-		let tokens: Vec<Token> = tokenise(program)?;
-		let clauses = parse::<TC, OC>(&tokens)?;
+		let clauses = parse_program::<TC, OC>(program)?;
 		let instructions = ctx.create_ir_scope(&clauses, None)?.build_ir(false);
 		let bf_program = ctx.ir_to_bf(instructions, None)?;
 		let bfs = bf_program.to_string();
@@ -127,8 +125,7 @@ pub mod black_box_tests {
 		let ctx = MastermindContext {
 			config: config.unwrap_or(OPT_NONE),
 		};
-		let tokens: Vec<Token> = tokenise(program)?;
-		let clauses = parse::<TC, OC>(&tokens)?;
+		let clauses = parse_program::<TC, OC>(program)?;
 		let instructions = ctx.create_ir_scope(&clauses, None)?.build_ir(false);
 		let bf_code = ctx.ir_to_bf(instructions, None)?;
 
@@ -142,21 +139,49 @@ pub mod black_box_tests {
 
 	#[test]
 	fn empty_program_2() {
-		assert_eq!(compile_and_run::<TapeCell, Opcode>(";", "").unwrap(), "");
+		assert_eq!(compile_and_run::<TapeCell, Opcode>("{}", "").unwrap(), "");
 	}
 
 	#[test]
-	fn empty_program_3() {
+	fn empty_program_2a() {
 		assert_eq!(
-			compile_and_run::<TapeCell, Opcode>(";;;;;;", "").unwrap(),
+			compile_and_run::<TapeCell, Opcode>("{{{{}}}}", "").unwrap(),
 			""
 		);
 	}
 
 	#[test]
-	fn empty_program_4() {
+	fn empty_program_2b() {
 		assert_eq!(
-			compile_and_run::<TapeCell, Opcode>(";;{;{;};};;;", "").unwrap(),
+			compile_and_run::<TapeCell, Opcode>(
+				"{{}} {} {{{}{}}} {{{ { }{ }} {{ }{ }}} {{{ }{}}{{} {}}}}",
+				""
+			)
+			.unwrap(),
+			""
+		);
+	}
+
+	#[test]
+	fn empty_program_3() {
+		assert_eq!(
+			compile_and_run::<TapeCell, Opcode>(";", "").unwrap_err(),
+			""
+		);
+	}
+
+	#[test]
+	fn empty_program_3a() {
+		assert_eq!(
+			compile_and_run::<TapeCell, Opcode>(";;;;;;", "").unwrap_err(),
+			""
+		);
+	}
+
+	#[test]
+	fn empty_program_3b() {
+		assert_eq!(
+			compile_and_run::<TapeCell, Opcode>(";;{;{;};};;;", "").unwrap_err(),
 			""
 		);
 	}

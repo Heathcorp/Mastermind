@@ -1,3 +1,7 @@
+use std::num::Wrapping;
+
+use crate::macros::macros::r_panic;
+
 use super::types::VariableTarget;
 
 // TODO: add multiplication
@@ -33,7 +37,7 @@ impl Sign {
 impl Expression {
 	// Iterators?
 	// TODO: support post/pre increment in expressions
-	pub fn parse(tokens: &[Token]) -> Result<Expression, String> {
+	pub fn parse(chars: &mut &[char]) -> Result<Expression, String> {
 		let mut i = 0usize;
 
 		if let Token::String(s) = &tokens[i] {
@@ -176,9 +180,8 @@ impl Expression {
 					});
 					current_sign = None;
 				}
-				token => {
-					r_panic!("Unexpected token {token:#?} found in expression: {tokens:#?}");
-				}
+				// TODO: add source snippet
+				token => r_panic!("Unexpected token {token:#?} found in expression."),
 			}
 		}
 
@@ -188,7 +191,8 @@ impl Expression {
 				sign: Sign::Positive,
 				summands,
 			},
-			_ => r_panic!("Expected value in expression: {tokens:#?}"),
+			// TODO: add source snippet
+			_ => r_panic!("Expected value in expression."),
 		})
 	}
 

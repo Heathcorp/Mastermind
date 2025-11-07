@@ -91,7 +91,7 @@ pub fn find_next(chars: &[char], character: char) -> Result<usize, ()> {
 			return Err(());
 		};
 
-		if c == character {
+		if *c == character {
 			break;
 		}
 		i += 1;
@@ -101,9 +101,9 @@ pub fn find_next(chars: &[char], character: char) -> Result<usize, ()> {
 
 pub fn find_and_advance<'a>(chars: &'a mut &[char], character: char) -> Result<&'a [char], ()> {
 	let substr_len = find_next(chars, character)?;
-	let chars_before = chars[..substr_len];
-	chars = chars[substr_len..];
-	chars_before
+	let chars_before = &chars[..substr_len];
+	*chars = &chars[substr_len..];
+	Ok(chars_before)
 }
 
 pub fn skip_whitespace(chars: &mut &[char]) -> Result<(), ()> {
@@ -133,4 +133,106 @@ pub fn find_next_whitespace(chars: &[char]) -> Result<usize, ()> {
 		i += 1;
 	}
 	Ok(i)
+}
+
+#[cfg(test)]
+mod tokeniser_tests {
+	use crate::macros::macros::r_panic;
+
+	use super::*;
+
+	fn tokenise(input_str: &str) -> Result<Vec<Token>, String> {
+		let chars_vec: Vec<char> = input_str.chars().collect();
+		let mut chars_slice = &chars_vec[..];
+		let mut tokens = vec![];
+		loop {
+			let Ok(token) = next_token(&mut chars_slice) else {
+				r_panic!("Invlid token in input.");
+			};
+			if let Token::None = token {
+				break;
+			}
+			tokens.push(token);
+		}
+		Ok(tokens)
+	}
+
+	fn _tokenisation_test(input_str: &str, desired_output: &[Token]) {
+		let actual_output = tokenise(input_str).unwrap();
+		println!("desired: {desired_output:#?}");
+		println!("actual: {actual_output:#?}");
+		assert!(actual_output.iter().eq(desired_output));
+	}
+
+	#[test]
+	fn character_literals_1() {
+		_tokenisation_test(
+			r#"'a' 'b' 'c' ' '"#,
+			&[
+				Token::Character('a'),
+				Token::Character('b'),
+				Token::Character('c'),
+				Token::Character(' '),
+			],
+		);
+	}
+
+	#[test]
+	fn character_literals_2() {
+		_tokenisation_test(r#"'\n'"#, &[Token::Character('\n')]);
+	}
+
+	#[test]
+	fn character_literals_3() {
+		_tokenisation_test(r#"'"'"#, &[Token::Character('"')]);
+	}
+
+	#[test]
+	fn character_literals_4() {
+		_tokenisation_test(r#"'\''"#, &[Token::Character('\'')]);
+	}
+
+	#[test]
+	#[should_panic]
+	fn character_literals_5() {
+		_tokenisation_test(r#"'\'"#, &[Token::Character('\\')]);
+	}
+
+	#[test]
+	#[should_panic]
+	fn character_literals_6() {
+		_tokenisation_test(r#"'aa'"#, &[Token::String(String::from("aa"))]);
+	}
+
+	#[test]
+	fn string_literals_1() {
+		_tokenisation_test("\"hello\"", &[Token::String(String::from("hello"))]);
+	}
+
+	#[test]
+	fn string_literals_2() {
+		_tokenisation_test(r#""""#, &[Token::String(String::from(""))]);
+	}
+
+	#[test]
+	fn string_literals_2a() {
+		_tokenisation_test(
+			r#""""""#,
+			&[
+				Token::String(String::from("")),
+				Token::String(String::from("")),
+			],
+		);
+	}
+
+	#[test]
+	fn string_literals_3() {
+		_tokenisation_test(
+			r#""\"" " ""#,
+			&[
+				Token::String(String::from("\"")),
+				Token::String(String::from(" ")),
+			],
+		);
+	}
 }

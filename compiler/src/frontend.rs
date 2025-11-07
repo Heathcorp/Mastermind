@@ -12,8 +12,8 @@ use crate::{
 	parser::{
 		expressions::Expression,
 		types::{
-			Clause, ExtendedOpcode, LocationSpecifier, Reference, StructFieldDefinition,
-			VariableDefinition, VariableTarget, VariableTargetReferenceChain,
+			Clause, ExtendedOpcode, LocationSpecifier, Reference, StructFieldTypeDefinition,
+			VariableTarget, VariableTargetReferenceChain, VariableTypeDefinition,
 			VariableTypeReference,
 		},
 	},
@@ -45,6 +45,8 @@ impl MastermindContext {
 					// convert fields with 2D or 1D location specifiers to valid struct location specifiers
 					scope.register_struct_definition(name, fields.clone())?;
 				}
+				// also filter out None clauses (although there shouldn't be any)
+				Clause::None => (),
 				_ => filtered_clauses_1.push(clause.clone()),
 			}
 		}
@@ -315,7 +317,7 @@ impl MastermindContext {
 						}
 					}
 				}
-				Clause::WhileLoop { var, block } => {
+				Clause::While { var, block } => {
 					let cell = scope.get_cell(&var)?;
 
 					// open loop on variable
@@ -404,11 +406,48 @@ impl MastermindContext {
 						scope.push_instruction(Instruction::Free(source_cell.memory_id));
 					}
 				}
-				Clause::IfElse {
-					condition,
-					if_block,
-					else_block,
-				} => {
+				clause @ (Clause::If {
+					condition: _,
+					if_block: _,
+				}
+				| Clause::IfNot {
+					condition: _,
+					if_not_block: _,
+				}
+				| Clause::IfElse {
+					condition: _,
+					if_block: _,
+					else_block: _,
+				}
+				| Clause::IfNotElse {
+					condition: _,
+					if_not_block: _,
+					else_block: _,
+				}) => {
+					// If-else clause types changed recently, so here is a patch to keep the original frontend code:
+					let (condition, if_block, else_block) = match clause {
+						Clause::If {
+							condition,
+							if_block,
+						} => (condition, Some(if_block), None),
+						Clause::IfNot {
+							condition,
+							if_not_block,
+						} => (condition, None, Some(if_not_block)),
+						Clause::IfElse {
+							condition,
+							if_block,
+							else_block,
+						} => (condition, Some(if_block), Some(else_block)),
+						Clause::IfNotElse {
+							condition,
+							if_not_block,
+							else_block,
+						} => (condition, Some(else_block), Some(if_not_block)),
+						_ => unreachable!(),
+					};
+					// end patch //
+
 					if if_block.is_none() && else_block.is_none() {
 						panic!("Expected block in if/else statement");
 					};
@@ -598,7 +637,8 @@ impl MastermindContext {
 					name: _,
 					arguments: _,
 					block: _,
-				} => unreachable!(),
+				}
+				| Clause::None => unreachable!(),
 			}
 		}
 
@@ -941,7 +981,7 @@ where
 	}
 
 	/// Get the correct variable type and allocate the right amount of cells for it
-	fn allocate_variable(&mut self, var: VariableDefinition<TC>) -> Result<&ValueType, String> {
+	fn allocate_variable(&mut self, var: VariableTypeDefinition<TC>) -> Result<&ValueType, String> {
 		r_assert!(
 			!self.variable_memory.contains_key(&var.name),
 			"Cannot allocate variable {var} twice in the same scope"
@@ -1042,7 +1082,7 @@ where
 	fn register_struct_definition(
 		&mut self,
 		struct_name: &str,
-		fields: Vec<StructFieldDefinition>,
+		fields: Vec<StructFieldTypeDefinition>,
 	) -> Result<(), String> {
 		let mut absolute_fields = vec![];
 
@@ -1069,7 +1109,7 @@ where
 	fn register_function_definition(
 		&mut self,
 		new_function_name: &str,
-		new_arguments: Vec<VariableDefinition<TC>>,
+		new_arguments: Vec<VariableTypeDefinition<TC>>,
 		new_block: Vec<Clause<TC, OC>>,
 	) -> Result<(), String> {
 		let absolute_arguments = new_arguments

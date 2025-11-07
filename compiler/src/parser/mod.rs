@@ -1,5 +1,6 @@
-mod expressions;
-mod parser;
-mod tests;
-mod tokeniser;
+pub mod expressions;
+pub mod parser;
+pub mod tokeniser;
 pub mod types;
+
+mod tests;

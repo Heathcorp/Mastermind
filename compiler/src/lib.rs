@@ -19,6 +19,7 @@ use crate::{
 	},
 	brainfuck::{BrainfuckConfig, BrainfuckContext},
 	misc::MastermindContext,
+	parser::parser::parse_program,
 	preprocessor::preprocess_from_memory,
 };
 
@@ -50,14 +51,13 @@ pub fn wasm_compile(
 	};
 
 	let preprocessed_file = preprocess_from_memory(&file_contents, entry_file_name)?;
-	let tokens = tokenise(&preprocessed_file)?;
 	if ctx.config.enable_2d_grid {
-		let parsed_syntax = parse::<TapeCell2D, Opcode2D>(&tokens)?;
+		let parsed_syntax = parse_program::<TapeCell2D, Opcode2D>(&preprocessed_file)?;
 		let instructions = ctx.create_ir_scope(&parsed_syntax, None)?.build_ir(false);
 		let bf_code = ctx.ir_to_bf(instructions, None)?;
 		Ok(bf_code.to_string())
 	} else {
-		let parsed_syntax = parse::<TapeCell, Opcode>(&tokens)?;
+		let parsed_syntax = parse_program::<TapeCell, Opcode>(&preprocessed_file)?;
 		let instructions = ctx.create_ir_scope(&parsed_syntax, None)?.build_ir(false);
 		let bf_code = ctx.ir_to_bf(instructions, None)?;
 		Ok(bf_code.to_string())
