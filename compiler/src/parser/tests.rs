@@ -3,18 +3,14 @@ mod parser_tests {
 	use super::super::{
 		expressions::Expression,
 		parser::parse_program,
-		tokeniser::Token,
 		types::{
 			Clause, ExtendedOpcode, LocationSpecifier, VariableTarget, VariableTypeDefinition,
 			VariableTypeReference,
 		},
 	};
-	use crate::{
-		backend::{
-			bf::{Opcode, TapeCell},
-			bf2d::{Opcode2D, TapeCell2D},
-		},
-		macros::macros::r_assert,
+	use crate::backend::{
+		bf::{Opcode, TapeCell},
+		bf2d::{Opcode2D, TapeCell2D},
 	};
 
 	#[test]
@@ -219,5 +215,212 @@ mod parser_tests {
 			parse_program::<TapeCell, Opcode>("bf {vvvv>}").unwrap_err(),
 			""
 		);
+	}
+
+	#[test]
+	fn strings_1() {
+		assert!(parse_program::<TapeCell, Opcode>(
+			r#"
+cell[5] ggghh = "hello";
+"#
+		)
+		.unwrap()
+		.iter()
+		.eq(&[Clause::DefineVariable {
+			var: VariableTypeDefinition {
+				name: String::from("ggghh"),
+				var_type: VariableTypeReference::Array(Box::new(VariableTypeReference::Cell), 5),
+				location_specifier: LocationSpecifier::None
+			},
+			value: Expression::StringLiteral(String::from("hello"))
+		}]));
+	}
+
+	#[test]
+	fn strings_1a() {
+		assert_eq!(
+			parse_program::<TapeCell, Opcode>(
+				r#"
+cell[0] ggghh = "";
+"#
+			)
+			.unwrap_err(),
+			""
+		);
+	}
+
+	#[test]
+	fn strings_1b() {
+		assert!(parse_program::<TapeCell, Opcode>(
+			r#"
+cell[1] ggghh = "hello";
+"#
+		)
+		.unwrap()
+		.iter()
+		.eq(&[Clause::DefineVariable {
+			var: VariableTypeDefinition {
+				name: String::from("ggghh"),
+				var_type: VariableTypeReference::Array(Box::new(VariableTypeReference::Cell), 1),
+				location_specifier: LocationSpecifier::None
+			},
+			value: Expression::StringLiteral(String::from("hello"))
+		}]));
+	}
+
+	#[test]
+	fn strings_2() {
+		assert!(parse_program::<TapeCell, Opcode>(
+			r#"
+cell[6] ggghh = "hel'lo";
+"#
+		)
+		.unwrap()
+		.iter()
+		.eq(&[Clause::DefineVariable {
+			var: VariableTypeDefinition {
+				name: String::from("ggghh"),
+				var_type: VariableTypeReference::Array(Box::new(VariableTypeReference::Cell), 6),
+				location_specifier: LocationSpecifier::None
+			},
+			value: Expression::StringLiteral(String::from("hel'lo"))
+		}]));
+	}
+
+	#[test]
+	fn strings_3() {
+		assert!(parse_program::<TapeCell, Opcode>(
+			r#"
+cell[7] ggghh = "\"hello\"";
+"#
+		)
+		.unwrap()
+		.iter()
+		.eq(&[Clause::DefineVariable {
+			var: VariableTypeDefinition {
+				name: String::from("ggghh"),
+				var_type: VariableTypeReference::Array(Box::new(VariableTypeReference::Cell), 7),
+				location_specifier: LocationSpecifier::None
+			},
+			value: Expression::StringLiteral(String::from("\"hello\""))
+		}]));
+	}
+
+	#[test]
+	fn arrays_1() {
+		assert!(parse_program::<TapeCell, Opcode>(
+			r#"
+cell[0] ggghh = [];
+"#
+		)
+		.unwrap()
+		.iter()
+		.eq(&[Clause::DefineVariable {
+			var: VariableTypeDefinition {
+				name: String::from("ggghh"),
+				var_type: VariableTypeReference::Array(Box::new(VariableTypeReference::Cell), 0),
+				location_specifier: LocationSpecifier::None
+			},
+			value: Expression::ArrayLiteral(vec![])
+		}]));
+	}
+
+	#[test]
+	fn arrays_2() {
+		assert!(parse_program::<TapeCell, Opcode>(
+			r#"
+cell[333] arr = [45, 53];
+"#
+		)
+		.unwrap()
+		.iter()
+		.eq(&[Clause::DefineVariable {
+			var: VariableTypeDefinition {
+				name: String::from("arr"),
+				var_type: VariableTypeReference::Array(Box::new(VariableTypeReference::Cell), 3),
+				location_specifier: LocationSpecifier::None
+			},
+			value: Expression::ArrayLiteral(vec![
+				Expression::NaturalNumber(45),
+				Expression::NaturalNumber(53)
+			])
+		}]));
+	}
+
+	#[test]
+	fn arrays_3() {
+		assert!(parse_program::<TapeCell, Opcode>(
+			r#"
+cell[3] arr = ['h', 53, (((4)))];
+"#
+		)
+		.unwrap()
+		.iter()
+		.eq(&[Clause::DefineVariable {
+			var: VariableTypeDefinition {
+				name: String::from("arr"),
+				var_type: VariableTypeReference::Array(Box::new(VariableTypeReference::Cell), 3),
+				location_specifier: LocationSpecifier::None
+			},
+			value: Expression::ArrayLiteral(vec![
+				Expression::NaturalNumber(104),
+				Expression::NaturalNumber(53),
+				Expression::NaturalNumber(4)
+			])
+		}]));
+	}
+
+	#[test]
+	fn arrays_4() {
+		assert!(parse_program::<TapeCell, Opcode>(
+			r#"
+struct nonsense[39] arr @-56 = ["hello!", 53, [4,5,6]];
+"#
+		)
+		.unwrap()
+		.iter()
+		.eq(&[Clause::DefineVariable {
+			var: VariableTypeDefinition {
+				name: String::from("arr"),
+				var_type: VariableTypeReference::Array(Box::new(VariableTypeReference::Cell), 39),
+				location_specifier: LocationSpecifier::Cell(-56)
+			},
+			value: Expression::ArrayLiteral(vec![
+				Expression::StringLiteral(String::from("hello!")),
+				Expression::NaturalNumber(53),
+				Expression::ArrayLiteral(vec![
+					Expression::NaturalNumber(4),
+					Expression::NaturalNumber(5),
+					Expression::NaturalNumber(6)
+				])
+			])
+		}]));
+	}
+
+	#[test]
+	fn arrays_5() {
+		assert!(parse_program::<TapeCell, Opcode>(
+			r#"
+struct nonsense[39] arr @-56 = ["hello!", ',', [4,"hello comma: ,",6]];
+"#
+		)
+		.unwrap()
+		.iter()
+		.eq(&[Clause::DefineVariable {
+			var: VariableTypeDefinition {
+				name: String::from("arr"),
+				var_type: VariableTypeReference::Array(Box::new(VariableTypeReference::Cell), 39),
+				location_specifier: LocationSpecifier::Cell(-56)
+			},
+			value: Expression::ArrayLiteral(vec![
+				Expression::StringLiteral(String::from("hello!")),
+				Expression::NaturalNumber(44),
+				Expression::ArrayLiteral(vec![
+					Expression::NaturalNumber(4),
+					Expression::StringLiteral(String::from("hello comma: ,")),
+					Expression::NaturalNumber(6)
+				])
+			])
+		}]));
 	}
 }
