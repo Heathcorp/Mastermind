@@ -10,8 +10,12 @@ use crate::{
 	macros::macros::{r_assert, r_panic},
 	misc::MastermindContext,
 	parser::{
-		Clause, Expression, ExtendedOpcode, LocationSpecifier, Reference, StructFieldDefinition,
-		VariableDefinition, VariableTarget, VariableTargetReferenceChain, VariableTypeReference,
+		expressions::Expression,
+		types::{
+			Clause, ExtendedOpcode, LocationSpecifier, Reference, StructFieldDefinition,
+			VariableDefinition, VariableTarget, VariableTargetReferenceChain,
+			VariableTypeReference,
+		},
 	},
 };
 

@@ -11,7 +11,6 @@ mod misc;
 mod parser;
 mod preprocessor;
 mod tests;
-mod tokeniser;
 use crate::{
 	backend::{
 		bf::{Opcode, TapeCell},
@@ -20,9 +19,7 @@ use crate::{
 	},
 	brainfuck::{BrainfuckConfig, BrainfuckContext},
 	misc::MastermindContext,
-	parser::parse,
 	preprocessor::preprocess_from_memory,
-	tokeniser::tokenise,
 };
 
 // stdlib dependencies:

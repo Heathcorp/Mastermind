@@ -1,0 +1,473 @@
+use super::{
+	expressions::Expression,
+	tokeniser::{
+		find_and_advance, find_next, find_next_whitespace, next_token, skip_whitespace, Token,
+	},
+	types::{
+		Clause, LocationSpecifier, Reference, TapeCellLocation, VariableTarget,
+		VariableTargetReferenceChain, VariableTypeReference,
+	},
+};
+use crate::{
+	backend::{
+		bf::TapeCell,
+		bf2d::TapeCell2D,
+		common::{OpcodeVariant, TapeCellVariant},
+	},
+	macros::macros::{r_assert, r_panic},
+	parser::types::VariableTypeDefinition,
+};
+
+pub fn parse_clause<TC: TapeCellVariant, OC: OpcodeVariant>(
+	chars: &mut &[char],
+) -> Result<Clause<TC, OC>, String> {
+	// TODO: refactor this? inconsistent function calling in different parsing functions
+	let next_token =
+		|s| next_token(s).map_err(|()| format!("Invalid token: {}", chars.iter().collect()));
+
+	let mut s = chars;
+	Ok(match next_token(s)? {
+		// None signifies end of input
+		None => None,
+		Token::If => parse_if_else_clause(chars)?,
+		Token::While => parse_while_clause(chars)?,
+		Token::Fn => parse_function_definition_clause(chars)?,
+		Token::Struct => {
+			let Token::Name(_) = next_token(s)? else {
+				// TODO: add source snippet
+				r_panic!("Expected identifier after `struct` keyword.");
+			};
+			match next_token(s)? {
+				Token::OpenBrace => parse_struct_definition_clause(chars)?,
+				_ => parse_let_clause(chars)?,
+			}
+		}
+		Token::Cell => parse_let_clause(chars)?,
+		_ => todo!(),
+	})
+}
+
+fn parse_block<TC, OC>(chars: &mut &[char]) -> Result<Vec<Clause<TC, OC>>, String> {
+	todo!()
+}
+
+////////////////////////////
+////////////////////////////
+////////////////////////////
+
+impl TapeCellLocation for TapeCell {
+	fn parse_location_specifier(
+		chars: &mut &[char],
+	) -> Result<LocationSpecifier<TapeCell>, String> {
+		let mut s = chars;
+		let Token::At = next_token(s)? else {
+			return Ok(LocationSpecifier::None);
+		};
+		*chars = s;
+
+		match next_token(s)? {
+			Token::Minus | Token::Digits(_) => Ok(LocationSpecifier::Cell(parse_integer(chars)?)),
+			// variable location specifier:
+			Token::Name(_) => Ok(LocationSpecifier::Variable(parse_var_target(chars)?)),
+			// TODO: add source snippet
+			_ => r_panic!("Invalid location specifier: ",),
+		}
+	}
+
+	fn to_positive_cell_offset(&self) -> Result<usize, String> {
+		r_assert!(*self >= 0, "Expected non-negative cell offset.");
+		Ok(*self as usize)
+	}
+}
+
+impl TapeCellLocation for TapeCell2D {
+	fn parse_location_specifier(
+		chars: &mut &[char],
+	) -> Result<LocationSpecifier<TapeCell2D>, String> {
+		let mut s = chars;
+		let Token::At = next_token(s)? else {
+			return Ok(LocationSpecifier::None);
+		};
+		*chars = s;
+
+		match next_token(s)? {
+			Token::OpenParenthesis => {
+				// parse a 2-tuple
+				let tuple = parse_integer_tuple::<2>(chars)?;
+				Ok(LocationSpecifier::Cell(TapeCell2D(tuple[0], tuple[1])))
+			}
+			Token::Minus | Token::Digits(_) => Ok(LocationSpecifier::Cell(TapeCell2D(
+				parse_integer(chars)?,
+				0,
+			))),
+			// variable location specifier:
+			Token::Name(_) => Ok(LocationSpecifier::Variable(parse_var_target(chars)?)),
+			// TODO: add source snippet
+			_ => r_panic!("Invalid location specifier: ",),
+		}
+	}
+
+	fn to_positive_cell_offset(&self) -> Result<usize, String> {
+		r_assert!(
+			self.1 == 0 && self.0 >= 0,
+			"Expected non-negative 1st dimensional cell offset (i.e. (x,y) where y=0)."
+		);
+		Ok(self.0 as usize)
+	}
+}
+
+fn parse_var_type_definition<TC: TapeCellLocation>(
+	chars: &mut &[char],
+) -> Result<VariableTypeDefinition<TC>, String> {
+	let mut var_type = match next_token(chars)? {
+		Token::Cell => VariableTypeReference::Cell,
+		Token::Struct => {
+			let Token::Name(struct_name) = next_token(chars)? else {
+				// TODO: add source snippet
+				r_panic!("Expected struct type name in variable definition.");
+			};
+
+			VariableTypeReference::Struct(struct_name)
+		}
+		_ => {
+			// TODO: add source snippet
+			r_panic!("Unexpected token in variable type definition.");
+		}
+	};
+
+	// parse array specifiers
+	{
+		let mut s = chars;
+		while let Token::OpenSquareBracket = next_token(s)? {
+			var_type = VariableTypeReference::Array(Box::new(var_type), parse_array_length(chars)?);
+			s = chars;
+		}
+	}
+
+	let Token::Name(name) = next_token(chars)? else {
+		// TODO: add source snippet
+		r_panic!("Expected name in variable definition.");
+	};
+
+	Ok(VariableTypeDefinition {
+		var_type,
+		name,
+		location_specifier: TC::parse_location_specifier(chars)?,
+	})
+}
+
+/// parse the subscript of an array variable, e.g. [4] [6] [0]
+/// must be compile-time constant
+fn parse_subscript(chars: &mut &[char]) -> Result<usize, String> {
+	let Token::OpenSquareBracket = next_token(chars)? else {
+		// TODO: add program snippet
+		r_panic!("Expected `[` in array subscript.");
+	};
+	let Token::Digits(digits) = next_token(chars)? else {
+		// TODO: add program snippet
+		r_panic!("Expected natural number in array subscript.");
+	};
+	let Token::ClosingSquareBracket = next_token(chars)? else {
+		// TODO: add program snippet
+		r_panic!("Expected `]` in array subscript.");
+	};
+	// TODO: fix duplicate error here
+	digits
+		.parse::<usize>()
+		.map_err(|_| Err(format!("Expected natural number in array subscript.")))
+}
+
+/// parse_array_subscript but with a length check
+fn parse_array_length(chars: &mut &[char]) -> Result<usize, String> {
+	let len = parse_subscript(chars)?;
+	// TODO: add source snippet
+	r_assert!(len > 0, "Array variable cannot be zero-length.");
+	Ok(len)
+}
+
+fn parse_var_target(chars: &mut &[char]) -> Result<VariableTarget, String> {
+	let is_spread = {
+		let s = chars;
+		if let Token::Asterisk = next_token(s)? {
+			*chars = s;
+			true
+		} else {
+			false
+		}
+	};
+
+	let Token::Name(base_var_name) = next_token(chars)? else {
+		// TODO: add source snippet
+		r_panic!("Expected identifier in variable target identifier.");
+	};
+
+	let mut ref_chain = vec![];
+	let mut s = chars;
+	loop {
+		match next_token(s)? {
+			Token::OpenSquareBracket => {
+				let index = parse_subscript(chars)?;
+				ref_chain.push(Reference::Index(index));
+			}
+			Token::Dot => {
+				let Token::Name(subfield_name) = next_token(s)? else {
+					// TODO: add source snippet
+					r_panic!("Expected subfield name in variable target identifier.");
+				};
+				ref_chain.push(Reference::NamedField(subfield_name));
+			}
+			_ => {
+				break;
+			}
+		}
+		*chars = s;
+	}
+
+	Ok(VariableTarget {
+		name: base_var_name,
+		subfields: if ref_chain.len() > 0 {
+			Some(VariableTargetReferenceChain(ref_chain))
+		} else {
+			None
+		},
+		is_spread,
+	})
+}
+
+fn parse_integer(chars: &mut &[char]) -> Result<i32, String> {
+	let mut token = next_token(chars);
+	let mut is_negative = false;
+	if let Ok(Token::Minus) = token {
+		is_negative = true;
+		token = next_token(chars)?;
+	}
+	let Ok(Token::Digits(digits)) = token else {
+		// TODO: add source snippet
+		r_panic!("Expected integer.")
+	};
+	digits
+		.parse::<usize>()
+		.map(|magnitude| match is_negative {
+			// TODO: truncation error handling
+			false => magnitude as i32,
+			true => -(magnitude as i32),
+		})
+		// TODO: fix duplicate error here
+		.map_err(|_| Err(format!("Expected integer.")))
+}
+
+fn parse_integer_tuple<const LENGTH: usize>(chars: &mut &[char]) -> Result<[i32; LENGTH], String> {
+	let Ok(Token::OpenParenthesis) = next_token(chars) else {
+		// TODO: add source snippet
+		r_panic!("Expected opening parenthesis in tuple.")
+	};
+
+	let mut tuple = [0; LENGTH];
+	for (j, element) in tuple.iter_mut().enumerate() {
+		*element = parse_integer(chars)?;
+
+		if j < LENGTH - 1 {
+			let Ok(Token::Comma) = next_token(chars) else {
+				// TODO: add source snippet
+				r_panic!("Expected comma in tuple.");
+			};
+		}
+	}
+	let Ok(Token::ClosingParenthesis) = next_token(chars) else {
+		// TODO: add source snippet
+		r_panic!("Expected closing parenthesis in tuple.");
+	};
+
+	Ok(tuple)
+}
+
+////////////////////////////
+////////////////////////////
+////////////////////////////
+
+fn parse_if_else_clause<TC: TapeCellLocation, OC: OpcodeVariant>(
+	chars: &mut &[char],
+) -> Result<Clause<TC, OC>, String> {
+	let Ok(Token::If) = next_token(chars) else {
+		// TODO: add program snippet
+		r_panic!("Expected \"if\" in if-else clause.");
+	};
+
+	let is_not = {
+		let s = chars;
+		if let Token::Not = next_token(s)? {
+			*chars = s;
+			true
+		} else {
+			false
+		}
+	};
+
+	let Ok(condition_char_len) = find_next(chars, '{') else {
+		// TODO: add program snippet to errors
+		r_panic!("Expected code block in if-else clause.");
+	};
+	let condition = Expression::parse(&chars[..condition_char_len])?;
+	*chars = &chars[condition_char_len..];
+
+	let block_one = parse_block(chars)?;
+
+	let block_two = {
+		let mut s = chars;
+		if let Token::Else = next_token(s)? {
+			*chars = s;
+			Some(parse_block(chars)?)
+		} else {
+			None
+		}
+	};
+
+	Ok(match (is_not, block_one, block_two) {
+		(false, if_block, None) => Clause::If {
+			condition,
+			if_block,
+		},
+		(true, if_not_block, None) => Clause::IfNot {
+			condition,
+			if_not_block,
+		},
+		(false, if_block, Some(else_block)) => Clause::IfElse {
+			condition,
+			if_block,
+			else_block,
+		},
+		(true, if_not_block, Some(else_block)) => Clause::IfNotElse {
+			condition,
+			if_not_block,
+			else_block,
+		},
+	})
+}
+
+fn parse_while_clause<TC: TapeCellVariant, OC: OpcodeVariant>(
+	chars: &mut &[char],
+) -> Result<Clause<TC, OC>, String> {
+	let Token::While = next_token(chars)? else {
+		// TODO: add program snippet
+		r_panic!("Expected \"while\" in while clause.");
+	};
+
+	let Ok(condition_char_len) = find_next(chars, '{') else {
+		// TODO: add program snippet to errors
+		r_panic!("Expected code block in while clause.");
+	};
+	let condition = Expression::parse(&chars[..condition_char_len])?;
+	*chars = &chars[condition_char_len..];
+
+	// TODO: make while loops support expressions
+	let Expression::VariableReference(condition_variable) = condition else {
+		r_panic!("While clause expected variable target condition.");
+	};
+
+	let loop_block = parse_block(chars)?;
+
+	Ok(Clause::While {
+		var: condition_variable,
+		block: loop_block,
+	})
+}
+
+fn parse_function_definition_clause<TC: TapeCellVariant, OC: OpcodeVariant>(
+	chars: &mut &[char],
+) -> Result<Clause<TC, OC>, String> {
+	let Token::Fn = next_token(chars)? else {
+		// TODO: add source snippet
+		r_panic!("Expected `fn` in function definition clause.");
+	};
+
+	let Token::Name(function_name) = next_token(chars)? else {
+		// TODO: add source snippet
+		r_panic!("Expected name in function definition clause.");
+	};
+
+	let Token::OpenParenthesis = next_token(chars)? else {
+		// TODO: add source snippet
+		r_panic!("Expected argument list in function definition clause.");
+	};
+	let mut arguments = vec![];
+	loop {
+		{
+			let mut s = chars;
+			if let Token::ClosingParenthesis = next_token(s)? {
+				*chars = s;
+				break;
+			}
+		}
+		arguments.push(parse_var_type_definition(chars)?);
+
+		let token = next_token(chars)?;
+		match token {
+			Token::ClosingParenthesis => break,
+			Token::Comma => (),
+			Some(token) => r_panic!("Unexpected token in function argument list: `{token}`."),
+			None => r_panic!("Expected token in function argument list."),
+		}
+	}
+
+	Ok(Clause::DefineFunction {
+		name: function_name,
+		arguments,
+		block: parse_block(chars)?,
+	})
+}
+
+/// Parse tokens representing a struct definition into a clause
+fn parse_struct_definition_clause<TC: TapeCellLocation, O>(
+	chars: &mut &[char],
+) -> Result<Clause<TC, O>, String> {
+	let Ok(Token::Struct) = next_token(chars) else {
+		// TODO: add source snippet
+		r_panic!("Expected `struct` in struct definition.");
+	};
+
+	let Ok(Token::Name(name)) = next_token(chars) else {
+		// TODO: add source snippet
+		r_panic!("Expected name in struct definition.");
+	};
+
+	let Ok(Token::OpenBrace) = next_token(chars) else {
+		// TODO: add source snippet
+		r_panic!("Expected `{{` in struct clause.");
+	};
+
+	let mut fields = vec![];
+	loop {
+		let field = parse_var_type_definition(chars)?;
+		fields.push(field.try_into()?);
+		let Ok(Token::Semicolon) = next_token(chars) else {
+			// TODO: add source snippet
+			r_panic!("Expected semicolon after struct definition field.");
+		};
+		if let Ok(Token::ClosingBrace) = next_token(chars) {
+			break;
+		}
+	}
+
+	Ok(Clause::DefineStruct { name, fields })
+}
+
+/// parse variable declarations and definitions.
+/// e.g. `cell x = 0;` or `struct DummyStruct y;`
+fn parse_let_clause<TC: TapeCellLocation, O>(chars: &mut &[char]) -> Result<Clause<TC, O>, String> {
+	let var = parse_var_type_definition(chars)?;
+
+	let mut s = chars;
+	if let Ok(Token::EqualsSign) = next_token(s) {
+		chars = s;
+		let expr = Expression::parse(find_and_advance(chars, ';'))?;
+		let Ok(Token::Semicolon) = next_token(chars) else {
+			r_panic!("Expected semicolon after variable definition.");
+		};
+		return Ok(Clause::DefineVariable { var, value: expr });
+	}
+
+	let Ok(Token::Semicolon) = next_token(chars) else {
+		r_panic!("Expected semicolon after variable declaration.");
+	};
+	Ok(Clause::DeclareVariable { var })
+}
