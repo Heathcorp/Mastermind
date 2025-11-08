@@ -1,8 +1,6 @@
 use super::{
 	expressions::Expression,
-	tokeniser::{
-		find_and_advance, find_next, find_next_whitespace, next_token, skip_whitespace, Token,
-	},
+	tokeniser::{next_token, Token},
 	types::{
 		Clause, LocationSpecifier, Reference, TapeCellLocation, VariableTarget,
 		VariableTargetReferenceChain, VariableTypeReference,
@@ -153,7 +151,7 @@ fn parse_var_type_definition<TC: TapeCellLocation>(
 	{
 		let mut s = *chars;
 		while let Ok(Token::OpenSquareBracket) = next_token(&mut s) {
-			var_type = VariableTypeReference::Array(Box::new(var_type), parse_array_length(chars)?);
+			var_type = VariableTypeReference::Array(Box::new(var_type), parse_subscript(chars)?);
 			s = chars;
 		}
 	}
@@ -185,21 +183,11 @@ fn parse_subscript(chars: &mut &[char]) -> Result<usize, String> {
 		// TODO: add program snippet
 		r_panic!("Expected `]` in array subscript.");
 	};
-	// TODO: fix duplicate error here
-	digits
-		.parse::<usize>()
-		.map_err(|_| format!("Expected natural number in array subscript."))
+	// TODO: handle errors here
+	Ok(digits.parse::<usize>().unwrap())
 }
 
-/// parse_array_subscript but with a length check
-fn parse_array_length(chars: &mut &[char]) -> Result<usize, String> {
-	let len = parse_subscript(chars)?;
-	// TODO: add source snippet
-	r_assert!(len > 0, "Array variable cannot be zero-length.");
-	Ok(len)
-}
-
-fn parse_var_target(chars: &mut &[char]) -> Result<VariableTarget, String> {
+pub fn parse_var_target(chars: &mut &[char]) -> Result<VariableTarget, String> {
 	let is_spread = {
 		let mut s = *chars;
 		if let Ok(Token::Asterisk) = next_token(&mut s) {
@@ -261,15 +249,13 @@ fn parse_integer(chars: &mut &[char]) -> Result<i32, String> {
 		// TODO: add source snippet
 		r_panic!("Expected integer.")
 	};
-	digits
-		.parse::<usize>()
-		.map(|magnitude| match is_negative {
-			// TODO: truncation error handling
-			false => magnitude as i32,
-			true => -(magnitude as i32),
-		})
-		// TODO: fix duplicate error here
-		.map_err(|_| format!("Expected integer."))
+	// TODO: handle errors here
+	let magnitude = digits.parse::<usize>().unwrap();
+	Ok(match is_negative {
+		// TODO: truncation error handling
+		false => magnitude as i32,
+		true => -(magnitude as i32),
+	})
 }
 
 fn parse_integer_tuple<const LENGTH: usize>(chars: &mut &[char]) -> Result<[i32; LENGTH], String> {
@@ -310,27 +296,26 @@ fn parse_if_else_clause<TC: TapeCellLocation, OC: OpcodeVariant>(
 	};
 
 	let is_not = {
-		let s = chars;
-		if let Ok(Token::Not) = next_token(s) {
+		let mut s = *chars;
+		if let Ok(Token::Not) = next_token(&mut s) {
 			*chars = s;
 			true
 		} else {
 			false
 		}
 	};
-
-	let Ok(condition_char_len) = find_next(chars, '{') else {
-		// TODO: add program snippet to errors
-		r_panic!("Expected code block in if-else clause.");
-	};
-	let condition = Expression::parse(&chars[..condition_char_len])?;
-	*chars = &chars[condition_char_len..];
-
+	let condition = Expression::parse(chars)?;
+	{
+		let mut s = *chars;
+		let Ok(Token::OpenBrace) = next_token(&mut s) else {
+			r_panic!("Expected code block in if-else clause.");
+		};
+	}
 	let block_one = parse_block(chars)?;
 
 	let block_two = {
-		let mut s = chars;
-		if let Ok(Token::Else) = next_token(s) {
+		let mut s = *chars;
+		if let Ok(Token::Else) = next_token(&mut s) {
 			*chars = s;
 			Some(parse_block(chars)?)
 		} else {
@@ -368,18 +353,18 @@ fn parse_while_clause<TC: TapeCellVariant, OC: OpcodeVariant>(
 		r_panic!("Expected `while` in while clause.");
 	};
 
-	let Ok(condition_char_len) = find_next(chars, '{') else {
-		// TODO: add program snippet to errors
-		r_panic!("Expected code block in while clause.");
-	};
-	let condition = Expression::parse(&chars[..condition_char_len])?;
-	*chars = &chars[condition_char_len..];
-
+	let condition = Expression::parse(chars)?;
 	// TODO: make while loops support expressions
 	let Expression::VariableReference(condition_variable) = condition else {
 		r_panic!("While clause expected variable target condition.");
 	};
 
+	{
+		let mut s = *chars;
+		let Ok(Token::OpenBrace) = next_token(&mut s) else {
+			r_panic!("Expected code block in while clause.");
+		};
+	}
 	let loop_block = parse_block(chars)?;
 
 	Ok(Clause::While {
@@ -471,10 +456,10 @@ fn parse_struct_definition_clause<TC: TapeCellLocation, O>(
 fn parse_let_clause<TC: TapeCellLocation, O>(chars: &mut &[char]) -> Result<Clause<TC, O>, String> {
 	let var = parse_var_type_definition(chars)?;
 
-	let mut s = chars;
-	if let Ok(Token::EqualsSign) = next_token(s) {
-		chars = s;
-		let expr = Expression::parse(find_and_advance(chars, ';'))?;
+	let mut s = *chars;
+	if let Ok(Token::EqualsSign) = next_token(&mut s) {
+		*chars = s;
+		let expr = Expression::parse(chars)?;
 		let Ok(Token::Semicolon) = next_token(chars) else {
 			r_panic!("Expected semicolon after variable definition.");
 		};

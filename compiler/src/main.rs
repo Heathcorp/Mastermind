@@ -11,7 +11,6 @@ mod misc;
 mod parser;
 mod preprocessor;
 mod tests;
-mod tokeniser;
 use crate::{
 	backend::{
 		bf::{Opcode, TapeCell},
@@ -20,9 +19,8 @@ use crate::{
 	},
 	brainfuck::{BrainfuckConfig, BrainfuckContext},
 	misc::{MastermindConfig, MastermindContext},
-	parser::parse,
+	parser::parser::parse_program,
 	preprocessor::preprocess,
-	tokeniser::tokenise,
 };
 
 // stdlib dependencies:
@@ -82,30 +80,26 @@ fn main() -> Result<(), String> {
 		config: MastermindConfig::new(args.optimise),
 	};
 
-	let program;
-	match args.file {
+	let program = match args.file {
 		Some(file) => {
 			let file_path = std::path::PathBuf::from(file);
 
 			// c-style preprocessor (includes and maybe some simple conditionals to avoid double includes)
-			program = preprocess(file_path);
+			preprocess(file_path)
 		}
-		None => {
-			program = args.program.unwrap();
-		}
+		None => args.program.unwrap(),
 	};
 
 	let bf_program = match args.compile {
 		true => {
 			// compile the provided file
-			let tokens = tokenise(&program)?;
 			if ctx.config.enable_2d_grid {
-				let parsed_syntax = parse::<TapeCell2D, Opcode2D>(&tokens)?;
+				let parsed_syntax = parse_program::<TapeCell2D, Opcode2D>(&program)?;
 				let instructions = ctx.create_ir_scope(&parsed_syntax, None)?.build_ir(false);
 				let bf_code = ctx.ir_to_bf(instructions, None)?;
 				bf_code.to_string()
 			} else {
-				let parsed_syntax = parse::<TapeCell, Opcode>(&tokens)?;
+				let parsed_syntax = parse_program::<TapeCell, Opcode>(&program)?;
 				let instructions = ctx.create_ir_scope(&parsed_syntax, None)?.build_ir(false);
 				let bf_code = ctx.ir_to_bf(instructions, None)?;
 				bf_code.to_string()

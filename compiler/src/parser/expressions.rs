@@ -1,8 +1,11 @@
+use super::{
+	parser::parse_var_target,
+	tokeniser::{next_token, Token},
+	types::VariableTarget,
+};
+use crate::macros::macros::{r_assert, r_panic};
+
 use std::num::Wrapping;
-
-use crate::macros::macros::r_panic;
-
-use super::types::VariableTarget;
 
 // TODO: add multiplication
 // yes, but no variable * variable multiplication or division
@@ -38,71 +41,92 @@ impl Expression {
 	// Iterators?
 	// TODO: support post/pre increment in expressions
 	pub fn parse(chars: &mut &[char]) -> Result<Expression, String> {
-		let mut i = 0usize;
-
-		if let Token::String(s) = &tokens[i] {
-			i += 1;
-			r_assert!(
-				i == tokens.len(),
-				"Expected semicolon after string literal {tokens:#?}"
-			);
-			return Ok(Expression::StringLiteral(s.clone()));
+		{
+			let mut s = *chars;
+			if let Ok(Token::String(literal)) = next_token(&mut s) {
+				let Ok(Token::None) = next_token(&mut s) else {
+					// TODO: add source snippet
+					r_panic!("String literal must entirely comprise expression.");
+				};
+				return Ok(Expression::StringLiteral(literal));
+			}
 		}
 
-		if let Token::OpenSquareBracket = &tokens[i] {
-			let braced_tokens = get_braced_tokens(&tokens[i..], SQUARE_BRACKETS)?;
-			i += 2 + braced_tokens.len();
-			r_assert!(
-				i == tokens.len(),
-				"Expected semicolon after array literal {tokens:#?}"
-			);
-			// parse the array
-			let results: Result<Vec<Expression>, String> = braced_tokens
-				.split(|t| if let Token::Comma = t { true } else { false })
-				.map(Self::parse)
-				.collect();
-			// TODO: why do I need to split collect result into a seperate variable like here?
-			return Ok(Expression::ArrayLiteral(results?));
+		{
+			let mut s = *chars;
+			if let Ok(Token::OpenSquareBracket) = next_token(&mut s) {
+				*chars = s;
+				let mut expressions = vec![];
+				loop {
+					expressions.push(Self::parse(chars)?);
+					match next_token(chars) {
+						Ok(Token::ClosingSquareBracket) => break,
+						Ok(Token::Comma) => {
+							*chars = s;
+						}
+						_ => r_panic!("Unexpected token in array literal."),
+					}
+				}
+				s = *chars;
+				// check for delimiters
+				let Ok(
+					Token::Semicolon
+					| Token::Comma
+					| Token::ClosingParenthesis
+					| Token::ClosingSquareBracket
+					| Token::None,
+				) = next_token(&mut s)
+				else {
+					// TODO: add source snippet
+					r_panic!("Array literal must entirely comprise expression.");
+				};
+				return Ok(Expression::ArrayLiteral(expressions));
+			}
 		}
 
+		// this loop is basically a state machine based on the current sign:
 		let mut current_sign = Some(Sign::Positive); // by default the first summand is positive
 		let mut summands = Vec::new();
-		while i < tokens.len() {
-			match (&current_sign, &tokens[i]) {
-				(None, Token::Plus) => {
+		loop {
+			let mut s = *chars;
+			match (&current_sign, next_token(&mut s)) {
+				(None, Ok(Token::Plus)) => {
+					*chars = s;
 					current_sign = Some(Sign::Positive);
-					i += 1;
 				}
-				(None, Token::Minus) => {
+				(None, Ok(Token::Minus)) => {
+					*chars = s;
 					current_sign = Some(Sign::Negative);
-					i += 1;
 				}
-				(Some(Sign::Positive), Token::Minus) => {
+				(Some(Sign::Positive), Ok(Token::Minus)) => {
+					*chars = s;
 					current_sign = Some(Sign::Negative);
-					i += 1;
 				}
-				(Some(Sign::Negative), Token::Minus) => {
+				(Some(Sign::Negative), Ok(Token::Minus)) => {
+					*chars = s;
 					current_sign = Some(Sign::Positive);
-					i += 1;
 				}
-				(Some(sign), Token::Digits(literal)) => {
-					let parsed_int: usize = literal.parse().unwrap();
-					i += 1;
-					match sign {
-						Sign::Positive => summands.push(Expression::NaturalNumber(parsed_int)),
-						Sign::Negative => summands.push(Expression::SumExpression {
-							sign: Sign::Negative,
-							summands: vec![Expression::NaturalNumber(parsed_int)],
-						}),
-					}
-					current_sign = None;
-				}
-				(Some(sign), token @ (Token::True | Token::False)) => {
+				(
+					Some(sign),
+					Ok(
+						token @ (Token::Digits(_)
+						| Token::Character(_)
+						| Token::True
+						| Token::False),
+					),
+				) => {
+					*chars = s;
 					let parsed_int = match token {
+						Token::Digits(digits) => digits.parse::<usize>().unwrap(),
+						Token::Character(c) => {
+							let chr_int = c as usize;
+							r_assert!(chr_int < 0xff, "Character tokens must be single-byte: {c}");
+							chr_int
+						}
 						Token::True => 1,
-						Token::False | _ => 0,
+						Token::False => 0,
+						_ => unreachable!(),
 					};
-					i += 1;
 					summands.push(match sign {
 						Sign::Positive => Expression::NaturalNumber(parsed_int),
 						Sign::Negative => Expression::SumExpression {
@@ -112,27 +136,8 @@ impl Expression {
 					});
 					current_sign = None;
 				}
-				(Some(sign), Token::Character(chr)) => {
-					let chr_int: usize = *chr as usize;
-
-					r_assert!(
-						chr_int < 0xff,
-						"Character tokens must be single-byte: {chr}"
-					);
-
-					i += 1;
-					summands.push(match sign {
-						Sign::Positive => Expression::NaturalNumber(chr_int),
-						Sign::Negative => Expression::SumExpression {
-							sign: Sign::Negative,
-							summands: vec![Expression::NaturalNumber(chr_int)],
-						},
-					});
-					current_sign = None;
-				}
-				(Some(sign), Token::Name(_) | Token::Asterisk) => {
-					let (var, len) = parse_var_target(&tokens[i..])?;
-					i += len;
+				(Some(sign), Ok(Token::Name(_) | Token::Asterisk)) => {
+					let var = parse_var_target(chars)?;
 					summands.push(match sign {
 						Sign::Positive => Expression::VariableReference(var),
 						Sign::Negative => Expression::SumExpression {
@@ -142,10 +147,9 @@ impl Expression {
 					});
 					current_sign = None;
 				}
-				(Some(sign), Token::OpenParenthesis) => {
-					let braced_tokens = get_braced_tokens(&tokens[i..], PARENTHESES)?;
-					i += 2 + braced_tokens.len();
-					let braced_expr = Self::parse(braced_tokens)?;
+				(Some(sign), Ok(Token::OpenParenthesis)) => {
+					*chars = s;
+					let braced_expr = Self::parse(chars)?;
 					// probably inefficent but everything needs to be flattened at some point anyway so won't matter
 					// TODO: make expression structure more efficient (don't use vectors every time there is a negative)
 					summands.push(match (sign, braced_expr.clone()) {
@@ -179,6 +183,20 @@ impl Expression {
 						_ => braced_expr,
 					});
 					current_sign = None;
+				}
+				// TODO: add delimiters here: `)` `;` `,` `{` `into`
+				(
+					sign,
+					Ok(
+						Token::ClosingParenthesis
+						| Token::Semicolon
+						| Token::Comma
+						| Token::OpenBrace
+						| Token::Into,
+					),
+				) => {
+					r_assert!(sign.is_none(), "Expected more terms in expression.");
+					break;
 				}
 				// TODO: add source snippet
 				token => r_panic!("Unexpected token {token:#?} found in expression."),

@@ -83,6 +83,7 @@ pub fn next_token(chars: &mut &[char]) -> Result<Token, ()> {
 	})
 }
 
+// TODO: fix this, make this based on token, currently it has no nuance for strings for example
 // TODO: figure out errors for these helper functions
 pub fn find_next(chars: &[char], character: char) -> Result<usize, ()> {
 	let mut i = 0;
@@ -99,6 +100,7 @@ pub fn find_next(chars: &[char], character: char) -> Result<usize, ()> {
 	Ok(i)
 }
 
+// TODO: fix this, make this based on token, currently it has no nuance for strings for example
 pub fn find_and_advance<'a>(chars: &'a mut &[char], character: char) -> Result<&'a [char], ()> {
 	let substr_len = find_next(chars, character)?;
 	let chars_before = &chars[..substr_len];

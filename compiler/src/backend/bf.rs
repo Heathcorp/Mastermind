@@ -36,8 +36,8 @@ impl OpcodeVariant for Opcode {
 		Ok(match token {
 			Token::Plus => Opcode::Add,
 			Token::Minus => Opcode::Subtract,
-			Token::MoreThan => Opcode::Right,
-			Token::LessThan => Opcode::Left,
+			// Token::MoreThan => Opcode::Right,
+			// Token::LessThan => Opcode::Left,
 			Token::OpenSquareBracket => Opcode::OpenLoop,
 			Token::ClosingSquareBracket => Opcode::CloseLoop,
 			Token::Dot => Opcode::Output,

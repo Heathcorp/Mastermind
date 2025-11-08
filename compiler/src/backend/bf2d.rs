@@ -41,13 +41,13 @@ impl OpcodeVariant for Opcode2D {
 		Ok(match token {
 			Token::Plus => Opcode2D::Add,
 			Token::Minus => Opcode2D::Subtract,
-			Token::MoreThan => Opcode2D::Right,
-			Token::LessThan => Opcode2D::Left,
+			// Token::MoreThan => Opcode2D::Right,
+			// Token::LessThan => Opcode2D::Left,
 			Token::OpenSquareBracket => Opcode2D::OpenLoop,
 			Token::ClosingSquareBracket => Opcode2D::CloseLoop,
 			Token::Dot => Opcode2D::Output,
 			Token::Comma => Opcode2D::Input,
-			Token::Caret => Opcode2D::Up,
+			// Token::Caret => Opcode2D::Up,
 			// TODO: implement this:
 			// Token::Down => Opcode2D::Down,
 			_ => r_panic!("Invalid token in inline Brainfuck: {token:?}"),

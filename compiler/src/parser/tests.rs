@@ -1,7 +1,7 @@
 #[cfg(test)]
 mod parser_tests {
 	use super::super::{
-		expressions::Expression,
+		expressions::{Expression, Sign},
 		parser::parse_program,
 		types::{
 			Clause, ExtendedOpcode, LocationSpecifier, VariableTarget, VariableTypeDefinition,
@@ -337,12 +337,79 @@ cell[333] arr = [45, 53];
 		.eq(&[Clause::DefineVariable {
 			var: VariableTypeDefinition {
 				name: String::from("arr"),
-				var_type: VariableTypeReference::Array(Box::new(VariableTypeReference::Cell), 3),
+				var_type: VariableTypeReference::Array(Box::new(VariableTypeReference::Cell), 333),
 				location_specifier: LocationSpecifier::None
 			},
 			value: Expression::ArrayLiteral(vec![
 				Expression::NaturalNumber(45),
 				Expression::NaturalNumber(53)
+			])
+		}]));
+	}
+
+	#[test]
+	fn arrays_2a() {
+		assert!(parse_program::<TapeCell, Opcode>(
+			r#"
+cell[333] arr = [45 + 123, 53];
+"#
+		)
+		.unwrap()
+		.iter()
+		.eq(&[Clause::DefineVariable {
+			var: VariableTypeDefinition {
+				name: String::from("arr"),
+				var_type: VariableTypeReference::Array(Box::new(VariableTypeReference::Cell), 333),
+				location_specifier: LocationSpecifier::None
+			},
+			value: Expression::ArrayLiteral(vec![
+				Expression::SumExpression {
+					sign: Sign::Positive,
+					summands: vec![
+						Expression::NaturalNumber(45),
+						Expression::NaturalNumber(123)
+					]
+				},
+				Expression::NaturalNumber(53)
+			])
+		}]));
+	}
+
+	#[test]
+	fn arrays_2b() {
+		assert!(parse_program::<TapeCell, Opcode>(
+			r#"
+cell[333] arr = [45 + 123, -(53 + 0+78-9)];
+"#
+		)
+		.unwrap()
+		.iter()
+		.eq(&[Clause::DefineVariable {
+			var: VariableTypeDefinition {
+				name: String::from("arr"),
+				var_type: VariableTypeReference::Array(Box::new(VariableTypeReference::Cell), 333),
+				location_specifier: LocationSpecifier::None
+			},
+			value: Expression::ArrayLiteral(vec![
+				Expression::SumExpression {
+					sign: Sign::Positive,
+					summands: vec![
+						Expression::NaturalNumber(45),
+						Expression::NaturalNumber(123)
+					]
+				},
+				Expression::SumExpression {
+					sign: Sign::Negative,
+					summands: vec![
+						Expression::NaturalNumber(53),
+						Expression::NaturalNumber(0),
+						Expression::NaturalNumber(78),
+						Expression::SumExpression {
+							sign: Sign::Negative,
+							summands: vec![Expression::NaturalNumber(9)]
+						}
+					]
+				}
 			])
 		}]));
 	}
@@ -421,6 +488,51 @@ struct nonsense[39] arr @-56 = ["hello!", ',', [4,"hello comma: ,",6]];
 					Expression::NaturalNumber(6)
 				])
 			])
+		}]));
+	}
+
+	#[test]
+	fn sums_1() {
+		assert!(parse_program::<TapeCell, Opcode>(
+			r#"
+struct nonsense[39] arr @-56 = 56 - ( 4+3+( -7-5 +(6)-(((( (0) )))) ) );
+"#
+		)
+		.unwrap()
+		.iter()
+		.eq(&[Clause::DefineVariable {
+			var: VariableTypeDefinition {
+				name: String::from("arr"),
+				var_type: VariableTypeReference::Array(Box::new(VariableTypeReference::Cell), 39),
+				location_specifier: LocationSpecifier::Cell(-56)
+			},
+			value: Expression::SumExpression {
+				sign: Sign::Positive,
+				summands: vec![
+					Expression::NaturalNumber(56),
+					Expression::SumExpression {
+						sign: Sign::Negative,
+						summands: vec![
+							Expression::NaturalNumber(4),
+							Expression::NaturalNumber(3),
+							Expression::SumExpression {
+								sign: Sign::Positive,
+								summands: vec![
+									Expression::SumExpression {
+										sign: Sign::Negative,
+										summands: vec![Expression::NaturalNumber(7)]
+									},
+									Expression::SumExpression {
+										sign: Sign::Negative,
+										summands: vec![Expression::NaturalNumber(5)]
+									},
+									Expression::NaturalNumber(6)
+								]
+							}
+						]
+					}
+				]
+			}
 		}]));
 	}
 }
