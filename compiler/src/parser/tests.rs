@@ -549,7 +549,28 @@ struct nonsense[39] arr @-56 = 56 - ( 4+3+( -7-5 +(6)-(((( (0) )))) ) );
 		assert!(parse_program::<TapeCell, Opcode>(" {}{} {}  {} ")
 			.unwrap()
 			.iter()
-			.eq(&[Clause::Block(vec![])]));
+			.eq(&[
+				Clause::Block(vec![]),
+				Clause::Block(vec![]),
+				Clause::Block(vec![]),
+				Clause::Block(vec![])
+			]));
+	}
+
+	#[test]
+	fn blocks_1b() {
+		assert!(parse_program::<TapeCell, Opcode>(" {}{{{{}}{}}} {}  {} ")
+			.unwrap()
+			.iter()
+			.eq(&[
+				Clause::Block(vec![]),
+				Clause::Block(vec![Clause::Block(vec![
+					Clause::Block(vec![Clause::Block(vec![])]),
+					Clause::Block(vec![])
+				])]),
+				Clause::Block(vec![]),
+				Clause::Block(vec![])
+			]));
 	}
 
 	#[test]

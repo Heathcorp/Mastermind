@@ -167,6 +167,106 @@ mod tokeniser_tests {
 	}
 
 	#[test]
+	fn keywords_1() {
+		_tokenisation_test(
+			"while output input if",
+			&[Token::While, Token::Output, Token::Input, Token::If],
+		);
+	}
+
+	#[test]
+	fn keywords_2() {
+		_tokenisation_test(
+			"into clobbers assert bf else;;;;",
+			&[
+				Token::Into,
+				Token::Clobbers,
+				Token::Assert,
+				Token::Bf,
+				Token::Else,
+				Token::Semicolon,
+				Token::Semicolon,
+				Token::Semicolon,
+				Token::Semicolon,
+			],
+		);
+	}
+
+	#[test]
+	fn names_1() {
+		_tokenisation_test("i", &[Token::Name(String::from("i"))]);
+	}
+
+	#[test]
+	fn names_1a() {
+		_tokenisation_test("_", &[Token::Name(String::from("_"))]);
+	}
+
+	#[test]
+	fn names_2() {
+		_tokenisation_test(
+			"while hello",
+			&[Token::While, Token::Name(String::from("hello"))],
+		);
+	}
+
+	#[test]
+	fn names_2a() {
+		_tokenisation_test(
+			"while_",
+			&[Token::While, Token::Name(String::from("while_"))],
+		);
+	}
+
+	#[test]
+	fn names_2b() {
+		_tokenisation_test(
+			"if_else_while_hello;welcome\ninto the if club",
+			&[
+				Token::Name(String::from("if_else_while_hello")),
+				Token::Semicolon,
+				Token::Name(String::from("welcome")),
+				Token::Into,
+				Token::Name(String::from("the")),
+				Token::If,
+				Token::Name(String::from("club")),
+			],
+		);
+	}
+
+	#[test]
+	fn names_2c() {
+		_tokenisation_test(
+			"hello{If;elSe ___if}\n\n\nclobberss",
+			&[
+				Token::Name(String::from("hello")),
+				Token::OpenBrace,
+				Token::Name(String::from("If")),
+				Token::Semicolon,
+				Token::Name(String::from("elSe")),
+				Token::Name(String::from("___if")),
+				Token::ClosingBrace,
+				Token::Name(String::from("clobberss")),
+			],
+		);
+	}
+
+	#[test]
+	fn names_2d() {
+		_tokenisation_test(
+			"hello while you were gone I",
+			&[
+				Token::Name(String::from("hello")),
+				Token::While,
+				Token::Name(String::from("you")),
+				Token::Name(String::from("were")),
+				Token::Name(String::from("gone")),
+				Token::Name(String::from("I")),
+			],
+		);
+	}
+
+	#[test]
 	fn character_literals_1() {
 		_tokenisation_test(
 			r#"'a' 'b' 'c' ' '"#,
