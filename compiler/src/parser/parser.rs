@@ -57,8 +57,29 @@ fn parse_clause<TC: TapeCellVariant, OC: OpcodeVariant>(
 	})
 }
 
-fn parse_block<TC, OC>(chars: &mut &[char]) -> Result<Vec<Clause<TC, OC>>, String> {
-	todo!()
+fn parse_block<TC: TapeCellVariant, OC: OpcodeVariant>(
+	chars: &mut &[char],
+) -> Result<Vec<Clause<TC, OC>>, String> {
+	let Ok(Token::OpenBrace) = next_token(chars) else {
+		r_panic!("Expected `{{` in code block.");
+	};
+
+	let mut clauses = vec![];
+	loop {
+		{
+			let mut s = *chars;
+			if let Ok(Token::ClosingBrace) = next_token(&mut s) {
+				break;
+			}
+		}
+		let clause = parse_clause(chars)?;
+		if let Clause::None = clause {
+			break;
+		}
+		clauses.push(clause);
+	}
+
+	Ok(clauses)
 }
 
 ////////////////////////////
@@ -287,7 +308,7 @@ fn parse_integer_tuple<const LENGTH: usize>(chars: &mut &[char]) -> Result<[i32;
 ////////////////////////////
 ////////////////////////////
 
-fn parse_if_else_clause<TC: TapeCellLocation, OC: OpcodeVariant>(
+fn parse_if_else_clause<TC: TapeCellVariant, OC: OpcodeVariant>(
 	chars: &mut &[char],
 ) -> Result<Clause<TC, OC>, String> {
 	let Ok(Token::If) = next_token(chars) else {

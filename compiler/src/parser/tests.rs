@@ -535,4 +535,45 @@ struct nonsense[39] arr @-56 = 56 - ( 4+3+( -7-5 +(6)-(((( (0) )))) ) );
 			}
 		}]));
 	}
+
+	#[test]
+	fn blocks_1() {
+		assert!(parse_program::<TapeCell, Opcode>("{}")
+			.unwrap()
+			.iter()
+			.eq(&[Clause::Block(vec![])]));
+	}
+
+	#[test]
+	fn blocks_1a() {
+		assert!(parse_program::<TapeCell, Opcode>(" {}{} {}  {} ")
+			.unwrap()
+			.iter()
+			.eq(&[Clause::Block(vec![])]));
+	}
+
+	#[test]
+	fn blocks_2() {
+		assert!(
+			parse_program::<TapeCell, Opcode>("{output 1;output 2;}{{{} output 3;}}")
+				.unwrap()
+				.iter()
+				.eq(&[
+					Clause::Block(vec![
+						Clause::OutputValue {
+							value: Expression::NaturalNumber(1),
+						},
+						Clause::OutputValue {
+							value: Expression::NaturalNumber(2),
+						}
+					]),
+					Clause::Block(vec![Clause::Block(vec![
+						Clause::Block(vec![]),
+						Clause::OutputValue {
+							value: Expression::NaturalNumber(3)
+						}
+					])])
+				])
+		);
+	}
 }
