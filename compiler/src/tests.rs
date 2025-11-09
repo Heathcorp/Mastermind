@@ -528,6 +528,122 @@ output x + 'f';
 	}
 
 	#[test]
+	fn increment_1() {
+		let program = r#"
+cell x = 'h';
+output x;
+++x;
+output x;
+"#;
+		assert_eq!(
+			compile_and_run::<TapeCell, Opcode>(program, "").unwrap(),
+			"hi"
+		)
+	}
+
+	#[test]
+	fn increment_2() {
+		let program = r#"
+cell x = 'h';
+output x;
+--x;
+output x;
+"#;
+		assert_eq!(
+			compile_and_run::<TapeCell, Opcode>(program, "").unwrap(),
+			"hg"
+		)
+	}
+
+	// TODO: add pre-increment to expressions? (probably not worth it)
+	#[test]
+	#[ignore]
+	fn increment_3() {
+		let program = r#"
+cell x = 'a';
+output ++x;
+output x;
+"#;
+		assert_eq!(
+			compile_and_run::<TapeCell, Opcode>(program, "").unwrap(),
+			"bb"
+		)
+	}
+
+	#[test]
+	#[ignore]
+	fn increment_3a() {
+		let program = r#"
+cell x = 'a';
+output x;
+output ++x + 2;
+output x;
+"#;
+		assert_eq!(
+			compile_and_run::<TapeCell, Opcode>(program, "").unwrap(),
+			"adb"
+		)
+	}
+
+	#[test]
+	#[ignore]
+	fn increment_3b() {
+		let program = r#"
+cell x = 'd';
+output --x;
+output x;
+"#;
+		assert_eq!(
+			compile_and_run::<TapeCell, Opcode>(program, "").unwrap(),
+			"cc"
+		)
+	}
+
+	#[test]
+	#[ignore]
+	fn increment_3c() {
+		let program = r#"
+cell x = 'd';
+output 4+--x;
+output --x;
+"#;
+		assert_eq!(
+			compile_and_run::<TapeCell, Opcode>(program, "").unwrap(),
+			"gb"
+		)
+	}
+
+	#[test]
+	#[ignore]
+	fn increment_4() {
+		let program = r#"
+cell x = -1;
+if ++x {output 'T';}
+else {output 'F';}
+output 'e' + ++x;
+"#;
+		assert_eq!(
+			compile_and_run::<TapeCell, Opcode>(program, "").unwrap(),
+			"Ff"
+		)
+	}
+
+	#[test]
+	#[ignore]
+	fn increment_4a() {
+		let program = r#"
+cell x = 0;
+if --x {output 'T';}
+else {output 'F';}
+output 'e' + x;
+"#;
+		assert_eq!(
+			compile_and_run::<TapeCell, Opcode>(program, "").unwrap(),
+			"Td"
+		)
+	}
+
+	#[test]
 	fn loops_1() {
 		let program = r#"
 cell n = '0';

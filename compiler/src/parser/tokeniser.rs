@@ -13,6 +13,16 @@ pub enum Token {
 	If,
 	Not,
 	Else,
+	Copy,
+	Drain,
+	Into,
+	Bf,
+	Clobbers,
+	Assert,
+	Equals,
+	Unknown,
+	True,
+	False,
 	OpenBrace,
 	ClosingBrace,
 	OpenSquareBracket,
@@ -23,22 +33,14 @@ pub enum Token {
 	Dot,
 	Asterisk,
 	At,
-	Copy,
-	Drain,
-	Into,
-	Bf,
-	Clobbers,
-	Assert,
-	Equals,
-	Unknown,
 	Name(String),
 	Digits(String),
 	String(String),
 	Character(char),
-	True,
-	False,
-	Minus,
 	Plus,
+	Minus,
+	PlusPlus,
+	MinusMinus,
 	PlusEquals,
 	MinusEquals,
 	EqualsSign,
@@ -48,37 +50,57 @@ pub enum Token {
 /// Get the next token from chars, advance the passed in pointer
 pub fn next_token(chars: &mut &[char]) -> Result<Token, ()> {
 	// skip any whitespace
-	skip_whitespace(chars)?;
+	skip_whitespace(chars);
 
-	// TODO: this is flawed, what about cell g=5;?
-	let token_len = find_next_whitespace(*chars)?;
-
-	Ok(match token_len {
-		0 => return Err(()),
-		1 => match chars[0] {
-			'{' => Token::OpenBrace,
-			'}' => Token::ClosingBrace,
-			_ => todo!(),
-		},
-		2 => match chars[0..2] {
-			['b', 'f'] => Token::Bf,
-			['i', 'f'] => Token::If,
-			_ => todo!(),
-		},
-		3 => match chars[0..3] {
-			['n', 'o', 't'] => Token::Not,
-			_ => todo!(),
-		},
-		4 => match chars[0..4] {
-			['c', 'e', 'l', 'l'] => Token::Cell,
-			['e', 'l', 's', 'e'] => Token::Else,
-			['t', 'r', 'u', 'e'] => Token::True,
-			_ => todo!(),
-		},
-		5 => match chars[0..5] {
-			['w', 'h', 'i', 'l', 'e'] => Token::While,
-			_ => todo!(),
-		},
+	// read the first character and branch from there
+	let Some(c) = chars.get(0) else {
+		return Ok(Token::None);
+	};
+	Ok(match *c {
+		';' => {
+			*chars = &chars[1..];
+			Token::Semicolon
+		}
+		'{' => {
+			*chars = &chars[1..];
+			Token::OpenBrace
+		}
+		'}' => {
+			*chars = &chars[1..];
+			Token::ClosingBrace
+		}
+		'(' => {
+			*chars = &chars[1..];
+			Token::OpenParenthesis
+		}
+		')' => {
+			*chars = &chars[1..];
+			Token::ClosingParenthesis
+		}
+		'[' => {
+			*chars = &chars[1..];
+			Token::OpenSquareBracket
+		}
+		']' => {
+			*chars = &chars[1..];
+			Token::ClosingSquareBracket
+		}
+		'.' => {
+			*chars = &chars[1..];
+			Token::Dot
+		}
+		',' => {
+			*chars = &chars[1..];
+			Token::Comma
+		}
+		'*' => {
+			*chars = &chars[1..];
+			Token::Asterisk
+		}
+		'@' => {
+			*chars = &chars[1..];
+			Token::At
+		}
 		_ => todo!(),
 	})
 }
@@ -108,18 +130,18 @@ pub fn find_and_advance<'a>(chars: &'a mut &[char], character: char) -> Result<&
 	Ok(chars_before)
 }
 
-pub fn skip_whitespace(chars: &mut &[char]) -> Result<(), ()> {
+pub fn skip_whitespace(chars: &mut &[char]) {
 	loop {
-		let Some(c) = chars.get(0) else {
-			return Err(());
-		};
-
-		if !c.is_whitespace() {
-			break;
+		match chars.get(0) {
+			Some(c) => {
+				if !c.is_whitespace() {
+					break;
+				}
+			}
+			None => break,
 		}
 		*chars = &chars[1..];
 	}
-	Ok(())
 }
 
 pub fn find_next_whitespace(chars: &[char]) -> Result<usize, ()> {
@@ -149,7 +171,7 @@ mod tokeniser_tests {
 		let mut tokens = vec![];
 		loop {
 			let Ok(token) = next_token(&mut chars_slice) else {
-				r_panic!("Invlid token in input.");
+				r_panic!("Invalid token in input.");
 			};
 			if let Token::None = token {
 				break;
@@ -167,10 +189,178 @@ mod tokeniser_tests {
 	}
 
 	#[test]
-	fn keywords_1() {
+	fn single_tokens() {
 		_tokenisation_test(
-			"while output input if",
-			&[Token::While, Token::Output, Token::Input, Token::If],
+			"==;;**@@[[{{((]]}}))..,,",
+			&[
+				Token::EqualsSign,
+				Token::EqualsSign,
+				Token::Semicolon,
+				Token::Semicolon,
+				Token::Asterisk,
+				Token::Asterisk,
+				Token::At,
+				Token::At,
+				Token::OpenSquareBracket,
+				Token::OpenSquareBracket,
+				Token::OpenBrace,
+				Token::OpenBrace,
+				Token::OpenParenthesis,
+				Token::OpenParenthesis,
+				Token::ClosingSquareBracket,
+				Token::ClosingSquareBracket,
+				Token::ClosingBrace,
+				Token::ClosingBrace,
+				Token::ClosingParenthesis,
+				Token::ClosingParenthesis,
+				Token::Dot,
+				Token::Dot,
+				Token::Comma,
+				Token::Comma,
+			],
+		);
+	}
+
+	#[test]
+	fn double_tokens_1() {
+		_tokenisation_test(
+			"+=+=-=-=++++----",
+			&[
+				Token::PlusEquals,
+				Token::PlusEquals,
+				Token::MinusEquals,
+				Token::MinusEquals,
+				Token::PlusPlus,
+				Token::PlusPlus,
+				Token::MinusMinus,
+				Token::MinusMinus,
+			],
+		);
+	}
+
+	#[test]
+	fn double_tokens_2() {
+		_tokenisation_test(
+			"-++=+++=+-=--=---=-+++++-+-----",
+			&[
+				Token::Minus,
+				Token::PlusPlus,
+				Token::EqualsSign,
+				Token::PlusPlus,
+				Token::PlusEquals,
+				Token::Plus,
+				Token::MinusEquals,
+				Token::MinusMinus,
+				Token::EqualsSign,
+				Token::MinusMinus,
+				Token::MinusEquals,
+				Token::Minus,
+				Token::PlusPlus,
+				Token::PlusPlus,
+				Token::Plus,
+				Token::Minus,
+				Token::Plus,
+				Token::MinusMinus,
+				Token::MinusMinus,
+				Token::Minus,
+			],
+		);
+	}
+
+	#[test]
+	fn single_and_double() {
+		_tokenisation_test(
+			"=+==;+=-=;*---=++*@@[[{{++((]--]}+-+})).---.,,",
+			&[
+				Token::EqualsSign,
+				Token::PlusEquals,
+				Token::EqualsSign,
+				Token::Semicolon,
+				Token::PlusEquals,
+				Token::MinusEquals,
+				Token::Semicolon,
+				Token::Asterisk,
+				Token::MinusMinus,
+				Token::MinusEquals,
+				Token::PlusPlus,
+				Token::Asterisk,
+				Token::At,
+				Token::At,
+				Token::OpenSquareBracket,
+				Token::OpenSquareBracket,
+				Token::OpenBrace,
+				Token::OpenBrace,
+				Token::PlusPlus,
+				Token::OpenParenthesis,
+				Token::OpenParenthesis,
+				Token::ClosingSquareBracket,
+				Token::MinusMinus,
+				Token::ClosingSquareBracket,
+				Token::ClosingBrace,
+				Token::Plus,
+				Token::Minus,
+				Token::Plus,
+				Token::ClosingBrace,
+				Token::ClosingParenthesis,
+				Token::ClosingParenthesis,
+				Token::Dot,
+				Token::MinusMinus,
+				Token::Minus,
+				Token::Dot,
+				Token::Comma,
+				Token::Comma,
+			],
+		);
+	}
+
+	#[test]
+	fn keywords() {
+		_tokenisation_test(
+			r#"
+output output input input fn fn cell cell 	struct struct while while if
+if not not else else copy copy 	drain drain into into bf bf clobbers clobbers
+ 	assert assert equals equals unknown unknown true true false false
+"#,
+			&[
+				Token::Output,
+				Token::Output,
+				Token::Input,
+				Token::Input,
+				Token::Fn,
+				Token::Fn,
+				Token::Cell,
+				Token::Cell,
+				Token::Struct,
+				Token::Struct,
+				Token::While,
+				Token::While,
+				Token::If,
+				Token::If,
+				Token::Not,
+				Token::Not,
+				Token::Else,
+				Token::Else,
+				Token::Copy,
+				Token::Copy,
+				Token::Drain,
+				Token::Drain,
+				Token::Into,
+				Token::Into,
+				Token::Bf,
+				Token::Bf,
+				Token::Clobbers,
+				Token::Clobbers,
+				Token::Assert,
+				Token::Assert,
+				Token::Equals,
+				Token::Equals,
+				Token::Unknown,
+				Token::Unknown,
+				Token::True,
+				Token::True,
+				Token::False,
+				Token::False,
+			],
 		);
 	}
 
