@@ -23,12 +23,12 @@ pub enum Token {
 	Unknown,
 	True,
 	False,
-	OpenBrace,
-	ClosingBrace,
-	OpenSquareBracket,
-	ClosingSquareBracket,
-	OpenParenthesis,
-	ClosingParenthesis,
+	LeftBrace,
+	RightBrace,
+	LeftSquareBracket,
+	RightSquareBracket,
+	LeftParenthesis,
+	RightParenthesis,
 	Comma,
 	Dot,
 	Asterisk,
@@ -63,27 +63,27 @@ pub fn next_token(chars: &mut &[char]) -> Result<Token, ()> {
 		}
 		'{' => {
 			*chars = &chars[1..];
-			Token::OpenBrace
+			Token::LeftBrace
 		}
 		'}' => {
 			*chars = &chars[1..];
-			Token::ClosingBrace
+			Token::RightBrace
 		}
 		'(' => {
 			*chars = &chars[1..];
-			Token::OpenParenthesis
+			Token::LeftParenthesis
 		}
 		')' => {
 			*chars = &chars[1..];
-			Token::ClosingParenthesis
+			Token::RightParenthesis
 		}
 		'[' => {
 			*chars = &chars[1..];
-			Token::OpenSquareBracket
+			Token::LeftSquareBracket
 		}
 		']' => {
 			*chars = &chars[1..];
-			Token::ClosingSquareBracket
+			Token::RightSquareBracket
 		}
 		'.' => {
 			*chars = &chars[1..];
@@ -189,40 +189,63 @@ mod tokeniser_tests {
 	}
 
 	#[test]
-	fn single_tokens() {
-		_tokenisation_test(
-			"==;;**@@[[{{((]]}}))..,,",
-			&[
-				Token::EqualsSign,
-				Token::EqualsSign,
-				Token::Semicolon,
-				Token::Semicolon,
-				Token::Asterisk,
-				Token::Asterisk,
-				Token::At,
-				Token::At,
-				Token::OpenSquareBracket,
-				Token::OpenSquareBracket,
-				Token::OpenBrace,
-				Token::OpenBrace,
-				Token::OpenParenthesis,
-				Token::OpenParenthesis,
-				Token::ClosingSquareBracket,
-				Token::ClosingSquareBracket,
-				Token::ClosingBrace,
-				Token::ClosingBrace,
-				Token::ClosingParenthesis,
-				Token::ClosingParenthesis,
-				Token::Dot,
-				Token::Dot,
-				Token::Comma,
-				Token::Comma,
-			],
-		);
+	fn empty_1() {
+		_tokenisation_test("", &[]);
 	}
 
 	#[test]
-	fn double_tokens_1() {
+	fn empty_1a() {
+		_tokenisation_test("  \n  \t  ", &[]);
+	}
+
+	#[test]
+	fn empty_2() {
+		let chars_vec: Vec<char> = "".chars().collect();
+		let mut chars_slice = &chars_vec[..];
+		assert_eq!(next_token(&mut chars_slice).unwrap(), Token::None);
+	}
+
+	#[test]
+	fn empty_2a() {
+		let chars_vec: Vec<char> = "\n    \t \n  ".chars().collect();
+		let mut chars_slice = &chars_vec[..];
+		assert_eq!(next_token(&mut chars_slice).unwrap(), Token::None);
+	}
+
+	#[test]
+	fn single() {
+		let desired_output = [
+			Token::EqualsSign,
+			Token::EqualsSign,
+			Token::Semicolon,
+			Token::Semicolon,
+			Token::Asterisk,
+			Token::Asterisk,
+			Token::At,
+			Token::At,
+			Token::LeftSquareBracket,
+			Token::LeftSquareBracket,
+			Token::LeftBrace,
+			Token::LeftBrace,
+			Token::LeftParenthesis,
+			Token::LeftParenthesis,
+			Token::RightSquareBracket,
+			Token::RightSquareBracket,
+			Token::RightBrace,
+			Token::RightBrace,
+			Token::RightParenthesis,
+			Token::RightParenthesis,
+			Token::Dot,
+			Token::Dot,
+			Token::Comma,
+			Token::Comma,
+		];
+		_tokenisation_test("==;;**@@[[{{((]]}}))..,,", &desired_output);
+		_tokenisation_test(" == ; ;**@ @[[ {{ ( (] ]}} )). ., ,", &desired_output);
+	}
+
+	#[test]
+	fn double_1() {
 		_tokenisation_test(
 			"+=+=-=-=++++----",
 			&[
@@ -239,7 +262,28 @@ mod tokeniser_tests {
 	}
 
 	#[test]
-	fn double_tokens_2() {
+	fn double_1a() {
+		_tokenisation_test(
+			"+ =+ = -= -=+ +++ - - --",
+			&[
+				Token::Plus,
+				Token::EqualsSign,
+				Token::Plus,
+				Token::EqualsSign,
+				Token::MinusEquals,
+				Token::MinusEquals,
+				Token::Plus,
+				Token::PlusPlus,
+				Token::Plus,
+				Token::Minus,
+				Token::Minus,
+				Token::MinusMinus,
+			],
+		);
+	}
+
+	#[test]
+	fn double_2() {
 		_tokenisation_test(
 			"-++=+++=+-=--=---=-+++++-+-----",
 			&[
@@ -268,45 +312,80 @@ mod tokeniser_tests {
 	}
 
 	#[test]
+	fn double_2a() {
+		_tokenisation_test(
+			"-+ +=+ ++=+-=-- =-- - =-+ +++ +-+-- - --",
+			&[
+				Token::Minus,
+				Token::Plus,
+				Token::PlusEquals,
+				Token::Plus,
+				Token::Plus,
+				Token::PlusEquals,
+				Token::Plus,
+				Token::MinusEquals,
+				Token::MinusMinus,
+				Token::EqualsSign,
+				Token::MinusMinus,
+				Token::Minus,
+				Token::EqualsSign,
+				Token::Minus,
+				Token::Plus,
+				Token::PlusPlus,
+				Token::Plus,
+				Token::Plus,
+				Token::Minus,
+				Token::Plus,
+				Token::MinusMinus,
+				Token::Minus,
+				Token::MinusMinus,
+			],
+		);
+	}
+
+	#[test]
 	fn single_and_double() {
 		_tokenisation_test(
-			"=+==;+=-=;*---=++*@@[[{{++((]--]}+-+})).---.,,",
+			"=+==;+=- =;*---=++*@@[[{{+ +((]--]}+-+})).---.-,,",
 			&[
 				Token::EqualsSign,
 				Token::PlusEquals,
 				Token::EqualsSign,
 				Token::Semicolon,
 				Token::PlusEquals,
-				Token::MinusEquals,
+				Token::Minus,
+				Token::EqualsSign,
 				Token::Semicolon,
 				Token::Asterisk,
 				Token::MinusMinus,
 				Token::MinusEquals,
-				Token::PlusPlus,
+				Token::Plus,
+				Token::Plus,
 				Token::Asterisk,
 				Token::At,
 				Token::At,
-				Token::OpenSquareBracket,
-				Token::OpenSquareBracket,
-				Token::OpenBrace,
-				Token::OpenBrace,
+				Token::LeftSquareBracket,
+				Token::LeftSquareBracket,
+				Token::LeftBrace,
+				Token::LeftBrace,
 				Token::PlusPlus,
-				Token::OpenParenthesis,
-				Token::OpenParenthesis,
-				Token::ClosingSquareBracket,
+				Token::LeftParenthesis,
+				Token::LeftParenthesis,
+				Token::RightSquareBracket,
 				Token::MinusMinus,
-				Token::ClosingSquareBracket,
-				Token::ClosingBrace,
+				Token::RightSquareBracket,
+				Token::RightBrace,
 				Token::Plus,
 				Token::Minus,
 				Token::Plus,
-				Token::ClosingBrace,
-				Token::ClosingParenthesis,
-				Token::ClosingParenthesis,
+				Token::RightBrace,
+				Token::RightParenthesis,
+				Token::RightParenthesis,
 				Token::Dot,
 				Token::MinusMinus,
 				Token::Minus,
 				Token::Dot,
+				Token::Minus,
 				Token::Comma,
 				Token::Comma,
 			],
@@ -365,19 +444,57 @@ if not not else else copy copy 	drain drain into into bf bf clobbers clobbers
 	}
 
 	#[test]
-	fn keywords_2() {
+	fn keywords_and_simples() {
 		_tokenisation_test(
-			"into clobbers assert bf else;;;;",
+			r#"unknown,assert,equals.into;struct)clobbers-- -+input+++not(else{
+if fn{output)true)false -while*  @copy@+=@drain-=into=][bf.cell"#,
 			&[
-				Token::Into,
-				Token::Clobbers,
+				Token::Unknown,
+				Token::Comma,
 				Token::Assert,
-				Token::Bf,
+				Token::Comma,
+				Token::Equals,
+				Token::Dot,
+				Token::Into,
+				Token::Semicolon,
+				Token::Struct,
+				Token::RightParenthesis,
+				Token::Clobbers,
+				Token::MinusMinus,
+				Token::Minus,
+				Token::Plus,
+				Token::Input,
+				Token::Plus,
+				Token::PlusPlus,
+				Token::Not,
+				Token::LeftParenthesis,
 				Token::Else,
-				Token::Semicolon,
-				Token::Semicolon,
-				Token::Semicolon,
-				Token::Semicolon,
+				Token::LeftBrace,
+				Token::If,
+				Token::Fn,
+				Token::LeftBrace,
+				Token::Output,
+				Token::RightParenthesis,
+				Token::True,
+				Token::RightParenthesis,
+				Token::False,
+				Token::Minus,
+				Token::While,
+				Token::Asterisk,
+				Token::At,
+				Token::Copy,
+				Token::At,
+				Token::PlusEquals,
+				Token::At,
+				Token::Drain,
+				Token::MinusEquals,
+				Token::Into,
+				Token::EqualsSign,
+				Token::RightSquareBracket,
+				Token::LeftSquareBracket,
+				Token::Bf,
+				Token::Dot,
+				Token::Cell,
 			],
 		);
 	}
@@ -430,12 +547,12 @@ if not not else else copy copy 	drain drain into into bf bf clobbers clobbers
 			"hello{If;elSe ___if}\n\n\nclobberss",
 			&[
 				Token::Name(String::from("hello")),
-				Token::OpenBrace,
+				Token::LeftBrace,
 				Token::Name(String::from("If")),
 				Token::Semicolon,
 				Token::Name(String::from("elSe")),
 				Token::Name(String::from("___if")),
-				Token::ClosingBrace,
+				Token::RightBrace,
 				Token::Name(String::from("clobberss")),
 			],
 		);

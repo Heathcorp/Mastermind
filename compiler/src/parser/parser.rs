@@ -48,7 +48,7 @@ fn parse_clause<TC: TapeCellVariant, OC: OpcodeVariant>(
 				r_panic!("Expected identifier after `struct` keyword.");
 			};
 			match next_token(&mut s) {
-				Ok(Token::OpenBrace) => parse_struct_definition_clause(chars)?,
+				Ok(Token::LeftBrace) => parse_struct_definition_clause(chars)?,
 				_ => parse_let_clause(chars)?,
 			}
 		}
@@ -60,7 +60,7 @@ fn parse_clause<TC: TapeCellVariant, OC: OpcodeVariant>(
 fn parse_block<TC: TapeCellVariant, OC: OpcodeVariant>(
 	chars: &mut &[char],
 ) -> Result<Vec<Clause<TC, OC>>, String> {
-	let Ok(Token::OpenBrace) = next_token(chars) else {
+	let Ok(Token::LeftBrace) = next_token(chars) else {
 		r_panic!("Expected `{{` in code block.");
 	};
 
@@ -68,7 +68,7 @@ fn parse_block<TC: TapeCellVariant, OC: OpcodeVariant>(
 	loop {
 		{
 			let mut s = *chars;
-			if let Ok(Token::ClosingBrace) = next_token(&mut s) {
+			if let Ok(Token::RightBrace) = next_token(&mut s) {
 				break;
 			}
 		}
@@ -124,7 +124,7 @@ impl TapeCellLocation for TapeCell2D {
 		*chars = s;
 
 		match next_token(&mut s) {
-			Ok(Token::OpenParenthesis) => {
+			Ok(Token::LeftParenthesis) => {
 				// parse a 2-tuple
 				let tuple = parse_integer_tuple::<2>(chars)?;
 				Ok(LocationSpecifier::Cell(TapeCell2D(tuple[0], tuple[1])))
@@ -171,7 +171,7 @@ fn parse_var_type_definition<TC: TapeCellLocation>(
 	// parse array specifiers
 	{
 		let mut s = *chars;
-		while let Ok(Token::OpenSquareBracket) = next_token(&mut s) {
+		while let Ok(Token::LeftSquareBracket) = next_token(&mut s) {
 			var_type = VariableTypeReference::Array(Box::new(var_type), parse_subscript(chars)?);
 			s = chars;
 		}
@@ -192,7 +192,7 @@ fn parse_var_type_definition<TC: TapeCellLocation>(
 /// parse the subscript of an array variable, e.g. [4] [6] [0]
 /// must be compile-time constant
 fn parse_subscript(chars: &mut &[char]) -> Result<usize, String> {
-	let Ok(Token::OpenSquareBracket) = next_token(chars) else {
+	let Ok(Token::LeftSquareBracket) = next_token(chars) else {
 		// TODO: add program snippet
 		r_panic!("Expected `[` in array subscript.");
 	};
@@ -200,7 +200,7 @@ fn parse_subscript(chars: &mut &[char]) -> Result<usize, String> {
 		// TODO: add program snippet
 		r_panic!("Expected natural number in array subscript.");
 	};
-	let Ok(Token::ClosingSquareBracket) = next_token(chars) else {
+	let Ok(Token::RightSquareBracket) = next_token(chars) else {
 		// TODO: add program snippet
 		r_panic!("Expected `]` in array subscript.");
 	};
@@ -228,7 +228,7 @@ pub fn parse_var_target(chars: &mut &[char]) -> Result<VariableTarget, String> {
 	let mut s = *chars;
 	loop {
 		match next_token(&mut s) {
-			Ok(Token::OpenSquareBracket) => {
+			Ok(Token::LeftSquareBracket) => {
 				let index = parse_subscript(chars)?;
 				ref_chain.push(Reference::Index(index));
 			}
@@ -280,7 +280,7 @@ fn parse_integer(chars: &mut &[char]) -> Result<i32, String> {
 }
 
 fn parse_integer_tuple<const LENGTH: usize>(chars: &mut &[char]) -> Result<[i32; LENGTH], String> {
-	let Ok(Token::OpenParenthesis) = next_token(chars) else {
+	let Ok(Token::LeftParenthesis) = next_token(chars) else {
 		// TODO: add source snippet
 		r_panic!("Expected opening parenthesis in tuple.")
 	};
@@ -296,7 +296,7 @@ fn parse_integer_tuple<const LENGTH: usize>(chars: &mut &[char]) -> Result<[i32;
 			};
 		}
 	}
-	let Ok(Token::ClosingParenthesis) = next_token(chars) else {
+	let Ok(Token::RightParenthesis) = next_token(chars) else {
 		// TODO: add source snippet
 		r_panic!("Expected closing parenthesis in tuple.");
 	};
@@ -328,7 +328,7 @@ fn parse_if_else_clause<TC: TapeCellVariant, OC: OpcodeVariant>(
 	let condition = Expression::parse(chars)?;
 	{
 		let mut s = *chars;
-		let Ok(Token::OpenBrace) = next_token(&mut s) else {
+		let Ok(Token::LeftBrace) = next_token(&mut s) else {
 			r_panic!("Expected code block in if-else clause.");
 		};
 	}
@@ -382,7 +382,7 @@ fn parse_while_clause<TC: TapeCellVariant, OC: OpcodeVariant>(
 
 	{
 		let mut s = *chars;
-		let Ok(Token::OpenBrace) = next_token(&mut s) else {
+		let Ok(Token::LeftBrace) = next_token(&mut s) else {
 			r_panic!("Expected code block in while clause.");
 		};
 	}
@@ -407,7 +407,7 @@ fn parse_function_definition_clause<TC: TapeCellVariant, OC: OpcodeVariant>(
 		r_panic!("Expected name in function definition clause.");
 	};
 
-	let Ok(Token::OpenParenthesis) = next_token(chars) else {
+	let Ok(Token::LeftParenthesis) = next_token(chars) else {
 		// TODO: add source snippet
 		r_panic!("Expected argument list in function definition clause.");
 	};
@@ -415,7 +415,7 @@ fn parse_function_definition_clause<TC: TapeCellVariant, OC: OpcodeVariant>(
 	loop {
 		{
 			let mut s = *chars;
-			if let Ok(Token::ClosingParenthesis) = next_token(&mut s) {
+			if let Ok(Token::RightParenthesis) = next_token(&mut s) {
 				*chars = s;
 				break;
 			}
@@ -423,7 +423,7 @@ fn parse_function_definition_clause<TC: TapeCellVariant, OC: OpcodeVariant>(
 		arguments.push(parse_var_type_definition(chars)?);
 
 		match next_token(chars) {
-			Ok(Token::ClosingParenthesis) => break,
+			Ok(Token::RightParenthesis) => break,
 			Ok(Token::Comma) => (),
 			// TODO: add source snippet
 			_ => r_panic!("Unexpected token in function argument list."),
@@ -451,7 +451,7 @@ fn parse_struct_definition_clause<TC: TapeCellLocation, O>(
 		r_panic!("Expected name in struct definition.");
 	};
 
-	let Ok(Token::OpenBrace) = next_token(chars) else {
+	let Ok(Token::LeftBrace) = next_token(chars) else {
 		// TODO: add source snippet
 		r_panic!("Expected `{{` in struct clause.");
 	};
@@ -464,7 +464,7 @@ fn parse_struct_definition_clause<TC: TapeCellLocation, O>(
 			// TODO: add source snippet
 			r_panic!("Expected semicolon after struct definition field.");
 		};
-		if let Ok(Token::ClosingBrace) = next_token(chars) {
+		if let Ok(Token::RightBrace) = next_token(chars) {
 			break;
 		}
 	}

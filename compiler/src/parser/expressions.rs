@@ -54,13 +54,13 @@ impl Expression {
 
 		{
 			let mut s = *chars;
-			if let Ok(Token::OpenSquareBracket) = next_token(&mut s) {
+			if let Ok(Token::LeftSquareBracket) = next_token(&mut s) {
 				*chars = s;
 				let mut expressions = vec![];
 				loop {
 					expressions.push(Self::parse(chars)?);
 					match next_token(chars) {
-						Ok(Token::ClosingSquareBracket) => break,
+						Ok(Token::RightSquareBracket) => break,
 						Ok(Token::Comma) => {
 							*chars = s;
 						}
@@ -72,8 +72,8 @@ impl Expression {
 				let Ok(
 					Token::Semicolon
 					| Token::Comma
-					| Token::ClosingParenthesis
-					| Token::ClosingSquareBracket
+					| Token::RightParenthesis
+					| Token::RightSquareBracket
 					| Token::None,
 				) = next_token(&mut s)
 				else {
@@ -147,7 +147,7 @@ impl Expression {
 					});
 					current_sign = None;
 				}
-				(Some(sign), Ok(Token::OpenParenthesis)) => {
+				(Some(sign), Ok(Token::LeftParenthesis)) => {
 					*chars = s;
 					let braced_expr = Self::parse(chars)?;
 					// probably inefficent but everything needs to be flattened at some point anyway so won't matter
@@ -188,10 +188,10 @@ impl Expression {
 				(
 					sign,
 					Ok(
-						Token::ClosingParenthesis
+						Token::RightParenthesis
 						| Token::Semicolon
 						| Token::Comma
-						| Token::OpenBrace
+						| Token::LeftBrace
 						| Token::Into,
 					),
 				) => {
