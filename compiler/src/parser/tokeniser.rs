@@ -1,6 +1,8 @@
 // TODO: make an impl for a tokeniser, inverse-builder pattern?
 // have a function to peek, then accept changes, so we don't double hangle tokens
 
+use crate::macros::macros::r_panic;
+
 #[derive(Debug, Clone, PartialEq)]
 pub enum Token {
 	None,
@@ -48,7 +50,7 @@ pub enum Token {
 }
 
 /// Get the next token from chars, advance the passed in pointer
-pub fn next_token(chars: &mut &[char]) -> Result<Token, ()> {
+pub fn next_token(chars: &mut &[char]) -> Result<Token, String> {
 	// skip any whitespace
 	skip_whitespace(chars);
 
@@ -57,52 +59,87 @@ pub fn next_token(chars: &mut &[char]) -> Result<Token, ()> {
 		return Ok(Token::None);
 	};
 	Ok(match *c {
-		';' => {
+		c @ (';' | '{' | '}' | '(' | ')' | '[' | ']' | '.' | ',' | '*' | '@' | '+' | '-') => {
 			*chars = &chars[1..];
-			Token::Semicolon
+			match c {
+				';' => Token::Semicolon,
+				'{' => Token::LeftBrace,
+				'}' => Token::RightBrace,
+				'(' => Token::LeftParenthesis,
+				')' => Token::RightParenthesis,
+				'[' => Token::LeftSquareBracket,
+				']' => Token::RightSquareBracket,
+				'.' => Token::Dot,
+				',' => Token::Comma,
+				'*' => Token::Asterisk,
+				'@' => Token::At,
+				'+' => match chars.get(1) {
+					Some('+') => {
+						*chars = &chars[1..];
+						Token::PlusPlus
+					}
+					Some('=') => {
+						*chars = &chars[1..];
+						Token::PlusEquals
+					}
+					_ => Token::Plus,
+				},
+				'-' => match chars.get(0) {
+					Some('-') => {
+						*chars = &chars[1..];
+						Token::MinusMinus
+					}
+					Some('=') => {
+						*chars = &chars[1..];
+						Token::MinusEquals
+					}
+					_ => Token::Minus,
+				},
+				_ => unreachable!(),
+			}
 		}
-		'{' => {
-			*chars = &chars[1..];
-			Token::LeftBrace
+		'"' => Token::Character(parse_character_literal(chars)?),
+		'\'' => {
+			todo!();
 		}
-		'}' => {
-			*chars = &chars[1..];
-			Token::RightBrace
+		'0' | '1' | '2' | '3' | '4' | '5' | '6' | '7' | '8' | '9' => todo!(),
+		'a' | 'b' | 'c' | 'd' | 'e' | 'f' | 'g' | 'h' | 'i' | 'j' | 'k' | 'l' | 'm' | 'n' | 'o'
+		| 'p' | 'q' | 'r' | 's' | 't' | 'u' | 'v' | 'w' | 'x' | 'y' | 'z' | 'A' | 'B' | 'C'
+		| 'D' | 'E' | 'F' | 'G' | 'H' | 'I' | 'J' | 'K' | 'L' | 'M' | 'N' | 'O' | 'P' | 'Q'
+		| 'R' | 'S' | 'T' | 'U' | 'V' | 'W' | 'X' | 'Y' | 'Z' | '_' => {
+			todo!();
 		}
-		'(' => {
-			*chars = &chars[1..];
-			Token::LeftParenthesis
-		}
-		')' => {
-			*chars = &chars[1..];
-			Token::RightParenthesis
-		}
-		'[' => {
-			*chars = &chars[1..];
-			Token::LeftSquareBracket
-		}
-		']' => {
-			*chars = &chars[1..];
-			Token::RightSquareBracket
-		}
-		'.' => {
-			*chars = &chars[1..];
-			Token::Dot
-		}
-		',' => {
-			*chars = &chars[1..];
-			Token::Comma
-		}
-		'*' => {
-			*chars = &chars[1..];
-			Token::Asterisk
-		}
-		'@' => {
-			*chars = &chars[1..];
-			Token::At
-		}
-		_ => todo!(),
+		_ => r_panic!("Invalid token found: `{c}`."),
 	})
+}
+
+/// handle character escape sequences
+// supports Rust ASCII escapes
+fn parse_character_literal(chars: &mut &[char]) -> Result<char, String> {
+	match chars.get(1) {
+		Some('\\') => {
+			let c = match chars.get(2) {
+				Some(c) => match c {
+					'\'' => '\'',
+					'n' => '\n',
+					'r' => '\r',
+					't' => '\t',
+					'\\' => '\\',
+					'0' => '\0',
+					// TODO: add source snippet
+					_ => r_panic!("Invalid escape sequence in character literal."),
+				},
+				None => r_panic!("Expected escape sequence in character literal."),
+			};
+			*chars = &chars[4..];
+			return Ok(c);
+		}
+		Some(c) => {
+			*chars = &chars[3..];
+			return Ok(*c);
+		}
+		None => r_panic!("Character literal must be length 1."),
+	};
 }
 
 // TODO: fix this, make this based on token, currently it has no nuance for strings for example

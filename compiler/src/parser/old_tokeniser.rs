@@ -143,28 +143,6 @@ fn strip_line(line: &str) -> String {
 		.join(" ")
 }
 
-/// handle character escape sequences
-// supports Rust ASCII escapes
-fn tokenise_raw_character_literal(raw: &str) -> Result<char, String> {
-	let mut s_iter = raw.chars();
-	Ok(match s_iter.next() {
-		Some('\\') => match s_iter.next() {
-			Some(c) => match c {
-				'\'' => '\'',
-				'n' => '\n',
-				'r' => '\r',
-				't' => '\t',
-				'\\' => '\\',
-				'0' => '\0',
-				_ => r_panic!("Invalid escape sequence in character literal: {raw}"),
-			},
-			None => r_panic!("Expected escape sequence in character literal: {raw}"),
-		},
-		Some(first_char) => first_char,
-		None => r_panic!("Character literal must be length 1: {raw}"),
-	})
-}
-
 /// handle string escape sequences
 // supports Rust ASCII escapes
 fn tokenise_raw_string_literal(raw: &str) -> Result<String, String> {
