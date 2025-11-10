@@ -69,7 +69,7 @@ pub fn next_token(chars: &mut &[char]) -> Result<Token, String> {
 		return Ok(Token::None);
 	};
 	Ok(match *c {
-		c @ (';' | '{' | '}' | '(' | ')' | '[' | ']' | '.' | ',' | '*' | '@' | '+' | '-') => {
+		c @ (';' | '{' | '}' | '(' | ')' | '[' | ']' | '.' | ',' | '*' | '@' | '=' | '+' | '-') => {
 			*chars = &chars[1..];
 			match c {
 				';' => Token::Semicolon,
@@ -83,6 +83,7 @@ pub fn next_token(chars: &mut &[char]) -> Result<Token, String> {
 				',' => Token::Comma,
 				'*' => Token::Asterisk,
 				'@' => Token::At,
+				'=' => Token::EqualsSign,
 				'+' => match chars.get(0) {
 					Some('+') => {
 						*chars = &chars[1..];
@@ -197,7 +198,40 @@ fn parse_number(chars: &mut &[char]) -> Result<usize, String> {
 }
 
 fn parse_word(chars: &mut &[char]) -> Result<String, String> {
-	todo!()
+	let mut i = 0;
+	let mut parsed_word = String::new();
+
+	{
+		let Some(
+			c @ ('a' | 'b' | 'c' | 'd' | 'e' | 'f' | 'g' | 'h' | 'i' | 'j' | 'k' | 'l' | 'm' | 'n'
+			| 'o' | 'p' | 'q' | 'r' | 's' | 't' | 'u' | 'v' | 'w' | 'x' | 'y' | 'z' | 'A'
+			| 'B' | 'C' | 'D' | 'E' | 'F' | 'G' | 'H' | 'I' | 'J' | 'K' | 'L' | 'M' | 'N'
+			| 'O' | 'P' | 'Q' | 'R' | 'S' | 'T' | 'U' | 'V' | 'W' | 'X' | 'Y' | 'Z' | '_'),
+		) = chars.get(i)
+		else {
+			r_panic!("Expected non-numeral character at start of word.");
+		};
+		parsed_word.push(*c);
+		i += 1;
+	}
+
+	while let Some(
+		c @ ('a' | 'b' | 'c' | 'd' | 'e' | 'f' | 'g' | 'h' | 'i' | 'j' | 'k' | 'l' | 'm' | 'n'
+		| 'o' | 'p' | 'q' | 'r' | 's' | 't' | 'u' | 'v' | 'w' | 'x' | 'y' | 'z' | 'A' | 'B'
+		| 'C' | 'D' | 'E' | 'F' | 'G' | 'H' | 'I' | 'J' | 'K' | 'L' | 'M' | 'N' | 'O' | 'P'
+		| 'Q' | 'R' | 'S' | 'T' | 'U' | 'V' | 'W' | 'X' | 'Y' | 'Z' | '_' | '0' | '1' | '2'
+		| '3' | '4' | '5' | '6' | '7' | '8' | '9'),
+	) = chars.get(i)
+	{
+		parsed_word.push(*c);
+		i += 1;
+	}
+
+	// update used characters
+	assert!(i <= chars.len());
+	*chars = &chars[i..];
+
+	Ok(parsed_word)
 }
 
 /// handle character escape sequences, supports Rust ASCII escapes
@@ -244,7 +278,7 @@ fn parse_character_literal(chars: &mut &[char]) -> Result<char, String> {
 
 /// handle string escape sequences, supports Rust ASCII escapes
 fn parse_string_literal(chars: &mut &[char]) -> Result<String, String> {
-	let mut built_string = String::new();
+	let mut parsed_string = String::new();
 	let mut i = 0;
 	let Some('"') = chars.get(i) else {
 		r_panic!("Expected `\"` at start of string literal.");
@@ -255,7 +289,7 @@ fn parse_string_literal(chars: &mut &[char]) -> Result<String, String> {
 			None => r_panic!("Unexpected end of input in string literal."),
 			Some('\\') => {
 				i += 1;
-				built_string.push(match chars.get(i) {
+				parsed_string.push(match chars.get(i) {
 					Some('\"') => '"',
 					Some('n') => '\n',
 					Some('r') => '\r',
@@ -267,7 +301,7 @@ fn parse_string_literal(chars: &mut &[char]) -> Result<String, String> {
 				});
 			}
 			Some('"') => break,
-			Some(c) => built_string.push(*c),
+			Some(c) => parsed_string.push(*c),
 		}
 		i += 1;
 	}
@@ -281,7 +315,7 @@ fn parse_string_literal(chars: &mut &[char]) -> Result<String, String> {
 	assert!(i <= chars.len());
 	*chars = &chars[i..];
 
-	Ok(built_string)
+	Ok(parsed_string)
 }
 
 #[cfg(test)]
@@ -441,8 +475,8 @@ mod tokeniser_tests {
 				Token::Plus,
 				Token::PlusEquals,
 				Token::Plus,
-				Token::Plus,
-				Token::PlusEquals,
+				Token::PlusPlus,
+				Token::EqualsSign,
 				Token::Plus,
 				Token::MinusEquals,
 				Token::MinusMinus,
@@ -480,8 +514,7 @@ mod tokeniser_tests {
 				Token::Asterisk,
 				Token::MinusMinus,
 				Token::MinusEquals,
-				Token::Plus,
-				Token::Plus,
+				Token::PlusPlus,
 				Token::Asterisk,
 				Token::At,
 				Token::At,
@@ -489,7 +522,8 @@ mod tokeniser_tests {
 				Token::LeftSquareBracket,
 				Token::LeftBrace,
 				Token::LeftBrace,
-				Token::PlusPlus,
+				Token::Plus,
+				Token::Plus,
 				Token::LeftParenthesis,
 				Token::LeftParenthesis,
 				Token::RightSquareBracket,
@@ -585,8 +619,8 @@ if fn{output)true)false -while*  @copy@+=@drain-=into=][bf.cell"#,
 				Token::Minus,
 				Token::Plus,
 				Token::Input,
-				Token::Plus,
 				Token::PlusPlus,
+				Token::Plus,
 				Token::Not,
 				Token::LeftParenthesis,
 				Token::Else,
@@ -640,10 +674,7 @@ if fn{output)true)false -while*  @copy@+=@drain-=into=][bf.cell"#,
 
 	#[test]
 	fn names_2a() {
-		_tokenisation_test(
-			"while_",
-			&[Token::While, Token::Name(String::from("while_"))],
-		);
+		_tokenisation_test("while_", &[Token::Name(String::from("while_"))]);
 	}
 
 	#[test]
@@ -927,18 +958,27 @@ if fn{output)true)false -while*  @copy@+=@drain-=into=][bf.cell"#,
 
 	#[test]
 	fn numbers_and_words_dec() {
-		assert_eq!(tokenise("456hello").unwrap_err(), "");
+		assert_eq!(
+			tokenise("456hello").unwrap_err(),
+			"Unexpected word character in number token."
+		);
 	}
 
 	#[test]
 	#[ignore]
 	fn numbers_and_words_hex() {
-		assert_eq!(tokenise("0x00free me").unwrap_err(), "");
+		assert_eq!(
+			tokenise("0x00free me").unwrap_err(),
+			"Unexpected word character in number token."
+		);
 	}
 
 	#[test]
 	#[ignore]
 	fn numbers_and_words_bin() {
-		assert_eq!(tokenise("0b00ebrave").unwrap_err(), "");
+		assert_eq!(
+			tokenise("0b00ebrave").unwrap_err(),
+			"Unexpected word character in number token."
+		);
 	}
 }
