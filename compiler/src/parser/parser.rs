@@ -538,6 +538,18 @@ fn parse_assign_clause<T, O>(chars: &mut &[char]) -> Result<Clause<T, O>, String
 	// TODO: refactor this, at the very least make it nuanced per-cell, as this was added before subfields were added
 	let self_referencing = expr.check_self_referencing(&var);
 
+	let Token::Semicolon = next_token(chars)? else {
+		r_panic!(
+			"Expected semicolon at end of {} clause.",
+			match operator {
+				Token::EqualsSign => "assignment",
+				Token::PlusEquals => "add-assignment",
+				Token::MinusEquals => "subtract-assignment",
+				_ => unreachable!(),
+			}
+		);
+	};
+
 	Ok(match operator {
 		Token::EqualsSign => Clause::Assign {
 			var,
