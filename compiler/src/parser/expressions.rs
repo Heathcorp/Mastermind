@@ -41,10 +41,18 @@ impl Expression {
 	// Iterators?
 	// TODO: support post/pre increment in expressions
 	pub fn parse(chars: &mut &[char]) -> Result<Expression, String> {
+		// parse string expressions
 		{
 			let mut s = *chars;
-			if let Ok(Token::String(literal)) = next_token(&mut s) {
-				let Ok(Token::None) = next_token(&mut s) else {
+			if let Token::String(literal) = next_token(&mut s)? {
+				*chars = s;
+				let (Token::RightParenthesis
+				| Token::Semicolon
+				| Token::Comma
+				| Token::LeftBrace
+				| Token::Into
+				| Token::None) = next_token(&mut s)?
+				else {
 					// TODO: add source snippet
 					r_panic!("String literal must entirely comprise expression.");
 				};
@@ -52,66 +60,73 @@ impl Expression {
 			}
 		}
 
+		// parse array expressions
 		{
 			let mut s = *chars;
 			if let Ok(Token::LeftSquareBracket) = next_token(&mut s) {
 				*chars = s;
 				let mut expressions = vec![];
 				loop {
-					expressions.push(Self::parse(chars)?);
-					match next_token(chars)? {
-						Token::RightSquareBracket => break,
-						Token::Comma => (),
-						_ => r_panic!("Unexpected token in array literal."),
+					let mut s = *chars;
+					match (expressions.is_empty(), next_token(&mut s)?) {
+						(_, Token::RightSquareBracket) => {
+							*chars = s;
+							break;
+						}
+						(_, Token::Comma) => {
+							*chars = s;
+							expressions.push(Self::parse(chars)?);
+						}
+						(true, _) => expressions.push(Self::parse(chars)?),
+						_ => unreachable!(),
 					}
 				}
-				s = *chars;
+
 				// check for delimiters
-				let Ok(
-					Token::Semicolon
-					| Token::Comma
-					| Token::RightParenthesis
-					| Token::RightSquareBracket
-					| Token::None,
-				) = next_token(&mut s)
-				else {
-					// TODO: add source snippet
-					r_panic!("Array literal must entirely comprise expression.");
-				};
+				{
+					let mut s = *chars;
+					let Ok(
+						Token::Semicolon
+						| Token::Comma
+						| Token::RightParenthesis
+						| Token::RightSquareBracket
+						| Token::None,
+					) = next_token(&mut s)
+					else {
+						// TODO: add source snippet
+						r_panic!("Array literal must entirely comprise expression.");
+					};
+				}
 				return Ok(Expression::ArrayLiteral(expressions));
 			}
 		}
 
+		// parse arithmetic or variable expressions
 		// this loop is basically a state machine based on the current sign:
 		let mut current_sign = Some(Sign::Positive); // by default the first summand is positive
 		let mut summands = Vec::new();
 		loop {
 			let mut s = *chars;
-			match (&current_sign, next_token(&mut s)) {
-				(None, Ok(Token::Plus)) => {
+			match (&current_sign, next_token(&mut s)?) {
+				(None, Token::Plus) => {
 					*chars = s;
 					current_sign = Some(Sign::Positive);
 				}
-				(None, Ok(Token::Minus)) => {
+				(None, Token::Minus) => {
 					*chars = s;
 					current_sign = Some(Sign::Negative);
 				}
-				(Some(Sign::Positive), Ok(Token::Minus)) => {
+				(Some(Sign::Positive), Token::Minus) => {
 					*chars = s;
 					current_sign = Some(Sign::Negative);
 				}
-				(Some(Sign::Negative), Ok(Token::Minus)) => {
+				(Some(Sign::Negative), Token::Minus) => {
 					*chars = s;
 					current_sign = Some(Sign::Positive);
 				}
 				(
 					Some(sign),
-					Ok(
-						token @ (Token::Number(_)
-						| Token::Character(_)
-						| Token::True
-						| Token::False),
-					),
+					token @ (Token::Number(_) | Token::Character(_) | Token::True | Token::False),
 				) => {
 					*chars = s;
 					let parsed_int = match token {
@@ -134,7 +149,7 @@ impl Expression {
 					});
 					current_sign = None;
 				}
-				(Some(sign), Ok(Token::Name(_) | Token::Asterisk)) => {
+				(Some(sign), Token::Name(_) | Token::Asterisk) => {
 					let var = parse_var_target(chars)?;
 					summands.push(match sign {
 						Sign::Positive => Expression::VariableReference(var),
@@ -145,18 +160,18 @@ impl Expression {
 					});
 					current_sign = None;
 				}
-				(Some(sign), Ok(Token::LeftParenthesis)) => {
+				(Some(sign), Token::LeftParenthesis) => {
 					*chars = s;
-					let braced_expr = Self::parse(chars)?;
+					let inner_expr = Self::parse(chars)?;
 					// probably inefficent but everything needs to be flattened at some point anyway so won't matter
 					// TODO: make expression structure more efficient (don't use vectors every time there is a negative)
-					summands.push(match (sign, braced_expr.clone()) {
+					summands.push(match (sign, inner_expr.clone()) {
 						(
 							Sign::Negative,
 							Expression::NaturalNumber(_) | Expression::VariableReference(_),
 						) => Expression::SumExpression {
 							sign: Sign::Negative,
-							summands: vec![braced_expr],
+							summands: vec![inner_expr],
 						},
 						(
 							Sign::Negative,
@@ -178,26 +193,30 @@ impl Expression {
 							sign: Sign::Negative,
 							summands,
 						},
-						_ => braced_expr,
+						_ => inner_expr,
 					});
+					let Token::RightParenthesis = next_token(chars)? else {
+						// TODO: add source snippet
+						r_panic!("Expected `)` after inner expression.");
+					};
 					current_sign = None;
 				}
 				// TODO: add delimiters here: `)` `;` `,` `{` `into`
 				(
 					sign,
-					Ok(
-						Token::RightParenthesis
-						| Token::Semicolon
-						| Token::Comma
-						| Token::LeftBrace
-						| Token::Into,
-					),
+					Token::RightParenthesis
+					| Token::RightSquareBracket
+					| Token::Semicolon
+					| Token::Comma
+					| Token::LeftBrace
+					| Token::Into
+					| Token::None,
 				) => {
 					r_assert!(sign.is_none(), "Expected more terms in expression.");
 					break;
 				}
 				// TODO: add source snippet
-				token => r_panic!("Unexpected token {token:#?} found in expression."),
+				(_, token) => r_panic!("Unexpected token `{token}` found in expression."),
 			}
 		}
 

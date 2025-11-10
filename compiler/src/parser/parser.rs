@@ -39,6 +39,8 @@ fn parse_clause<TC: TapeCellVariant, OC: OpcodeVariant>(
 	let mut s = *chars;
 	Ok(match next_token(&mut s)? {
 		Token::None => Clause::None,
+		Token::LeftBrace => Clause::Block(parse_block_clauses(chars)?),
+		Token::Output => parse_output_clause(chars)?,
 		Token::If => parse_if_else_clause(chars)?,
 		Token::While => parse_while_clause(chars)?,
 		Token::Fn => parse_function_definition_clause(chars)?,
@@ -57,11 +59,11 @@ fn parse_clause<TC: TapeCellVariant, OC: OpcodeVariant>(
 			Token::LeftParenthesis => todo!(),
 			_ => todo!(),
 		},
-		token => r_panic!("Invalid starting token: {token:?}"),
+		token => r_panic!("Invalid starting token: `{token}`"),
 	})
 }
 
-fn parse_block<TC: TapeCellVariant, OC: OpcodeVariant>(
+fn parse_block_clauses<TC: TapeCellVariant, OC: OpcodeVariant>(
 	chars: &mut &[char],
 ) -> Result<Vec<Clause<TC, OC>>, String> {
 	let Token::LeftBrace = next_token(chars)? else {
@@ -73,6 +75,7 @@ fn parse_block<TC: TapeCellVariant, OC: OpcodeVariant>(
 		{
 			let mut s = *chars;
 			if let Token::RightBrace = next_token(&mut s)? {
+				*chars = s;
 				break;
 			}
 		}
@@ -329,13 +332,13 @@ fn parse_if_else_clause<TC: TapeCellVariant, OC: OpcodeVariant>(
 			r_panic!("Expected code block in if-else clause.");
 		};
 	}
-	let block_one = parse_block(chars)?;
+	let block_one = parse_block_clauses(chars)?;
 
 	let block_two = {
 		let mut s = *chars;
 		if let Token::Else = next_token(&mut s)? {
 			*chars = s;
-			Some(parse_block(chars)?)
+			Some(parse_block_clauses(chars)?)
 		} else {
 			None
 		}
@@ -383,7 +386,7 @@ fn parse_while_clause<TC: TapeCellVariant, OC: OpcodeVariant>(
 			r_panic!("Expected code block in while clause.");
 		};
 	}
-	let loop_block = parse_block(chars)?;
+	let loop_block = parse_block_clauses(chars)?;
 
 	Ok(Clause::While {
 		var: condition_variable,
@@ -430,7 +433,7 @@ fn parse_function_definition_clause<TC: TapeCellVariant, OC: OpcodeVariant>(
 	Ok(Clause::DefineFunction {
 		name: function_name,
 		arguments,
-		block: parse_block(chars)?,
+		block: parse_block_clauses(chars)?,
 	})
 }
 
@@ -487,4 +490,19 @@ fn parse_let_clause<TC: TapeCellLocation, O>(chars: &mut &[char]) -> Result<Clau
 		r_panic!("Expected semicolon after variable declaration.");
 	};
 	Ok(Clause::DeclareVariable { var })
+}
+
+fn parse_output_clause<T, O>(chars: &mut &[char]) -> Result<Clause<T, O>, String> {
+	let Token::Output = next_token(chars)? else {
+		// TODO: add source snippet
+		r_panic!("Expected keyword `output` in output clause.");
+	};
+
+	let value = Expression::parse(chars)?;
+
+	let Token::Semicolon = next_token(chars)? else {
+		r_panic!("Expected semicolon at end of output clause.");
+	};
+
+	Ok(Clause::Output { value })
 }

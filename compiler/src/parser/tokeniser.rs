@@ -1,53 +1,9 @@
 // TODO: make an impl for a tokeniser, inverse-builder pattern?
 // have a function to peek, then accept changes, so we don't double hangle tokens
 
-use crate::macros::macros::r_panic;
+use std::fmt::Display;
 
-#[derive(Debug, Clone, PartialEq)]
-pub enum Token {
-	None,
-	Output,
-	Input,
-	Fn,
-	Cell,
-	Struct,
-	While,
-	If,
-	Not,
-	Else,
-	Copy,
-	Drain,
-	Into,
-	Bf,
-	Clobbers,
-	Assert,
-	Equals,
-	Unknown,
-	True,
-	False,
-	LeftBrace,
-	RightBrace,
-	LeftSquareBracket,
-	RightSquareBracket,
-	LeftParenthesis,
-	RightParenthesis,
-	Comma,
-	Dot,
-	Asterisk,
-	At,
-	Plus,
-	Minus,
-	EqualsSign,
-	Semicolon,
-	PlusPlus,
-	MinusMinus,
-	PlusEquals,
-	MinusEquals,
-	Name(String),
-	Number(usize),
-	String(String),
-	Character(char),
-}
+use crate::macros::macros::r_panic;
 
 /// Get the next token from chars, advance the passed in pointer
 pub fn next_token(chars: &mut &[char]) -> Result<Token, String> {
@@ -316,6 +272,140 @@ fn parse_string_literal(chars: &mut &[char]) -> Result<String, String> {
 	*chars = &chars[i..];
 
 	Ok(parsed_string)
+}
+
+#[derive(Debug, Clone, PartialEq)]
+pub enum Token {
+	None,
+	Output,
+	Input,
+	Fn,
+	Cell,
+	Struct,
+	While,
+	If,
+	Not,
+	Else,
+	Copy,
+	Drain,
+	Into,
+	Bf,
+	Clobbers,
+	Assert,
+	Equals,
+	Unknown,
+	True,
+	False,
+	LeftBrace,
+	RightBrace,
+	LeftSquareBracket,
+	RightSquareBracket,
+	LeftParenthesis,
+	RightParenthesis,
+	Comma,
+	Dot,
+	Asterisk,
+	At,
+	Plus,
+	Minus,
+	EqualsSign,
+	Semicolon,
+	PlusPlus,
+	MinusMinus,
+	PlusEquals,
+	MinusEquals,
+	Name(String),
+	Number(usize),
+	String(String),
+	Character(char),
+}
+
+impl Display for Token {
+	fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+		match self {
+			Token::Output
+			| Token::Input
+			| Token::Fn
+			| Token::Cell
+			| Token::Struct
+			| Token::While
+			| Token::If
+			| Token::Not
+			| Token::Else
+			| Token::Copy
+			| Token::Drain
+			| Token::Into
+			| Token::Bf
+			| Token::Clobbers
+			| Token::Assert
+			| Token::Equals
+			| Token::Unknown
+			| Token::True
+			| Token::False
+			| Token::LeftBrace
+			| Token::RightBrace
+			| Token::LeftSquareBracket
+			| Token::RightSquareBracket
+			| Token::LeftParenthesis
+			| Token::RightParenthesis
+			| Token::Comma
+			| Token::Dot
+			| Token::Asterisk
+			| Token::At
+			| Token::Plus
+			| Token::Minus
+			| Token::EqualsSign
+			| Token::Semicolon
+			| Token::PlusPlus
+			| Token::MinusMinus
+			| Token::PlusEquals
+			| Token::MinusEquals => f.write_str(match self {
+				Token::Output => "output",
+				Token::Input => "input",
+				Token::Fn => "fn",
+				Token::Cell => "cell",
+				Token::Struct => "struct",
+				Token::While => "while",
+				Token::If => "if",
+				Token::Not => "not",
+				Token::Else => "else",
+				Token::Copy => "copy",
+				Token::Drain => "drain",
+				Token::Into => "into",
+				Token::Bf => "bf",
+				Token::Clobbers => "clobbers",
+				Token::Assert => "assert",
+				Token::Equals => "equals",
+				Token::Unknown => "unknown",
+				Token::True => "true",
+				Token::False => "false",
+				Token::LeftBrace => "{",
+				Token::RightBrace => "}",
+				Token::LeftSquareBracket => "[",
+				Token::RightSquareBracket => "]",
+				Token::LeftParenthesis => "(",
+				Token::RightParenthesis => ")",
+				Token::Comma => ",",
+				Token::Dot => ".",
+				Token::Asterisk => "*",
+				Token::At => "@",
+				Token::Plus => "+",
+				Token::Minus => "-",
+				Token::EqualsSign => "=",
+				Token::Semicolon => ";",
+				Token::PlusPlus => "++",
+				Token::MinusMinus => "--",
+				Token::PlusEquals => "+=",
+				Token::MinusEquals => "-=",
+				_ => unreachable!(),
+			}),
+			Token::Name(name) => f.write_str(name),
+			Token::Number(number) => f.write_fmt(format_args!("{number}")),
+			Token::String(s) => f.write_fmt(format_args!("\"{s}\"")),
+			Token::Character(c) => f.write_fmt(format_args!("'{c}'")),
+			Token::None => Ok(()),
+		}
+	}
 }
 
 #[cfg(test)]

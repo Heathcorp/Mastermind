@@ -47,10 +47,10 @@ pub enum Clause<TC, OC> {
 		var: VariableTarget,
 		block: Vec<Clause<TC, OC>>,
 	},
-	OutputValue {
+	Output {
 		value: Expression,
 	},
-	InputVariable {
+	Input {
 		var: VariableTarget,
 	},
 	DefineFunction {

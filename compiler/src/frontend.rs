@@ -227,7 +227,7 @@ impl MastermindContext {
 						}
 					}
 				}
-				Clause::InputVariable { var } => match var.is_spread {
+				Clause::Input { var } => match var.is_spread {
 					false => {
 						let cell = scope.get_cell(&var)?;
 						scope.push_instruction(Instruction::InputToCell(cell));
@@ -239,7 +239,7 @@ impl MastermindContext {
 						}
 					}
 				},
-				Clause::OutputValue { value } => {
+				Clause::Output { value } => {
 					match value {
 						Expression::VariableReference(var) => match var.is_spread {
 							false => {
