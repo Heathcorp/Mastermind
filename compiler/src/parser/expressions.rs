@@ -109,7 +109,7 @@ impl Expression {
 				(
 					Some(sign),
 					Ok(
-						token @ (Token::Digits(_)
+						token @ (Token::Number(_)
 						| Token::Character(_)
 						| Token::True
 						| Token::False),
@@ -117,7 +117,7 @@ impl Expression {
 				) => {
 					*chars = s;
 					let parsed_int = match token {
-						Token::Digits(digits) => digits.parse::<usize>().unwrap(),
+						Token::Number(number) => number,
 						Token::Character(c) => {
 							let chr_int = c as usize;
 							r_assert!(chr_int < 0xff, "Character tokens must be single-byte: {c}");

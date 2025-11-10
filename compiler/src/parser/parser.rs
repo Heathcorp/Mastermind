@@ -97,7 +97,7 @@ impl TapeCellLocation for TapeCell {
 		*chars = s;
 
 		match next_token(&mut s)? {
-			Token::Minus | Token::Digits(_) => Ok(LocationSpecifier::Cell(parse_integer(chars)?)),
+			Token::Minus | Token::Number(_) => Ok(LocationSpecifier::Cell(parse_integer(chars)?)),
 			// variable location specifier:
 			Token::Name(_) => Ok(LocationSpecifier::Variable(parse_var_target(chars)?)),
 			// TODO: add source snippet
@@ -127,7 +127,7 @@ impl TapeCellLocation for TapeCell2D {
 				let tuple = parse_integer_tuple::<2>(chars)?;
 				Ok(LocationSpecifier::Cell(TapeCell2D(tuple[0], tuple[1])))
 			}
-			Token::Minus | Token::Digits(_) => Ok(LocationSpecifier::Cell(TapeCell2D(
+			Token::Minus | Token::Number(_) => Ok(LocationSpecifier::Cell(TapeCell2D(
 				parse_integer(chars)?,
 				0,
 			))),
@@ -194,7 +194,7 @@ fn parse_subscript(chars: &mut &[char]) -> Result<usize, String> {
 		// TODO: add program snippet
 		r_panic!("Expected `[` in array subscript.");
 	};
-	let Token::Digits(digits) = next_token(chars)? else {
+	let Token::Number(number) = next_token(chars)? else {
 		// TODO: add program snippet
 		r_panic!("Expected natural number in array subscript.");
 	};
@@ -203,7 +203,7 @@ fn parse_subscript(chars: &mut &[char]) -> Result<usize, String> {
 		r_panic!("Expected `]` in array subscript.");
 	};
 	// TODO: handle errors here
-	Ok(digits.parse::<usize>().unwrap())
+	Ok(number)
 }
 
 pub fn parse_var_target(chars: &mut &[char]) -> Result<VariableTarget, String> {
@@ -237,11 +237,7 @@ pub fn parse_var_target(chars: &mut &[char]) -> Result<VariableTarget, String> {
 				};
 				ref_chain.push(Reference::NamedField(subfield_name));
 			}
-			// TODO: add source snippet
-			_ => r_panic!("Unexpected token found in variable target."),
-			_ => {
-				break;
-			}
+			_ => break,
 		}
 		*chars = s;
 	}
@@ -264,12 +260,11 @@ fn parse_integer(chars: &mut &[char]) -> Result<i32, String> {
 		is_negative = true;
 		token = next_token(chars)?;
 	}
-	let Token::Digits(digits) = token else {
+	let Token::Number(magnitude) = token else {
 		// TODO: add source snippet
 		r_panic!("Expected integer.")
 	};
 	// TODO: handle errors here
-	let magnitude = digits.parse::<usize>().unwrap();
 	Ok(match is_negative {
 		// TODO: truncation error handling
 		false => magnitude as i32,

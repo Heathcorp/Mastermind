@@ -35,18 +35,18 @@ pub enum Token {
 	Dot,
 	Asterisk,
 	At,
-	Name(String),
-	NaturalNumber(usize),
-	String(String),
-	Character(char),
 	Plus,
 	Minus,
+	EqualsSign,
+	Semicolon,
 	PlusPlus,
 	MinusMinus,
 	PlusEquals,
 	MinusEquals,
-	EqualsSign,
-	Semicolon,
+	Name(String),
+	Number(usize),
+	String(String),
+	Character(char),
 }
 
 /// Get the next token from chars, advance the passed in pointer
@@ -83,7 +83,7 @@ pub fn next_token(chars: &mut &[char]) -> Result<Token, String> {
 				',' => Token::Comma,
 				'*' => Token::Asterisk,
 				'@' => Token::At,
-				'+' => match chars.get(1) {
+				'+' => match chars.get(0) {
 					Some('+') => {
 						*chars = &chars[1..];
 						Token::PlusPlus
@@ -109,12 +109,36 @@ pub fn next_token(chars: &mut &[char]) -> Result<Token, String> {
 			}
 		}
 		'0' | '1' | '2' | '3' | '4' | '5' | '6' | '7' | '8' | '9' => {
-			Token::NaturalNumber(parse_number(chars)?)
+			Token::Number(parse_number(chars)?)
 		}
 		'a' | 'b' | 'c' | 'd' | 'e' | 'f' | 'g' | 'h' | 'i' | 'j' | 'k' | 'l' | 'm' | 'n' | 'o'
 		| 'p' | 'q' | 'r' | 's' | 't' | 'u' | 'v' | 'w' | 'x' | 'y' | 'z' | 'A' | 'B' | 'C'
 		| 'D' | 'E' | 'F' | 'G' | 'H' | 'I' | 'J' | 'K' | 'L' | 'M' | 'N' | 'O' | 'P' | 'Q'
-		| 'R' | 'S' | 'T' | 'U' | 'V' | 'W' | 'X' | 'Y' | 'Z' | '_' => {}
+		| 'R' | 'S' | 'T' | 'U' | 'V' | 'W' | 'X' | 'Y' | 'Z' | '_' => {
+			let word = parse_word(chars)?;
+			match word.as_str() {
+				"output" => Token::Output,
+				"input" => Token::Input,
+				"fn" => Token::Fn,
+				"cell" => Token::Cell,
+				"struct" => Token::Struct,
+				"while" => Token::While,
+				"if" => Token::If,
+				"not" => Token::Not,
+				"else" => Token::Else,
+				"copy" => Token::Copy,
+				"drain" => Token::Drain,
+				"into" => Token::Into,
+				"bf" => Token::Bf,
+				"clobbers" => Token::Clobbers,
+				"assert" => Token::Assert,
+				"equals" => Token::Equals,
+				"unknown" => Token::Unknown,
+				"true" => Token::True,
+				"false" => Token::False,
+				_ => Token::Name(word),
+			}
+		}
 		'\'' => Token::Character(parse_character_literal(chars)?),
 		'"' => Token::String(parse_string_literal(chars)?),
 		_ => r_panic!("Invalid token found: `{c}`."),
@@ -122,7 +146,50 @@ pub fn next_token(chars: &mut &[char]) -> Result<Token, String> {
 }
 
 fn parse_number(chars: &mut &[char]) -> Result<usize, String> {
-	todo!()
+	// parse hexadecimal and binary
+	// if let Some('0') = chars.get(0) {
+	// 	match chars.get(1) {
+	// 		// Some('x') => {
+	// 		// 	let mut i = 2;
+	// 		// }
+	// 		// Some('b') => {
+	// 		// 	let mut i = 2;
+	// 		// }
+	// 		_ => (),
+	// 	}
+	// }
+
+	// parse decimal natural number
+	let mut i = 0;
+	let mut n = 0;
+	loop {
+		let Some(digit) = chars.get(i) else {
+			break;
+		};
+		match digit {
+			c @ ('0' | '1' | '2' | '3' | '4' | '5' | '6' | '7' | '8' | '9') => {
+				n *= 10;
+				n += (*c as usize) - ('0' as usize);
+			}
+			// '_' => {
+			// 	// TODO: support underscores in number literals?
+			// }
+			';' | '{' | '}' | '(' | ')' | '[' | ']' | '.' | ',' | '*' | '@' | '+' | '-' => break,
+			c if c.is_whitespace() => break,
+			'a' | 'b' | 'c' | 'd' | 'e' | 'f' | 'g' | 'h' | 'i' | 'j' | 'k' | 'l' | 'm' | 'n'
+			| 'o' | 'p' | 'q' | 'r' | 's' | 't' | 'u' | 'v' | 'w' | 'x' | 'y' | 'z' | 'A' | 'B'
+			| 'C' | 'D' | 'E' | 'F' | 'G' | 'H' | 'I' | 'J' | 'K' | 'L' | 'M' | 'N' | 'O' | 'P'
+			| 'Q' | 'R' | 'S' | 'T' | 'U' | 'V' | 'W' | 'X' | 'Y' | 'Z' | '_' => {
+				// TODO: add source snippet
+				r_panic!("Unexpected word character in number token.")
+			}
+			// TODO: add source snippet
+			_ => r_panic!("Unknown character found while parsing number token."),
+		}
+		i += 1;
+	}
+
+	Ok(n)
 }
 
 fn parse_word(chars: &mut &[char]) -> Result<String, String> {
@@ -131,9 +198,15 @@ fn parse_word(chars: &mut &[char]) -> Result<String, String> {
 
 /// handle character escape sequences, supports Rust ASCII escapes
 fn parse_character_literal(chars: &mut &[char]) -> Result<char, String> {
-	match chars.get(1) {
+	let mut i = 0;
+	let Some('\'') = chars.get(i) else {
+		r_panic!("Expected `'` at start of character literal.");
+	};
+	i += 1;
+	let c = match chars.get(i) {
 		Some('\\') => {
-			let c = match chars.get(2) {
+			i += 1;
+			let c = match chars.get(i) {
 				Some(c) => match c {
 					'\'' => '\'',
 					'n' => '\n',
@@ -146,21 +219,32 @@ fn parse_character_literal(chars: &mut &[char]) -> Result<char, String> {
 				},
 				None => r_panic!("Expected escape sequence in character literal."),
 			};
-			*chars = &chars[4..];
-			return Ok(c);
+			c
 		}
-		Some(c) => {
-			*chars = &chars[3..];
-			return Ok(*c);
-		}
+		Some(c) => *c,
 		None => r_panic!("Character literal must be length 1."),
 	};
+	i += 1;
+	let Some('\'') = chars.get(i) else {
+		r_panic!("Expected `'` at end of character literal.");
+	};
+	i += 1;
+
+	// update used characters
+	assert!(i <= chars.len());
+	*chars = &chars[i..];
+
+	Ok(c)
 }
 
 /// handle string escape sequences, supports Rust ASCII escapes
 fn parse_string_literal(chars: &mut &[char]) -> Result<String, String> {
 	let mut built_string = String::new();
 	let mut i = 0;
+	let Some('"') = chars.get(i) else {
+		r_panic!("Expected `\"` at start of string literal.");
+	};
+	i += 1;
 	loop {
 		match chars.get(i) {
 			None => r_panic!("Unexpected end of input in string literal."),
@@ -176,16 +260,18 @@ fn parse_string_literal(chars: &mut &[char]) -> Result<String, String> {
 					// TODO: add source snippet
 					_ => r_panic!("Invalid escape sequence in string literal."),
 				});
-				i += 1;
 			}
-			Some('"') => {
-				i += 1;
-				break;
-			}
+			Some('"') => break,
 			Some(c) => built_string.push(*c),
 		}
 	}
-	// panicking assertion: TODO: make sure slices can become 0 length, e.g. chars.len() = 3, i = 3?
+	i += 1;
+	let Some('"') = chars.get(i) else {
+		r_panic!("Expected `\"` at end of string literal.");
+	};
+	i += 1;
+
+	// update used characters
 	assert!(i <= chars.len());
 	*chars = &chars[i..];
 
@@ -695,10 +781,10 @@ if fn{output)true)false -while*  @copy@+=@drain-=into=][bf.cell"#,
 			".0654 567.32",
 			&[
 				Token::Dot,
-				Token::NaturalNumber(654),
-				Token::NaturalNumber(567),
+				Token::Number(654),
+				Token::Number(567),
 				Token::Dot,
-				Token::NaturalNumber(32),
+				Token::Number(32),
 			],
 		);
 	}
@@ -709,10 +795,10 @@ if fn{output)true)false -while*  @copy@+=@drain-=into=][bf.cell"#,
 		_tokenisation_test(
 			"0x56 0x00 0x00ff1 0x4ff2",
 			&[
-				Token::NaturalNumber(0x56),
-				Token::NaturalNumber(0x00),
-				Token::NaturalNumber(0xff1),
-				Token::NaturalNumber(0x4ff2),
+				Token::Number(0x56),
+				Token::Number(0x00),
+				Token::Number(0xff1),
+				Token::Number(0x4ff2),
 			],
 		);
 	}
@@ -723,13 +809,13 @@ if fn{output)true)false -while*  @copy@+=@drain-=into=][bf.cell"#,
 		_tokenisation_test(
 			"0x 56 0x00 0x00f f1 0 x4ff2",
 			&[
-				Token::NaturalNumber(0),
+				Token::Number(0),
 				Token::Name(String::from("x")),
-				Token::NaturalNumber(56),
-				Token::NaturalNumber(0x00),
-				Token::NaturalNumber(0x00f),
+				Token::Number(56),
+				Token::Number(0x00),
+				Token::Number(0x00f),
 				Token::Name(String::from("f1")),
-				Token::NaturalNumber(0),
+				Token::Number(0),
 				Token::Name(String::from("x4ff2")),
 			],
 		);
@@ -741,10 +827,10 @@ if fn{output)true)false -while*  @copy@+=@drain-=into=][bf.cell"#,
 		_tokenisation_test(
 			"0x56 0x00 0x00ff1 0x4ff2",
 			&[
-				Token::NaturalNumber(0x56),
-				Token::NaturalNumber(0x00),
-				Token::NaturalNumber(0xff1),
-				Token::NaturalNumber(0x4ff2),
+				Token::Number(0x56),
+				Token::Number(0x00),
+				Token::Number(0xff1),
+				Token::Number(0x4ff2),
 			],
 		);
 	}
@@ -755,13 +841,13 @@ if fn{output)true)false -while*  @copy@+=@drain-=into=][bf.cell"#,
 		_tokenisation_test(
 			"0x 56 0x00 0x00f f1 0 x4ff2",
 			&[
-				Token::NaturalNumber(0),
+				Token::Number(0),
 				Token::Name(String::from("x")),
-				Token::NaturalNumber(56),
-				Token::NaturalNumber(0x00),
-				Token::NaturalNumber(0x00f),
+				Token::Number(56),
+				Token::Number(0x00),
+				Token::Number(0x00f),
 				Token::Name(String::from("f1")),
-				Token::NaturalNumber(0),
+				Token::Number(0),
 				Token::Name(String::from("x4ff2")),
 			],
 		);
@@ -773,12 +859,12 @@ if fn{output)true)false -while*  @copy@+=@drain-=into=][bf.cell"#,
 		_tokenisation_test(
 			"0b1111 0b000 0b0 0b1 0b1010100 0b001101",
 			&[
-				Token::NaturalNumber(0b1111),
-				Token::NaturalNumber(0b000),
-				Token::NaturalNumber(0b0),
-				Token::NaturalNumber(0b1),
-				Token::NaturalNumber(0b1010100),
-				Token::NaturalNumber(0b001101),
+				Token::Number(0b1111),
+				Token::Number(0b000),
+				Token::Number(0b0),
+				Token::Number(0b1),
+				Token::Number(0b1010100),
+				Token::Number(0b001101),
 			],
 		);
 	}
@@ -787,19 +873,19 @@ if fn{output)true)false -while*  @copy@+=@drain-=into=][bf.cell"#,
 	#[ignore]
 	fn numbers_bin_1a() {
 		_tokenisation_test(
-			"0b1 111 0 b000 0b 0 0b1 0b101 0100 0b001101",
+			"0b1 111 0 b000 0 b 0 0b1 0b101 0100 0b001101",
 			&[
-				Token::NaturalNumber(0b1),
-				Token::NaturalNumber(111),
-				Token::NaturalNumber(0),
+				Token::Number(0b1),
+				Token::Number(111),
+				Token::Number(0),
 				Token::Name(String::from("b000")),
-				Token::NaturalNumber(0),
+				Token::Number(0),
 				Token::Name(String::from("b")),
-				Token::NaturalNumber(0),
-				Token::NaturalNumber(0b1),
-				Token::NaturalNumber(0b101),
-				Token::NaturalNumber(100),
-				Token::NaturalNumber(0b1101),
+				Token::Number(0),
+				Token::Number(0b1),
+				Token::Number(0b101),
+				Token::Number(100),
+				Token::Number(0b1101),
 			],
 		);
 	}
@@ -809,7 +895,7 @@ if fn{output)true)false -while*  @copy@+=@drain-=into=][bf.cell"#,
 	fn numbers_hex_bin_1() {
 		_tokenisation_test(
 			"0x11001 0b11001",
-			&[Token::NaturalNumber(0x11001), Token::NaturalNumber(0b11001)],
+			&[Token::Number(0x11001), Token::Number(0b11001)],
 		);
 	}
 
@@ -822,5 +908,22 @@ if fn{output)true)false -while*  @copy@+=@drain-=into=][bf.cell"#,
 		] {
 			assert_eq!(tokenise(s).unwrap_err(), "");
 		}
+	}
+
+	#[test]
+	fn numbers_and_words_dec() {
+		assert_eq!(tokenise("456hello").unwrap_err(), "");
+	}
+
+	#[test]
+	#[ignore]
+	fn numbers_and_words_hex() {
+		assert_eq!(tokenise("0x00free me").unwrap_err(), "");
+	}
+
+	#[test]
+	#[ignore]
+	fn numbers_and_words_bin() {
+		assert_eq!(tokenise("0b00ebrave").unwrap_err(), "");
 	}
 }
