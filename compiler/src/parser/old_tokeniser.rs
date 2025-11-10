@@ -142,28 +142,3 @@ fn strip_line(line: &str) -> String {
 		.collect::<Vec<&str>>()
 		.join(" ")
 }
-
-/// handle string escape sequences
-// supports Rust ASCII escapes
-fn tokenise_raw_string_literal(raw: &str) -> Result<String, String> {
-	let mut s_iter = raw.chars();
-	let mut built_string = String::with_capacity(raw.len());
-	while let Some(raw_char) = s_iter.next() {
-		built_string.push(match raw_char {
-			'\\' => match s_iter.next() {
-				Some(c) => match c {
-					'\"' => '"',
-					'n' => '\n',
-					'r' => '\r',
-					't' => '\t',
-					'\\' => '\\',
-					'0' => '\0',
-					_ => r_panic!("Invalid escape sequence in string literal: {raw}"),
-				},
-				None => r_panic!("Expected escape sequence in string literal: {raw}"),
-			},
-			c => c,
-		});
-	}
-	Ok(built_string)
-}
