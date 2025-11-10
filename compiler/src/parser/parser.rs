@@ -53,7 +53,11 @@ fn parse_clause<TC: TapeCellVariant, OC: OpcodeVariant>(
 			}
 		}
 		Token::Cell => parse_let_clause(chars)?,
-		_ => r_panic!("Invalid starting token."),
+		Token::Name(_) => match next_token(&mut s)? {
+			Token::LeftParenthesis => todo!(),
+			_ => todo!(),
+		},
+		token => r_panic!("Invalid starting token: {token:?}"),
 	})
 }
 

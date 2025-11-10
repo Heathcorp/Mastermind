@@ -59,11 +59,9 @@ impl Expression {
 				let mut expressions = vec![];
 				loop {
 					expressions.push(Self::parse(chars)?);
-					match next_token(chars) {
-						Ok(Token::RightSquareBracket) => break,
-						Ok(Token::Comma) => {
-							*chars = s;
-						}
+					match next_token(chars)? {
+						Token::RightSquareBracket => break,
+						Token::Comma => (),
 						_ => r_panic!("Unexpected token in array literal."),
 					}
 				}
