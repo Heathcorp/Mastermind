@@ -5,10 +5,10 @@ use super::{
 };
 use crate::macros::macros::{r_assert, r_panic};
 
-use std::num::Wrapping;
+use itertools::Itertools;
+use std::{fmt::Display, num::Wrapping};
 
-// TODO: add multiplication
-// yes, but no variable * variable multiplication or division
+// TODO: simplify expression data structure for negative sums of single values
 #[derive(Debug, Clone)]
 #[cfg_attr(test, derive(PartialEq))]
 pub enum Expression {
@@ -320,5 +320,48 @@ impl Expression {
 			| Expression::StringLiteral(_)
 			| Expression::NaturalNumber(_) => false,
 		}
+	}
+}
+
+// TODO: test expression display code?
+impl Display for Expression {
+	fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+		match self {
+			Expression::SumExpression { sign, summands } => {
+				if let Sign::Negative = sign {
+					f.write_str("- ")?;
+				}
+				f.write_str("(")?;
+
+				let mut summands_iter = summands.iter();
+				// TODO: refactor to remove the need for this
+				if let Some(first_expr) = summands_iter.next() {
+					f.write_fmt(format_args!("{first_expr}"));
+					for expr in summands_iter {
+						f.write_str(" ")?;
+						match expr {
+							Expression::SumExpression {
+								sign: Sign::Negative,
+								summands: _,
+							} => (),
+							_ => f.write_str("+ ")?,
+						}
+						f.write_fmt(format_args!("{expr}"))?;
+					}
+				}
+
+				f.write_str(")")?;
+			}
+			Expression::NaturalNumber(number) => f.write_fmt(format_args!("{number}"))?,
+			Expression::VariableReference(variable_target) => {
+				f.write_fmt(format_args!("{variable_target}"))?
+			}
+			Expression::ArrayLiteral(expressions) => {
+				f.write_fmt(format_args!("[{}]", expressions.iter().join(", ")))?;
+			}
+			Expression::StringLiteral(s) => f.write_fmt(format_args!("\"{s}\""))?,
+		}
+
+		Ok(())
 	}
 }

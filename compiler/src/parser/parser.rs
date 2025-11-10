@@ -7,16 +7,12 @@ use super::{
 	},
 };
 use crate::{
-	backend::{
-		bf::TapeCell,
-		bf2d::TapeCell2D,
-		common::{OpcodeVariant, TapeCellVariant},
-	},
+	backend::{bf::TapeCell, bf2d::TapeCell2D, common::OpcodeVariant},
 	macros::macros::{r_assert, r_panic},
 	parser::types::VariableTypeDefinition,
 };
 
-pub fn parse_program<TC: TapeCellVariant, OC: OpcodeVariant>(
+pub fn parse_program<TC: TapeCellLocation, OC: OpcodeVariant>(
 	raw: &str,
 ) -> Result<Vec<Clause<TC, OC>>, String> {
 	let program_chars: Vec<char> = raw.chars().collect();
@@ -33,7 +29,7 @@ pub fn parse_program<TC: TapeCellVariant, OC: OpcodeVariant>(
 	Ok(clauses)
 }
 
-fn parse_clause<TC: TapeCellVariant, OC: OpcodeVariant>(
+fn parse_clause<TC: TapeCellLocation, OC: OpcodeVariant>(
 	chars: &mut &[char],
 ) -> Result<Clause<TC, OC>, String> {
 	let mut s = *chars;
@@ -41,6 +37,7 @@ fn parse_clause<TC: TapeCellVariant, OC: OpcodeVariant>(
 		Token::None => Clause::None,
 		Token::LeftBrace => Clause::Block(parse_block_clauses(chars)?),
 		Token::Output => parse_output_clause(chars)?,
+		Token::Input => parse_input_clause(chars)?,
 		Token::If => parse_if_else_clause(chars)?,
 		Token::While => parse_while_clause(chars)?,
 		Token::Fn => parse_function_definition_clause(chars)?,
@@ -57,13 +54,14 @@ fn parse_clause<TC: TapeCellVariant, OC: OpcodeVariant>(
 		Token::Cell => parse_let_clause(chars)?,
 		Token::Name(_) => match next_token(&mut s)? {
 			Token::LeftParenthesis => todo!(),
-			_ => todo!(),
+			_ => parse_assign_clause(chars)?,
 		},
-		token => r_panic!("Invalid starting token: `{token}`"),
+		Token::Drain | Token::Copy => parse_drain_copy_clause(chars)?,
+		token => r_panic!("Invalid starting token `{token}`."),
 	})
 }
 
-fn parse_block_clauses<TC: TapeCellVariant, OC: OpcodeVariant>(
+fn parse_block_clauses<TC: TapeCellLocation, OC: OpcodeVariant>(
 	chars: &mut &[char],
 ) -> Result<Vec<Clause<TC, OC>>, String> {
 	let Token::LeftBrace = next_token(chars)? else {
@@ -109,7 +107,7 @@ impl TapeCellLocation for TapeCell {
 			Token::Name(_) => Ok(LocationSpecifier::Variable(parse_var_target(chars)?)),
 			// TODO: add source snippet
 			token => r_panic!(
-				"Unexpected token `{token}` found while parsing location specifier. (is 2D mode turned on?)"
+				"Unexpected `{token}` found while parsing location specifier. (is 2D mode turned on?)"
 			),
 		}
 	}
@@ -144,7 +142,7 @@ impl TapeCellLocation for TapeCell2D {
 			Token::Name(_) => Ok(LocationSpecifier::Variable(parse_var_target(chars)?)),
 			// TODO: add source snippet
 			token => {
-				r_panic!("Unexpected token `{token}` found while parsing 2D location specifier.")
+				r_panic!("Unexpected `{token}` found while parsing 2D location specifier.")
 			}
 		}
 	}
@@ -286,7 +284,7 @@ fn parse_integer(chars: &mut &[char]) -> Result<i32, String> {
 fn parse_integer_tuple<const LENGTH: usize>(chars: &mut &[char]) -> Result<[i32; LENGTH], String> {
 	let Token::LeftParenthesis = next_token(chars)? else {
 		// TODO: add source snippet
-		r_panic!("Expected opening parenthesis in tuple.")
+		r_panic!("Expected opening parenthesis in {LENGTH}-tuple.")
 	};
 
 	let mut tuple = [0; LENGTH];
@@ -296,13 +294,13 @@ fn parse_integer_tuple<const LENGTH: usize>(chars: &mut &[char]) -> Result<[i32;
 		if j < LENGTH - 1 {
 			let Token::Comma = next_token(chars)? else {
 				// TODO: add source snippet
-				r_panic!("Expected comma in tuple.");
+				r_panic!("Expected comma in {LENGTH}-tuple.");
 			};
 		}
 	}
 	let Token::RightParenthesis = next_token(chars)? else {
 		// TODO: add source snippet
-		r_panic!("Expected closing parenthesis in tuple.");
+		r_panic!("Expected closing parenthesis in {LENGTH}-tuple.");
 	};
 
 	Ok(tuple)
@@ -312,7 +310,7 @@ fn parse_integer_tuple<const LENGTH: usize>(chars: &mut &[char]) -> Result<[i32;
 ////////////////////////////
 ////////////////////////////
 
-fn parse_if_else_clause<TC: TapeCellVariant, OC: OpcodeVariant>(
+fn parse_if_else_clause<TC: TapeCellLocation, OC: OpcodeVariant>(
 	chars: &mut &[char],
 ) -> Result<Clause<TC, OC>, String> {
 	let Token::If = next_token(chars)? else {
@@ -370,7 +368,7 @@ fn parse_if_else_clause<TC: TapeCellVariant, OC: OpcodeVariant>(
 	})
 }
 
-fn parse_while_clause<TC: TapeCellVariant, OC: OpcodeVariant>(
+fn parse_while_clause<TC: TapeCellLocation, OC: OpcodeVariant>(
 	chars: &mut &[char],
 ) -> Result<Clause<TC, OC>, String> {
 	let Token::While = next_token(chars)? else {
@@ -398,7 +396,7 @@ fn parse_while_clause<TC: TapeCellVariant, OC: OpcodeVariant>(
 	})
 }
 
-fn parse_function_definition_clause<TC: TapeCellVariant, OC: OpcodeVariant>(
+fn parse_function_definition_clause<TC: TapeCellLocation, OC: OpcodeVariant>(
 	chars: &mut &[char],
 ) -> Result<Clause<TC, OC>, String> {
 	let Token::Fn = next_token(chars)? else {
@@ -502,11 +500,113 @@ fn parse_output_clause<T, O>(chars: &mut &[char]) -> Result<Clause<T, O>, String
 		r_panic!("Expected keyword `output` in output clause.");
 	};
 
-	let value = Expression::parse(chars)?;
+	let expr = Expression::parse(chars)?;
 
 	let Token::Semicolon = next_token(chars)? else {
 		r_panic!("Expected semicolon at end of output clause.");
 	};
 
-	Ok(Clause::Output { value })
+	Ok(Clause::Output { value: expr })
+}
+
+fn parse_input_clause<T, O>(chars: &mut &[char]) -> Result<Clause<T, O>, String> {
+	let Token::Input = next_token(chars)? else {
+		// TODO: add source snippet
+		r_panic!("Expected keyword `input` in input clause.");
+	};
+
+	let var = parse_var_target(chars)?;
+
+	let Token::Semicolon = next_token(chars)? else {
+		r_panic!("Expected semicolon at end of input clause.");
+	};
+
+	Ok(Clause::Input { var })
+}
+
+fn parse_assign_clause<T, O>(chars: &mut &[char]) -> Result<Clause<T, O>, String> {
+	let var = parse_var_target(chars)?;
+
+	let operator = next_token(chars)?;
+	match operator {
+		Token::EqualsSign | Token::PlusEquals | Token::MinusEquals => (),
+		token => r_panic!("Unexpected `{token}` in assignment clause."),
+	}
+
+	let expr = Expression::parse(chars)?;
+
+	// TODO: refactor this, at the very least make it nuanced per-cell, as this was added before subfields were added
+	let self_referencing = expr.check_self_referencing(&var);
+
+	Ok(match operator {
+		Token::EqualsSign => Clause::Assign {
+			var,
+			value: expr,
+			self_referencing,
+		},
+		Token::PlusEquals => Clause::AddAssign {
+			var,
+			value: expr,
+			self_referencing,
+		},
+		Token::MinusEquals => Clause::AddAssign {
+			var,
+			value: expr.flipped_sign()?,
+			self_referencing,
+		},
+		_ => unreachable!(),
+	})
+}
+
+/// parse a drain/copy loop:
+/// `drain g {i += 1;};`
+/// `drain g into j;`
+/// `copy foo into bar {g += 2; etc;};`
+fn parse_drain_copy_clause<TC: TapeCellLocation, OC: OpcodeVariant>(
+	chars: &mut &[char],
+) -> Result<Clause<TC, OC>, String> {
+	let is_copying = match next_token(chars)? {
+		Token::Copy => true,
+		Token::Drain => false,
+		token => r_panic!("Unexpected `{token}` in drain/copy clause."),
+	};
+
+	let source = Expression::parse(chars)?;
+
+	let mut targets = Vec::new();
+	{
+		let mut s = *chars;
+		if let Token::Into = next_token(&mut s)? {
+			*chars = s;
+			loop {
+				// parse var target before delimiters because into must precede a target
+				targets.push(parse_var_target(chars)?);
+				{
+					let mut s = *chars;
+					if let Token::LeftBrace | Token::Semicolon = next_token(&mut s)? {
+						break;
+					}
+				}
+			}
+		}
+	}
+
+	let block = {
+		let mut s = *chars;
+		match next_token(&mut s)? {
+			Token::LeftBrace => Some(parse_block_clauses(chars)?),
+			Token::Semicolon => {
+				*chars = s;
+				None
+			}
+			token => r_panic!("Unexpected `{token}` in drain/copy clause."),
+		}
+	};
+
+	Ok(Clause::DrainLoop {
+		source,
+		targets,
+		block,
+		is_copying,
+	})
 }

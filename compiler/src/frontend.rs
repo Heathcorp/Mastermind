@@ -155,7 +155,7 @@ impl MastermindContext {
 						}
 					}
 				}
-				Clause::SetVariable {
+				Clause::Assign {
 					var,
 					value,
 					self_referencing,
@@ -176,7 +176,7 @@ impl MastermindContext {
 						// etc...
 					}
 				},
-				Clause::AddToVariable {
+				Clause::AddAssign {
 					var,
 					value,
 					self_referencing,
@@ -331,17 +331,19 @@ impl MastermindContext {
 					// close the loop
 					scope.push_instruction(Instruction::CloseLoop(cell));
 				}
-				Clause::CopyLoop {
+				Clause::DrainLoop {
 					source,
 					targets,
 					block,
-					is_draining,
+					is_copying,
 				} => {
 					// TODO: refactor this, there is duplicate code with copying the source value cell
-					let (source_cell, free_source_cell) = match (is_draining, &source) {
+					let (source_cell, free_source_cell) = match (is_copying, &source) {
 						// draining loops can drain from an expression or a variable
-						(true, Expression::VariableReference(var)) => (scope.get_cell(var)?, false),
-						(true, _) => {
+						(false, Expression::VariableReference(var)) => {
+							(scope.get_cell(var)?, false)
+						}
+						(false, _) => {
 							// any other kind of expression, allocate memory for it automatically
 							let id = scope.push_memory_id();
 							scope
@@ -353,7 +355,7 @@ impl MastermindContext {
 							scope._add_expr_to_cell(&source, new_cell)?;
 							(new_cell, true)
 						}
-						(false, Expression::VariableReference(var)) => {
+						(true, Expression::VariableReference(var)) => {
 							let cell = scope.get_cell(var)?;
 
 							let new_mem_id = scope.push_memory_id();
@@ -371,16 +373,18 @@ impl MastermindContext {
 
 							(new_cell, true)
 						}
-						(false, _) => {
+						(true, _) => {
 							r_panic!("Cannot copy from {source:#?}, use a drain loop instead")
 						}
 					};
 					scope.push_instruction(Instruction::OpenLoop(source_cell));
 
 					// recurse
-					let loop_scope = self.create_ir_scope(&block, Some(&scope))?;
-					// TODO: refactor, make a function in scope trait to do this automatically
-					scope.instructions.extend(loop_scope.build_ir(true));
+					if let Some(block) = block {
+						let loop_scope = self.create_ir_scope(&block, Some(&scope))?;
+						// TODO: refactor, make a function in scope trait to do this automatically
+						scope.instructions.extend(loop_scope.build_ir(true));
+					}
 
 					// copy into each target and decrement the source
 					for target in targets {

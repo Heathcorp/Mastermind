@@ -21,12 +21,12 @@ pub enum Clause<TC, OC> {
 		name: String,
 		fields: Vec<StructFieldTypeDefinition>,
 	},
-	AddToVariable {
+	AddAssign {
 		var: VariableTarget,
 		value: Expression,
 		self_referencing: bool,
 	},
-	SetVariable {
+	Assign {
 		var: VariableTarget,
 		value: Expression,
 		self_referencing: bool,
@@ -37,11 +37,12 @@ pub enum Clause<TC, OC> {
 		// typically will either be used for assert unknown or assert 0
 		value: Option<Expression>,
 	},
-	CopyLoop {
+	DrainLoop {
 		source: Expression,
 		targets: Vec<VariableTarget>,
-		block: Vec<Clause<TC, OC>>,
-		is_draining: bool,
+		block: Option<Vec<Clause<TC, OC>>>,
+		// TODO: reassess this syntax
+		is_copying: bool,
 	},
 	While {
 		var: VariableTarget,

@@ -36,7 +36,7 @@ mod parser_tests {
 	fn end_tokens_1() {
 		assert_eq!(
 			parse_program::<TapeCell, Opcode>("clobbers").unwrap_err(),
-			"Invalid starting token: `clobbers`"
+			"Invalid starting token `clobbers`."
 		);
 	}
 
@@ -44,15 +44,15 @@ mod parser_tests {
 	fn end_tokens_2() {
 		assert_eq!(
 			parse_program::<TapeCell, Opcode>(";").unwrap_err(),
-			"Invalid starting token: `;`"
+			"Invalid starting token `;`."
 		);
 		assert_eq!(
 			parse_program::<TapeCell, Opcode>(";;").unwrap_err(),
-			"Invalid starting token: `;`"
+			"Invalid starting token `;`."
 		);
 		assert_eq!(
 			parse_program::<TapeCell, Opcode>(";;;").unwrap_err(),
-			"Invalid starting token: `;`"
+			"Invalid starting token `;`."
 		);
 	}
 
@@ -83,7 +83,7 @@ mod parser_tests {
 	fn two_dimensional_1() {
 		assert_eq!(
 			parse_program::<TapeCell, Opcode>("cell x @(0, 1);").unwrap_err(),
-			"Unexpected token `(` found while parsing location specifier. (is 2D mode turned on?)"
+			"Unexpected `(` found while parsing location specifier. (is 2D mode turned on?)"
 		);
 	}
 

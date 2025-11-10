@@ -100,40 +100,6 @@ pub fn parse_clause_from_tokens<TC: TapeCellLocation, OC: OpcodeVariant>(
 	})
 }
 
-fn parse_add_clause<T, O>(clause: &[Token]) -> Result<Vec<Clause<T, O>>, String> {
-	let mut clauses = Vec::new();
-	let mut i = 0usize;
-	let (var, len) = parse_var_target(&clause[i..])?;
-	i += len;
-
-	let positive = match &clause[i] {
-		Token::Plus => true,
-		Token::Minus => false,
-		_ => {
-			r_panic!("Unexpected second token in add clause: {clause:#?}");
-		}
-	};
-	i += 2; // assume the equals sign is there because it was checked by the main loop
-	let raw_expr = Expression::parse(&clause[i..(clause.len() - 1)])?;
-	let expr = match positive {
-		true => raw_expr,
-		false => Expression::SumExpression {
-			sign: Sign::Negative,
-			summands: vec![raw_expr],
-		},
-	};
-	//Check if this add clause self references
-	let self_referencing = expr.check_self_referencing(&var);
-
-	clauses.push(Clause::AddToVariable {
-		var,
-		value: expr,
-		self_referencing: self_referencing,
-	});
-
-	Ok(clauses)
-}
-
 // currently just syntax sugar, should make it actually do post/pre increments
 fn parse_increment_clause<T, O>(clause: &[Token]) -> Result<Clause<T, O>, String> {
 	let (var, _) = parse_var_target(&clause[2..])?;
@@ -197,73 +163,6 @@ fn parse_set_clause<T, O>(clause: &[Token]) -> Result<Clause<T, O>, String> {
 			}
 		}
 		_ => r_panic!("Expected assignment operator in set clause: {clause:#?}"),
-	})
-}
-
-fn parse_drain_copy_clause<TC: TapeCellLocation, OC: OpcodeVariant>(
-	clause: &[Token],
-	is_draining: bool,
-	block: Vec<Clause<TC, OC>>,
-) -> Result<Clause<TC, OC>, String> {
-	// drain g {i += 1;};
-	// drain g into j;
-	// copy foo into bar {g += 2; etc;};
-	// TODO: make a tuple-parsing function and use it here instead of a space seperated list of targets
-
-	let mut targets = Vec::new();
-	let mut i = 1usize;
-
-	let condition_start_token = i;
-
-	i += 1;
-	while let Some(token) = clause.get(i) {
-		if let Token::Into | Token::OpenBrace | Token::Semicolon = token {
-			break;
-		}
-		i += 1;
-	}
-	r_assert!(
-		i < clause.len(),
-		"Expected source expression in draining/copying loop: {clause:#?}"
-	);
-
-	let source = Expression::parse(&clause[condition_start_token..i])?;
-
-	if let Token::Into = &clause[i] {
-		// simple drain/copy move operations
-		i += 1;
-
-		loop {
-			match &clause[i] {
-				Token::Name(_) | Token::Asterisk => {
-					let (var, len) = parse_var_target(&clause[i..])?;
-					i += len;
-					targets.push(var);
-				}
-				Token::OpenBrace | Token::Semicolon => {
-					break;
-				}
-				_ => {
-					r_panic!("Unexpected token in drain clause: {clause:#?}");
-				}
-			}
-		}
-	}
-
-	// TODO: fix ordering of blocks in new parser, may have to rewrite the whole parser to use &[char]
-	// if let Token::OpenBrace = &clause[i] {
-	// 	// code block to execute at each loop iteration
-	// 	let braced_tokens = get_braced_tokens(&clause[i..], BRACES)?;
-	// 	// recursion
-	// 	block.extend(parse(braced_tokens)?);
-	// 	// i += 2 + braced_tokens.len();
-	// }
-
-	Ok(Clause::CopyLoop {
-		source,
-		targets,
-		block,
-		is_draining,
 	})
 }
 
@@ -535,73 +434,4 @@ fn parse_function_call_clause<T, O>(clause: &[Token]) -> Result<Clause<T, O>, St
 		function_name: name.clone(),
 		arguments: args,
 	})
-}
-
-/// get a clause's tokens, typically a line, bounded by ;
-fn get_clause_tokens(tokens: &[Token]) -> Result<Option<&[Token]>, String> {
-	if tokens.len() == 0 {
-		Ok(None)
-	} else {
-		let mut i = 0usize;
-		while i < tokens.len() {
-			match tokens[i] {
-				Token::OpenBrace => {
-					let braced_block = get_braced_tokens(&tokens[i..], BRACES)?;
-					i += 2 + braced_block.len();
-					// handle blocks marking the end of clauses, if/else being the exception
-					if i < tokens.len() {
-						if let Token::Else = tokens[i] {
-							i += 1;
-							let else_block = get_braced_tokens(&tokens[i..], BRACES)?;
-							i += 2 + else_block.len();
-						}
-					}
-					return Ok(Some(&tokens[..i]));
-				}
-				Token::Semicolon => {
-					i += 1;
-					return Ok(Some(&tokens[..i]));
-				}
-				_ => {
-					i += 1;
-				}
-			}
-		}
-
-		r_panic!("No clause could be found in: {tokens:#?}");
-	}
-}
-
-const SQUARE_BRACKETS: (Token, Token) = (Token::OpenSquareBracket, Token::ClosingSquareBracket);
-const BRACES: (Token, Token) = (Token::OpenBrace, Token::ClosingBrace);
-const PARENTHESES: (Token, Token) = (Token::OpenParenthesis, Token::ClosingParenthesis);
-const ANGLED_BRACKETS: (Token, Token) = (Token::LessThan, Token::MoreThan);
-// this should be a generic function but rust doesn't support enum variants as type arguments yet
-// find tokens bounded by matching brackets
-// TODO: make an impl for &[Token] and put all these functions in it
-fn get_braced_tokens(tokens: &[Token], braces: (Token, Token)) -> Result<&[Token], String> {
-	let (open_brace, closing_brace) = (discriminant(&braces.0), discriminant(&braces.1));
-	// find corresponding bracket, the depth check is unnecessary but whatever
-	let len = {
-		let mut i = 1usize;
-		let mut depth = 1;
-		while i < tokens.len() && depth > 0 {
-			let g = discriminant(&tokens[i]);
-			if g == open_brace {
-				depth += 1;
-			} else if g == closing_brace {
-				depth -= 1;
-			}
-			i += 1;
-		}
-		i
-	};
-
-	if len >= 2 {
-		if open_brace == discriminant(&tokens[0]) && closing_brace == discriminant(&tokens[len - 1])
-		{
-			return Ok(&tokens[1..(len - 1)]);
-		}
-	}
-	r_panic!("Invalid braced tokens: {tokens:#?}");
 }
