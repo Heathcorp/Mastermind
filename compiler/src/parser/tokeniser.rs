@@ -189,6 +189,10 @@ fn parse_number(chars: &mut &[char]) -> Result<usize, String> {
 		i += 1;
 	}
 
+	// update used characters
+	assert!(i <= chars.len());
+	*chars = &chars[i..];
+
 	Ok(n)
 }
 
@@ -221,12 +225,13 @@ fn parse_character_literal(chars: &mut &[char]) -> Result<char, String> {
 			};
 			c
 		}
+		Some('\'') => r_panic!("Unexpected `'` in character literal, must be length 1."),
 		Some(c) => *c,
-		None => r_panic!("Character literal must be length 1."),
+		None => r_panic!("Unexpected end of input found while parsing character literal."),
 	};
 	i += 1;
 	let Some('\'') = chars.get(i) else {
-		r_panic!("Expected `'` at end of character literal.");
+		r_panic!("Expected `'` at end of character literal. Character literals must be length 1.");
 	};
 	i += 1;
 
@@ -264,8 +269,9 @@ fn parse_string_literal(chars: &mut &[char]) -> Result<String, String> {
 			Some('"') => break,
 			Some(c) => built_string.push(*c),
 		}
+		i += 1;
 	}
-	i += 1;
+
 	let Some('"') = chars.get(i) else {
 		r_panic!("Expected `\"` at end of string literal.");
 	};
@@ -280,8 +286,6 @@ fn parse_string_literal(chars: &mut &[char]) -> Result<String, String> {
 
 #[cfg(test)]
 mod tokeniser_tests {
-	use crate::macros::macros::r_panic;
-
 	use super::*;
 
 	fn tokenise(input_str: &str) -> Result<Vec<Token>, String> {
@@ -289,9 +293,7 @@ mod tokeniser_tests {
 		let mut chars_slice = &chars_vec[..];
 		let mut tokens = vec![];
 		loop {
-			let Ok(token) = next_token(&mut chars_slice) else {
-				r_panic!("Invalid token in input.");
-			};
+			let token = next_token(&mut chars_slice)?;
 			if let Token::None = token {
 				break;
 			}
@@ -721,15 +723,27 @@ if fn{output)true)false -while*  @copy@+=@drain-=into=][bf.cell"#,
 	}
 
 	#[test]
-	#[should_panic]
 	fn character_literals_5() {
-		_tokenisation_test(r#"'\'"#, &[Token::Character('\\')]);
+		assert_eq!(
+			tokenise(r#"'\'"#).unwrap_err(),
+			"Expected `'` at end of character literal. Character literals must be length 1."
+		);
 	}
 
 	#[test]
-	#[should_panic]
 	fn character_literals_6() {
-		_tokenisation_test(r#"'aa'"#, &[Token::String(String::from("aa"))]);
+		assert_eq!(
+			tokenise(r#"'aa'"#).unwrap_err(),
+			"Expected `'` at end of character literal. Character literals must be length 1."
+		);
+	}
+
+	#[test]
+	fn character_literals_7() {
+		assert_eq!(
+			tokenise(r#"''"#).unwrap_err(),
+			"Unexpected `'` in character literal, must be length 1."
+		);
 	}
 
 	#[test]
@@ -769,8 +783,9 @@ if fn{output)true)false -while*  @copy@+=@drain-=into=][bf.cell"#,
 		_tokenisation_test(
 			"1 123 000098763",
 			&[
-				Token::String(String::from("\"")),
-				Token::String(String::from(" ")),
+				Token::Number(1),
+				Token::Number(123),
+				Token::Number(000098763),
 			],
 		);
 	}
