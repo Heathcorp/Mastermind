@@ -108,7 +108,9 @@ impl TapeCellLocation for TapeCell {
 			// variable location specifier:
 			Token::Name(_) => Ok(LocationSpecifier::Variable(parse_var_target(chars)?)),
 			// TODO: add source snippet
-			_ => r_panic!("Invalid location specifier.",),
+			token => r_panic!(
+				"Unexpected token `{token}` found while parsing location specifier. (is 2D mode turned on?)"
+			),
 		}
 	}
 
@@ -141,7 +143,9 @@ impl TapeCellLocation for TapeCell2D {
 			// variable location specifier:
 			Token::Name(_) => Ok(LocationSpecifier::Variable(parse_var_target(chars)?)),
 			// TODO: add source snippet
-			_ => r_panic!("Invalid location specifier."),
+			token => {
+				r_panic!("Unexpected token `{token}` found while parsing 2D location specifier.")
+			}
 		}
 	}
 

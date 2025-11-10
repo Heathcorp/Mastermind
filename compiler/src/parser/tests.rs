@@ -1,5 +1,3 @@
-use crate::parser::parser::parse_program;
-
 #[cfg(test)]
 mod parser_tests {
 	use super::super::{
@@ -85,7 +83,7 @@ mod parser_tests {
 	fn two_dimensional_1() {
 		assert_eq!(
 			parse_program::<TapeCell, Opcode>("cell x @(0, 1);").unwrap_err(),
-			"Invalid location specifier @(0, 1)"
+			"Unexpected token `(` found while parsing location specifier. (is 2D mode turned on?)"
 		);
 	}
 
@@ -479,7 +477,7 @@ struct nonsense[39] arr @-56 = ["hello!", 53, [4,5,6]];
 				var: VariableTypeDefinition {
 					name: String::from("arr"),
 					var_type: VariableTypeReference::Array(
-						Box::new(VariableTypeReference::Cell),
+						Box::new(VariableTypeReference::Struct(String::from("nonsense"))),
 						39,
 					),
 					location_specifier: LocationSpecifier::Cell(-56),
@@ -507,7 +505,7 @@ struct nonsense[39] arr @-56 = ["hello!", ',', [4,"hello comma: ,",6]];
 				var: VariableTypeDefinition {
 					name: String::from("arr"),
 					var_type: VariableTypeReference::Array(
-						Box::new(VariableTypeReference::Cell),
+						Box::new(VariableTypeReference::Struct(String::from("nonsense"))),
 						39,
 					),
 					location_specifier: LocationSpecifier::Cell(-56),
@@ -535,7 +533,7 @@ struct nonsense[39] arr @-56 = 56 - ( 4+3+( -7-5 +(6)-(((( (0) )))) ) );
 				var: VariableTypeDefinition {
 					name: String::from("arr"),
 					var_type: VariableTypeReference::Array(
-						Box::new(VariableTypeReference::Cell),
+						Box::new(VariableTypeReference::Struct(String::from("nonsense"))),
 						39,
 					),
 					location_specifier: LocationSpecifier::Cell(-56),
@@ -561,6 +559,10 @@ struct nonsense[39] arr @-56 = 56 - ( 4+3+( -7-5 +(6)-(((( (0) )))) ) );
 											summands: vec![Expression::NaturalNumber(5)],
 										},
 										Expression::NaturalNumber(6),
+										Expression::SumExpression {
+											sign: Sign::Negative,
+											summands: vec![Expression::NaturalNumber(0)],
+										},
 									],
 								},
 							],
