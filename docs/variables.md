@@ -1,5 +1,3 @@
-### Variables
-
 #### Cells
 
 The base data type in Mastermind is the `cell`, this corresponds to a a single 8-bit cell on the Brainfuck tape.
@@ -26,7 +24,7 @@ drain 5 {
 // stdout: 11bcd
 ```
 
-The simplest way to display text is to output valid ASCII characters, however if your Brainfuck implementation supports unicode, that is also possible by outputting multiple bytes.
+The simplest way to display text is to output valid ASCII characters. If your Brainfuck implementation supports unicode, that is also possible by outputting multiple bytes.
 
 ```
 output 240;
@@ -99,14 +97,17 @@ three_S_structs[1].matrix_of_T_structs[3][0] = '5';
 
 #### Note: Array indices must be compile-time constant integers
 
-This is a limitation of Brainfuck, getting around this problem requires more runtime code is worth including for the sake of optimisations. You can implement equivalent behaviour using in-line Brainfuck, structs, and functions.
+This is a limitation of Brainfuck, getting around this problem requires more runtime code than is reasonable to include by default, due to the goals of Mastermind. You can implement equivalent behaviour using in-line Brainfuck, structs, and functions.
 
 ### Location specifiers
 
 The exact memory cells occupied by a variable can be specified:
 
 ```
-cell a @4 = 1; // value 1 at tape position 4
+// value 1 at tape position 4
+cell a @4 = 1;
+// contiguous array of 1s, starting at cell -1
+cell[3] a @-1 = [1, 1, 1];
 ```
 
 #### Struct subfields

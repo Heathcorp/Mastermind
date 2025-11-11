@@ -1,58 +1,87 @@
-Looping in Mastermind has 3 main forms. These are the:
+Mastermind currently supports three forms of loops: `while`, `drain` and `copy`.
 
-- While Loop
-- Drain Loop
-- Copy Loop
+It should be noted that there is no early breaking in any of these forms, so all clauses in a loop body are always executed in each iteration.
 
-all 3 looping styles are essentially variations of a while loop
+## While
 
-## While Loop
+The `while` loop operates similarly to other languages, accepting a condition expression, and a loop body.
 
-The simplest is the `while` loop, which only supports cell references, currently not expressions:
+The clauses inside the loop body are executed until the condition is falsy (i.e. equal to `0`). The condition is checked before each iteration.
+
+Note: currently `while` conditions must be direct variable references, this is subject to future compiler updates.
 
 ```
-while var {
-    //do stuff
-    var -= 1;
-    //etc
+cell n = 5;
+while n {
+  // do stuff
+  n -= 1;
 }
+// n is now equal to 0
 ```
 
-## Drain Loop
+## Drain
 
-The `drain` loop is a form of syntax sugar for a self decrementing while loop. This form of loop is extremely common in Brainfuck
-so it has been shortened with this syntax
+The `drain` loop mirrors a very common pattern found in Brainfuck programs: decrementing a cell. `drain` accepts an expression, a list of variables to 'drain into', and/or a loop body.
+
+If the expression is a direct variable reference, then the variable is decremented after each iteration. If not, it is evaluated in a temporary cell, then decremented after each iteration.
 
 ```
 drain var {
   // do stuff
 }
-```
 
-shorthand for the following:
-
-```
+// equivalent to:
 while var {
   // do stuff
   var -= 1;
 }
 ```
 
-This destructively loops as many times as the value in the cell being referenced, this can be used with expressions:
-
-drain 10 {}
-
-drain var - 6 {}
-
-Drain additionally supports the ability to add a variable `into` multiple other variables
+With expressions:
 
 ```
-drain var into other_var other_var_2 *spread_array etc;
+drain 6 {
+  output 'a';
+}
+// aaaaaa
 ```
 
-Equivalent to:
+```
+cell x = 7;
+drain x - 2 {
+  output 'b';
+}
+// bbbbb
+```
+
+In the above example, `x` is left unchanged.
+
+### Into
+
+If the `into` keyword is used, followed by a whitespace-separated list of target variables, the targets will be incremented after each iteration.
 
 ```
+cell i;
+drain 10 into i {
+  output '0' + i;
+}
+// 0123456789
+
+// equivalent to:
+cell i;
+cell ten = 10;
+while ten {
+  output '0' + i;
+
+  i += 1;
+  ten -= 1;
+}
+```
+
+```
+drain var into other_var other_var_2 *spread_array;
+
+// equivalent to:
 drain var {
   other_var += 1;
   other_var_2 += 1;
@@ -61,46 +90,32 @@ drain var {
   spread_array[2] += 1;
   // ...
 }
-
-// example of typical "for loop":
-cell i;
-drain 10 into i {
-  output '0' + i; // inefficient for the example
-}
-// "0123456789"
-// equivalent to the following:
-cell i = 0;
-cell N = 10;
-while N {
-  output '0' + i;
-  i += 1;
-  N -= 1;
-}
 ```
 
-## Copy Loop
+## Copy
 
-The `copy` loop is similar to a `drain` loop however it is designed to preserve the initial state of the loop variable.
-A copy loop is shorthand designed to replace the usage of a temporary variable in a drain loop.
+The `copy` loop acts similarly to the `drain` loop, however the expression must be a direct variable reference, and it is left unchanged afterwards, and its original value is accessible within the loop body.
 
 ```
+cell var = 5;
 copy var {
-  // do stuff
+  output '0' + var;
 }
-```
+// 55555
 
-Equivalent to:
-
-```
+// equivalent to:
+cell var = 5;
 cell temp = var;
 while temp {
-  // do stuff
+  output '0' + var;
+
   temp -= 1;
 }
 ```
 
-You can also `copy into` multiple other variables, similar to the `drain` loop:
-
 ```
-copy var into other_var other_var_2 *spread_array etc;
+cell y;
+copy x into y {
+
+};
 ```

@@ -1,6 +1,4 @@
-### Conditionals
-
-Mastermind supports basic `if`/`else` statements. An `if` statement takes in a single cell expression, if the expression is evaluated to be truthy, then the `if` block is executed, otherwise the optional `else` block is executed. This behaviour can be inverted using the `not` keyword.
+Mastermind supports basic `if`/`else` statements. An `if` statement accepts an expression that evaluates to a `cell` type, if the expression is evaluated to be truthy (i.e. not equal to `0`), then the `if` block is executed, otherwise the optional `else` block is executed. This behaviour can be inverted using the `not` keyword.
 
 ```
 if 13 {
