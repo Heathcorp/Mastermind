@@ -414,7 +414,7 @@ pub trait OpcodeVariant
 where
 	Self: Sized + Clone + Copy,
 {
-	fn from_token(token: &Token) -> Result<Self, String>;
+	fn try_from_char(c: char) -> Option<Self>;
 }
 
 pub struct CellAllocatorData<TC> {

@@ -32,18 +32,18 @@ pub enum Opcode {
 }
 
 impl OpcodeVariant for Opcode {
-	fn from_token(token: &Token) -> Result<Opcode, String> {
-		Ok(match token {
-			Token::Plus => Opcode::Add,
-			Token::Minus => Opcode::Subtract,
-			// Token::MoreThan => Opcode::Right,
-			// Token::LessThan => Opcode::Left,
-			Token::LeftSquareBracket => Opcode::OpenLoop,
-			Token::RightSquareBracket => Opcode::CloseLoop,
-			Token::Dot => Opcode::Output,
-			Token::Comma => Opcode::Input,
-			_ => r_panic!("Invalid token in inline Brainfuck: {token:?}"),
-		})
+	fn try_from_char(c: char) -> Option<Opcode> {
+		match c {
+			'+' => Some(Opcode::Add),
+			'-' => Some(Opcode::Subtract),
+			'>' => Some(Opcode::Right),
+			'<' => Some(Opcode::Left),
+			'[' => Some(Opcode::OpenLoop),
+			']' => Some(Opcode::CloseLoop),
+			'.' => Some(Opcode::Output),
+			',' => Some(Opcode::Input),
+			_ => None,
+		}
 	}
 }
 

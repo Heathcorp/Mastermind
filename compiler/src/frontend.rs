@@ -532,7 +532,7 @@ impl MastermindContext {
 					let new_scope = self.create_ir_scope(&clauses, Some(&scope))?;
 					scope.instructions.extend(new_scope.build_ir(true));
 				}
-				Clause::InlineBrainfuck {
+				Clause::Brainfuck {
 					location_specifier,
 					clobbered_variables,
 					operations,

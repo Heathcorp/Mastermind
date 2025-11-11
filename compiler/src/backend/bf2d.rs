@@ -37,21 +37,20 @@ pub enum Opcode2D {
 }
 
 impl OpcodeVariant for Opcode2D {
-	fn from_token(token: &Token) -> Result<Opcode2D, String> {
-		Ok(match token {
-			Token::Plus => Opcode2D::Add,
-			Token::Minus => Opcode2D::Subtract,
-			// Token::MoreThan => Opcode2D::Right,
-			// Token::LessThan => Opcode2D::Left,
-			Token::LeftSquareBracket => Opcode2D::OpenLoop,
-			Token::RightSquareBracket => Opcode2D::CloseLoop,
-			Token::Dot => Opcode2D::Output,
-			Token::Comma => Opcode2D::Input,
-			// Token::Caret => Opcode2D::Up,
-			// TODO: implement this:
-			// Token::Down => Opcode2D::Down,
-			_ => r_panic!("Invalid token in inline Brainfuck: {token:?}"),
-		})
+	fn try_from_char(c: char) -> Option<Opcode2D> {
+		match c {
+			'+' => Some(Opcode2D::Add),
+			'-' => Some(Opcode2D::Subtract),
+			'>' => Some(Opcode2D::Right),
+			'<' => Some(Opcode2D::Left),
+			'^' => Some(Opcode2D::Up),
+			'v' => Some(Opcode2D::Down),
+			'[' => Some(Opcode2D::OpenLoop),
+			']' => Some(Opcode2D::CloseLoop),
+			'.' => Some(Opcode2D::Output),
+			',' => Some(Opcode2D::Input),
+			_ => None,
+		}
 	}
 }
 

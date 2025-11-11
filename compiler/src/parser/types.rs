@@ -83,7 +83,7 @@ pub enum Clause<TC, OC> {
 		else_block: Vec<Clause<TC, OC>>,
 	},
 	Block(Vec<Clause<TC, OC>>),
-	InlineBrainfuck {
+	Brainfuck {
 		location_specifier: LocationSpecifier<TC>,
 		clobbered_variables: Vec<VariableTarget>,
 		operations: Vec<ExtendedOpcode<TC, OC>>,

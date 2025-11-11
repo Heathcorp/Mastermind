@@ -139,7 +139,7 @@ mod parser_tests {
 						location_specifier: LocationSpecifier::None,
 					},
 				},
-				Clause::InlineBrainfuck {
+				Clause::Brainfuck {
 					location_specifier: LocationSpecifier::None,
 					clobbered_variables: vec![],
 					operations: vec![
@@ -170,7 +170,7 @@ mod parser_tests {
 						location_specifier: LocationSpecifier::None,
 					},
 				},
-				Clause::InlineBrainfuck {
+				Clause::Brainfuck {
 					location_specifier: LocationSpecifier::None,
 					clobbered_variables: vec![],
 					operations: vec![
@@ -193,7 +193,7 @@ mod parser_tests {
 	fn inline_bf_3() {
 		_parser_test_2d(
 			"bf {vvvv>}",
-			&[Clause::InlineBrainfuck {
+			&[Clause::Brainfuck {
 				location_specifier: LocationSpecifier::None,
 				clobbered_variables: vec![],
 				operations: vec![
@@ -211,7 +211,7 @@ mod parser_tests {
 	fn inline_bf_4() {
 		assert_eq!(
 			parse_program::<TapeCell, Opcode>("bf {vvvv>}").unwrap_err(),
-			""
+			"Unexpected character `v` in Brainfuck clause."
 		);
 	}
 

@@ -217,7 +217,7 @@ fn parse_character_literal(chars: &mut &[char]) -> Result<char, String> {
 		}
 		Some('\'') => r_panic!("Unexpected `'` in character literal, must be length 1."),
 		Some(c) => *c,
-		None => r_panic!("Unexpected end of input found while parsing character literal."),
+		None => r_panic!("Unexpected end of file while parsing character literal."),
 	};
 	i += 1;
 	let Some('\'') = chars.get(i) else {

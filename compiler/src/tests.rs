@@ -2539,8 +2539,7 @@ bf {,.[-]+[--^-[^^+^-----vv]v--v---]^-.^^^+.^^..+++[.^]vvstvv.+++.------.vv-.^^^
 "#;
 		assert_eq!(
 			compile_program::<TapeCell2D, Opcode2D>(program, None).unwrap_err(),
-			// TODO: make sure this works correctly after refactoring tokeniser
-			""
+			"Unexpected character `s` in Brainfuck clause."
 		);
 	}
 
@@ -2553,8 +2552,8 @@ bf {,.[-]+[--^-[^^+^-----vv]v--v---]^-.^^^+.^^..+++[.^]vvstvv.+++.------.vv-.^^^
 				"~",
 				None,
 			)
-			.unwrap(),
-			"~Hello, World!"
+			.unwrap_err(),
+			"2D Brainfuck currently disabled"
 		);
 	}
 

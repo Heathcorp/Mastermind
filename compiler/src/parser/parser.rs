@@ -2,7 +2,7 @@ use super::{
 	expressions::Expression,
 	tokeniser::{next_token, Token},
 	types::{
-		Clause, LocationSpecifier, Reference, TapeCellLocation, VariableTarget,
+		Clause, ExtendedOpcode, LocationSpecifier, Reference, TapeCellLocation, VariableTarget,
 		VariableTargetReferenceChain, VariableTypeReference,
 	},
 };
@@ -75,6 +75,7 @@ fn parse_clause<TC: TapeCellLocation, OC: OpcodeVariant>(
 				self_referencing: false,
 			})
 		}
+		Token::Bf => Some(parse_brainfuck_clause(chars)?),
 		token => r_panic!("Invalid starting token `{token}`."),
 	})
 }
@@ -698,4 +699,73 @@ fn parse_assert_clause<T, O>(chars: &mut &[char]) -> Result<Clause<T, O>, String
 	};
 
 	Ok(Clause::AssertVariableValue { var, value })
+}
+
+fn parse_brainfuck_clause<TC: TapeCellLocation, OC: OpcodeVariant>(
+	chars: &mut &[char],
+) -> Result<Clause<TC, OC>, String> {
+	let Token::Bf = next_token(chars)? else {
+		r_panic!("Expected `bf` in in-line Brainfuck clause.");
+	};
+
+	let location_specifier = TC::parse_location_specifier(chars)?;
+	let mut clobbered_variables = vec![];
+	{
+		let mut s = *chars;
+		// parse the rare `clobbers` keyword, borrowed from GCC I think? // TODO: look this up
+		if let Token::Clobbers = next_token(&mut s)? {
+			*chars = s;
+			loop {
+				clobbered_variables.push(parse_var_target(chars)?);
+				{
+					let mut s = *chars;
+					if let Token::LeftBrace = next_token(&mut s)? {
+						break;
+					}
+				}
+			}
+		}
+	}
+
+	let Token::LeftBrace = next_token(chars)? else {
+		r_panic!("Expected `{{` in in-line Brainfuck clause.");
+	};
+
+	// tokenise and parse in-line brainfuck:
+	// totally different tokenisation to mastermind
+	let mut operations = vec![];
+	loop {
+		match chars.get(0) {
+			Some(c) => match OC::try_from_char(*c) {
+				Some(opcode) => {
+					*chars = &chars[1..];
+					operations.push(ExtendedOpcode::Opcode(opcode));
+				}
+				None => match c {
+					'{' => {
+						// recursively parse inner mastermind block
+						operations.push(ExtendedOpcode::Block(parse_block_clauses(chars)?));
+					}
+					'}' => {
+						*chars = &chars[1..];
+						break;
+					}
+					c if c.is_whitespace() => {
+						*chars = &chars[1..];
+					}
+					c => r_panic!("Unexpected character `{c}` in Brainfuck clause."),
+				},
+			},
+			None => {
+				// TODO: add source snippet
+				r_panic!("Unexpected end of file in Brainfuck clause.");
+			}
+		}
+	}
+
+	Ok(Clause::Brainfuck {
+		location_specifier,
+		clobbered_variables,
+		operations,
+	})
 }
