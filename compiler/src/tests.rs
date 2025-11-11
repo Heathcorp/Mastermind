@@ -15,6 +15,7 @@ pub mod black_box_tests {
 		brainfuck::{bvm_tests::run_code, BrainfuckConfig},
 		misc::{MastermindConfig, MastermindContext},
 		parser::parser::parse_program,
+		preprocessor::strip_comments,
 	};
 	// TODO: run test suite with different optimisations turned on
 	const OPT_NONE: MastermindConfig = MastermindConfig {
@@ -104,8 +105,8 @@ pub mod black_box_tests {
 		Vec<OC>: BrainfuckProgram,
 	{
 		let ctx = MastermindContext { config: OPT_NONE };
-
-		let clauses = parse_program::<TC, OC>(raw_program)?;
+		let stripped_program = strip_comments(raw_program);
+		let clauses = parse_program::<TC, OC>(&stripped_program)?;
 		let instructions = ctx.create_ir_scope(&clauses, None)?.build_ir(false);
 		let bf_program = ctx.ir_to_bf(instructions, None)?;
 		let bfs = bf_program.to_string();
@@ -126,7 +127,8 @@ pub mod black_box_tests {
 		let ctx = MastermindContext {
 			config: config.unwrap_or(OPT_NONE),
 		};
-		let clauses = parse_program::<TC, OC>(raw_program)?;
+		let stripped_program = strip_comments(raw_program);
+		let clauses = parse_program::<TC, OC>(&stripped_program)?;
 		let instructions = ctx.create_ir_scope(&clauses, None)?.build_ir(false);
 		let bf_code = ctx.ir_to_bf(instructions, None)?;
 

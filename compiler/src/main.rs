@@ -20,7 +20,7 @@ use crate::{
 	brainfuck::{BrainfuckConfig, BrainfuckContext},
 	misc::{MastermindConfig, MastermindContext},
 	parser::parser::parse_program,
-	preprocessor::preprocess,
+	preprocessor::{preprocess, strip_comments},
 };
 
 // stdlib dependencies:
@@ -71,6 +71,7 @@ struct Arguments {
 }
 
 fn main() -> Result<(), String> {
+	// TODO: clean up this crazy file, this was the first ever rust I wrote and it's messy
 	std::env::set_var("RUST_BACKTRACE", "1");
 
 	let args = Arguments::parse();
@@ -92,14 +93,15 @@ fn main() -> Result<(), String> {
 
 	let bf_program = match args.compile {
 		true => {
+			let stripped_program = strip_comments(&program);
 			// compile the provided file
 			if ctx.config.enable_2d_grid {
-				let parsed_syntax = parse_program::<TapeCell2D, Opcode2D>(&program)?;
+				let parsed_syntax = parse_program::<TapeCell2D, Opcode2D>(&stripped_program)?;
 				let instructions = ctx.create_ir_scope(&parsed_syntax, None)?.build_ir(false);
 				let bf_code = ctx.ir_to_bf(instructions, None)?;
 				bf_code.to_string()
 			} else {
-				let parsed_syntax = parse_program::<TapeCell, Opcode>(&program)?;
+				let parsed_syntax = parse_program::<TapeCell, Opcode>(&stripped_program)?;
 				let instructions = ctx.create_ir_scope(&parsed_syntax, None)?.build_ir(false);
 				let bf_code = ctx.ir_to_bf(instructions, None)?;
 				bf_code.to_string()

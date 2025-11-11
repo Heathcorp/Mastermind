@@ -1,7 +1,11 @@
 // take in a file, read includes and simple conditionals and output a file with those includes pasted in
 // C-style
 
+// TODO: add tests for this!
+
 use std::{collections::HashMap, path::PathBuf};
+
+use itertools::Itertools;
 
 use crate::macros::macros::r_assert;
 
@@ -71,4 +75,58 @@ pub fn preprocess_from_memory(
 	}
 
 	Ok(acc)
+}
+
+/// strips comments from input program, does not support anything else
+pub fn strip_comments(raw_program: &str) -> String {
+	let mut stripped = raw_program
+		.lines()
+		.map(|line| line.split_once("//").map_or_else(|| line, |(left, _)| left))
+		.join("\n");
+	// join doesn't add a newline to the end, here we re-add it, this is probably unnecessary
+	if raw_program.ends_with("\n") {
+		stripped.push_str("\n");
+	}
+	stripped
+}
+
+#[cfg(test)]
+pub mod preprocessor_tests {
+	use crate::preprocessor::strip_comments;
+
+	#[test]
+	fn comments_0() {
+		assert_eq!(strip_comments(""), "");
+		assert_eq!(strip_comments("\n\t\t\n"), "\n\t\t\n");
+	}
+
+	#[test]
+	fn comments_1() {
+		assert_eq!(strip_comments("hi//hello"), "hi");
+	}
+
+	#[test]
+	fn comments_2() {
+		assert_eq!(strip_comments("h//i // hello"), "h");
+	}
+
+	#[test]
+	fn comments_3() {
+		assert_eq!(
+			strip_comments(
+				r#"
+hello // don't talk to me
+second line
+// third line comment
+fourth line
+"#
+			),
+			r#"
+hello 
+second line
+
+fourth line
+"#
+		);
+	}
 }

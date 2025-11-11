@@ -29,6 +29,7 @@ fn parse_clause<TC: TapeCellLocation, OC: OpcodeVariant>(
 	chars: &mut &[char],
 ) -> Result<Option<Clause<TC, OC>>, String> {
 	let mut s = *chars;
+	// TODO: decide whether comments should be handled in the parser or not?
 	Ok(match next_token(&mut s)? {
 		Token::None => None,
 		Token::Semicolon => {
@@ -41,6 +42,7 @@ fn parse_clause<TC: TapeCellLocation, OC: OpcodeVariant>(
 		Token::If => Some(parse_if_else_clause(chars)?),
 		Token::While => Some(parse_while_clause(chars)?),
 		Token::Fn => Some(parse_function_definition_clause(chars)?),
+		Token::Assert => Some(parse_assert_clause(chars)?),
 		Token::Struct => {
 			let Token::Name(_) = next_token(&mut s)? else {
 				// TODO: add source snippet
@@ -57,6 +59,22 @@ fn parse_clause<TC: TapeCellLocation, OC: OpcodeVariant>(
 			_ => Some(parse_assign_clause(chars)?),
 		},
 		Token::Drain | Token::Copy => Some(parse_drain_copy_clause(chars)?),
+		Token::PlusPlus => {
+			*chars = s;
+			Some(Clause::AddAssign {
+				var: parse_var_target(chars)?,
+				value: Expression::NaturalNumber(1),
+				self_referencing: false,
+			})
+		}
+		Token::MinusMinus => {
+			*chars = s;
+			Some(Clause::AddAssign {
+				var: parse_var_target(chars)?,
+				value: Expression::NaturalNumber((-1i8 as u8) as usize),
+				self_referencing: false,
+			})
+		}
 		token => r_panic!("Invalid starting token `{token}`."),
 	})
 }
@@ -235,7 +253,6 @@ pub fn parse_var_target(chars: &mut &[char]) -> Result<VariableTarget, String> {
 		let mut s = *chars;
 		match next_token(&mut s)? {
 			Token::LeftSquareBracket => {
-				s = *chars;
 				let index = parse_subscript(chars)?;
 				ref_chain.push(Reference::Index(index));
 			}
@@ -621,4 +638,24 @@ fn parse_drain_copy_clause<TC: TapeCellLocation, OC: OpcodeVariant>(
 		block,
 		is_copying,
 	})
+}
+
+fn parse_assert_clause<T, O>(chars: &mut &[char]) -> Result<Clause<T, O>, String> {
+	let Token::Assert = next_token(chars)? else {
+		r_panic!("Expected `assert` in assert clause.");
+	};
+
+	let var = parse_var_target(chars)?;
+
+	let value = match next_token(chars)? {
+		Token::Unknown => None,
+		Token::Equals => Some(Expression::parse(chars)?),
+		token => r_panic!("Unexpected `{token}` in assert clause."),
+	};
+
+	let Token::Semicolon = next_token(chars)? else {
+		r_panic!("Expected semicolon at end of assert clause.");
+	};
+
+	Ok(Clause::AssertVariableValue { var, value })
 }
