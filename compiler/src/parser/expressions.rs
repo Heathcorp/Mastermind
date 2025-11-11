@@ -51,6 +51,7 @@ impl Expression {
 				| Token::Comma
 				| Token::LeftBrace
 				| Token::Into
+				| Token::RightSquareBracket
 				| Token::None) = next_token(&mut s)?
 				else {
 					// TODO: add source snippet
@@ -90,6 +91,7 @@ impl Expression {
 						| Token::Comma
 						| Token::RightParenthesis
 						| Token::RightSquareBracket
+						| Token::Into
 						| Token::None,
 					) = next_token(&mut s)
 					else {
@@ -336,7 +338,7 @@ impl Display for Expression {
 				let mut summands_iter = summands.iter();
 				// TODO: refactor to remove the need for this
 				if let Some(first_expr) = summands_iter.next() {
-					f.write_fmt(format_args!("{first_expr}"));
+					f.write_fmt(format_args!("{first_expr}"))?;
 					for expr in summands_iter {
 						f.write_str(" ")?;
 						match expr {

@@ -95,7 +95,7 @@ pub mod black_box_tests {
 	const TESTING_BVM_MAX_STEPS: usize = 100_000_000;
 
 	fn compile_and_run<'a, TC: 'static + TapeCellVariant, OC: 'static + OpcodeVariant>(
-		program: &str,
+		raw_program: &str,
 		input: &str,
 	) -> Result<String, String>
 	where
@@ -104,7 +104,8 @@ pub mod black_box_tests {
 		Vec<OC>: BrainfuckProgram,
 	{
 		let ctx = MastermindContext { config: OPT_NONE };
-		let clauses = parse_program::<TC, OC>(program)?;
+
+		let clauses = parse_program::<TC, OC>(raw_program)?;
 		let instructions = ctx.create_ir_scope(&clauses, None)?.build_ir(false);
 		let bf_program = ctx.ir_to_bf(instructions, None)?;
 		let bfs = bf_program.to_string();
@@ -114,7 +115,7 @@ pub mod black_box_tests {
 	}
 
 	fn compile_program<'a, TC: 'static + TapeCellVariant, OC: 'static + OpcodeVariant>(
-		program: &str,
+		raw_program: &str,
 		config: Option<MastermindConfig>,
 	) -> Result<String, String>
 	where
@@ -125,7 +126,7 @@ pub mod black_box_tests {
 		let ctx = MastermindContext {
 			config: config.unwrap_or(OPT_NONE),
 		};
-		let clauses = parse_program::<TC, OC>(program)?;
+		let clauses = parse_program::<TC, OC>(raw_program)?;
 		let instructions = ctx.create_ir_scope(&clauses, None)?.build_ir(false);
 		let bf_code = ctx.ir_to_bf(instructions, None)?;
 
@@ -138,6 +139,11 @@ pub mod black_box_tests {
 	}
 
 	#[test]
+	fn empty_program_1a() {
+		assert_eq!(compile_and_run::<TapeCell, Opcode>(";;;", "").unwrap(), "");
+	}
+
+	#[test]
 	fn empty_program_2() {
 		assert_eq!(compile_and_run::<TapeCell, Opcode>("{}", "").unwrap(), "");
 	}
@@ -145,13 +151,21 @@ pub mod black_box_tests {
 	#[test]
 	fn empty_program_2a() {
 		assert_eq!(
-			compile_and_run::<TapeCell, Opcode>("{{{{}}}}", "").unwrap(),
+			compile_and_run::<TapeCell, Opcode>("{;;};", "").unwrap(),
 			""
 		);
 	}
 
 	#[test]
 	fn empty_program_2b() {
+		assert_eq!(
+			compile_and_run::<TapeCell, Opcode>("{{{{}}}}", "").unwrap(),
+			""
+		);
+	}
+
+	#[test]
+	fn empty_program_2c() {
 		assert_eq!(
 			compile_and_run::<TapeCell, Opcode>(
 				"{{}} {} {{{}{}}} {{{ { }{ }} {{ }{ }}} {{{ }{}}{{} {}}}}",
@@ -163,17 +177,26 @@ pub mod black_box_tests {
 	}
 
 	#[test]
-	fn empty_program_3() {
+	fn empty_program_2d() {
 		assert_eq!(
-			compile_and_run::<TapeCell, Opcode>(";", "").unwrap_err(),
+			compile_and_run::<TapeCell, Opcode>(
+				"{{}} {} {{{}{}}} {{{ { }{ ;}}; {{ }{ }};} {{{; }{;};}{;{;};; {};}}}",
+				""
+			)
+			.unwrap(),
 			""
 		);
 	}
 
 	#[test]
+	fn empty_program_3() {
+		assert_eq!(compile_and_run::<TapeCell, Opcode>(";", "").unwrap(), "");
+	}
+
+	#[test]
 	fn empty_program_3a() {
 		assert_eq!(
-			compile_and_run::<TapeCell, Opcode>(";;;;;;", "").unwrap_err(),
+			compile_and_run::<TapeCell, Opcode>(";;;;;;", "").unwrap(),
 			""
 		);
 	}
@@ -181,7 +204,7 @@ pub mod black_box_tests {
 	#[test]
 	fn empty_program_3b() {
 		assert_eq!(
-			compile_and_run::<TapeCell, Opcode>(";;{;{;};};;;", "").unwrap_err(),
+			compile_and_run::<TapeCell, Opcode>(";;{;{;};};;;", "").unwrap(),
 			""
 		);
 	}
@@ -1605,7 +1628,6 @@ output '\n';
 	}
 
 	#[test]
-	#[should_panic]
 	fn structs_4d() {
 		let program = r#"
 struct AA a;
@@ -1619,9 +1641,10 @@ struct AA {
 output a.reds[4];
 output '\n';
 "#;
-		let output = compile_and_run::<TapeCell, Opcode>(program, "0123a").expect("");
-		println!("{output}");
-		assert_eq!(output, "a\n");
+		assert_eq!(
+			compile_and_run::<TapeCell, Opcode>(program, "0123a").unwrap_err(),
+			""
+		);
 	}
 
 	#[test]

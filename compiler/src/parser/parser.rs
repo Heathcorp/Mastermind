@@ -18,11 +18,7 @@ pub fn parse_program<TC: TapeCellLocation, OC: OpcodeVariant>(
 	let program_chars: Vec<char> = raw.chars().collect();
 	let mut chars_slice = &program_chars[..];
 	let mut clauses = vec![];
-	loop {
-		let clause = parse_clause(&mut chars_slice)?;
-		if let Clause::None = clause {
-			break;
-		}
+	while let Some(clause) = parse_clause(&mut chars_slice)? {
 		clauses.push(clause);
 	}
 
@@ -31,32 +27,36 @@ pub fn parse_program<TC: TapeCellLocation, OC: OpcodeVariant>(
 
 fn parse_clause<TC: TapeCellLocation, OC: OpcodeVariant>(
 	chars: &mut &[char],
-) -> Result<Clause<TC, OC>, String> {
+) -> Result<Option<Clause<TC, OC>>, String> {
 	let mut s = *chars;
 	Ok(match next_token(&mut s)? {
-		Token::None => Clause::None,
-		Token::LeftBrace => Clause::Block(parse_block_clauses(chars)?),
-		Token::Output => parse_output_clause(chars)?,
-		Token::Input => parse_input_clause(chars)?,
-		Token::If => parse_if_else_clause(chars)?,
-		Token::While => parse_while_clause(chars)?,
-		Token::Fn => parse_function_definition_clause(chars)?,
+		Token::None => None,
+		Token::Semicolon => {
+			*chars = s;
+			Some(Clause::None)
+		}
+		Token::LeftBrace => Some(Clause::Block(parse_block_clauses(chars)?)),
+		Token::Output => Some(parse_output_clause(chars)?),
+		Token::Input => Some(parse_input_clause(chars)?),
+		Token::If => Some(parse_if_else_clause(chars)?),
+		Token::While => Some(parse_while_clause(chars)?),
+		Token::Fn => Some(parse_function_definition_clause(chars)?),
 		Token::Struct => {
 			let Token::Name(_) = next_token(&mut s)? else {
 				// TODO: add source snippet
 				r_panic!("Expected identifier after `struct` keyword.");
 			};
 			match next_token(&mut s)? {
-				Token::LeftBrace => parse_struct_definition_clause(chars)?,
-				_ => parse_let_clause(chars)?,
+				Token::LeftBrace => Some(parse_struct_definition_clause(chars)?),
+				_ => Some(parse_let_clause(chars)?),
 			}
 		}
-		Token::Cell => parse_let_clause(chars)?,
+		Token::Cell => Some(parse_let_clause(chars)?),
 		Token::Name(_) => match next_token(&mut s)? {
 			Token::LeftParenthesis => todo!(),
-			_ => parse_assign_clause(chars)?,
+			_ => Some(parse_assign_clause(chars)?),
 		},
-		Token::Drain | Token::Copy => parse_drain_copy_clause(chars)?,
+		Token::Drain | Token::Copy => Some(parse_drain_copy_clause(chars)?),
 		token => r_panic!("Invalid starting token `{token}`."),
 	})
 }
@@ -77,10 +77,9 @@ fn parse_block_clauses<TC: TapeCellLocation, OC: OpcodeVariant>(
 				break;
 			}
 		}
-		let clause = parse_clause(chars)?;
-		if let Clause::None = clause {
-			break;
-		}
+		let Some(clause) = parse_clause(chars)? else {
+			r_panic!("Expected clause in code block. This should not occur.");
+		};
 		clauses.push(clause);
 	}
 
@@ -232,15 +231,17 @@ pub fn parse_var_target(chars: &mut &[char]) -> Result<VariableTarget, String> {
 	};
 
 	let mut ref_chain = vec![];
-	let mut s = *chars;
 	loop {
+		let mut s = *chars;
 		match next_token(&mut s)? {
 			Token::LeftSquareBracket => {
+				s = *chars;
 				let index = parse_subscript(chars)?;
 				ref_chain.push(Reference::Index(index));
 			}
 			Token::Dot => {
-				let Token::Name(subfield_name) = next_token(&mut s)? else {
+				*chars = s;
+				let Token::Name(subfield_name) = next_token(chars)? else {
 					// TODO: add source snippet
 					r_panic!("Expected subfield name in variable target identifier.");
 				};
@@ -248,7 +249,6 @@ pub fn parse_var_target(chars: &mut &[char]) -> Result<VariableTarget, String> {
 			}
 			_ => break,
 		}
-		*chars = s;
 	}
 
 	Ok(VariableTarget {
@@ -543,8 +543,8 @@ fn parse_assign_clause<T, O>(chars: &mut &[char]) -> Result<Clause<T, O>, String
 			"Expected semicolon at end of {} clause.",
 			match operator {
 				Token::EqualsSign => "assignment",
-				Token::PlusEquals => "add-assignment",
-				Token::MinusEquals => "subtract-assignment",
+				Token::PlusEquals => "addition-assignment",
+				Token::MinusEquals => "subtraction-assignment",
 				_ => unreachable!(),
 			}
 		);

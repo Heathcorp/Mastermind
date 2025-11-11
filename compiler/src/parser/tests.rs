@@ -43,22 +43,6 @@ mod parser_tests {
 	#[test]
 	fn end_tokens_2() {
 		assert_eq!(
-			parse_program::<TapeCell, Opcode>(";").unwrap_err(),
-			"Invalid starting token `;`."
-		);
-		assert_eq!(
-			parse_program::<TapeCell, Opcode>(";;").unwrap_err(),
-			"Invalid starting token `;`."
-		);
-		assert_eq!(
-			parse_program::<TapeCell, Opcode>(";;;").unwrap_err(),
-			"Invalid starting token `;`."
-		);
-	}
-
-	#[test]
-	fn end_tokens_3() {
-		assert_eq!(
 			parse_program::<TapeCell, Opcode>("cell;").unwrap_err(),
 			"Expected name in variable definition."
 		)
@@ -574,8 +558,50 @@ struct nonsense[39] arr @-56 = 56 - ( 4+3+( -7-5 +(6)-(((( (0) )))) ) );
 	}
 
 	#[test]
+	fn empty_clauses_1() {
+		_parser_test(";", &[Clause::None]);
+	}
+
+	#[test]
+	fn empty_clauses_1a() {
+		_parser_test("; ", &[Clause::None]);
+		_parser_test(";\n", &[Clause::None]);
+		_parser_test("\n;\n;\n", &[Clause::None, Clause::None]);
+	}
+
+	#[test]
+	fn empty_clauses_2() {
+		_parser_test(
+			" ; ;{;output  3 ; ;} ; ;    ",
+			&[
+				Clause::None,
+				Clause::None,
+				Clause::Block(vec![
+					Clause::None,
+					Clause::Output {
+						value: Expression::NaturalNumber(3),
+					},
+					Clause::None,
+				]),
+				Clause::None,
+				Clause::None,
+			],
+		);
+	}
+
+	#[test]
 	fn blocks_1() {
 		_parser_test("{}", &[Clause::Block(vec![])]);
+		_parser_test(
+			";;{;;};;",
+			&[
+				Clause::None,
+				Clause::None,
+				Clause::Block(vec![Clause::None, Clause::None]),
+				Clause::None,
+				Clause::None,
+			],
+		);
 	}
 
 	#[test]
