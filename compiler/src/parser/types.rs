@@ -62,7 +62,7 @@ pub enum Clause<TC, OC> {
 	},
 	CallFunction {
 		function_name: String,
-		arguments: Vec<VariableTarget>,
+		arguments: Vec<Expression>,
 	},
 	If {
 		condition: Expression,

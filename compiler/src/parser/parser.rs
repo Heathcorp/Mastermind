@@ -55,7 +55,7 @@ fn parse_clause<TC: TapeCellLocation, OC: OpcodeVariant>(
 		}
 		Token::Cell => Some(parse_let_clause(chars)?),
 		Token::Name(_) => match next_token(&mut s)? {
-			Token::LeftParenthesis => todo!(),
+			Token::LeftParenthesis => Some(parse_function_call_clause(chars)?),
 			_ => Some(parse_assign_clause(chars)?),
 		},
 		Token::Drain | Token::Copy => Some(parse_drain_copy_clause(chars)?),
@@ -445,7 +445,7 @@ fn parse_function_definition_clause<TC: TapeCellLocation, OC: OpcodeVariant>(
 			Token::RightParenthesis => break,
 			Token::Comma => (),
 			// TODO: add source snippet
-			_ => r_panic!("Unexpected token in function argument list."),
+			_ => r_panic!("Unexpected token in function definition arguments."),
 		}
 	}
 
@@ -453,6 +453,42 @@ fn parse_function_definition_clause<TC: TapeCellLocation, OC: OpcodeVariant>(
 		name: function_name,
 		arguments,
 		block: parse_block_clauses(chars)?,
+	})
+}
+
+fn parse_function_call_clause<T, O>(chars: &mut &[char]) -> Result<Clause<T, O>, String> {
+	let Token::Name(function_name) = next_token(chars)? else {
+		// TODO: add source snippet
+		r_panic!("Expected function name in function call clause.");
+	};
+
+	let Token::LeftParenthesis = next_token(chars)? else {
+		// TODO: add source snippet
+		r_panic!("Expected `(` in function call clause.");
+	};
+
+	let mut arguments = vec![];
+	loop {
+		{
+			let mut s = *chars;
+			if let Token::RightParenthesis = next_token(&mut s)? {
+				*chars = s;
+				break;
+			}
+		}
+		arguments.push(Expression::parse(chars)?);
+
+		match next_token(chars)? {
+			Token::RightParenthesis => break,
+			Token::Comma => (),
+			// TODO: add source snippet
+			_ => r_panic!("Unexpected token in function call arguments."),
+		}
+	}
+
+	Ok(Clause::CallFunction {
+		function_name,
+		arguments,
 	})
 }
 

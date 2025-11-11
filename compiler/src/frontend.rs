@@ -596,32 +596,36 @@ impl MastermindContext {
 				} => {
 					// create variable translations and recursively compile the inner variable block
 
-					let calling_argument_types = arguments
+					// get the calling arguments' types
+					let calling_argument_types: Vec<ValueType> = arguments
 						.iter()
-						.map(|a| scope.get_target_type(&a))
-						.collect::<Result<Vec<_>, _>>()?;
+						.map(|arg| scope.get_expression_type(arg))
+						.collect::<Result<Vec<ValueType>, String>>()?;
 
+					// find the function based on name * types
 					let function_definition =
 						scope.get_function(&function_name, &calling_argument_types)?;
 
+					// create mappings in a new translation scope, so mappings will be removed once scope closes
 					let mut argument_translation_scope = scope.open_inner();
-
-					// TODO: refactor this mess
-					// deal with argument memory mappings:
-					for ((calling_argument, calling_argument_type), (arg_name, expected_type)) in
-						zip(
-							zip(arguments, calling_argument_types),
-							function_definition.arguments.iter(),
-						) {
-						// TODO: fix this duplicate call, get_target_type() internally gets the memory allocation details
-						// 	then these are gotten again in create_mapped_variable()
-						r_assert!(calling_argument_type == expected_type, "Expected argument of type \"{expected_type:#?}\" in function call \"{function_name}\", received argument of type \"{calling_argument_type:#?}\". This should not occur");
-						// register an argument translation in the scope
+					assert_eq!(arguments.len(), function_definition.arguments.len());
+					for (calling_expr, (arg_name, _)) in
+						zip(arguments, function_definition.arguments)
+					{
+						// TODO: allow expressions as arguments: create a new variable instead of mapping when a value needs to be computed
+						let calling_arg = match calling_expr {
+							Expression::VariableReference(var) => var,
+							expr => r_panic!(
+								"Expected variable target in function call argument, \
+found expression `{expr}`. General expressions as \
+function arguments are not supported."
+							),
+						};
 						argument_translation_scope
-							.create_mapped_variable(arg_name.clone(), &calling_argument)?;
+							.create_mapped_variable(arg_name, &calling_arg)?;
 					}
 
-					// recurse
+					// recursively compile the function block
 					let function_scope = self.create_ir_scope(
 						&function_definition.block,
 						Some(&argument_translation_scope),
@@ -630,8 +634,8 @@ impl MastermindContext {
 						.instructions
 						.extend(function_scope.build_ir(true));
 
-					// extend the inner scope instructions onto the outer scope
-					// maybe function call compiling should be its own function?
+					// add the recursively compiled instructions to the current scope's built instructions
+					// TODO: figure out why this .build_ir() call uses clean_up_variables = false
 					scope
 						.instructions
 						.extend(argument_translation_scope.build_ir(false));
@@ -891,6 +895,34 @@ impl ValueType {
 	}
 }
 
+impl Display for ValueType {
+	fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+		match self {
+			ValueType::Cell => {
+				f.write_str("cell")?;
+			}
+			ValueType::Array(length, element_type) => {
+				f.write_fmt(format_args!("{element_type}[{length}]"))?;
+			}
+			ValueType::DictStruct(fields) => {
+				f.write_str("{")?;
+				let fields_len = fields.len();
+				for (i, (field_name, field_type, offset)) in fields.iter().enumerate() {
+					f.write_fmt(format_args!("{field_type} {field_name}"))?;
+					if let Some(offset) = offset {
+						f.write_fmt(format_args!(" @{offset}"))?;
+					}
+					f.write_str(";")?;
+					if i < (fields_len - 1) {
+						f.write_str(" ")?;
+					}
+				}
+			}
+		}
+		Ok(())
+	}
+}
+
 impl<TC, OC> ScopeBuilder<'_, TC, OC>
 where
 	TC: Display + Clone,
@@ -908,6 +940,7 @@ where
 		}
 	}
 
+	// regarding `clean_up_variables`:
 	// I don't love this system of deciding what to clean up at the end in this specific function, but I'm not sure what the best way to achieve this would be
 	// this used to be called "get_instructions" but I think this more implies things are being modified
 	pub fn build_ir(mut self, clean_up_variables: bool) -> Vec<Instruction<TC, OC>> {
@@ -1050,36 +1083,38 @@ where
 		}
 	}
 
+	/// find a function definition based on name and argument types (unaffected by the self.fn_only flag)
 	fn get_function(
 		&self,
 		calling_name: &str,
-		calling_arg_types: &Vec<&ValueType>,
+		calling_arg_types: &Vec<ValueType>,
 	) -> Result<Function<TC, OC>, String> {
-		// this function is unaffected by the self.fn_only flag
-		Ok(
-			if let Some(func) = self.functions.iter().find(|(name, args, _)| {
-				if name != calling_name || args.len() != calling_arg_types.len() {
+		if let Some(func) = self.functions.iter().find(|(name, args, _)| {
+			if name != calling_name || args.len() != calling_arg_types.len() {
+				return false;
+			}
+			for ((_, arg_type), calling_arg_type) in zip(args, calling_arg_types) {
+				if *arg_type != *calling_arg_type {
 					return false;
 				}
-				for ((_, arg_type), calling_arg_type) in zip(args, calling_arg_types) {
-					if *arg_type != **calling_arg_type {
-						return false;
-					}
-				}
-				true
-			}) {
-				// TODO: stop cloning! This function overload stuff is tacked on and needs refactoring
-				let (_, arguments, block) = func;
-				Function {
-					arguments: arguments.clone(),
-					block: block.clone(),
-				}
-			} else if let Some(outer_scope) = self.outer_scope {
-				outer_scope.get_function(calling_name, calling_arg_types)?
-			} else {
-				r_panic!("Could not find function \"{calling_name}\" with correct arguments in current scope");
-			},
-		)
+			}
+			true
+		}) {
+			// TODO: stop cloning! This function overload stuff is tacked on and needs refactoring
+			let (_, arguments, block) = func;
+			return Ok(Function {
+				arguments: arguments.clone(),
+				block: block.clone(),
+			});
+		}
+
+		if let Some(outer_scope) = self.outer_scope {
+			return outer_scope.get_function(calling_name, calling_arg_types);
+		}
+
+		r_panic!(
+			"Could not find function \"{calling_name}\" with correct arguments in current scope"
+		);
 	}
 
 	/// Define a struct in this scope
@@ -1116,7 +1151,7 @@ where
 		new_arguments: Vec<VariableTypeDefinition<TC>>,
 		new_block: Vec<Clause<TC, OC>>,
 	) -> Result<(), String> {
-		let absolute_arguments = new_arguments
+		let absolute_arguments: Vec<(String, ValueType)> = new_arguments
 			.into_iter()
 			.map(|f| {
 				let LocationSpecifier::None = f.location_specifier else {
@@ -1124,8 +1159,9 @@ where
 				};
 				Ok((f.name, self.create_absolute_type(&f.var_type)?))
 			})
-			.collect::<Result<Vec<_>, _>>()?;
+			.collect::<Result<Vec<(String, ValueType)>, String>>()?;
 
+		// TODO: refactor this:
 		// This is some fucked C-style loop break logic, basically GOTOs
 		// basically it only gets to the panic if the functions have identical signature (except argument names)
 		'func_loop: for (name, args, _) in self.functions.iter() {
@@ -1436,7 +1472,8 @@ where
 		})
 	}
 
-	/// Create memory mapping between a pre-existing variable and a new one, used for function arguments
+	/// Create memory mapping between a pre-existing variable and a new one, used for function arguments.
+	///  This could be used for copy by reference of subfields in future.
 	fn create_mapped_variable(
 		&mut self,
 		mapped_var_name: String,
@@ -1529,6 +1566,56 @@ mapping: {mapped_var_name} -> {target}"
 		self.variable_memory
 			.insert(mapped_var_name, (var_type.clone(), mapped_memory));
 		Ok(())
+	}
+
+	/// Get the final type of an expression.
+	///  (technically unnecessary right now, but can be used to implement expressions as function arguments in future)
+	fn get_expression_type(&self, expr: &Expression) -> Result<ValueType, String> {
+		Ok(match expr {
+			Expression::NaturalNumber(_) => ValueType::Cell,
+			Expression::SumExpression { sign: _, summands } => {
+				let Some(_) = summands.first() else {
+					r_panic!(
+						"Cannot infer expression type because sum \
+expression has no elements: `{expr}`."
+					);
+				};
+				// TODO: decide if the summands' types should be verified here or not
+				for summand in summands {
+					match self.get_expression_type(summand)? {
+						ValueType::Cell => (),
+						summand_type => {
+							r_panic!(
+								"Sum expressions must be comprised of cell-types: \
+found `{summand_type}` in `{expr}`"
+							);
+						}
+					};
+				}
+				ValueType::Cell
+			}
+			Expression::VariableReference(var) => self.get_target_type(var)?.clone(),
+			Expression::ArrayLiteral(elements) => {
+				let mut elements_iter = elements.iter();
+				let Some(first_element) = elements_iter.next() else {
+					r_panic!(
+						"Cannot infer expression type because \
+array literal has no elements: `{expr}`."
+					);
+				};
+				let first_element_type = self.get_expression_type(first_element)?;
+				for element in elements_iter {
+					let element_type = self.get_expression_type(element)?;
+					r_assert!(
+						element_type == first_element_type,
+						"All elements in array expressions must have the \
+same type: found `{element_type}` in `{expr}`"
+					);
+				}
+				ValueType::Array(elements.len(), Box::new(first_element_type))
+			}
+			Expression::StringLiteral(s) => ValueType::Array(s.len(), Box::new(ValueType::Cell)),
+		})
 	}
 
 	/// helper function for a common use-case:
@@ -1648,4 +1735,165 @@ mapping: {mapped_var_name} -> {target}"
 		self.push_instruction(Instruction::CloseLoop(temp_cell));
 		self.push_instruction(Instruction::Free(temp_mem_id));
 	}
+}
+
+// TODO: think about where to put these tests, and by extension where to put the scopebuilder
+#[cfg(test)]
+mod scope_builder_tests {
+	use crate::{
+		backend::bf::{Opcode, TapeCell},
+		parser::expressions::Sign,
+	};
+
+	use super::*;
+
+	#[test]
+	fn variable_allocation_1() {
+		let mut scope = ScopeBuilder::<TapeCell, Opcode>::new();
+		let allocated_type = scope.allocate_variable(VariableTypeDefinition {
+			name: String::from("var"),
+			var_type: VariableTypeReference::Cell,
+			location_specifier: LocationSpecifier::None,
+		});
+		assert_eq!(allocated_type, Ok(&ValueType::Cell));
+	}
+
+	#[test]
+	fn get_expression_type_numbers_1() {
+		let scope = ScopeBuilder::<TapeCell, Opcode>::new();
+		assert_eq!(
+			scope
+				.get_expression_type(&Expression::NaturalNumber(0))
+				.unwrap(),
+			ValueType::Cell
+		);
+		assert_eq!(
+			scope
+				.get_expression_type(&Expression::NaturalNumber(1))
+				.unwrap(),
+			ValueType::Cell
+		);
+		assert_eq!(
+			scope
+				.get_expression_type(&Expression::NaturalNumber(345678))
+				.unwrap(),
+			ValueType::Cell
+		);
+	}
+
+	#[test]
+	fn get_expression_type_sums_1() {
+		let scope = ScopeBuilder::<TapeCell, Opcode>::new();
+		assert_eq!(
+			scope
+				.get_expression_type(&Expression::SumExpression {
+					sign: Sign::Positive,
+					summands: vec![Expression::NaturalNumber(0)]
+				})
+				.unwrap(),
+			ValueType::Cell
+		);
+		assert_eq!(
+			scope
+				.get_expression_type(&Expression::SumExpression {
+					sign: Sign::Negative,
+					summands: vec![
+						Expression::NaturalNumber(345678),
+						Expression::NaturalNumber(2)
+					]
+				})
+				.unwrap(),
+			ValueType::Cell
+		);
+		assert_eq!(
+			scope
+				.get_expression_type(&Expression::SumExpression {
+					sign: Sign::Positive,
+					summands: vec![
+						Expression::SumExpression {
+							sign: Sign::Negative,
+							summands: vec![
+								Expression::NaturalNumber(1),
+								Expression::NaturalNumber(2)
+							]
+						},
+						Expression::NaturalNumber(2)
+					]
+				})
+				.unwrap(),
+			ValueType::Cell
+		);
+	}
+
+	#[test]
+	fn get_expression_type_variables_1() {
+		let mut scope = ScopeBuilder::<TapeCell, Opcode>::new();
+		scope
+			.allocate_variable(VariableTypeDefinition {
+				name: String::from("var"),
+				var_type: VariableTypeReference::Cell,
+				location_specifier: LocationSpecifier::None,
+			})
+			.unwrap();
+		assert_eq!(
+			scope
+				.get_expression_type(&Expression::VariableReference(VariableTarget {
+					name: String::from("var"),
+					subfields: None,
+					is_spread: false
+				}))
+				.unwrap(),
+			ValueType::Cell
+		);
+		assert_eq!(
+			scope
+				.get_expression_type(&Expression::SumExpression {
+					sign: Sign::Positive,
+					summands: vec![
+						Expression::VariableReference(VariableTarget {
+							name: String::from("var"),
+							subfields: None,
+							is_spread: false
+						}),
+						Expression::NaturalNumber(123)
+					]
+				})
+				.unwrap(),
+			ValueType::Cell
+		);
+	}
+
+	#[test]
+	fn get_expression_type_arrays_1() {
+		let mut scope = ScopeBuilder::<TapeCell, Opcode>::new();
+		scope
+			.allocate_variable(VariableTypeDefinition {
+				name: String::from("arr"),
+				var_type: VariableTypeReference::Array(Box::new(VariableTypeReference::Cell), 3),
+				location_specifier: LocationSpecifier::None,
+			})
+			.unwrap();
+		assert_eq!(
+			scope
+				.get_expression_type(&Expression::VariableReference(VariableTarget {
+					name: String::from("arr"),
+					subfields: None,
+					is_spread: false
+				}))
+				.unwrap(),
+			ValueType::Array(3, Box::new(ValueType::Cell))
+		);
+		assert_eq!(
+			scope
+				.get_expression_type(&Expression::VariableReference(VariableTarget {
+					name: String::from("arr"),
+					subfields: Some(VariableTargetReferenceChain(vec![Reference::Index(0)])),
+					is_spread: false
+				}))
+				.unwrap(),
+			ValueType::Cell
+		);
+	}
+
+	// TODO: make failure tests for expression types
 }
