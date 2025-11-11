@@ -186,9 +186,9 @@ fn parse_var_type_definition<TC: TapeCellLocation>(
 
 			VariableTypeReference::Struct(struct_name)
 		}
-		_ => {
+		token => {
 			// TODO: add source snippet
-			r_panic!("Unexpected token in variable type definition.");
+			r_panic!("Unexpected `{token}` found in variable type definition.");
 		}
 	};
 
@@ -519,8 +519,12 @@ fn parse_struct_definition_clause<TC: TapeCellLocation, O>(
 			// TODO: add source snippet
 			r_panic!("Expected semicolon after struct definition field.");
 		};
-		if let Token::RightBrace = next_token(chars)? {
-			break;
+		{
+			let mut s = *chars;
+			if let Token::RightBrace = next_token(&mut s)? {
+				*chars = s;
+				break;
+			}
 		}
 	}
 

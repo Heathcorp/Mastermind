@@ -1645,7 +1645,7 @@ output '\n';
 "#;
 		assert_eq!(
 			compile_and_run::<TapeCell, Opcode>(program, "0123a").unwrap_err(),
-			""
+			"Index \"[4]\" must be less than array length (4)."
 		);
 	}
 
