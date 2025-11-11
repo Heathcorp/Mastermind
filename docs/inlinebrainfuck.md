@@ -2,14 +2,18 @@
 
 In-line Brainfuck allows the programmer to define custom behaviour as if writing raw Brainfuck, much in the same way as C has in-line assembly syntax.
 
+Basic example:
+
 ```
-// This is its most basic form:
 // find the next cell that equals -1
 bf {
    +[->+]-
 }
+```
 
-// This is its more advanced form:
+More advanced example:
+
+```
 // input a line of lowercase letters and output the uppercase version
 // this is an intentionally inefficient example
 bf @3 clobbers var *spread_var etc {
@@ -29,11 +33,11 @@ bf @3 clobbers var *spread_var etc {
 }
 ```
 
-It is the programmer's responsibility to clear used cells and return back to the cell in which they started the in-line Brainfuck context. If the programmer does not do this, any mastermind code after the in-line Brainfuck command will likely break.
+It is the programmer's responsibility to clear used cells and return back to the cell in which they started the in-line Brainfuck context. If the programmer does not do this, any following Mastermind code may break.
 
 #### Memory location specifiers
 
-For hand-tuning optimisations and in-line Brainfuck that reads from Mastermind variables, you can specify the location on the Brainfuck tape:
+The exact location to start an in-line Brainfuck context can be specified:
 
 ```
 cell var @3 = 4;
@@ -45,19 +49,9 @@ bf @4 {
 // compiled: >>>><><><>
 ```
 
-Alternatively if using the 2D grid you can use a comma seperated list with a second value:
-
-```
-
-bf @4,3 {
-   <><><>
-}
-// compiled: >>>>^^^<><><>
-```
-
 #### Clobbering and Assertions
 
-Mastermind will try to predict the value of cells at compile-time, so it can prevent unnecessary cell clean-ups and unreachable code (with optimisations turned on). If your in-line Brainfuck affects existing Mastermind variables, you should tell the compiler using the `clobbers` keyword, the syntax is similar to the `drain into` list:
+With optimisations enabled, Mastermind will try to predict the value of cells at compile-time, so it can prevent unnecessary cell clean-ups and unreachable code. If your in-line Brainfuck affects existing Mastermind variables, you should tell the compiler using the `clobbers` keyword, the syntax is similar to the `drain into` target list:
 
 ```
 bf clobbers var *spread_var other_var etc {}
@@ -78,29 +72,56 @@ Asserting a variable as `unknown` is equivalent to clobbering.
 
 #### Embedded Mastermind
 
-You can embed high-level Mastermind code within a Brainfuck context, this allows you to control precisely what the generated Brainfuck code is doing, whilst also taking advantage of the syntax features of Mastermind.
+You can embed high-level Mastermind code within a Brainfuck context. During compilation the embedded Mastermind is compiled and the generated Brainfuck is inserted in place.
 
 ```
-cell sum @0;
+// input 3 n-length lines of input
+bf {
+  >+++<,[
+    {
+      cell input_char @0;
+      assert input_char unknown;
+      cell length_remaining @1;
+      assert length_remaining unknown;
 
-bf @0 {
-   >>
-   // read input (until eof) to the tape, nullifying any spaces or newlines
-   // (this is probably not a good practical example, ideas are appreciated)
-   ,[
-      {
-         cell c @0;
-         assert c unknown; // needed otherwise the compiler assumes c = 0
-
-         if not (c - '\n') {
-            c = 0;
-         }
-         if not (c - ' ') {
-            c = 0;
-         }
+      cell next_char @2;
+      cell next_length_remaining @3;
+      if not input_char - '\n' {
+        length_remaining -= 1;
       }
-      >,
-   ]
+      if length_remaining {
+        drain length_remaining into next_length_remaining;
+        input next_char;
+      }
+    }
+  >>]
+}
+```
+
+This can be done recursively, for example:
+
+```
+// top-level Mastermind context
+bf {
+  ++>>
+  {
+    // inner Mastermind context
+    bf {
+      ++>>
+      {
+        // inner inner Mastermind context
+        bf {
+          ++>>
+          {
+            //...
+          }
+          <<--
+        }
+      }
+      <<--
+    }
+  }
+  <<--
 }
 ```
 
@@ -123,33 +144,5 @@ bf {
    {{
       // self-cleaning Mastermind code here
    }}
-}
-```
-
-#### Craziness
-
-You can put in-line Brainfuck inside your embedded Mastermind.
-
-```
-bf {
-   ++++[
-      {
-         cell i @0;
-         assert i unknown;
-         cell j @1 = i + 1;
-
-         bf @1 {
-            [.+]
-            {
-               // even more layers are possible
-               bf {
-                  {
-                     output "h"
-                  }
-               }
-            }
-         }
-      }
-   -]
 }
 ```

@@ -46,6 +46,8 @@ drain 6 {
 // aaaaaa
 ```
 
+The following example leaves `x` unchanged:
+
 ```
 cell x = 7;
 drain x - 2 {
@@ -53,8 +55,6 @@ drain x - 2 {
 }
 // bbbbb
 ```
-
-In the above example, `x` is left unchanged.
 
 ### Into
 
@@ -78,6 +78,8 @@ while ten {
 }
 ```
 
+Another example:
+
 ```
 drain var into other_var other_var_2 *spread_array;
 
@@ -97,6 +99,15 @@ drain var {
 The `copy` loop acts similarly to the `drain` loop, however the expression must be a direct variable reference, and it is left unchanged afterwards, and its original value is accessible within the loop body.
 
 ```
+cell y;
+copy x into y {
+  // loop body
+};
+```
+
+An equivalence example:
+
+```
 cell var = 5;
 copy var {
   output '0' + var;
@@ -111,11 +122,4 @@ while temp {
 
   temp -= 1;
 }
-```
-
-```
-cell y;
-copy x into y {
-
-};
 ```

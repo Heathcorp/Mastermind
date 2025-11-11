@@ -8,6 +8,8 @@ cell c = 'g';
 cell bool = true; // true/false equivalent to 1/0
 ```
 
+Cells default to `0`.
+
 #### Input/Output
 
 The `input` and `output` keywords in Mastermind correspond to the `,` and `.` operators in Brainfuck. `input` simply inputs the next byte from stdin, and `output` outputs a byte to stdout.

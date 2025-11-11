@@ -1,6 +1,6 @@
 ### Functions
 
-Mastermind supports a minimal functions system: Functions can be defined with a name and a fixed number of typed arguments.
+Mastermind supports a minimal function system: functions can be defined with a name and a fixed number of typed arguments.
 
 ```
 fn newline() { output '\n'; }
@@ -18,7 +18,7 @@ cell g = 9;
 print_zeros(g);
 ```
 
-Functions are in-lined at compile-time, and all arguments are passed by reference. Values can be returned by editing the arguments, or editing variables in an outer scope, although the latter makes a function less portable.
+Unlike most modern programming languages, functions are not considered first-class values. Functions in Mastermind are in-lined at compile-time, and all arguments are passed by reference. Values can be returned by editing passed in arguments, or editing variables in an outer scope, although the latter makes a function less portable.
 
 ```
 fn is_zero(cell in, cell out) {
@@ -38,32 +38,31 @@ Example showing a function reading a variable from an outer scope:
 ```
 fn print_global_g(cell count) {
   copy count {
-    output g;
-    output ' ';
+    output chr;
   }
 }
 
-cell g = 'g';
-cell count = 11;
+cell chr = 'g';
+cell count = 3;
 print_global_g(count);
-// g g g g g g g g g g g
+// ggg
 
 {
   // inner scope with a new 'g' allocation
-  cell g = 'G';
-  count = 4;
+  cell chr = 'G';
+  count = 5;
   print_global_g(count);
-  // G G G G
+  // GGGGG
 }
 
-// same call again, now the inner 'G' has been freed
+// same call again, now the inner chr has been freed
 print_global_g(count);
-// g g g g
+// ggg
 ```
 
 #### Structs and Overloads
 
-Example of supported behaviour:
+Functions support overloads with different types or number of arguments. Examples of supported behaviour:
 
 ```
 fn func1() {
