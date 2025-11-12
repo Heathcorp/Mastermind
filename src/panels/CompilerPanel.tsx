@@ -34,10 +34,6 @@ const CompilerPanel: Component<{ style?: JSX.CSSProperties }> = (props) => {
     await app.compile(entryFileId, app.config());
   };
 
-  createEffect(() => {
-    console.log(app.fileStates);
-  });
-
   return (
     <div class="panel" style={{ "flex-direction": "row", ...props.style }}>
       <div class="panel settings-panel">
@@ -48,7 +44,7 @@ const CompilerPanel: Component<{ style?: JSX.CSSProperties }> = (props) => {
             <select
               value={app.entryFile()}
               onChange={(e) => app.setEntryFile(e.target.value)}
-              style={{"max-width": "10rem"}}
+              style={{ "max-width": "10rem" }}
             >
               {/* TODO: fix an issue with file renaming not updating this list */}
               <For each={app.fileStates}>

@@ -1,4 +1,5 @@
-input[type=checkbox], input[type=radio] {
+input[type="checkbox"],
+input[type="radio"] {
   vertical-align: -2px;
   margin: 0;
   padding: 0;
@@ -20,25 +21,24 @@ input[type=checkbox], input[type=radio] {
   font-weight: 600;
 }
 
-.socials {
-  position: absolute;
-  right: 0;
-  /* background-color: var(--BG-3); */
-  padding: 0.5rem;
-  display: flex;
-  flex-direction: column;
-  justify-content: flex-start;
-  align-items: center;
-  line-height: 1rem;
-}
-
 .socials-icon {
   font-size: 2rem;
+  height: 1em;
+  width: 1em;
+  display: flex;
+  justify-content: center;
+  align-items: center;
 }
 
 a.socials-icon,
 a:active.socials-icon {
   color: inherit;
+}
+
+.badge {
+  font-size: 0.5em;
+  padding: 0.125em;
+  border-radius: 0.25em;
 }
 
 .button-status-overlay {
@@ -99,11 +99,6 @@ a:active.socials-icon {
   min-width: 8rem;
   font-size: 0.9rem;
 }
-
-.top-label {
-
-}
-
 /*.stop-button:hover {*/
 /*  background-color: var(--DANGER-TRANSPARENT);*/
 /*  border: 1px solid var(--DANGER);*/
@@ -196,4 +191,3 @@ a:active.socials-icon {
   transform: translateY(-50%);
   pointer-events: none;
 }
-

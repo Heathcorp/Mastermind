@@ -2,9 +2,11 @@
 
 Mastermind is a programming language designed to compile to the esoteric language _Brainfuck_.
 
-Brainfuck is essentially a modern interpretation of the classical Turing machine. It consists of a tape of 8-bit values, with simple increment/decrement, move left/right, and control flow operations. The full language only uses 8 control characters: `+-><.,[]`.
+Brainfuck is essentially a modern interpretation of the classical Turing machine. It consists of an array (or _tape_) of 8-bit values, with simple increment/decrement, move left/right, and control flow operations. The full language only uses 8 control characters: `+-><.,[]`.
 
-Imagine if C was designed for computer architectures that run Brainfuck directly, that is what Mastermind is intended to be.
+Imagine an alternate reality where C was designed for computer architectures that run Brainfuck directly, that is what Mastermind is intended to be.
+
+Mastermind language/compiler reference can be found here:
 
 ## Development and Setup
 
@@ -17,7 +19,7 @@ Imagine if C was designed for computer architectures that run Brainfuck directly
 - Run `yarn build:grammar`.
 - Run `yarn dev`, then follow the link to http://localhost:5173.
 
-Commits to _dev_ and _main_ are published to https://staging.mastermind.lostpixels.org and https://mastermind.lostpixels.org respectively.
+Pushes to _dev_ and _main_ are published to https://staging.mastermind.lostpixels.org and https://mastermind.lostpixels.org respectively.
 
 ### Overview:
 

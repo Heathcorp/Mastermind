@@ -567,9 +567,7 @@ const App: Component = () => {
           <OutputPanel style={{ flex: 4 }} />
         </div>
         <Divider />
-        <div>
-          <SideBar />
-        </div>
+        <SideBar />
       </div>
     </AppContext.Provider>
   );
