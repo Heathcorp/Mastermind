@@ -1,34 +1,34 @@
-### Optimisations
+The Mastermind compiler includes optional optimisations for generated code. The original goal of Mastermind was to generate very minimal Brainfuck for use in Code Golf competitions, so most of these are aimed at reducing generated code length.
 
-The optimisations in the Mastermind compiler are aimed at reducing the compiled Brainfuck code length, not necessarily execution speed. This is due to the original goal of the project: Code Golf in Brainfuck.
+<!-- TODO: redo this document once planned optimisations are added, separate into frontend, backend, post categories -->
 
 #### Cell Clearing
 
-This optimises the clearing of cells by tracking their values at compile-time. For instance, if a cell can be proven at compile-time to have the value `2`, it is more efficient to clear with `--`, than the typical Brainfuck clear: `[-]`.
+<!-- backend -->
+
+Optimises clearing cells after they are de-allocated, it does this by tracking their values at compile-time and acting based on a cell's known value. For instance, if a cell can be proven at compile-time to have the value `2`, it is more efficient to clear with `--`, than the typical Brainfuck clear: `[-]`.
 
 #### Constants
 
-When large values are added in Brainfuck, the naive approach is to use the increment `-` operator for as many times as needed. The constants optimiser will use multiplication to shorten the code needed to add/subtract large values. Example: the value `45` can be achieved by either `+++++++++++++++++++++++++++++++++++++++++++++` or the shorter: `+++++[<+++++++++>-]>`.
+<!-- backend -->
 
-#### Empty Blocks
-
-This detects if a code block is empty, and does not compile the clause associated. This is helpful for `if` statements and `copy` loops especially, as those can imply extra overhead for copying cells.
+When large values are added in Brainfuck, the naive approach is to use the increment `-` operator for as many times as needed. The constants optimiser will use multiplication to shorten the code needed to add/subtract large values. Example: the value `46` can be achieved by either `++++++++++++++++++++++++++++++++++++++++++++++` or the shorter: `+++++[>+++++++++<-]>+` (5 \* 9 + 1).
 
 #### Generated Code
 
-This is a final pass optimisation that operates directly on Brainfuck code, optimising subsets of programs which can be shortened while still guaranteeing equivalent behaviour. Example:
+<!-- post -->
+
+Optimises generated Brainfuck code by shortening trivial program segments.
+
+Currently this is limited to optimising segments of Brainfuck programs with the following operations: `+`, `-`, `>`, `<`, `[-]`.
 
 ```
 --->>><<<++
-```
-
-Is equivalent to:
-
-```
+// becomes:
 -
 ```
 
-It is difficult to analyse the behaviour of a Brainfuck program at compile time, so this optimiser is limited to subsets of a program's operations between I/O operations and loops (with exception). Example:
+An end-to-end example:
 
 ```
 cell h = 4;
@@ -41,32 +41,41 @@ drain 10 {
   h += 4;
   j += 1;
 }
-```
 
-Compiles to:
-
-```
+// compiles to:
 ++++>+++<++++++++++>>++++++++++[<+<++++>[-]+++++>-]
-```
-
-After optimisation:
-
-```
+// after optimisation:
 ++++++++++++++>+++>++++++++++[-<[-]+++++<++++>>]
 ```
 
-For the 2D compiler extensions, this system can use an exhaustive search to determine the least movement between cells. This could become slow depending on the project, so it can be configured to use a greedy approach. This is done via the _Generated Code Permutations_ setting in the web IDE.
+This system finds optimal equivalent segments for classic Brainfuck programs, however for the 2D Brainfuck variant it is not guaranteed, as finding the optimal path between memory cells in a 2D grid is more difficult. The _Generated Code Permutations_ setting enables an exhaustive search for the optimal path when using the 2D Brainfuck variant, otherwise a greedy approach is used.
+
+#### Empty Blocks
+
+<!-- frontent -->
+
+Detects if a code block is empty or has no effect on the program, and prunes the associated clause.
 
 #### Unreachable Loops
 
-If a cell is known to have a value of `0` at compile time, and that cell is used to open a Brainfuck loop, then that entire loop is omitted. This is implemented at a low level, so it is agnostic of the syntactic structure that it is optimising, i.e `if`, `while`, `drain`.
+<!-- backend -->
+
+Brainfuck loops will be omitted if the cell they start on can be proven to be `0` at compile-time.
 
 ### Unimplemented Optimisations
 
 #### Memory Allocations
 
-The goal of this is to optimise placing variables in tape memory to minimise movement between them.
+<!-- backend -->
+
+// TODO
+
+<!-- The goal of this is to optimise placing variables in tape memory to minimise movement between them. -->
 
 #### Variable Usage
 
-The goal of this is to automatically change the order of variable allocations/frees to ensure tape memory is allocated for the smallest amount of execution steps possible. This would allow allocation to be more efficient, as cells can be allocated which would otherwise be taken by variables that are not in use.
+<!-- frontend -->
+
+// TODO
+
+<!-- The goal of this is to automatically change the order of variable allocations/frees to ensure tape memory is allocated for the smallest amount of execution steps possible. This would allow allocation to be more efficient, as cells can be allocated which would otherwise be taken by variables that are not in use. -->

@@ -13,23 +13,23 @@ import loops from "../../docs/loops.md?raw";
 import functions from "../../docs/functions.md?raw";
 import inlinebrainfuck from "../../docs/inlinebrainfuck.md?raw";
 import standardlib from "../../docs/standardlib.md?raw";
-import twodimensional from "../../docs/twodimensional.md?raw";
+import variants from "../../docs/variants.md?raw";
 import optimisations from "../../docs/optimisations.md?raw";
 
 import { FaSolidArrowLeftLong, FaSolidArrowRightLong } from "solid-icons/fa";
 const DocsModal: Component<{ style?: JSX.CSSProperties }> = () => {
   const app = useAppContext()!;
   const docs = {
-    Introduction: intro,
-    Brainfuck: brainfuck,
-    Variables: variables,
-    Conditionals: conditionals,
-    Loops: loops,
-    Functions: functions,
-    "Inline Brainfuck": inlinebrainfuck,
-    "Standard Library": standardlib,
-    "2D Mastermind": twodimensional,
-    Optimisations: optimisations,
+    ["Introduction"]: intro,
+    ["Brainfuck"]: brainfuck,
+    ["Variables"]: variables,
+    ["Conditionals"]: conditionals,
+    ["Loops"]: loops,
+    ["Functions"]: functions,
+    ["Inline Brainfuck"]: inlinebrainfuck,
+    ["Standard Library"]: standardlib,
+    ["Brainfuck Variants"]: variants,
+    ["Optimisations"]: optimisations,
   };
   const titles = Object.keys(docs);
   const [selected, setSelected] = createSignal(titles[0]);
