@@ -15,7 +15,7 @@ Imagine if C was designed for computer architectures that run Brainfuck, that is
 - [Conditionals](#conditionals)
 - [Loops](#loops)
 - [Functions](#functions)
-- [Inline Brainfuck](#inline-brainfuck)
+- [Inline Brainfuck](#in-line-brainfuck)
 - [Standard Library](#standard-library)
 - [Variants](#variants)
 - [Optimisations](#optimisations)
