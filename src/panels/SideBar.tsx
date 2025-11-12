@@ -62,10 +62,10 @@ const SideBar: Component<{ style?: JSX.CSSProperties }> = (props) => {
           "justify-self": "end",
           "background-color":
             import.meta.env.VITE_GIT_COMMIT_BRANCH == "main"
-              ? "#a9e981"
+              ? "#434023"
               : import.meta.env.VITE_GIT_COMMIT_BRANCH == "dev"
-              ? "#f9f871"
-              : "#b35967",
+              ? "#732C2C"
+              : "#420C14",
         }}
       >
         {import.meta.env.VITE_GIT_COMMIT_HASH}
