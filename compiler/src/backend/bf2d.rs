@@ -2,10 +2,7 @@ use super::common::{
 	BrainfuckBuilder, BrainfuckBuilderData, BrainfuckProgram, CellAllocator, CellAllocatorData,
 	OpcodeVariant, TapeCellVariant,
 };
-use crate::{
-	macros::macros::{r_assert, r_panic},
-	parser::tokeniser::Token,
-};
+use crate::macros::macros::{r_assert, r_panic};
 
 use std::{fmt::Display, hash::Hash};
 
@@ -112,6 +109,7 @@ impl Display for TapeCell2D {
 	}
 }
 
+// TODO: refactor
 impl CellAllocator<TapeCell2D> for CellAllocatorData<TapeCell2D> {
 	/// Check if the desired number of cells can be allocated to the right of a given location
 	fn check_allocatable(&mut self, location: &TapeCell2D, size: usize) -> bool {

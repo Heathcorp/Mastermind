@@ -2,10 +2,7 @@ use super::common::{
 	BrainfuckBuilder, BrainfuckBuilderData, BrainfuckProgram, CellAllocator, CellAllocatorData,
 	OpcodeVariant, TapeCellVariant,
 };
-use crate::{
-	macros::macros::{r_assert, r_panic},
-	parser::tokeniser::Token,
-};
+use crate::macros::macros::{r_assert, r_panic};
 
 pub type TapeCell = i32;
 impl TapeCellVariant for TapeCell {
