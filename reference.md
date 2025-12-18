@@ -6,7 +6,7 @@ Mastermind is a programming language designed to compile to the well-known esote
 
 Brainfuck is essentially a modern interpretation of the classical Turing machine. It consists of a tape of 8-bit values, with simple increment/decrement, move left/right, input/output, and looping operations. The full language only uses 8 control characters: `+-><.,[]`.
 
-Imagine if C was designed for computer architectures that run Brainfuck, that is what Mastermind is intended to be.
+Imagine an alternate reality where C was designed for computer architectures that run Brainfuck natively, that is what Mastermind is intended to be.
 
 ## Contents
 
@@ -650,6 +650,7 @@ The most mature files in the included examples are the following:
 - `u8`: common supporting functions for cell types
 - `u16`: a 16-bit unsigned integer type and supporting functions
 - `ifp16`: a signed 16-bit fixed-point number type and supporting functions
+- `stack`: includes a cell stack and associated functions that can hold up to 32 non-zero elements
 
 NOTE: due to current lack of header-guard support, importing multiple of these will likely cause a compiler error, until this is implemented, the best way to work around this is to only include `ifp16` as that includes the others.
 
