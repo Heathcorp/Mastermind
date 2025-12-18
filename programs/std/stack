@@ -1,0 +1,266 @@
+// Credit to @MSMissing for contributing this stack data type.
+
+// Be aware this data type uses embedded Brainfuck operations which may break user programs if not used carefully.
+// The standard library currently lacks a testing framework, so until that is added, use at own risk :)
+
+
+struct stack32 { // STACK CANNOT CONTAIN ZEROES.
+  cell len          @0;
+  cell temp         @1;
+  cell zero         @2;
+  cell[32] content  @3;
+  cell end          @35; // if this is not equal to zero, panic.
+}
+
+// DOCUMENTATION
+
+// struct stack32 - 32-cell stack; uses 35 cells.
+
+// push_d(stack, value)    - push a value destructively to the stack.
+// push(stack, value)      - push a value to the stack. slower than push_d
+// unshift_d(stack, value) - push a value destructively into the bottom of the stack.
+// unshift(stack, value)   - push a value into the bottom of the stack.
+
+// pop(stack, *output)   - pop a value from the stack.
+// shift(stack, *output) - shift a value from the bottom of the stack.
+// shift is faster than pop.
+
+// reverse(stack) - reverses the stack.
+// clear(stack)   - clears the stack. Suggested if a stack is about to go out of scope.
+
+
+fn __zero_to_top() {
+  bf {
+    >[>]<
+  }
+}
+
+fn __top_to_zero() {
+  bf {
+    [<]
+  }
+}
+
+fn push_d(struct stack32 stack, cell value) {
+  value -= 1;
+  stack.len += 1;
+  bf @stack.zero clobbers *stack.content {
+    {__zero_to_top();}
+    >+
+    {__top_to_zero();}
+  }
+
+  while value {
+    value -= 1;
+    bf @stack.zero clobbers *stack.content {
+      {__zero_to_top();}
+      +
+      {__top_to_zero();}
+    }
+  }
+}
+
+fn push(struct stack32 stack, cell value) {
+  cell _value = value;
+  push_d(stack, _value);
+}
+
+
+fn pop(struct stack32 stack, cell out) {
+  stack.len -= 1;
+  bf @stack.zero clobbers *stack.content stack.temp {
+    {__zero_to_top();}
+    [>+<-]>[
+      -<<[<]
+      {
+        cell temp @-1;
+        assert temp unknown;
+        temp += 1;
+      }
+      >[>]>
+    ]
+    <<{__top_to_zero();}
+  }
+  drain stack.temp into out;
+}
+
+fn pop(struct stack32 stack) {
+  stack.len -= 1;
+  bf @stack.zero clobbers *stack.content {
+    {__zero_to_top();}
+    [-]<
+    {__top_to_zero();}
+  }
+}
+
+fn shift(struct stack32 stack, cell out) {
+  out = 0;
+  stack.len -= 1;
+  drain stack.content[0] into out;
+  bf @stack.content[1] clobbers *stack.content { [[<+>-]>]<<[<]>> }
+}
+
+fn shift(struct stack32 stack) {
+  stack.len -= 1;
+  drain stack.content[0];
+  bf @stack.content[1] clobbers *stack.content { [[<+>-]>]<<[<]>> }
+}
+
+fn unshift_d(struct stack32 stack, cell value) {
+  stack.len += 1;
+  bf @stack.zero clobbers *stack.content {
+    {__zero_to_top();}
+    [[->+<]<]
+  }
+  assert stack.content[0] equals 0;
+  drain value into stack.content[0];
+}
+
+fn unshift(struct stack32 stack, cell value) {
+  cell _value = value;
+  unshift_d(stack, value);
+}
+
+fn clear(struct stack32 stack) {
+  while stack.len {
+    pop(stack);
+  }
+  assert *stack.content equals 0;
+}
+
+fn move_stack(struct stack32 in, struct stack32 out) { // out must be empty
+  cell x;
+  while in.len {
+    shift(in, x);
+    push_d(out, x);
+  }
+  assert *in.content equals 0;
+}
+
+fn copy_stack(struct stack32 src, struct stack32 out) {
+  cell x;
+  struct stack32 _src;
+  while src.len {
+    shift(src, x);
+    push(out, x);
+    push_d(_src, x);
+  }
+  while _src.len {
+    shift(_src, x);
+    push_d(src, x);
+  }
+  assert *_src.content equals 0;
+}
+
+fn reverse(struct stack32 stack, struct stack32 out) { // out must be empty
+  cell x;
+  while stack.len {
+    pop(stack, x);
+    push_d(out, x);
+  }
+  assert *stack.content equals 0;
+}
+
+fn reverse(struct stack32 stack) {
+  struct stack32 out;
+  reverse(stack, out);
+  move_stack(out, stack);
+}
+
+
+// debug/test code:
+// #include <u8>
+// fn p(cell x) {print(x); output " ("; debug(x); output ")\n";}
+// fn p(struct stack32 s) {
+//   output "STACK:\n";
+//   output "len = "; p(s.len);
+//   output "temp = "; p(s.temp);
+//   output "zero = "; p(s.zero);
+//   output "content[0] = "; p(s.content[0]);
+//   output "content[1] = "; p(s.content[1]);
+//   output "content[2] = "; p(s.content[2]);
+//   output "content[3] = "; p(s.content[3]);
+//   output "content[4] = "; p(s.content[4]);
+//   output "\n";
+// }
+
+// // pushing and popping:
+// output "PUSH/POP TESTING START\n";
+// struct stack32 s1;
+// cell x = 6;
+// p(s1);
+// push_d(s1, x);
+// x += 7;
+// p(s1);
+// push(s1, x);
+// p(s1);
+
+// push(s1, x);
+// p(s1);
+// pop(s1);
+// p(s1);
+
+// cell y;
+// p(y);
+// pop(s1, y);
+// p(y);
+// p(s1);
+// pop(s1, y);
+// p(y);
+// p(s1);
+
+// output "PUSH/POP TESTING END\n\n";
+
+
+// // unshifting and shifting:
+// output "UNSHIFT/SHIFT TESTING START\n";
+// struct stack32 s2;
+// x = 6;
+// p(s2);
+// unshift_d(s2, x);
+// x += 7;
+// p(s2);
+// unshift(s2, x);
+// p(s2);
+
+// x = 255;
+// unshift(s2, x);
+// p(s2);
+
+// struct stack32 snapshot1;
+// copy_stack(s2, snapshot1);
+// struct stack32 snapshot2;
+// copy_stack(s2, snapshot2);
+
+// shift(s2);
+// p(s2);
+
+// y = 0;
+// p(y);
+// shift(s2, y);
+// p(y);
+// p(s2);
+// shift(s2, y);
+// p(y);
+// p(s2);
+
+// output "SNAPSHOTS:\n";
+// p(snapshot1);
+// p(snapshot2);
+
+// move_stack(snapshot1, s2);
+// p(s2);
+// pop(s2);
+// move_stack(s2, snapshot1);
+// copy_stack(snapshot2, s2);
+// shift(s2);
+// reverse(snapshot1);
+
+// output "s2:\n";
+// p(s2);
+// output "snapshot1:\n";
+// p(snapshot1);
+// output "snapshot2:\n";
+// p(snapshot2);
+
+// output "UNSHIFT/SHIFT TESTING END\n\n";

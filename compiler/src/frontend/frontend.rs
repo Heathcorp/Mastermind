@@ -1,49 +1,58 @@
 // compile syntax tree into low-level instructions
 
-use std::{collections::HashMap, iter::zip};
+use std::{collections::HashMap, fmt::Display, iter::zip};
 
+use super::types::*;
 use crate::{
-	builder::{Builder, Opcode, TapeCell},
-	macros::macros::{r_assert, r_panic},
-	parser::{
-		Clause, Expression, ExtendedOpcode, LocationSpecifier, Reference, VariableDefinition,
-		VariableTarget, VariableTargetReferenceChain, VariableTypeReference,
+	backend::common::{
+		BrainfuckBuilder, BrainfuckBuilderData, CellAllocator, CellAllocatorData, OpcodeVariant,
+		TapeCellVariant,
 	},
-	MastermindConfig,
+	macros::macros::*,
+	misc::MastermindContext,
+	parser::{
+		expressions::Expression,
+		types::{
+			Clause, ExtendedOpcode, LocationSpecifier, Reference, StructFieldTypeDefinition,
+			VariableTarget, VariableTargetReferenceChain, VariableTypeDefinition,
+			VariableTypeReference,
+		},
+	},
 };
 
-// memory stuff is all WIP and some comments may be incorrect
-
-pub struct Compiler<'a> {
-	pub config: &'a MastermindConfig,
-}
-
-impl Compiler<'_> {
-	pub fn compile<'a>(
-		&'a self,
-		clauses: &[Clause],
-		outer_scope: Option<&'a Scope>,
-	) -> Result<Scope<'a>, String> {
+impl MastermindContext {
+	pub fn create_ir_scope<'a, TC: 'static + TapeCellVariant, OC: 'static + OpcodeVariant>(
+		&self,
+		clauses: &[Clause<TC, OC>],
+		outer_scope: Option<&'a ScopeBuilder<TC, OC>>,
+	) -> Result<ScopeBuilder<'a, TC, OC>, String>
+	where
+		BrainfuckBuilderData<TC, OC>: BrainfuckBuilder<TC, OC>,
+		CellAllocatorData<TC>: CellAllocator<TC>,
+	{
 		let mut scope = if let Some(outer) = outer_scope {
 			outer.open_inner()
 		} else {
-			Scope::new()
+			ScopeBuilder::new()
 		};
 
 		// TODO: fix unnecessary clones, and reimplement this with iterators somehow
 		// hoist structs, then functions to top
-		let mut filtered_clauses_1: Vec<Clause> = vec![];
+		let mut filtered_clauses_1 = vec![];
 		// first stage: structs (these need to be defined before functions, so they can be used as arguments)
 		for clause in clauses {
 			match clause {
 				Clause::DefineStruct { name, fields } => {
+					// convert fields with 2D or 1D location specifiers to valid struct location specifiers
 					scope.register_struct_definition(name, fields.clone())?;
 				}
+				// also filter out None clauses (although there shouldn't be any)
+				Clause::None => (),
 				_ => filtered_clauses_1.push(clause.clone()),
 			}
 		}
 		// second stage: functions
-		let mut filtered_clauses_2: Vec<Clause> = vec![];
+		let mut filtered_clauses_2 = vec![];
 		for clause in filtered_clauses_1 {
 			match clause {
 				Clause::DefineFunction {
@@ -80,7 +89,7 @@ impl Compiler<'_> {
 							| Expression::VariableReference(_),
 						) => {
 							let cell = scope.get_cell(&VariableTarget::from_definition(&var))?;
-							_add_expr_to_cell(&mut scope, &value, cell)?;
+							scope._add_expr_to_cell(&value, cell)?;
 						}
 
 						// multi-cell arrays and (array literals or strings)
@@ -93,7 +102,7 @@ impl Compiler<'_> {
 								expressions.len()
 							);
 							for (cell, expr) in zip(cells, expressions) {
-								_add_expr_to_cell(&mut scope, expr, cell)?;
+								scope._add_expr_to_cell(expr, cell)?;
 							}
 						}
 						(ValueType::Array(_, _), Expression::StringLiteral(s)) => {
@@ -147,7 +156,7 @@ impl Compiler<'_> {
 						}
 					}
 				}
-				Clause::SetVariable {
+				Clause::Assign {
 					var,
 					value,
 					self_referencing,
@@ -155,11 +164,11 @@ impl Compiler<'_> {
 					(false, false) => {
 						let cell = scope.get_cell(&var)?;
 						scope.push_instruction(Instruction::ClearCell(cell.clone()));
-						_add_expr_to_cell(&mut scope, &value, cell)?;
+						scope._add_expr_to_cell(&value, cell)?;
 					}
 					(false, true) => {
 						let cell = scope.get_cell(&var)?;
-						_add_self_referencing_expr_to_cell(&mut scope, value, cell, true)?;
+						scope._add_self_referencing_expr_to_cell(value, cell, true)?;
 					}
 					(true, _) => {
 						r_panic!("Unsupported operation, assigning to spread variable: {var}");
@@ -168,18 +177,18 @@ impl Compiler<'_> {
 						// etc...
 					}
 				},
-				Clause::AddToVariable {
+				Clause::AddAssign {
 					var,
 					value,
 					self_referencing,
 				} => match (var.is_spread, self_referencing) {
 					(false, false) => {
 						let cell = scope.get_cell(&var)?;
-						_add_expr_to_cell(&mut scope, &value, cell)?;
+						scope._add_expr_to_cell(&value, cell)?;
 					}
 					(false, true) => {
 						let cell = scope.get_cell(&var)?;
-						_add_self_referencing_expr_to_cell(&mut scope, value, cell, false)?;
+						scope._add_self_referencing_expr_to_cell(value, cell, false)?;
 					}
 					(true, _) => {
 						r_panic!("Unsupported operation, add-assigning to spread variable: {var}");
@@ -219,7 +228,7 @@ impl Compiler<'_> {
 						}
 					}
 				}
-				Clause::InputVariable { var } => match var.is_spread {
+				Clause::Input { var } => match var.is_spread {
 					false => {
 						let cell = scope.get_cell(&var)?;
 						scope.push_instruction(Instruction::InputToCell(cell));
@@ -231,7 +240,7 @@ impl Compiler<'_> {
 						}
 					}
 				},
-				Clause::OutputValue { value } => {
+				Clause::Output { value } => {
 					match value {
 						Expression::VariableReference(var) => match var.is_spread {
 							false => {
@@ -261,7 +270,7 @@ impl Compiler<'_> {
 								index: None,
 							};
 
-							_add_expr_to_cell(&mut scope, &value, cell)?;
+							scope._add_expr_to_cell(&value, cell)?;
 							scope.push_instruction(Instruction::OutputCell(cell));
 							scope.push_instruction(Instruction::ClearCell(cell));
 
@@ -280,7 +289,7 @@ impl Compiler<'_> {
 							};
 
 							for value in expressions {
-								_add_expr_to_cell(&mut scope, &value, cell)?;
+								scope._add_expr_to_cell(&value, cell)?;
 								scope.push_instruction(Instruction::OutputCell(cell));
 								scope.push_instruction(Instruction::ClearCell(cell));
 							}
@@ -309,7 +318,7 @@ impl Compiler<'_> {
 						}
 					}
 				}
-				Clause::WhileLoop { var, block } => {
+				Clause::While { var, block } => {
 					let cell = scope.get_cell(&var)?;
 
 					// open loop on variable
@@ -317,25 +326,25 @@ impl Compiler<'_> {
 
 					// recursively compile instructions
 					// TODO: when recursively compiling, check which things changed based on a return info value
-					let loop_scope = self.compile(&block, Some(&scope))?;
-					scope
-						.instructions
-						.extend(loop_scope.finalise_instructions(true));
+					let loop_scope = self.create_ir_scope(&block, Some(&scope))?;
+					scope.instructions.extend(loop_scope.build_ir(true));
 
 					// close the loop
 					scope.push_instruction(Instruction::CloseLoop(cell));
 				}
-				Clause::CopyLoop {
+				Clause::DrainLoop {
 					source,
 					targets,
 					block,
-					is_draining,
+					is_copying,
 				} => {
 					// TODO: refactor this, there is duplicate code with copying the source value cell
-					let (source_cell, free_source_cell) = match (is_draining, &source) {
+					let (source_cell, free_source_cell) = match (is_copying, &source) {
 						// draining loops can drain from an expression or a variable
-						(true, Expression::VariableReference(var)) => (scope.get_cell(var)?, false),
-						(true, _) => {
+						(false, Expression::VariableReference(var)) => {
+							(scope.get_cell(var)?, false)
+						}
+						(false, _) => {
 							// any other kind of expression, allocate memory for it automatically
 							let id = scope.push_memory_id();
 							scope
@@ -344,10 +353,10 @@ impl Compiler<'_> {
 								memory_id: id,
 								index: None,
 							};
-							_add_expr_to_cell(&mut scope, &source, new_cell)?;
+							scope._add_expr_to_cell(&source, new_cell)?;
 							(new_cell, true)
 						}
-						(false, Expression::VariableReference(var)) => {
+						(true, Expression::VariableReference(var)) => {
 							let cell = scope.get_cell(var)?;
 
 							let new_mem_id = scope.push_memory_id();
@@ -361,22 +370,22 @@ impl Compiler<'_> {
 								index: None,
 							};
 
-							_copy_cell(&mut scope, cell, new_cell, 1);
+							scope._copy_cell(cell, new_cell, 1);
 
 							(new_cell, true)
 						}
-						(false, _) => {
+						(true, _) => {
 							r_panic!("Cannot copy from {source:#?}, use a drain loop instead")
 						}
 					};
 					scope.push_instruction(Instruction::OpenLoop(source_cell));
 
 					// recurse
-					let loop_scope = self.compile(&block, Some(&scope))?;
-					// TODO: refactor, make a function in scope trait to do this automatically
-					scope
-						.instructions
-						.extend(loop_scope.finalise_instructions(true));
+					if let Some(block) = block {
+						let loop_scope = self.create_ir_scope(&block, Some(&scope))?;
+						// TODO: refactor, make a function in scope trait to do this automatically
+						scope.instructions.extend(loop_scope.build_ir(true));
+					}
 
 					// copy into each target and decrement the source
 					for target in targets {
@@ -402,11 +411,48 @@ impl Compiler<'_> {
 						scope.push_instruction(Instruction::Free(source_cell.memory_id));
 					}
 				}
-				Clause::IfElse {
-					condition,
-					if_block,
-					else_block,
-				} => {
+				clause @ (Clause::If {
+					condition: _,
+					if_block: _,
+				}
+				| Clause::IfNot {
+					condition: _,
+					if_not_block: _,
+				}
+				| Clause::IfElse {
+					condition: _,
+					if_block: _,
+					else_block: _,
+				}
+				| Clause::IfNotElse {
+					condition: _,
+					if_not_block: _,
+					else_block: _,
+				}) => {
+					// If-else clause types changed recently, so here is a patch to keep the original frontend code:
+					let (condition, if_block, else_block) = match clause {
+						Clause::If {
+							condition,
+							if_block,
+						} => (condition, Some(if_block), None),
+						Clause::IfNot {
+							condition,
+							if_not_block,
+						} => (condition, None, Some(if_not_block)),
+						Clause::IfElse {
+							condition,
+							if_block,
+							else_block,
+						} => (condition, Some(if_block), Some(else_block)),
+						Clause::IfNotElse {
+							condition,
+							if_not_block,
+							else_block,
+						} => (condition, Some(else_block), Some(if_not_block)),
+						_ => unreachable!(),
+					};
+					// end patch //
+
 					if if_block.is_none() && else_block.is_none() {
 						panic!("Expected block in if/else statement");
 					};
@@ -442,7 +488,7 @@ impl Compiler<'_> {
 					};
 
 					// copy the condition expression to the temporary condition cell
-					_add_expr_to_cell(&mut new_scope, &condition, condition_cell)?;
+					new_scope._add_expr_to_cell(&condition, condition_cell)?;
 
 					new_scope.push_instruction(Instruction::OpenLoop(condition_cell));
 					// TODO: think about optimisations for clearing this variable, as the builder won't shorten it for safety as it doesn't know this loop is special
@@ -456,10 +502,8 @@ impl Compiler<'_> {
 
 					// recursively compile if block
 					if let Some(block) = if_block {
-						let if_scope = self.compile(&block, Some(&new_scope))?;
-						new_scope
-							.instructions
-							.extend(if_scope.finalise_instructions(true));
+						let if_scope = self.create_ir_scope(&block, Some(&new_scope))?;
+						new_scope.instructions.extend(if_scope.build_ir(true));
 					};
 
 					// close if block
@@ -475,64 +519,44 @@ impl Compiler<'_> {
 						// recursively compile else block
 						// TODO: fix this bad practice unwrap
 						let block = else_block.unwrap();
-						let else_scope = self.compile(&block, Some(&new_scope))?;
-						new_scope
-							.instructions
-							.extend(else_scope.finalise_instructions(true));
+						let else_scope = self.create_ir_scope(&block, Some(&new_scope))?;
+						new_scope.instructions.extend(else_scope.build_ir(true));
 
 						new_scope.push_instruction(Instruction::CloseLoop(cell));
 						new_scope.push_instruction(Instruction::Free(cell.memory_id));
 					}
 
 					// extend the inner scopes instructions onto the outer one
-					scope
-						.instructions
-						.extend(new_scope.finalise_instructions(true));
+					scope.instructions.extend(new_scope.build_ir(true));
 				}
 				Clause::Block(clauses) => {
-					let new_scope = self.compile(&clauses, Some(&scope))?;
-					scope
-						.instructions
-						.extend(new_scope.finalise_instructions(true));
+					let new_scope = self.create_ir_scope(&clauses, Some(&scope))?;
+					scope.instructions.extend(new_scope.build_ir(true));
 				}
-				Clause::InlineBrainfuck {
+				Clause::Brainfuck {
 					location_specifier,
 					clobbered_variables,
 					operations,
 				} => {
 					// loop through the opcodes
-					let mut expanded_bf: Vec<Opcode> = Vec::new();
+					let mut expanded_bf: Vec<OC> = Vec::new();
 					for op in operations {
 						match op {
 							ExtendedOpcode::Block(mm_clauses) => {
 								// create a scope object for functions from the outside scope
 								let functions_scope = scope.open_inner_templates_only();
 								// compile the block and extend the operations
+								let instructions = self
+									.create_ir_scope(&mm_clauses, Some(&functions_scope))?
+									// compile without cleaning up top level variables, this is the brainfuck programmer's responsibility
+									.build_ir(false);
 
-								let compiler = Compiler {
-									config: &self.config,
-								};
-								let instructions = compiler
-									.compile(&mm_clauses, Some(&functions_scope))?
-									.finalise_instructions(false);
-								// compile without cleaning up top level variables, this is the brainfuck programmer's responsibility
 								// it is also the brainfuck programmer's responsibility to return to the start position
-								let builder = Builder {
-									config: &self.config,
-								};
-								let built_code = builder.build(instructions, true)?;
-								expanded_bf.extend(built_code);
+								let bf_code =
+									self.ir_to_bf(instructions, Some(TC::origin_cell()))?;
+								expanded_bf.extend(bf_code);
 							}
-							ExtendedOpcode::Add => expanded_bf.push(Opcode::Add),
-							ExtendedOpcode::Subtract => expanded_bf.push(Opcode::Subtract),
-							ExtendedOpcode::Right => expanded_bf.push(Opcode::Right),
-							ExtendedOpcode::Left => expanded_bf.push(Opcode::Left),
-							ExtendedOpcode::OpenLoop => expanded_bf.push(Opcode::OpenLoop),
-							ExtendedOpcode::CloseLoop => expanded_bf.push(Opcode::CloseLoop),
-							ExtendedOpcode::Output => expanded_bf.push(Opcode::Output),
-							ExtendedOpcode::Input => expanded_bf.push(Opcode::Input),
-							ExtendedOpcode::Up => expanded_bf.push(Opcode::Up),
-							ExtendedOpcode::Down => expanded_bf.push(Opcode::Down),
+							ExtendedOpcode::Opcode(opcode) => expanded_bf.push(opcode),
 						}
 					}
 
@@ -573,52 +597,57 @@ impl Compiler<'_> {
 				} => {
 					// create variable translations and recursively compile the inner variable block
 
-					let calling_argument_types = arguments
+					// get the calling arguments' types
+					let calling_argument_types: Vec<ValueType> = arguments
 						.iter()
-						.map(|a| scope.get_target_type(&a))
-						.collect::<Result<Vec<_>, _>>()?;
+						.map(|arg| scope.get_expression_type(arg))
+						.collect::<Result<Vec<ValueType>, String>>()?;
 
+					// find the function based on name * types
 					let function_definition =
 						scope.get_function(&function_name, &calling_argument_types)?;
 
+					// create mappings in a new translation scope, so mappings will be removed once scope closes
 					let mut argument_translation_scope = scope.open_inner();
-
-					// TODO: refactor this mess
-					// deal with argument memory mappings:
-					for ((calling_argument, calling_argument_type), (arg_name, expected_type)) in
-						zip(
-							zip(arguments, calling_argument_types),
-							function_definition.arguments.iter(),
-						) {
-						// TODO: fix this duplicate call, get_target_type() internally gets the memory allocation details
-						// 	then these are gotten again in create_mapped_variable()
-						r_assert!(calling_argument_type == expected_type, "Expected argument of type \"{expected_type:#?}\" in function call \"{function_name}\", received argument of type \"{calling_argument_type:#?}\". This should not occur");
-						// register an argument translation in the scope
+					assert_eq!(arguments.len(), function_definition.arguments.len());
+					for (calling_expr, (arg_name, _)) in
+						zip(arguments, function_definition.arguments)
+					{
+						// TODO: allow expressions as arguments: create a new variable instead of mapping when a value needs to be computed
+						let calling_arg = match calling_expr {
+							Expression::VariableReference(var) => var,
+							expr => r_panic!(
+								"Expected variable target in function call argument, \
+found expression `{expr}`. General expressions as \
+function arguments are not supported."
+							),
+						};
 						argument_translation_scope
-							.create_mapped_variable(arg_name.clone(), &calling_argument)?;
+							.create_mapped_variable(arg_name, &calling_arg)?;
 					}
 
-					// recurse
-					let function_scope = self.compile(
+					// recursively compile the function block
+					let function_scope = self.create_ir_scope(
 						&function_definition.block,
 						Some(&argument_translation_scope),
 					)?;
 					argument_translation_scope
 						.instructions
-						.extend(function_scope.finalise_instructions(true));
+						.extend(function_scope.build_ir(true));
 
-					// extend the inner scope instructions onto the outer scope
-					// maybe function call compiling should be its own function?
+					// add the recursively compiled instructions to the current scope's built instructions
+					// TODO: figure out why this .build_ir() call uses clean_up_variables = false
 					scope
 						.instructions
-						.extend(argument_translation_scope.finalise_instructions(false));
+						.extend(argument_translation_scope.build_ir(false));
 				}
 				Clause::DefineStruct { name: _, fields: _ }
 				| Clause::DefineFunction {
 					name: _,
 					arguments: _,
 					block: _,
-				} => unreachable!(),
+				}
+				| Clause::None => unreachable!(),
 			}
 		}
 
@@ -626,214 +655,13 @@ impl Compiler<'_> {
 	}
 }
 
-// not sure if this should be in the scope impl?
-// helper function for a common use-case
-// flatten an expression and add it to a specific cell (using copies and adds, etc)
-fn _add_expr_to_cell(
-	scope: &mut Scope,
-	expr: &Expression,
-	cell: CellReference,
-) -> Result<(), String> {
-	let (imm, adds, subs) = expr.flatten()?;
-
-	scope.push_instruction(Instruction::AddToCell(cell.clone(), imm));
-
-	let mut adds_set = HashMap::new();
-	for var in adds {
-		let n = adds_set.remove(&var).unwrap_or(0);
-		adds_set.insert(var, n + 1);
-	}
-	for var in subs {
-		let n = adds_set.remove(&var).unwrap_or(0);
-		adds_set.insert(var, n - 1);
-	}
-
-	for (source, constant) in adds_set {
-		let source_cell = scope.get_cell(&source)?;
-		_copy_cell(scope, source_cell, cell.clone(), constant);
-	}
-
-	Ok(())
-}
-
-//This function allows you to add a self referencing expression to the cell
-//Separate this to ensure that normal expression don't require the overhead of copying
-fn _add_self_referencing_expr_to_cell(
-	scope: &mut Scope,
-	expr: Expression,
-	cell: CellReference,
-	pre_clear: bool,
-) -> Result<(), String> {
-	//Create a new temp cell to store the current cell value
-	let temp_mem_id = scope.push_memory_id();
-	scope.push_instruction(Instruction::Allocate(
-		Memory::Cell { id: temp_mem_id },
-		None,
-	));
-	let temp_cell = CellReference {
-		memory_id: temp_mem_id,
-		index: None,
-	};
-	// TODO: make this more efficent by not requiring a clear cell after,
-	// i.e. simple move instead of copy by default for set operations (instead of +=)
-	_copy_cell(scope, cell, temp_cell, 1);
-	// Then if we are doing a += don't pre-clear otherwise Clear the current cell and run the same actions as _add_expr_to_cell
-	if pre_clear {
-		scope.push_instruction(Instruction::ClearCell(cell.clone()));
-	}
-
-	let (imm, adds, subs) = expr.flatten()?;
-
-	scope.push_instruction(Instruction::AddToCell(cell.clone(), imm));
-
-	let mut adds_set = HashMap::new();
-	for var in adds {
-		let n = adds_set.remove(&var).unwrap_or(0);
-		adds_set.insert(var, n + 1);
-	}
-	for var in subs {
-		let n = adds_set.remove(&var).unwrap_or(0);
-		adds_set.insert(var, n - 1);
-	}
-
-	for (source, constant) in adds_set {
-		let source_cell = scope.get_cell(&source)?;
-		//If we have an instance of the original cell being added simply use our temp cell value
-		// (crucial special sauce)
-		if source_cell.memory_id == cell.memory_id && source_cell.index == cell.index {
-			_copy_cell(scope, temp_cell, cell.clone(), constant);
-		} else {
-			_copy_cell(scope, source_cell, cell.clone(), constant);
-		}
-	}
-	//Cleanup
-	scope.push_instruction(Instruction::ClearCell(temp_cell));
-	scope.push_instruction(Instruction::Free(temp_mem_id));
-
-	Ok(())
-}
-
-/// Helper function to copy a cell from one to another leaving the original unaffected
-// TODO: make one for draining a cell
-fn _copy_cell(
-	scope: &mut Scope,
-	source_cell: CellReference,
-	target_cell: CellReference,
-	constant: i32,
-) {
-	if constant == 0 {
-		return;
-	}
-	// allocate a temporary cell
-	let temp_mem_id = scope.push_memory_id();
-	scope.push_instruction(Instruction::Allocate(
-		Memory::Cell { id: temp_mem_id },
-		None,
-	));
-	let temp_cell = CellReference {
-		memory_id: temp_mem_id,
-		index: None,
-	};
-	// copy source to target and temp
-	scope.push_instruction(Instruction::OpenLoop(source_cell));
-	scope.push_instruction(Instruction::AddToCell(target_cell, constant as u8));
-	scope.push_instruction(Instruction::AddToCell(temp_cell, 1));
-	scope.push_instruction(Instruction::AddToCell(source_cell, -1i8 as u8));
-	scope.push_instruction(Instruction::CloseLoop(source_cell));
-	// copy back from temp
-	scope.push_instruction(Instruction::OpenLoop(temp_cell));
-	scope.push_instruction(Instruction::AddToCell(source_cell, 1));
-	scope.push_instruction(Instruction::AddToCell(temp_cell, -1i8 as u8));
-	scope.push_instruction(Instruction::CloseLoop(temp_cell));
-	scope.push_instruction(Instruction::Free(temp_mem_id));
-}
-
-// this is subject to change
-#[derive(Debug, Clone)]
-pub enum Instruction {
-	Allocate(Memory, Option<TapeCell>),
-	Free(MemoryId), // the number indicates which cell in the allocation stack should be freed (cell 0, is the top of the stack, 1 is the second element, etc)
-	OpenLoop(CellReference), // same with other numbers here, they indicate the cell in the allocation stack to use in the instruction
-	CloseLoop(CellReference), // pass in the cell id, this originally wasn't there but may be useful later on
-	AddToCell(CellReference, u8),
-	InputToCell(CellReference),
-	ClearCell(CellReference), // not sure if this should be here, seems common enough that it should be
-	AssertCellValue(CellReference, Option<u8>), // allows the user to hand-tune optimisations further
-	OutputCell(CellReference),
-	InsertBrainfuckAtCell(Vec<Opcode>, CellLocation),
-}
-
-#[derive(Debug, Clone)]
-/// Either a fixed constant cell or a reference to some existing memory
-pub enum CellLocation {
-	Unspecified,
-	FixedCell((i32, i32)),
-	MemoryCell(CellReference),
-}
-
-#[derive(Debug, Clone)]
-pub enum Memory {
-	Cell {
-		id: MemoryId,
-	},
-	Cells {
-		id: MemoryId,
-		len: usize,
-	},
-	/// A memory cell that references a previously allocated cell in an outer scope, used for function arguments
-	MappedCell {
-		id: MemoryId,
-		index: Option<usize>,
-	},
-	/// Memory mapped cells, referencing previously allocated cells in an outer scope
-	MappedCells {
-		id: MemoryId,
-		start_index: usize,
-		len: usize,
-	},
-	// infinite cell something (TODO?)
-}
-pub type MemoryId = usize;
-
-#[derive(Debug, Clone, Copy)]
-pub struct CellReference {
-	pub memory_id: MemoryId,
-	pub index: Option<usize>,
-}
-
-impl Memory {
-	pub fn id(&self) -> MemoryId {
-		match self {
-			Memory::Cell { id }
-			| Memory::Cells { id, len: _ }
-			| Memory::MappedCell { id, index: _ }
-			| Memory::MappedCells {
-				id,
-				start_index: _,
-				len: _,
-			} => *id,
-		}
-	}
-	pub fn len(&self) -> usize {
-		match self {
-			Memory::Cell { id: _ } | Memory::MappedCell { id: _, index: _ } => 1,
-			Memory::Cells { id: _, len }
-			| Memory::MappedCells {
-				id: _,
-				start_index: _,
-				len,
-			} => *len,
-		}
-	}
-}
-
 #[derive(Clone, Debug)]
 /// Scope type represents a Mastermind code block,
 /// any variables or functions defined within a {block} are owned by the scope and cleaned up before continuing
-pub struct Scope<'a> {
+pub struct ScopeBuilder<'a, TC, OC> {
 	/// a reference to the parent scope, for accessing things defined outside of this scope
-	outer_scope: Option<&'a Scope<'a>>,
-	/// fn_only: true if syntactic context instead of normal context.
+	outer_scope: Option<&'a ScopeBuilder<'a, TC, OC>>,
+	/// If true, scope is not able to access variables from outer scope.
 	/// Used for embedded mm so that the inner mm can use outer functions but not variables.
 	types_only: bool,
 
@@ -844,154 +672,21 @@ pub struct Scope<'a> {
 	variable_memory: HashMap<String, (ValueType, Memory)>,
 
 	/// Functions accessible by any code within or in the current scope
-	functions: Vec<(String, Vec<(String, ValueType)>, Vec<Clause>)>,
+	functions: Vec<(String, Vec<(String, ValueType)>, Vec<Clause<TC, OC>>)>,
 	/// Struct types definitions
 	structs: HashMap<String, DictStructType>,
 
 	/// Intermediate instructions generated by the compiler
-	instructions: Vec<Instruction>,
+	instructions: Vec<Instruction<TC, OC>>,
 }
 
-#[derive(Clone, Debug)] // probably shouldn't be cloning here but whatever
-struct Function {
-	arguments: Vec<(String, ValueType)>,
-	block: Vec<Clause>,
-}
-
-#[derive(Clone, Debug, PartialEq, Eq)]
-/// an absolute definition of a type, as opposed to `VariableTypeReference` which is more of a reference
-enum ValueType {
-	Cell,
-	Array(usize, Box<ValueType>),
-	DictStruct(Vec<(String, ValueType, Option<usize>)>),
-	// TupleStruct(Vec<ValueType>),
-}
-
-#[derive(Clone, Debug)]
-/// equivalent to ValueType::DictStruct enum variant,
-/// Rust doesn't support enum variants as types yet so need this workaround for struct definitions in scope object
-struct DictStructType(Vec<(String, ValueType, Option<usize>)>);
-impl ValueType {
-	fn from_struct(struct_def: DictStructType) -> Self {
-		ValueType::DictStruct(struct_def.0)
-	}
-
-	// TODO: make size() and get_and_validate_subfield_cell_map() more efficient,
-	//  currently these two recurse back and forth and are a bit of a monster combo
-
-	/// return the type size in cells
-	fn size(&self) -> Result<usize, String> {
-		Ok(match self {
-			ValueType::Cell => 1,
-			ValueType::Array(len, value_type) => *len * value_type.size()?,
-			ValueType::DictStruct(fields) => Self::get_and_validate_subfield_cell_map(fields)?.1,
-		})
-	}
-
-	/// deterministically place all struct subfields on a non-negative cell, return the positions of each and the total length
-	/// return Err() if location specified subfields overlap
-	fn get_and_validate_subfield_cell_map(
-		fields: &Vec<(String, ValueType, Option<usize>)>,
-	) -> Result<(HashMap<&String, (usize, &ValueType)>, usize), String> {
-		// (set of cells, max cell)
-		let mut cell_map = HashMap::new();
-
-		// map of field names and their starting cells
-		let mut subfield_map = HashMap::new();
-		let mut max_cell = 0usize;
-		let mut unfixed_fields = vec![];
-		// handle the cells with specified locations
-		for (field_name, field_type, field_location) in fields {
-			match field_location {
-				Some(location) => {
-					subfield_map.insert(field_name, (*location, field_type));
-					for cell_index in *location..(*location + field_type.size()?) {
-						// this assumes the field locations have been validated
-						if let Some(other_name) = cell_map.insert(cell_index, field_name) {
-							r_panic!(
-									"Subfields \"{other_name}\" and \"{field_name}\" overlap in struct."
-								);
-						};
-						max_cell = max_cell.max(cell_index);
-					}
-				}
-				None => {
-					unfixed_fields.push((field_name, field_type));
-				}
-			}
-		}
-
-		for (field_name, field_type) in unfixed_fields {
-			let field_size = field_type.size()?;
-			// repeatedly try to insert the fields into leftover memory locations
-			let mut start_index = 0usize;
-			for cur_index in 0.. {
-				if cell_map.contains_key(&cur_index) {
-					start_index = cur_index + 1;
-				} else if (cur_index - start_index + 1) >= field_size {
-					// found a run with the right amount of cells free
-					break;
-				}
-			}
-			subfield_map.insert(field_name, (start_index, field_type));
-			for cell_index in start_index..(start_index + field_size) {
-				// inefficient but whatever, this insert is not necessary
-				cell_map.insert(cell_index, field_name);
-				max_cell = max_cell.max(cell_index);
-			}
-		}
-
-		let size = max_cell + 1;
-
-		Ok((subfield_map, size))
-	}
-
-	/// get a subfield's type as well as memory cell index
-	pub fn get_subfield(
-		&self,
-		subfield_chain: &VariableTargetReferenceChain,
-	) -> Result<(&ValueType, usize), String> {
-		let mut cur_field = self;
-		let mut cur_index = 0;
-		for subfield_ref in subfield_chain.0.iter() {
-			match (cur_field, subfield_ref) {
-				(ValueType::Array(len, element_type), Reference::Index(index)) => {
-					r_assert!(
-						index < len,
-						"Index \"{subfield_ref}\" must be less than array length ({len})."
-					);
-					cur_index += element_type.size()? * index;
-					cur_field = element_type;
-				}
-				(ValueType::DictStruct(fields), Reference::NamedField(subfield_name)) => {
-					let (subfield_map, _size) = Self::get_and_validate_subfield_cell_map(fields)?;
-					let Some((subfield_cell_offset, subfield_type)) =
-						subfield_map.get(subfield_name)
-					else {
-						r_panic!("Could not find subfield \"{subfield_ref}\" in struct type")
-					};
-					cur_index += subfield_cell_offset;
-					cur_field = subfield_type;
-				}
-
-				(ValueType::DictStruct(_), Reference::Index(_)) => {
-					r_panic!("Cannot read index subfield \"{subfield_ref}\" of struct type.")
-				}
-				(ValueType::Array(_, _), Reference::NamedField(_)) => {
-					r_panic!("Cannot read named subfield \"{subfield_ref}\" of array type.")
-				}
-				(ValueType::Cell, subfield_ref) => {
-					r_panic!("Attempted to get subfield \"{subfield_ref}\" of cell type.")
-				}
-			}
-		}
-		Ok((cur_field, cur_index))
-	}
-}
-
-impl Scope<'_> {
-	pub fn new() -> Scope<'static> {
-		Scope {
+impl<TC, OC> ScopeBuilder<'_, TC, OC>
+where
+	TC: Display + Clone,
+	OC: Clone,
+{
+	pub fn new() -> ScopeBuilder<'static, TC, OC> {
+		ScopeBuilder {
 			outer_scope: None,
 			types_only: false,
 			allocations: 0,
@@ -1002,9 +697,10 @@ impl Scope<'_> {
 		}
 	}
 
+	// regarding `clean_up_variables`:
 	// I don't love this system of deciding what to clean up at the end in this specific function, but I'm not sure what the best way to achieve this would be
 	// this used to be called "get_instructions" but I think this more implies things are being modified
-	pub fn finalise_instructions(mut self, clean_up_variables: bool) -> Vec<Instruction> {
+	pub fn build_ir(mut self, clean_up_variables: bool) -> Vec<Instruction<TC, OC>> {
 		if !clean_up_variables {
 			return self.instructions;
 		}
@@ -1047,13 +743,13 @@ impl Scope<'_> {
 		self.instructions
 	}
 
-	fn push_instruction(&mut self, instruction: Instruction) {
+	fn push_instruction(&mut self, instruction: Instruction<TC, OC>) {
 		self.instructions.push(instruction);
 	}
 
 	/// Open a scope within the current one, any time there is a {} in Mastermind, this is called
-	fn open_inner(&self) -> Scope {
-		Scope {
+	fn open_inner(&self) -> ScopeBuilder<TC, OC> {
+		ScopeBuilder {
 			outer_scope: Some(self),
 			types_only: false,
 			allocations: 0,
@@ -1066,8 +762,8 @@ impl Scope<'_> {
 
 	// syntactic context instead of normal context
 	// used for embedded mm so that the inner mm can use outer functions
-	fn open_inner_templates_only(&self) -> Scope {
-		Scope {
+	fn open_inner_templates_only(&self) -> ScopeBuilder<TC, OC> {
+		ScopeBuilder {
 			outer_scope: Some(self),
 			types_only: true,
 			allocations: 0,
@@ -1079,7 +775,7 @@ impl Scope<'_> {
 	}
 
 	/// Get the correct variable type and allocate the right amount of cells for it
-	fn allocate_variable(&mut self, var: VariableDefinition) -> Result<&ValueType, String> {
+	fn allocate_variable(&mut self, var: VariableTypeDefinition<TC>) -> Result<&ValueType, String> {
 		r_assert!(
 			!self.variable_memory.contains_key(&var.name),
 			"Cannot allocate variable {var} twice in the same scope"
@@ -1144,59 +840,55 @@ impl Scope<'_> {
 		}
 	}
 
+	/// find a function definition based on name and argument types (unaffected by the self.fn_only flag)
 	fn get_function(
 		&self,
 		calling_name: &str,
-		calling_arg_types: &Vec<&ValueType>,
-	) -> Result<Function, String> {
-		// this function is unaffected by the self.fn_only flag
-		Ok(
-			if let Some(func) = self.functions.iter().find(|(name, args, _)| {
-				if name != calling_name || args.len() != calling_arg_types.len() {
+		calling_arg_types: &Vec<ValueType>,
+	) -> Result<Function<TC, OC>, String> {
+		if let Some(func) = self.functions.iter().find(|(name, args, _)| {
+			if name != calling_name || args.len() != calling_arg_types.len() {
+				return false;
+			}
+			for ((_, arg_type), calling_arg_type) in zip(args, calling_arg_types) {
+				if *arg_type != *calling_arg_type {
 					return false;
 				}
-				for ((_, arg_type), calling_arg_type) in zip(args, calling_arg_types) {
-					if *arg_type != **calling_arg_type {
-						return false;
-					}
-				}
-				true
-			}) {
-				// TODO: stop cloning! This function overload stuff is tacked on and needs refactoring
-				let (_, arguments, block) = func.clone();
-				Function { arguments, block }
-			} else if let Some(outer_scope) = self.outer_scope {
-				outer_scope.get_function(calling_name, calling_arg_types)?
-			} else {
-				r_panic!("Could not find function \"{calling_name}\" with correct arguments in current scope");
-			},
-		)
+			}
+			true
+		}) {
+			// TODO: stop cloning! This function overload stuff is tacked on and needs refactoring
+			let (_, arguments, block) = func;
+			return Ok(Function {
+				arguments: arguments.clone(),
+				block: block.clone(),
+			});
+		}
+
+		if let Some(outer_scope) = self.outer_scope {
+			return outer_scope.get_function(calling_name, calling_arg_types);
+		}
+
+		r_panic!(
+			"Could not find function \"{calling_name}\" with correct arguments in current scope"
+		);
 	}
 
 	/// Define a struct in this scope
 	fn register_struct_definition(
 		&mut self,
 		struct_name: &str,
-		fields: Vec<VariableDefinition>,
+		fields: Vec<StructFieldTypeDefinition>,
 	) -> Result<(), String> {
 		let mut absolute_fields = vec![];
 
-		for var_def in fields {
-			let absolute_type = self.create_absolute_type(&var_def.var_type)?;
-			let non_neg_location_specifier = match &var_def.location_specifier {
-				LocationSpecifier::None => None,
-				LocationSpecifier::Cell(l) => {
-					// assert the y coordinate is 0
-					r_assert!(l.1 == 0, "Struct field location specifiers do not support 2D grid cells: {var_def}");
-					r_assert!(
-						l.0 >= 0,
-						"Struct field location specifiers must be non-negative: {var_def}"
-					);
-					Some(l.0 as usize)
-				}
-				      LocationSpecifier::Variable(_) => r_panic!("Location specifiers in struct definitions must be relative, not variables: {var_def}"),  
-			};
-			absolute_fields.push((var_def.name, absolute_type, non_neg_location_specifier));
+		for field_def in fields {
+			let absolute_type = self.create_absolute_type(&field_def.field_type)?;
+			absolute_fields.push((
+				field_def.name,
+				absolute_type,
+				field_def.location_offset_specifier,
+			));
 		}
 
 		let None = self
@@ -1213,10 +905,10 @@ impl Scope<'_> {
 	fn register_function_definition(
 		&mut self,
 		new_function_name: &str,
-		new_arguments: Vec<VariableDefinition>,
-		new_block: Vec<Clause>,
+		new_arguments: Vec<VariableTypeDefinition<TC>>,
+		new_block: Vec<Clause<TC, OC>>,
 	) -> Result<(), String> {
-		let absolute_arguments = new_arguments
+		let absolute_arguments: Vec<(String, ValueType)> = new_arguments
 			.into_iter()
 			.map(|f| {
 				let LocationSpecifier::None = f.location_specifier else {
@@ -1224,8 +916,9 @@ impl Scope<'_> {
 				};
 				Ok((f.name, self.create_absolute_type(&f.var_type)?))
 			})
-			.collect::<Result<Vec<_>, _>>()?;
+			.collect::<Result<Vec<(String, ValueType)>, String>>()?;
 
+		// TODO: refactor this:
 		// This is some fucked C-style loop break logic, basically GOTOs
 		// basically it only gets to the panic if the functions have identical signature (except argument names)
 		'func_loop: for (name, args, _) in self.functions.iter() {
@@ -1249,14 +942,14 @@ impl Scope<'_> {
 
 	/// Recursively find the definition of a struct type by searching up the scope call stack
 	fn get_struct_definition(&self, struct_name: &str) -> Result<&DictStructType, String> {
-		Ok(if let Some(struct_def) = self.structs.get(struct_name) {
-			struct_def
+		if let Some(struct_def) = self.structs.get(struct_name) {
+			Ok(struct_def)
 		} else if let Some(outer_scope) = self.outer_scope {
 			// recurse
-			outer_scope.get_struct_definition(struct_name)?
+			outer_scope.get_struct_definition(struct_name)
 		} else {
 			r_panic!("No definition found for struct \"{struct_name}\".");
-		})
+		}
 	}
 
 	/// Construct an absolute type from a type reference
@@ -1278,15 +971,15 @@ impl Scope<'_> {
 		// get the absolute type of the variable, as well as the memory allocations
 		let (full_type, memory) = self.get_base_variable_memory(&target.name)?;
 		// get the correct index within the memory and return
-		Ok(match (&target.subfields, full_type, memory) {
-			(None, ValueType::Cell, Memory::Cell { id }) => CellReference {
+		match (&target.subfields, full_type, memory) {
+			(None, ValueType::Cell, Memory::Cell { id }) => Ok(CellReference {
 				memory_id: *id,
 				index: None,
-			},
-			(None, ValueType::Cell, Memory::MappedCell { id, index }) => CellReference {
+			}),
+			(None, ValueType::Cell, Memory::MappedCell { id, index }) => Ok(CellReference {
 				memory_id: *id,
 				index: *index,
-			},
+			}),
 			(
 				Some(subfield_chain),
 				ValueType::Array(_, _) | ValueType::DictStruct(_),
@@ -1302,7 +995,7 @@ impl Scope<'_> {
 					r_panic!("Expected cell type in variable target: {target}");
 				};
 				r_assert!(cell_index < *len, "Cell reference out of bounds on variable target: {target}. This should not occur.");
-				CellReference {
+				Ok(CellReference {
 					memory_id: *id,
 					index: Some(match memory {
 						Memory::Cells { id: _, len: _ } => cell_index,
@@ -1313,7 +1006,7 @@ impl Scope<'_> {
 						} => *start_index + cell_index,
 						_ => unreachable!(),
 					}),
-				}
+				})
 			}
 			// valid states, user error
 			(
@@ -1349,7 +1042,7 @@ impl Scope<'_> {
 			) => r_panic!(
 				"Invalid memory for value type in target: {target}. This should not occur."
 			),
-		})
+		}
 	}
 
 	/// Return a list of cell references for an array of cells (not an array of structs)
@@ -1511,11 +1204,16 @@ impl Scope<'_> {
 
 	/// Return the absolute type and memory allocation for a variable name
 	fn get_base_variable_memory(&self, var_name: &str) -> Result<(&ValueType, &Memory), String> {
-		// TODO: add function argument translations and embedded bf/mmi scope function restrictions
-		match (self.outer_scope, self.variable_memory.get(var_name)) {
-			(_, Some((value_type, memory))) => Ok((value_type, memory)),
-			(Some(outer_scope), None) => outer_scope.get_base_variable_memory(var_name),
-			(None, None) => r_panic!("No variable found with name \"{var_name}\"."),
+		match (
+			self.outer_scope,
+			self.types_only,
+			self.variable_memory.get(var_name),
+		) {
+			(_, _, Some((value_type, memory))) => Ok((value_type, memory)),
+			(Some(outer_scope), false, None) => outer_scope.get_base_variable_memory(var_name),
+			(None, _, None) | (Some(_), true, None) => {
+				r_panic!("No variable found in scope with name \"{var_name}\".")
+			}
 		}
 	}
 
@@ -1531,7 +1229,8 @@ impl Scope<'_> {
 		})
 	}
 
-	/// Create memory mapping between a pre-existing variable and a new one, used for function arguments
+	/// Create memory mapping between a pre-existing variable and a new one, used for function arguments.
+	///  This could be used for copy by reference of subfields in future.
 	fn create_mapped_variable(
 		&mut self,
 		mapped_var_name: String,
@@ -1625,4 +1324,333 @@ mapping: {mapped_var_name} -> {target}"
 			.insert(mapped_var_name, (var_type.clone(), mapped_memory));
 		Ok(())
 	}
+
+	/// Get the final type of an expression.
+	///  (technically unnecessary right now, but can be used to implement expressions as function arguments in future)
+	fn get_expression_type(&self, expr: &Expression) -> Result<ValueType, String> {
+		Ok(match expr {
+			Expression::NaturalNumber(_) => ValueType::Cell,
+			Expression::SumExpression { sign: _, summands } => {
+				let Some(_) = summands.first() else {
+					r_panic!(
+						"Cannot infer expression type because sum \
+expression has no elements: `{expr}`."
+					);
+				};
+				// TODO: decide if the summands' types should be verified here or not
+				for summand in summands {
+					match self.get_expression_type(summand)? {
+						ValueType::Cell => (),
+						summand_type => {
+							r_panic!(
+								"Sum expressions must be comprised of cell-types: \
+found `{summand_type}` in `{expr}`"
+							);
+						}
+					};
+				}
+				ValueType::Cell
+			}
+			Expression::VariableReference(var) => self.get_target_type(var)?.clone(),
+			Expression::ArrayLiteral(elements) => {
+				let mut elements_iter = elements.iter();
+				let Some(first_element) = elements_iter.next() else {
+					r_panic!(
+						"Cannot infer expression type because \
+array literal has no elements: `{expr}`."
+					);
+				};
+				let first_element_type = self.get_expression_type(first_element)?;
+				for element in elements_iter {
+					let element_type = self.get_expression_type(element)?;
+					r_assert!(
+						element_type == first_element_type,
+						"All elements in array expressions must have the \
+same type: found `{element_type}` in `{expr}`"
+					);
+				}
+				ValueType::Array(elements.len(), Box::new(first_element_type))
+			}
+			Expression::StringLiteral(s) => ValueType::Array(s.len(), Box::new(ValueType::Cell)),
+		})
+	}
+
+	/// helper function for a common use-case:
+	/// flatten an expression and add it to a specific cell (using copies and adds, etc)
+	fn _add_expr_to_cell(&mut self, expr: &Expression, cell: CellReference) -> Result<(), String> {
+		let (imm, adds, subs) = expr.flatten()?;
+
+		self.push_instruction(Instruction::AddToCell(cell.clone(), imm));
+
+		let mut adds_set = HashMap::new();
+		for var in adds {
+			let n = adds_set.remove(&var).unwrap_or(0);
+			adds_set.insert(var, n + 1);
+		}
+		for var in subs {
+			let n = adds_set.remove(&var).unwrap_or(0);
+			adds_set.insert(var, n - 1);
+		}
+
+		for (source, constant) in adds_set {
+			let source_cell = self.get_cell(&source)?;
+			self._copy_cell(source_cell, cell.clone(), constant);
+		}
+
+		Ok(())
+	}
+
+	/// helper function to add a self-referencing expression to a cell
+	/// this is separated because it requires another copy ontop of normal expressions
+	// TODO: refactor/fix underlying logic for this
+	fn _add_self_referencing_expr_to_cell(
+		&mut self,
+		expr: Expression,
+		cell: CellReference,
+		pre_clear: bool,
+	) -> Result<(), String> {
+		//Create a new temp cell to store the current cell value
+		let temp_mem_id = self.push_memory_id();
+		self.push_instruction(Instruction::Allocate(
+			Memory::Cell { id: temp_mem_id },
+			None,
+		));
+		let temp_cell = CellReference {
+			memory_id: temp_mem_id,
+			index: None,
+		};
+		// TODO: make this more efficent by not requiring a clear cell after,
+		// i.e. simple move instead of copy by default for set operations (instead of +=)
+		self._copy_cell(cell, temp_cell, 1);
+		// Then if we are doing a += don't pre-clear otherwise Clear the current cell and run the same actions as _add_expr_to_cell
+		if pre_clear {
+			self.push_instruction(Instruction::ClearCell(cell.clone()));
+		}
+
+		let (imm, adds, subs) = expr.flatten()?;
+
+		self.push_instruction(Instruction::AddToCell(cell.clone(), imm));
+
+		let mut adds_set = HashMap::new();
+		for var in adds {
+			let n = adds_set.remove(&var).unwrap_or(0);
+			adds_set.insert(var, n + 1);
+		}
+		for var in subs {
+			let n = adds_set.remove(&var).unwrap_or(0);
+			adds_set.insert(var, n - 1);
+		}
+
+		for (source, constant) in adds_set {
+			let source_cell = self.get_cell(&source)?;
+			//If we have an instance of the original cell being added simply use our temp cell value
+			// (crucial special sauce)
+			if source_cell.memory_id == cell.memory_id && source_cell.index == cell.index {
+				self._copy_cell(temp_cell, cell.clone(), constant);
+			} else {
+				self._copy_cell(source_cell, cell.clone(), constant);
+			}
+		}
+		//Cleanup
+		self.push_instruction(Instruction::ClearCell(temp_cell));
+		self.push_instruction(Instruction::Free(temp_mem_id));
+
+		Ok(())
+	}
+
+	/// Helper function to copy a cell from one to another, leaving the original unaffected
+	// TODO: make one for draining a cell
+	fn _copy_cell(
+		&mut self,
+		source_cell: CellReference,
+		target_cell: CellReference,
+		constant: i32,
+	) {
+		if constant == 0 {
+			return;
+		}
+		// allocate a temporary cell
+		let temp_mem_id = self.push_memory_id();
+		self.push_instruction(Instruction::Allocate(
+			Memory::Cell { id: temp_mem_id },
+			None,
+		));
+		let temp_cell = CellReference {
+			memory_id: temp_mem_id,
+			index: None,
+		};
+		// copy source to target and temp
+		self.push_instruction(Instruction::OpenLoop(source_cell));
+		self.push_instruction(Instruction::AddToCell(target_cell, constant as u8));
+		self.push_instruction(Instruction::AddToCell(temp_cell, 1));
+		self.push_instruction(Instruction::AddToCell(source_cell, -1i8 as u8));
+		self.push_instruction(Instruction::CloseLoop(source_cell));
+		// copy back from temp
+		self.push_instruction(Instruction::OpenLoop(temp_cell));
+		self.push_instruction(Instruction::AddToCell(source_cell, 1));
+		self.push_instruction(Instruction::AddToCell(temp_cell, -1i8 as u8));
+		self.push_instruction(Instruction::CloseLoop(temp_cell));
+		self.push_instruction(Instruction::Free(temp_mem_id));
+	}
+}
+
+// TODO: think about where to put these tests, and by extension where to put the scopebuilder
+#[cfg(test)]
+mod scope_builder_tests {
+	use crate::{
+		backend::bf::{Opcode, TapeCell},
+		parser::expressions::Sign,
+	};
+
+	use super::*;
+
+	#[test]
+	fn variable_allocation_1() {
+		let mut scope = ScopeBuilder::<TapeCell, Opcode>::new();
+		let allocated_type = scope.allocate_variable(VariableTypeDefinition {
+			name: String::from("var"),
+			var_type: VariableTypeReference::Cell,
+			location_specifier: LocationSpecifier::None,
+		});
+		assert_eq!(allocated_type, Ok(&ValueType::Cell));
+	}
+
+	#[test]
+	fn get_expression_type_numbers_1() {
+		let scope = ScopeBuilder::<TapeCell, Opcode>::new();
+		assert_eq!(
+			scope
+				.get_expression_type(&Expression::NaturalNumber(0))
+				.unwrap(),
+			ValueType::Cell
+		);
+		assert_eq!(
+			scope
+				.get_expression_type(&Expression::NaturalNumber(1))
+				.unwrap(),
+			ValueType::Cell
+		);
+		assert_eq!(
+			scope
+				.get_expression_type(&Expression::NaturalNumber(345678))
+				.unwrap(),
+			ValueType::Cell
+		);
+	}
+
+	#[test]
+	fn get_expression_type_sums_1() {
+		let scope = ScopeBuilder::<TapeCell, Opcode>::new();
+		assert_eq!(
+			scope
+				.get_expression_type(&Expression::SumExpression {
+					sign: Sign::Positive,
+					summands: vec![Expression::NaturalNumber(0)]
+				})
+				.unwrap(),
+			ValueType::Cell
+		);
+		assert_eq!(
+			scope
+				.get_expression_type(&Expression::SumExpression {
+					sign: Sign::Negative,
+					summands: vec![
+						Expression::NaturalNumber(345678),
+						Expression::NaturalNumber(2)
+					]
+				})
+				.unwrap(),
+			ValueType::Cell
+		);
+		assert_eq!(
+			scope
+				.get_expression_type(&Expression::SumExpression {
+					sign: Sign::Positive,
+					summands: vec![
+						Expression::SumExpression {
+							sign: Sign::Negative,
+							summands: vec![
+								Expression::NaturalNumber(1),
+								Expression::NaturalNumber(2)
+							]
+						},
+						Expression::NaturalNumber(2)
+					]
+				})
+				.unwrap(),
+			ValueType::Cell
+		);
+	}
+
+	#[test]
+	fn get_expression_type_variables_1() {
+		let mut scope = ScopeBuilder::<TapeCell, Opcode>::new();
+		scope
+			.allocate_variable(VariableTypeDefinition {
+				name: String::from("var"),
+				var_type: VariableTypeReference::Cell,
+				location_specifier: LocationSpecifier::None,
+			})
+			.unwrap();
+		assert_eq!(
+			scope
+				.get_expression_type(&Expression::VariableReference(VariableTarget {
+					name: String::from("var"),
+					subfields: None,
+					is_spread: false
+				}))
+				.unwrap(),
+			ValueType::Cell
+		);
+		assert_eq!(
+			scope
+				.get_expression_type(&Expression::SumExpression {
+					sign: Sign::Positive,
+					summands: vec![
+						Expression::VariableReference(VariableTarget {
+							name: String::from("var"),
+							subfields: None,
+							is_spread: false
+						}),
+						Expression::NaturalNumber(123)
+					]
+				})
+				.unwrap(),
+			ValueType::Cell
+		);
+	}
+
+	#[test]
+	fn get_expression_type_arrays_1() {
+		let mut scope = ScopeBuilder::<TapeCell, Opcode>::new();
+		scope
+			.allocate_variable(VariableTypeDefinition {
+				name: String::from("arr"),
+				var_type: VariableTypeReference::Array(Box::new(VariableTypeReference::Cell), 3),
+				location_specifier: LocationSpecifier::None,
+			})
+			.unwrap();
+		assert_eq!(
+			scope
+				.get_expression_type(&Expression::VariableReference(VariableTarget {
+					name: String::from("arr"),
+					subfields: None,
+					is_spread: false
+				}))
+				.unwrap(),
+			ValueType::Array(3, Box::new(ValueType::Cell))
+		);
+		assert_eq!(
+			scope
+				.get_expression_type(&Expression::VariableReference(VariableTarget {
+					name: String::from("arr"),
+					subfields: Some(VariableTargetReferenceChain(vec![Reference::Index(0)])),
+					is_spread: false
+				}))
+				.unwrap(),
+			ValueType::Cell
+		);
+	}
+
+	// TODO: make failure tests for expression types
 }

@@ -5,10 +5,10 @@
   "type": "module",
   "scripts": {
     "test:wasm": "cd compiler && cargo test",
-    "dev": "vite",
+    "dev": "./load_env.sh && vite",
     "build:grammar": "yarn run lezer-generator src/lexer/mastermind.grammar -o src/lexer/mastermind_parser.js",
     "build:wasm": "cd compiler && wasm-pack build --target web",
-    "build": "tsc && vite build",
+    "build": "./load_env.sh && tsc && vite build",
     "profile:wasm": "yarn build:wasm --profiling && yarn build && twiggy top -n 20 compiler/pkg/mastermind_bg.wasm",
     "preview": "vite preview"
   },
@@ -30,6 +30,7 @@
   },
   "devDependencies": {
     "@lezer/generator": "^1.5.1",
+    "@types/node": "^24.10.1",
     "@types/uuid": "^9.0.7",
     "typescript": "^5.2.2",
     "vite": "^5.0.0",

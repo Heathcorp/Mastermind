@@ -1,50 +1,77 @@
-import {Component, JSX} from "solid-js";
-import {useAppContext} from "../App.tsx";
-import {AiFillGithub, AiFillQuestionCircle, AiFillSetting} from "solid-icons/ai";
-import { FaSolidBookOpen } from 'solid-icons/fa'
+import { Component, JSX } from "solid-js";
+import { useAppContext } from "../App.tsx";
+import {
+  AiFillGithub,
+  AiFillQuestionCircle,
+  AiFillSetting,
+} from "solid-icons/ai";
+import { FaSolidBookOpen } from "solid-icons/fa";
 import HelpModal from "../components/Help.tsx";
-import DocsModal from "../components/Docs.tsx";
 import "./settings.css";
 import SettingsModal from "../components/Settings.tsx";
 
 const SideBar: Component<{ style?: JSX.CSSProperties }> = (props) => {
-    const app = useAppContext()!;
-
-    return (
-        <div class="sidebar" style={{"flex-direction": "column", ...props.style, "border": "10px", "width": "45px"}}>
-            <a
-                class="socials-icon text-button"
-                href="https://github.com/Heathcorp/Mastermind"
-                target="_blank"
-            >
-                <AiFillGithub title="Git repository"/>
-            </a>
-            <a
-                class="socials-icon text-button"
-                target="_blank"
-                onClick={() => app.setHelpOpen(true)}
-            >
-                < AiFillQuestionCircle title="help"/>
-                <HelpModal></HelpModal>
-            </a>
-            <a
-                class="socials-icon text-button"
-                target="_blank"
-                onClick={() => app.setSettingsOpen(true)}
-            >
-                < AiFillSetting title="Settings"/>
-                <SettingsModal></SettingsModal>
-            </a>
-            <a
-                class="socials-icon text-button"
-                target="_blank"
-                onClick={() => app.setDocsOpen(true)}
-            >
-                < FaSolidBookOpen title="docs"/>
-                <DocsModal></DocsModal>
-            </a>
-        </div>
-    );
-}
+  const app = useAppContext()!;
+  console.log(
+    import.meta.env.VITE_GIT_COMMIT_BRANCH,
+    ":",
+    import.meta.env.VITE_GIT_COMMIT_HASH
+  );
+  return (
+    <div
+      class="sidebar"
+      style={{
+        "flex-direction": "column",
+        ...props.style,
+        border: "10px",
+        width: "45px",
+      }}
+    >
+      <a
+        class="socials-icon text-button"
+        target="_blank"
+        href="https://github.com/Heathcorp/Mastermind"
+      >
+        <AiFillGithub title="Mastermind Git repository" />
+      </a>
+      <a class="socials-icon text-button" onClick={() => app.setHelpOpen(true)}>
+        <AiFillQuestionCircle title="help" />
+        <HelpModal />
+      </a>
+      <a
+        class="socials-icon text-button"
+        onClick={() => app.setSettingsOpen(true)}
+      >
+        <AiFillSetting title="Settings" />
+        <SettingsModal />
+      </a>
+      <a
+        class="socials-icon text-button"
+        target="_blank"
+        href={`https://github.com/Heathcorp/Mastermind/blob/${
+          import.meta.env.VITE_GIT_COMMIT_HASH
+        }/reference.md`}
+      >
+        <FaSolidBookOpen title="Documentation" />
+      </a>
+      {/* // TODO: get bootstrap or tailwind */}
+      <div style={{ flex: 1 }} />
+      <div
+        class="badge"
+        style={{
+          "justify-self": "end",
+          "background-color":
+            import.meta.env.VITE_GIT_COMMIT_BRANCH == "main"
+              ? "#434023"
+              : import.meta.env.VITE_GIT_COMMIT_BRANCH == "dev"
+              ? "#732C2C"
+              : "#420C14",
+        }}
+      >
+        {import.meta.env.VITE_GIT_COMMIT_HASH}
+      </div>
+    </div>
+  );
+};
 
 export default SideBar;

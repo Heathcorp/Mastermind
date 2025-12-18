@@ -1,5 +1,8 @@
 // Accepts a brainfuck program as input, then runs it
 
+// NOTE: you will have to disable blocking input in the web IDE,
+//  otherwise the program will hang waiting for input indefinitely
+
 // frames:
 // @0: bf_instr_marker
 // @1: bf_instr

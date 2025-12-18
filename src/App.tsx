@@ -31,6 +31,7 @@ import std_i8 from "../programs/std/i8?raw";
 import std_u8 from "../programs/std/u8?raw";
 import std_u16 from "../programs/std/u16?raw";
 import std_ifp16 from "../programs/std/ifp16?raw";
+import std_stack from "../programs/std/stack?raw";
 
 import "./App.css";
 import Divider from "./components/Divider";
@@ -52,7 +53,7 @@ import {
 const AppContext = createContext<AppContextProps>();
 
 // update this when you want the user to see new syntax
-const MIGRATION_VERSION = 11;
+const MIGRATION_VERSION = 12;
 
 const App: Component = () => {
   const [version, setVersion] = makePersisted(createSignal<number>(), {
@@ -190,6 +191,11 @@ const App: Component = () => {
         id: uuidv4(),
         label: "ifp16",
         rawText: std_ifp16,
+      },
+      {
+        id: uuidv4(),
+        label: "stack",
+        rawText: std_stack,
       },
       {
         id: uuidv4(),
@@ -567,9 +573,7 @@ const App: Component = () => {
           <OutputPanel style={{ flex: 4 }} />
         </div>
         <Divider />
-        <div>
-          <SideBar />
-        </div>
+        <SideBar />
       </div>
     </AppContext.Provider>
   );

@@ -1,39 +1,37 @@
 #![allow(dead_code)]
+// dead code is allowed because we have two different compile targets (wasm and command-line)
 
-mod macros;
-
-// allowing dead code because we have two different compile targets (wasm and command-line)
+// project dependencies:
+mod backend;
 mod brainfuck;
 mod brainfuck_optimiser;
-mod builder;
-mod compiler;
-mod constants_optimiser;
+mod frontend;
+mod macros;
 mod misc;
 mod parser;
 mod preprocessor;
-mod tokeniser;
+mod tests;
+use crate::{
+	backend::{
+		bf::{Opcode, TapeCell},
+		bf2d::{Opcode2D, TapeCell2D},
+		common::BrainfuckProgram,
+	},
+	brainfuck::{BrainfuckConfig, BrainfuckContext},
+	misc::MastermindContext,
+	parser::parser::parse_program,
+	preprocessor::{preprocess_from_memory, strip_comments},
+};
 
-use brainfuck::{BVMConfig, BVM};
-use brainfuck_optimiser::optimise;
-use builder::{BrainfuckOpcodes, Builder};
-use compiler::Compiler;
-use misc::MastermindConfig;
-use parser::parse;
-use preprocessor::preprocess_from_memory;
-use tokeniser::tokenise;
-
+// stdlib dependencies:
 use std::collections::HashMap;
 
+// external dependencies:
 use wasm_bindgen::{prelude::wasm_bindgen, JsValue};
 
-// copied from rustwasm.github.io
 pub fn set_panic_hook() {
-	// When the `console_error_panic_hook` feature is enabled, we can call the
-	// `set_panic_hook` function at least once during initialization, and then
-	// we will get better error messages if our code ever panics.
-	//
-	// For more details see
-	// https://github.com/rustwasm/console_error_panic_hook#readme
+	// copied from rustwasm.github.io
+	// https://github.com/rustwasm/console_error_panic_hook
 	#[cfg(feature = "console_error_panic_hook")]
 	console_error_panic_hook::set_once();
 }
@@ -48,20 +46,29 @@ pub fn wasm_compile(
 
 	let file_contents: HashMap<String, String> =
 		serde_wasm_bindgen::from_value(file_contents).unwrap();
-	let config: MastermindConfig = serde_wasm_bindgen::from_value(config).unwrap();
-	let compiler = Compiler { config: &config };
-	let builder = Builder { config: &config };
+	let ctx = MastermindContext {
+		config: serde_wasm_bindgen::from_value(config).unwrap(),
+	};
 
 	let preprocessed_file = preprocess_from_memory(&file_contents, entry_file_name)?;
-	let tokens = tokenise(&preprocessed_file)?;
-	let parsed = parse(&tokens)?;
-	let instructions = compiler.compile(&parsed, None)?;
-	let bf_code = builder.build(instructions.finalise_instructions(false), false)?;
+	let stripped_file = strip_comments(&preprocessed_file);
+	if ctx.config.enable_2d_grid {
+		let parsed_syntax = parse_program::<TapeCell2D, Opcode2D>(&stripped_file)?;
+		let instructions = ctx.create_ir_scope(&parsed_syntax, None)?.build_ir(false);
+		let bf_code = ctx.ir_to_bf(instructions, None)?;
+		Ok(bf_code.to_string())
+	} else {
+		let parsed_syntax = parse_program::<TapeCell, Opcode>(&stripped_file)?;
+		let instructions = ctx.create_ir_scope(&parsed_syntax, None)?.build_ir(false);
+		let bf_code = ctx.ir_to_bf(instructions, None)?;
+		Ok(bf_code.to_string())
+	}
 
-	Ok(match config.optimise_generated_code {
-		true => optimise(bf_code, config.optimise_generated_all_permutations).to_string(),
-		false => bf_code.to_string(),
-	})
+	// TODO: fix optimisations
+	// Ok(match ctx.config.optimise_generated_code {
+	// 	true => ctx.optimise_bf_code(bf_code).to_string(),
+	// 	false => bf_code.to_string(),
+	// })
 }
 
 #[wasm_bindgen]
@@ -73,14 +80,16 @@ pub async fn wasm_run_bf(
 ) -> Result<String, JsValue> {
 	set_panic_hook();
 
-	let config = BVMConfig {
-		enable_debug_symbols: false,
-		enable_2d_grid: enable_2d_grid,
+	let ctx = BrainfuckContext {
+		config: BrainfuckConfig {
+			enable_debug_symbols: false,
+			enable_2d_grid: enable_2d_grid,
+		},
 	};
-	let mut bf = BVM::new(config, code.chars().collect());
 
-	// hack, TODO: refactor
-	let r = bf.run_async(output_callback, input_callback).await?;
+	let r = ctx
+		.run_async(code.chars().collect(), output_callback, input_callback)
+		.await?;
 
 	Ok(r)
 }

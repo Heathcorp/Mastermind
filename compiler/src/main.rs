@@ -1,31 +1,33 @@
 #![allow(dead_code)]
+// dead code is allowed because we have two different compile targets (wasm and command-line)
 
+// project dependencies:
+mod backend;
+mod brainfuck;
+mod brainfuck_optimiser;
+mod frontend;
+#[macro_use]
 mod macros;
-
-// Stages: (rust format has jumbled these)
-mod brainfuck; // 6. Run
-mod brainfuck_optimiser; // 5. Post-Optimise
-mod builder; // 4. Build (and pre-optimise)
-mod compiler; // 3. Compile
-mod constants_optimiser; // a component of 4
-mod parser; // 2. Parse
-mod preprocessor; // 0. Preprocess includes and macro-type stuff
-mod tokeniser; // 1. Tokenise
-
 mod misc;
+mod parser;
+mod preprocessor;
 mod tests;
+use crate::{
+	backend::{
+		bf::{Opcode, TapeCell},
+		bf2d::{Opcode2D, TapeCell2D},
+		common::BrainfuckProgram,
+	},
+	brainfuck::{BrainfuckConfig, BrainfuckContext},
+	misc::{MastermindConfig, MastermindContext},
+	parser::parser::parse_program,
+	preprocessor::{preprocess, strip_comments},
+};
 
-use brainfuck::{BVMConfig, BVM};
-use brainfuck_optimiser::optimise;
-use builder::{BrainfuckOpcodes, Builder};
-use compiler::Compiler;
-use misc::MastermindConfig;
-use parser::parse;
-use preprocessor::preprocess;
-use tokeniser::tokenise;
-
+// stdlib dependencies:
 use std::io::{stdin, stdout, Cursor};
 
+// external dependencies:
 use clap::Parser;
 
 #[derive(Parser, Default, Debug)]
@@ -70,67 +72,74 @@ struct Arguments {
 }
 
 fn main() -> Result<(), String> {
+	// TODO: clean up this crazy file, this was the first ever rust I wrote and it's messy
 	std::env::set_var("RUST_BACKTRACE", "1");
 
 	let args = Arguments::parse();
 
-	let config = MastermindConfig::new(args.optimise);
+	let ctx = MastermindContext {
+		// TODO: change this to not be a bitmask, or at least document it
+		config: MastermindConfig::new(args.optimise),
+	};
 
-	let program;
-	match args.file {
+	let program = match args.file {
 		Some(file) => {
 			let file_path = std::path::PathBuf::from(file);
 
 			// c-style preprocessor (includes and maybe some simple conditionals to avoid double includes)
-			program = preprocess(file_path);
+			preprocess(file_path)
 		}
-		None => {
-			program = args.program.unwrap();
-		}
+		None => args.program.unwrap(),
 	};
 
 	let bf_program = match args.compile {
 		true => {
+			let stripped_program = strip_comments(&program);
 			// compile the provided file
-
-			let tokens = tokenise(&program)?;
-			// parse tokens into syntax tree
-			let clauses = parse(&tokens)?;
-			// compile syntax tree into brainfuck
-
-			// 2 stage compilation step, first stage compiles syntax tree into low-level instructions
-			// 	second stage actually writes out the low-level instructions into brainfuck
-
-			let compiler = Compiler { config: &config };
-			let instructions = compiler
-				.compile(&clauses, None)?
-				.finalise_instructions(false);
-
-			let builder = Builder { config: &config };
-			let bf_program = builder.build(instructions, false)?;
-
-			match config.optimise_generated_code {
-				true => {
-					optimise(bf_program, config.optimise_generated_all_permutations).to_string()
-				}
-				false => bf_program.to_string(),
+			if ctx.config.enable_2d_grid {
+				let parsed_syntax = parse_program::<TapeCell2D, Opcode2D>(&stripped_program)?;
+				let instructions = ctx.create_ir_scope(&parsed_syntax, None)?.build_ir(false);
+				let bf_code = ctx.ir_to_bf(instructions, None)?;
+				bf_code.to_string()
+			} else {
+				let parsed_syntax = parse_program::<TapeCell, Opcode>(&stripped_program)?;
+				let instructions = ctx.create_ir_scope(&parsed_syntax, None)?.build_ir(false);
+				let bf_code = ctx.ir_to_bf(instructions, None)?;
+				bf_code.to_string()
 			}
+
+			// TODO: fix optimisations
+			// match ctx.config.optimise_generated_code {
+			// 	true => ctx.optimise_bf_code(bf_code).to_string(),
+			// 	false => bf_code.to_string(),
+			// }
 		}
 		false => program,
 	};
 
 	if args.run || !args.compile {
 		// run brainfuck
-		let config = BVMConfig {
-			enable_debug_symbols: false,
-			enable_2d_grid: false,
+		let ctx = BrainfuckContext {
+			config: BrainfuckConfig {
+				enable_debug_symbols: false,
+				enable_2d_grid: false,
+			},
 		};
-		let mut bvm = BVM::new(config, bf_program.chars().collect());
 
 		if args.input.is_some() {
-			bvm.run(&mut Cursor::new(args.input.unwrap()), &mut stdout(), None)?;
+			ctx.run(
+				bf_program.chars().collect(),
+				&mut Cursor::new(args.input.unwrap()),
+				&mut stdout(),
+				None,
+			)?;
 		} else {
-			bvm.run(&mut stdin(), &mut stdout(), None)?;
+			ctx.run(
+				bf_program.chars().collect(),
+				&mut stdin(),
+				&mut stdout(),
+				None,
+			)?;
 		}
 	} else {
 		print!("{bf_program}");
