@@ -1,8 +1,6 @@
 // TODO: make an impl for a tokeniser, inverse-builder pattern?
 // have a function to peek, then accept changes, so we don't double hangle tokens
 
-use std::fmt::Display;
-
 use crate::macros::macros::r_panic;
 
 /// Get the next token from chars, advance the passed in pointer
@@ -320,7 +318,7 @@ pub enum Token {
 	Character(char),
 }
 
-impl Display for Token {
+impl std::fmt::Display for Token {
 	fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
 		match self {
 			Token::Output

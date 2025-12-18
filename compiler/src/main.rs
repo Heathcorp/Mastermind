@@ -6,6 +6,7 @@ mod backend;
 mod brainfuck;
 mod brainfuck_optimiser;
 mod frontend;
+#[macro_use]
 mod macros;
 mod misc;
 mod parser;

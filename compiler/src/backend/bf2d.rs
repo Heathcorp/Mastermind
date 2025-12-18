@@ -4,7 +4,7 @@ use super::common::{
 };
 use crate::macros::macros::{r_assert, r_panic};
 
-use std::{fmt::Display, hash::Hash};
+use std::hash::Hash;
 
 #[derive(Debug, Hash, Eq, PartialEq, Clone, Copy)]
 pub struct TapeCell2D(pub i32, pub i32);
@@ -102,7 +102,7 @@ impl BrainfuckProgram for Vec<Opcode2D> {
 	}
 }
 
-impl Display for TapeCell2D {
+impl std::fmt::Display for TapeCell2D {
 	fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
 		f.write_fmt(format_args!("({}, {})", self.0, self.1))?;
 		Ok(())

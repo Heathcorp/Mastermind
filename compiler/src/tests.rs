@@ -1128,7 +1128,6 @@ fn add_one(struct A t, cell a) {
 	}
 
 	#[test]
-	#[should_panic]
 	fn functions_3f() {
 		let program = r#"
 struct A {cell b; cell c;};
@@ -1163,8 +1162,8 @@ fn add_one(struct A tfoaishjdf, cell aaewofjas) {
 }
 "#;
 		assert_eq!(
-			compile_and_run::<TapeCell, Opcode>(program, "").unwrap(),
-			"12\n33"
+			compile_and_run::<TapeCell, Opcode>(program, "").unwrap_err(),
+			"Cannot define a function with the same signature more than once in the same scope: \"add_one\""
 		);
 	}
 
