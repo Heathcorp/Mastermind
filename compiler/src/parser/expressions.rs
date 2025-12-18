@@ -1,12 +1,12 @@
 use super::{
 	parser::parse_var_target,
-	tokeniser::{next_token, Token},
+	tokens::{next_token, Token},
 	types::VariableTarget,
 };
 use crate::macros::macros::{r_assert, r_panic};
 
 use itertools::Itertools;
-use std::{fmt::Display, num::Wrapping};
+use std::num::Wrapping;
 
 // TODO: simplify expression data structure for negative sums of single values
 #[derive(Debug, Clone)]
@@ -325,8 +325,7 @@ impl Expression {
 	}
 }
 
-// TODO: test expression display code?
-impl Display for Expression {
+impl std::fmt::Display for Expression {
 	fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
 		match self {
 			Expression::SumExpression { sign, summands } => {

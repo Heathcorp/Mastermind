@@ -1,6 +1,6 @@
 use super::{
 	expressions::Expression,
-	tokeniser::{next_token, Token},
+	tokens::{next_token, Token},
 	types::{
 		Clause, ExtendedOpcode, LocationSpecifier, Reference, TapeCellLocation, VariableTarget,
 		VariableTargetReferenceChain, VariableTypeReference,

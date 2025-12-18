@@ -1,6 +1,6 @@
 use super::constants_optimiser::calculate_optimal_addition;
 use crate::{
-	frontend::{CellLocation, Instruction, MemoryId},
+	frontend::types::{CellLocation, Instruction, MemoryId},
 	macros::macros::{r_assert, r_panic},
 	misc::{MastermindConfig, MastermindContext},
 	parser::types::TapeCellLocation,

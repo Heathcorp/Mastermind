@@ -1,8 +1,6 @@
 use super::expressions::Expression;
 use crate::macros::macros::r_panic;
 
-use std::fmt::Display;
-
 /// Clause type type variables:
 /// - TC: TapeCell can be changed to implement 2D brainfuck, or other modifications
 /// - OC: Opcode represents the valid Brainfuck Opcodes that we're generating (also used for 2D or other BF variants)
@@ -92,7 +90,7 @@ pub enum Clause<TC, OC> {
 
 pub trait TapeCellLocation
 where
-	Self: Sized + Display,
+	Self: Sized + std::fmt::Display,
 {
 	/// optionally parse a memory location specifier
 	/// let g @(4,2) = 68;
@@ -219,7 +217,7 @@ impl VariableTarget {
 	}
 }
 
-impl Display for VariableTypeReference {
+impl std::fmt::Display for VariableTypeReference {
 	fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
 		match &self {
 			VariableTypeReference::Cell => f.write_str("cell"),
@@ -233,7 +231,7 @@ impl Display for VariableTypeReference {
 	}
 }
 
-impl<T: Display> Display for VariableTypeDefinition<T> {
+impl<T: std::fmt::Display> std::fmt::Display for VariableTypeDefinition<T> {
 	fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
 		f.write_str(&format!("{} {}", self.var_type, self.name))?;
 		match &self.location_specifier {
@@ -247,7 +245,7 @@ impl<T: Display> Display for VariableTypeDefinition<T> {
 	}
 }
 
-impl<T: Display> Display for LocationSpecifier<T> {
+impl<T: std::fmt::Display> std::fmt::Display for LocationSpecifier<T> {
 	fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
 		f.write_str("@")?;
 		match self {
@@ -260,7 +258,7 @@ impl<T: Display> Display for LocationSpecifier<T> {
 	}
 }
 
-impl Display for Reference {
+impl std::fmt::Display for Reference {
 	fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
 		match self {
 			Reference::NamedField(subfield_name) => f.write_str(&format!(".{subfield_name}"))?,
@@ -271,7 +269,7 @@ impl Display for Reference {
 	}
 }
 
-impl Display for VariableTarget {
+impl std::fmt::Display for VariableTarget {
 	fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
 		if self.is_spread {
 			f.write_str("*")?;
