@@ -4,7 +4,6 @@
 // project dependencies:
 mod backend;
 mod brainfuck;
-mod brainfuck_optimiser;
 mod frontend;
 mod macros;
 mod misc;
@@ -56,19 +55,21 @@ pub fn wasm_compile(
 		let parsed_syntax = parse_program::<TapeCell2D, Opcode2D>(&stripped_file)?;
 		let instructions = ctx.create_ir_scope(&parsed_syntax, None)?.build_ir(false);
 		let bf_code = ctx.ir_to_bf(instructions, None)?;
-		Ok(bf_code.to_string())
+		Ok(match ctx.config.optimise_generated_code {
+			true => ctx.optimise_bf2d(bf_code),
+			false => bf_code,
+		}
+		.to_string())
 	} else {
 		let parsed_syntax = parse_program::<TapeCell, Opcode>(&stripped_file)?;
 		let instructions = ctx.create_ir_scope(&parsed_syntax, None)?.build_ir(false);
 		let bf_code = ctx.ir_to_bf(instructions, None)?;
-		Ok(bf_code.to_string())
+		Ok(match ctx.config.optimise_generated_code {
+			true => ctx.optimise_bf(bf_code),
+			false => bf_code,
+		}
+		.to_string())
 	}
-
-	// TODO: fix optimisations
-	// Ok(match ctx.config.optimise_generated_code {
-	// 	true => ctx.optimise_bf_code(bf_code).to_string(),
-	// 	false => bf_code.to_string(),
-	// })
 }
 
 #[wasm_bindgen]

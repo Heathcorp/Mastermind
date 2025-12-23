@@ -459,6 +459,6 @@ pub trait BrainfuckBuilder<TC, OC> {
 }
 
 pub trait BrainfuckProgram {
-	fn to_string(self) -> String;
 	fn from_str(s: &str) -> Self;
+	fn to_string(self) -> String;
 }
