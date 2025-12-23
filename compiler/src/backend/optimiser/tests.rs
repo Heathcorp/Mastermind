@@ -49,14 +49,12 @@ fn standard_0() {
 	let o = CTX_OPT.optimise_bf(v).to_string();
 	assert_eq!(o.len(), "+++++>--->+++<<<<<+++[>>>]".len());
 }
-
 #[test]
 fn standard_1() {
 	let v: Vec<Opcode> = BrainfuckProgram::from_str("<><><>++<+[--++>>+<<-]");
 	let o: String = CTX_OPT.optimise_bf(v).to_string();
 	assert_eq!(o, "++<+[->>+<<]");
 }
-
 #[test]
 fn standard_2() {
 	let v: Vec<Opcode> = BrainfuckProgram::from_str(
@@ -68,14 +66,12 @@ fn standard_2() {
 	let o: String = CTX_OPT.optimise_bf(v).to_string();
 	assert_eq!(o, "+++++++++>>+++++++>---->>>++<<<<[>++<]");
 }
-
 #[test]
 fn standard_3() {
 	let v: Vec<Opcode> = BrainfuckProgram::from_str(">><.");
 	let o: String = CTX_OPT.optimise_bf(v).to_string();
 	assert_eq!(o, ">.");
 }
-
 #[test]
 fn standard_4() {
 	let v: Vec<Opcode> = BrainfuckProgram::from_str("+++<+++>[-]+++[>.<+]");
@@ -83,7 +79,6 @@ fn standard_4() {
 	let o = CTX_OPT.optimise_bf(v).to_string();
 	assert_eq!(o.len(), "[-]+++<+++>[>.<+]".len());
 }
-
 #[test]
 fn standard_5() {
 	let v: Vec<Opcode> = BrainfuckProgram::from_str("+++<+++>[-]+++[-]<[-]--+>-[>,]");
@@ -91,7 +86,6 @@ fn standard_5() {
 	let o = CTX_OPT.optimise_bf(v).to_string();
 	assert_eq!(o.len(), "[-]-<[-]->[>,]".len());
 }
-
 #[test]
 fn standard_6() {
 	let v: Vec<Opcode> = BrainfuckProgram::from_str(
@@ -111,14 +105,12 @@ fn greedy_2d_0() {
 	let o = CTX_OPT.optimise_bf2d(v).to_string();
 	assert_eq!(o, "+++++^---^+++vvvvv+++[>>>>>>>]");
 }
-
 #[test]
 fn greedy_2d_1() {
 	let v: Vec<Opcode2D> = BrainfuckProgram::from_str("v^v^v^++v+[--++^^+vv-]");
 	let o: String = CTX_OPT.optimise_bf2d(v).to_string();
 	assert_eq!(o, "++v+[-^^+vv]");
 }
-
 #[test]
 fn greedy_2d_2() {
 	let v: Vec<Opcode2D> = BrainfuckProgram::from_str(
@@ -130,14 +122,12 @@ fn greedy_2d_2() {
 	let o: String = CTX_OPT.optimise_bf2d(v).to_string();
 	assert_eq!(o, "+++++++++^^+++++++^----^^^++vvvv[^++v]");
 }
-
 #[test]
 fn greedy_2d_3() {
 	let v: Vec<Opcode2D> = BrainfuckProgram::from_str("^^v.");
 	let o: String = CTX_OPT.optimise_bf2d(v).to_string();
 	assert_eq!(o, "^.");
 }
-
 #[test]
 fn greedy_2d_4() {
 	let v: Vec<Opcode2D> = BrainfuckProgram::from_str("+++v+++^[-]+++,");
@@ -145,7 +135,6 @@ fn greedy_2d_4() {
 	let o = CTX_OPT.optimise_bf2d(v).to_string();
 	assert_eq!(o, "[-]+++v+++^,");
 }
-
 #[test]
 fn greedy_2d_5() {
 	let v: Vec<Opcode2D> = BrainfuckProgram::from_str("+++v+++^[-]+++[-]v[-]--+^-,,,,...");
@@ -153,7 +142,6 @@ fn greedy_2d_5() {
 	let o = CTX_OPT.optimise_bf2d(v).to_string();
 	assert_eq!(o, "[-]-v[-]-^,,,,...");
 }
-
 #[test]
 fn greedy_2d_6() {
 	let v: Vec<Opcode2D> = BrainfuckProgram::from_str(
@@ -173,14 +161,12 @@ fn exhaustive_2d_0() {
 	let o = CTX_OPT_EXHAUSTIVE.optimise_bf2d(v).to_string();
 	assert_eq!(o.len(), "^^+++v---v+++++vvv+++,".len());
 }
-
 #[test]
 fn exhaustive_2d_1() {
 	let v: Vec<Opcode2D> = BrainfuckProgram::from_str("v^v^v^++v+[--++^^+vv-]");
 	let o: String = CTX_OPT_EXHAUSTIVE.optimise_bf2d(v).to_string();
 	assert_eq!(o.len(), "++v+[^^+vv-]".len());
 }
-
 #[test]
 fn exhaustive_2d_2() {
 	let v: Vec<Opcode2D> = BrainfuckProgram::from_str(
@@ -192,14 +178,12 @@ fn exhaustive_2d_2() {
 	let o: String = CTX_OPT_EXHAUSTIVE.optimise_bf2d(v).to_string();
 	assert_eq!(o.len(), "+++++++++^^+++++++^----^^^++vvvv[^++v]".len());
 }
-
 #[test]
 fn exhaustive_2d_3() {
 	let v: Vec<Opcode2D> = BrainfuckProgram::from_str("^^v.");
 	let o: String = CTX_OPT_EXHAUSTIVE.optimise_bf2d(v).to_string();
 	assert_eq!(o, "^.");
 }
-
 #[test]
 fn exhaustive_2d_4() {
 	let v: Vec<Opcode2D> = BrainfuckProgram::from_str("+++v+++^[-]+++.");
@@ -207,7 +191,6 @@ fn exhaustive_2d_4() {
 	let o = CTX_OPT_EXHAUSTIVE.optimise_bf2d(v).to_string();
 	assert_eq!(o.len(), "[-]+++v+++^.".len());
 }
-
 #[test]
 fn exhaustive_2d_5() {
 	let v: Vec<Opcode2D> = BrainfuckProgram::from_str("+++v+++^[-]+++[-]v[-]--+^-.");
@@ -215,7 +198,6 @@ fn exhaustive_2d_5() {
 	let o = CTX_OPT_EXHAUSTIVE.optimise_bf2d(v).to_string();
 	assert_eq!(o.len(), "[-]-v[-]-^.".len());
 }
-
 #[test]
 fn exhaustive_2d_6() {
 	let v: Vec<Opcode2D> = BrainfuckProgram::from_str(
@@ -239,7 +221,6 @@ fn wrapping_0() {
 	let o: String = CTX_OPT.optimise_bf(v).to_string();
 	assert_eq!(o.len(), 127 + 1);
 }
-
 #[test]
 fn wrapping_1() {
 	let v: Vec<Opcode> = BrainfuckProgram::from_str(
@@ -248,7 +229,6 @@ fn wrapping_1() {
 	let o: String = CTX_OPT.optimise_bf(v).to_string();
 	assert_eq!(o.len(), 128 + 1);
 }
-
 #[test]
 fn wrapping_2() {
 	let v: Vec<Opcode> = BrainfuckProgram::from_str(
@@ -257,7 +237,6 @@ fn wrapping_2() {
 	let o: String = CTX_OPT.optimise_bf(v).to_string();
 	assert_eq!(o.len(), 127 + 1);
 }
-
 #[test]
 fn wrapping_3() {
 	let v: Vec<Opcode> = BrainfuckProgram::from_str(
@@ -266,7 +245,6 @@ fn wrapping_3() {
 	let o: String = CTX_OPT.optimise_bf(v).to_string();
 	assert_eq!(o.len(), 128 + 1);
 }
-
 #[test]
 fn wrapping_3a() {
 	let v: Vec<Opcode> = BrainfuckProgram::from_str(
@@ -275,7 +253,6 @@ fn wrapping_3a() {
 	let o: String = CTX_OPT.optimise_bf(v).to_string();
 	assert_eq!(o.len(), 127 + 1);
 }
-
 #[test]
 fn wrapping_4() {
 	let v: Vec<Opcode> = BrainfuckProgram::from_str(
@@ -286,55 +263,75 @@ fn wrapping_4() {
 }
 
 #[test]
-fn wrapping_0_2d() {
+fn wrapping_2d_0() {
 	let v: Vec<Opcode2D> = BrainfuckProgram::from_str(
 			"-++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++,",
 		);
 	let o: String = CTX_OPT.optimise_bf2d(v).to_string();
 	assert_eq!(o.len(), 127 + 1);
 }
-
 #[test]
-fn wrapping_1_2d() {
+fn wrapping_2d_1() {
 	let v: Vec<Opcode2D> = BrainfuckProgram::from_str(
 			"++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++.",
 		);
 	let o: String = CTX_OPT.optimise_bf2d(v).to_string();
 	assert_eq!(o.len(), 128 + 1);
 }
-
 #[test]
-fn wrapping_2_2d() {
+fn wrapping_2d_2() {
 	let v: Vec<Opcode2D> = BrainfuckProgram::from_str(
 			"+--------------------------------------------------------------------------------------------------------------------------------,"
 		);
 	let o: String = CTX_OPT.optimise_bf2d(v).to_string();
 	assert_eq!(o.len(), 127 + 1);
 }
-
 #[test]
-fn wrapping_3_2d() {
+fn wrapping_2d_3() {
 	let v: Vec<Opcode2D> = BrainfuckProgram::from_str(
 			"--------------------------------------------------------------------------------------------------------------------------------."
 		);
 	let o: String = CTX_OPT.optimise_bf2d(v).to_string();
 	assert_eq!(o.len(), 128 + 1);
 }
-
 #[test]
-fn wrapping_3a_2d() {
+fn wrapping_2d_3a() {
 	let v: Vec<Opcode2D> = BrainfuckProgram::from_str(
 			"- --------------------------------------------------------------------------------------------------------------------------------,"
 		);
 	let o: String = CTX_OPT.optimise_bf2d(v).to_string();
 	assert_eq!(o.len(), 127 + 1);
 }
-
 #[test]
-fn wrapping_4_2d() {
+fn wrapping_2d_4() {
 	let v: Vec<Opcode2D> = BrainfuckProgram::from_str(
 			"[-]--------------------------------------------------------------------------------------------------------------------------------."
 		);
 	let o: String = CTX_OPT.optimise_bf2d(v).to_string();
 	assert_eq!(o.len(), 131 + 1);
+}
+
+#[test]
+fn offset_toplevel_0() {
+	let v: Vec<Opcode> = BrainfuckProgram::from_str("++>>>++++<<<-->>>.");
+	let o: String = CTX_OPT.optimise_bf(v).to_string();
+	assert_eq!(o, "++++.");
+}
+#[test]
+fn offset_toplevel_0a() {
+	let v: Vec<Opcode> = BrainfuckProgram::from_str("[++>>>++++<<<-->>>.]");
+	let o: String = CTX_OPT.optimise_bf(v).to_string();
+	assert_eq!(o, "[>>>++++.]");
+}
+#[test]
+fn offset_toplevel_1() {
+	let v: Vec<Opcode> = BrainfuckProgram::from_str(">>++>-+<++<[++>>>++++<<<-->>>.]<<");
+	let o: String = CTX_OPT.optimise_bf(v).to_string();
+	assert_eq!(o, "++++<[>>>++++.]");
+}
+#[test]
+fn offset_toplevel_2() {
+	let v: Vec<Opcode> = BrainfuckProgram::from_str("[++>>>++++<<<-->>>.]>>>+++<<");
+	let o: String = CTX_OPT.optimise_bf(v).to_string();
+	assert_eq!(o, "[>>>++++.]");
 }
