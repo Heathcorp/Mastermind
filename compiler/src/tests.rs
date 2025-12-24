@@ -2584,6 +2584,29 @@ output a + 3;
 		assert_eq!(run_code(BVM_CONFIG_1D, &code, "", None).unwrap(), "tIJ");
 	}
 
+	#[test]
+	#[ignore]
+	fn generated_code_optimisations() {
+		let program = r#"
+cell x;
+cell y;
+cell z;
+z += 4;
+x += 3;
+z += 4;
+x += 3;
+z += 4;
+y = 7;
+input x;
+input y;
+input z;
+"#;
+		let code = compile_program::<TapeCell, Opcode>(program, Some(OPT_ALL)).unwrap();
+		println!("{code}");
+		assert!(code.len() < 30);
+		assert_eq!(run_code(BVM_CONFIG_1D, &code, "   ", None).unwrap(), "");
+	}
+
 	// TODO: remove the need for this
 	#[test]
 	fn unimplemented_memory_allocation() {

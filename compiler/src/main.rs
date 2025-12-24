@@ -4,7 +4,6 @@
 // project dependencies:
 mod backend;
 mod brainfuck;
-mod brainfuck_optimiser;
 mod frontend;
 #[macro_use]
 mod macros;
@@ -100,19 +99,21 @@ fn main() -> Result<(), String> {
 				let parsed_syntax = parse_program::<TapeCell2D, Opcode2D>(&stripped_program)?;
 				let instructions = ctx.create_ir_scope(&parsed_syntax, None)?.build_ir(false);
 				let bf_code = ctx.ir_to_bf(instructions, None)?;
-				bf_code.to_string()
+				match ctx.config.optimise_generated_code {
+					true => ctx.optimise_bf2d(bf_code),
+					false => bf_code,
+				}
+				.to_string()
 			} else {
 				let parsed_syntax = parse_program::<TapeCell, Opcode>(&stripped_program)?;
 				let instructions = ctx.create_ir_scope(&parsed_syntax, None)?.build_ir(false);
 				let bf_code = ctx.ir_to_bf(instructions, None)?;
-				bf_code.to_string()
+				match ctx.config.optimise_generated_code {
+					true => ctx.optimise_bf(bf_code),
+					false => bf_code,
+				}
+				.to_string()
 			}
-
-			// TODO: fix optimisations
-			// match ctx.config.optimise_generated_code {
-			// 	true => ctx.optimise_bf_code(bf_code).to_string(),
-			// 	false => bf_code.to_string(),
-			// }
 		}
 		false => program,
 	};
