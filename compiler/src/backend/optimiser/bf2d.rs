@@ -29,9 +29,21 @@ impl MastermindContext {
 						// TODO: make this automatically decide rather than configuring
 						self.config.optimise_generated_all_permutations,
 					);
-					output.extend(optimised_subset);
+					subset = vec![];
 
-					subset = Vec::new();
+					// remove any redundant movement at the beginning
+					//  (this shouldn't really be in the loop,
+					//   but it's tested and works, and compiler code isn't performance critical)
+					for subset_op in optimised_subset {
+						if let (
+							0,
+							Opcode2D::Left | Opcode2D::Right | Opcode2D::Up | Opcode2D::Down,
+						) = (output.len(), subset_op)
+						{
+							continue;
+						}
+						output.push(subset_op);
+					}
 					output.push(op);
 				}
 			}
