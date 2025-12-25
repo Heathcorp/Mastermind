@@ -55,7 +55,7 @@ impl MastermindConfig {
 			optimise_unreachable_loops: (optimise_bitmask & 0b00000100) > 0,
 			// optimise_variable_usage: false,
 			// optimise_memory_allocation: false,
-			optimise_constants: false,
+			optimise_constants: (optimise_bitmask & 0b00001000) > 0,
 			optimise_empty_blocks: false,
 			memory_allocation_method: 0,
 			enable_2d_grid: false,

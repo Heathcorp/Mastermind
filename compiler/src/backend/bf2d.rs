@@ -81,18 +81,18 @@ impl BrainfuckProgram for Vec<Opcode2D> {
 				ops.push(Opcode2D::Clear);
 				i += 3;
 			} else {
-				match substr.chars().next().unwrap() {
-					'+' => ops.push(Opcode2D::Add),
-					'-' => ops.push(Opcode2D::Subtract),
-					'>' => ops.push(Opcode2D::Right),
-					'<' => ops.push(Opcode2D::Left),
-					'[' => ops.push(Opcode2D::OpenLoop),
-					']' => ops.push(Opcode2D::CloseLoop),
-					'.' => ops.push(Opcode2D::Output),
-					',' => ops.push(Opcode2D::Input),
-					'^' => ops.push(Opcode2D::Up),
-					'v' => ops.push(Opcode2D::Down),
-					_ => (), // could put a little special opcode in for other characters
+				match substr.chars().next() {
+					Some('+') => ops.push(Opcode2D::Add),
+					Some('-') => ops.push(Opcode2D::Subtract),
+					Some('>') => ops.push(Opcode2D::Right),
+					Some('<') => ops.push(Opcode2D::Left),
+					Some('[') => ops.push(Opcode2D::OpenLoop),
+					Some(']') => ops.push(Opcode2D::CloseLoop),
+					Some('.') => ops.push(Opcode2D::Output),
+					Some(',') => ops.push(Opcode2D::Input),
+					Some('^') => ops.push(Opcode2D::Up),
+					Some('v') => ops.push(Opcode2D::Down),
+					_ => (),
 				}
 				i += 1;
 			}

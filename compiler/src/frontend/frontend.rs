@@ -1,7 +1,5 @@
 // compile syntax tree into low-level instructions
 
-use std::{collections::HashMap, fmt::Display, iter::zip};
-
 use super::types::*;
 use crate::{
 	backend::common::{
@@ -13,12 +11,12 @@ use crate::{
 	parser::{
 		expressions::Expression,
 		types::{
-			Clause, ExtendedOpcode, LocationSpecifier, Reference, StructFieldTypeDefinition,
-			VariableTarget, VariableTargetReferenceChain, VariableTypeDefinition,
-			VariableTypeReference,
+			Clause, ExtendedOpcode, LocationSpecifier, StructFieldTypeDefinition, VariableTarget,
+			VariableTypeDefinition, VariableTypeReference,
 		},
 	},
 };
+use std::{collections::HashMap, fmt::Display, iter::zip};
 
 impl MastermindContext {
 	pub fn create_ir_scope<'a, TC: 'static + TapeCellVariant, OC: 'static + OpcodeVariant>(
@@ -206,7 +204,8 @@ impl MastermindContext {
 
 								r_assert!(
 									adds.len() == 0 && subs.len() == 0,
-									"Expected compile-time constant expression in assertion for {var}"
+									"Expected compile-time constant expression \
+in assertion for {var}"
 								);
 
 								Some(imm)
@@ -308,12 +307,16 @@ impl MastermindContext {
 								index: None,
 							};
 
+							let mut prev = 0;
 							for c in s.bytes() {
-								scope.push_instruction(Instruction::AddToCell(cell, c));
+								scope.push_instruction(Instruction::AddToCell(
+									cell,
+									c.wrapping_sub(prev),
+								));
 								scope.push_instruction(Instruction::OutputCell(cell));
-								scope.push_instruction(Instruction::ClearCell(cell));
+								prev = c;
 							}
-
+							scope.push_instruction(Instruction::ClearCell(cell));
 							scope.push_instruction(Instruction::Free(temp_mem_id));
 						}
 					}
@@ -805,7 +808,8 @@ where
 			LocationSpecifier::None => None,
 			LocationSpecifier::Cell(cell) => Some(cell),
 			LocationSpecifier::Variable(_) => r_panic!(
-				"Cannot use variable as location specifier target when allocating variable: {var}"
+				"Cannot use variable as location specifier \
+target when allocating variable: {var}"
 			),
 		};
 
@@ -870,7 +874,8 @@ where
 		}
 
 		r_panic!(
-			"Could not find function \"{calling_name}\" with correct arguments in current scope"
+			"Could not find function \"{calling_name}\" \
+with correct arguments in current scope"
 		);
 	}
 
@@ -931,7 +936,10 @@ where
 					continue 'func_loop;
 				}
 			}
-			r_panic!("Cannot define a function with the same signature more than once in the same scope: \"{new_function_name}\"");
+			r_panic!(
+				"Cannot define a function with the same signature \
+more than once in the same scope: \"{new_function_name}\""
+			);
 		}
 
 		self.functions
@@ -994,7 +1002,11 @@ where
 				let ValueType::Cell = subfield_type else {
 					r_panic!("Expected cell type in variable target: {target}");
 				};
-				r_assert!(cell_index < *len, "Cell reference out of bounds on variable target: {target}. This should not occur.");
+				r_assert!(
+					cell_index < *len,
+					"Cell reference out of bounds on variable target: {target}. \
+This should not occur."
+				);
 				Ok(CellReference {
 					memory_id: *id,
 					index: Some(match memory {
@@ -1187,15 +1199,36 @@ where
 			Some(subfield_chain) => {
 				let (_subfield_type, offset_index) = full_type.get_subfield(&subfield_chain)?;
 				match memory {
-					   Memory::Cell { id: _ } |Memory::MappedCell { id: _, index: _ } => r_panic!("Attempted to get cell reference of subfield of single cell memory: {target}"),  
-					Memory::Cells { id, len } | Memory::MappedCells { id, start_index: _, len } => {
-						r_assert!(offset_index < *len, "Subfield memory index out of allocation range. This should not occur. ({target})");
+					Memory::Cell { id: _ } | Memory::MappedCell { id: _, index: _ } => r_panic!(
+						"Attempted to get cell reference of \
+subfield of single cell memory: {target}"
+					),
+					Memory::Cells { id, len }
+					| Memory::MappedCells {
+						id,
+						start_index: _,
+						len,
+					} => {
+						r_assert!(
+							offset_index < *len,
+							"Subfield memory index out of allocation range. \
+This should not occur. ({target})"
+						);
 						let index = match memory {
 							Memory::Cells { id: _, len: _ } => offset_index,
-							Memory::MappedCells { id: _, start_index, len: _ } => *start_index + offset_index,
-										Memory::Cell { id: _ } | Memory::MappedCell { id: _, index: _ } => unreachable!()
-								};
-						CellReference {memory_id: *id, index: Some(index)}
+							Memory::MappedCells {
+								id: _,
+								start_index,
+								len: _,
+							} => *start_index + offset_index,
+							Memory::Cell { id: _ } | Memory::MappedCell { id: _, index: _ } => {
+								unreachable!()
+							}
+						};
+						CellReference {
+							memory_id: *id,
+							index: Some(index),
+						}
 					}
 				}
 			}
@@ -1499,7 +1532,10 @@ same type: found `{element_type}` in `{expr}`"
 mod scope_builder_tests {
 	use crate::{
 		backend::bf::{Opcode, TapeCell},
-		parser::expressions::Sign,
+		parser::{
+			expressions::Sign,
+			types::{Reference, VariableTargetReferenceChain},
+		},
 	};
 
 	use super::*;
