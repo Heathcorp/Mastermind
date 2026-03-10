@@ -23,10 +23,10 @@ The compiler codebase has two main entrypoints: `main.rs` and `lib.rs`, for the 
 
 Key files to look at:
 
-- `tokeniser.rs`: tokenises the raw text files into Mastermind syntax tokens.
-- `parser.rs`: parses strings of tokens into higher-level Mastermind clauses.
-- `compiler.rs`: compiles the high-level clauses into a list of basic instructions akin to an intermediate representation (IR).
-- `builder.rs`: takes the basic instructions from the compiler and builds the final Brainfuck program.
+- `parser/tokens.rs`: functions for converting raw text into Mastermind syntax tokens.
+- `parser/parser.rs`: function to convert raw text into higher-level Mastermind clauses, uses the above.
+- `frontend/*.rs`: compiles the high-level clauses into a list of basic instructions akin to an intermediate representation (IR).
+- `backend/common.rs`: takes the basic instructions from the compiler and builds the final Brainfuck program.
 
 Some key commands:
 
