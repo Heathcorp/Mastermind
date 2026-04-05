@@ -9,7 +9,7 @@ use itertools::Itertools;
 
 use crate::macros::macros::r_assert;
 
-pub fn preprocess(file_path: PathBuf) -> String {
+pub fn preprocess(file_path: PathBuf, defines: &mut HashMap<String, String>) -> String {
 	let file_contents = std::fs::read_to_string(&file_path).unwrap();
 	let mut dir_path = file_path.clone();
 	dir_path.pop();
@@ -33,7 +33,19 @@ pub fn preprocess(file_path: PathBuf) -> String {
 
 				let rel_include_path = PathBuf::from(substring);
 				let include_path = dir_path.join(rel_include_path);
-				preprocess(include_path)
+				preprocess(include_path, defines)
+			} else if line.starts_with("#define") {
+				let split: Vec<&str> = line.split_whitespace().collect();
+				if split.len() == 2 {
+					let key = split[1].to_string();
+					let value =  "true".to_string();
+					defines.insert(key, value);
+				} else if split.len() == 3 {
+					let key = split[1].to_string();
+					let value = split[2].to_string();
+					defines.insert(key, value);
+				}
+				String::new()
 			} else {
 				line.to_owned()
 			}
