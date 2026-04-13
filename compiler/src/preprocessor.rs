@@ -9,7 +9,7 @@ use itertools::Itertools;
 
 use crate::macros::macros::r_assert;
 
-pub fn preprocess(file_path: PathBuf, defines: &mut HashMap<String, String>) -> String {
+pub fn preprocess(file_path: PathBuf, defines: &mut HashMap<String, String>, conditionals: &mut Vec<bool>) -> String {
 	let file_contents = std::fs::read_to_string(&file_path).unwrap();
 	let mut dir_path = file_path.clone();
 	dir_path.pop();
@@ -17,7 +17,13 @@ pub fn preprocess(file_path: PathBuf, defines: &mut HashMap<String, String>) -> 
 	file_contents
 		.lines()
 		.map(|line| {
-			if line.starts_with("#include") {
+			if line.starts_with("endif") {
+				conditionals.pop();
+				String::new()
+			} else if conditionals.last() == Some(&false) {
+				String::new()
+			}
+			else if line.starts_with("#include") {
 				// TODO: refactor and deduplicate code, currently doesn't care if "" or <> or jk or any set of two characters
 				let split: Vec<&str> = line.split_whitespace().collect();
 				assert!(
@@ -33,7 +39,7 @@ pub fn preprocess(file_path: PathBuf, defines: &mut HashMap<String, String>) -> 
 
 				let rel_include_path = PathBuf::from(substring);
 				let include_path = dir_path.join(rel_include_path);
-				preprocess(include_path, defines)
+				preprocess(include_path, defines, conditionals)
 			} else if line.starts_with("#define") {
 				let split: Vec<&str> = line.split_whitespace().collect();
 				if split.len() == 2 {
@@ -44,6 +50,18 @@ pub fn preprocess(file_path: PathBuf, defines: &mut HashMap<String, String>) -> 
 					let key = split[1].to_string();
 					let value = split[2].to_string();
 					defines.insert(key, value);
+				}
+				String::new()
+			} else if line.starts_with("#ifdef") {
+				let split: Vec<&str> = line.split_whitespace().collect();
+				if split.len() == 2 {
+					conditionals.push(defines.contains_key(split[1]));
+				}
+				String::new()
+			} else if line.starts_with("#ifndef") {
+				let split: Vec<&str> = line.split_whitespace().collect();
+				if split.len() == 2 {
+					conditionals.push(!defines.contains_key(split[1]));
 				}
 				String::new()
 			} else {

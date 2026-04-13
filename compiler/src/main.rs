@@ -24,7 +24,7 @@ use crate::{
 };
 
 // stdlib dependencies:
-use std::io::{stdin, stdout, Cursor};
+use std::{collections::HashMap, io::{Cursor, stdin, stdout}};
 
 // external dependencies:
 use clap::Parser;
@@ -84,9 +84,11 @@ fn main() -> Result<(), String> {
 	let program = match args.file {
 		Some(file) => {
 			let file_path = std::path::PathBuf::from(file);
+			let mut defines: HashMap<String, String> = HashMap::new();
+			let mut conditionals: Vec<bool> = Vec::new();
 
 			// c-style preprocessor (includes and maybe some simple conditionals to avoid double includes)
-			preprocess(file_path)
+			preprocess(file_path, &mut defines, &mut conditionals)
 		}
 		None => args.program.unwrap(),
 	};
