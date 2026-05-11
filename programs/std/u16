@@ -1,4 +1,7 @@
-// #include <bitops>
+#ifndef STD_U16
+#define STD_U16
+
+#include <bitops>
 #include <i8>
 
 struct u16 {
@@ -306,6 +309,8 @@ fn read(struct u16 n) {
     digit -= '\n';
   }
 }
+
+#endif
 
 // debug/test code:
 // struct u16 s; _20000(s);

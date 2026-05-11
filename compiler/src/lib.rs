@@ -49,7 +49,14 @@ pub fn wasm_compile(
 		config: serde_wasm_bindgen::from_value(config).unwrap(),
 	};
 
-	let preprocessed_file = preprocess_from_memory(&file_contents, entry_file_name)?;
+	let mut defines: HashMap<String, String> = HashMap::new();
+	let mut conditionals: Vec<bool> = Vec::new();
+	let preprocessed_file = preprocess_from_memory(
+		&file_contents,
+		entry_file_name,
+		&mut defines,
+		&mut conditionals,
+	)?;
 	let stripped_file = strip_comments(&preprocessed_file);
 	if ctx.config.enable_2d_grid {
 		let parsed_syntax = parse_program::<TapeCell2D, Opcode2D>(&stripped_file)?;
