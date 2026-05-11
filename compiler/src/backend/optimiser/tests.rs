@@ -1,10 +1,7 @@
 #![cfg(test)]
 
-use std::io::Cursor;
-
 use crate::{
 	backend::{bf::*, bf2d::*, common::BrainfuckProgram},
-	brainfuck::{BrainfuckConfig, BrainfuckContext},
 	misc::{MastermindConfig, MastermindContext},
 };
 

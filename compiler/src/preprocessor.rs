@@ -3,13 +3,14 @@
 
 // TODO: add tests for this!
 
+use itertools::Itertools;
 use std::{collections::HashMap, path::PathBuf};
 
-use itertools::Itertools;
-
-use crate::macros::macros::r_assert;
-
-pub fn preprocess(file_path: PathBuf) -> String {
+pub fn preprocess(
+	file_path: PathBuf,
+	defines: &mut HashMap<String, String>,
+	conditionals: &mut Vec<bool>,
+) -> String {
 	let file_contents = std::fs::read_to_string(&file_path).unwrap();
 	let mut dir_path = file_path.clone();
 	dir_path.pop();
@@ -17,7 +18,12 @@ pub fn preprocess(file_path: PathBuf) -> String {
 	file_contents
 		.lines()
 		.map(|line| {
-			if line.starts_with("#include") {
+			if line.starts_with("#endif") {
+				conditionals.pop();
+				String::new()
+			} else if conditionals.last() == Some(&false) {
+				String::new()
+			} else if line.starts_with("#include") {
 				// TODO: refactor and deduplicate code, currently doesn't care if "" or <> or jk or any set of two characters
 				let split: Vec<&str> = line.split_whitespace().collect();
 				assert!(
@@ -33,7 +39,31 @@ pub fn preprocess(file_path: PathBuf) -> String {
 
 				let rel_include_path = PathBuf::from(substring);
 				let include_path = dir_path.join(rel_include_path);
-				preprocess(include_path)
+				preprocess(include_path, defines, conditionals)
+			} else if line.starts_with("#define") {
+				let split: Vec<&str> = line.split_whitespace().collect();
+				if split.len() == 2 {
+					let key = split[1].to_string();
+					let value = "true".to_string();
+					defines.insert(key, value);
+				} else if split.len() == 3 {
+					let key = split[1].to_string();
+					let value = split[2].to_string();
+					defines.insert(key, value);
+				}
+				String::new()
+			} else if line.starts_with("#ifdef") {
+				let split: Vec<&str> = line.split_whitespace().collect();
+				if split.len() == 2 {
+					conditionals.push(defines.contains_key(split[1]));
+				}
+				String::new()
+			} else if line.starts_with("#ifndef") {
+				let split: Vec<&str> = line.split_whitespace().collect();
+				if split.len() == 2 {
+					conditionals.push(!defines.contains_key(split[1]));
+				}
+				String::new()
 			} else {
 				line.to_owned()
 			}
@@ -46,6 +76,8 @@ pub fn preprocess(file_path: PathBuf) -> String {
 pub fn preprocess_from_memory(
 	file_map: &HashMap<String, String>,
 	entry_file_name: String,
+	defines: &mut HashMap<String, String>,
+	conditionals: &mut Vec<bool>,
 ) -> Result<String, String> {
 	let file_contents = file_map
 		.get(&entry_file_name)
@@ -53,21 +85,50 @@ pub fn preprocess_from_memory(
 
 	let mut acc = String::new();
 	for line in file_contents.lines() {
-		if line.starts_with("#include") {
+		if line.starts_with("#endif") {
+			assert!(
+				line.len() == 6,
+				"Malformed #endif preprocessor directive {line}"
+			);
+			conditionals.pop();
+		} else if conditionals.last() == Some(&false) {
+			continue;
+		} else if line.starts_with("#include") {
 			// TODO: refactor and deduplicate code, currently doesn't care if "" or <> or jk or any set of two characters
 			let split: Vec<&str> = line.split_whitespace().collect();
-			r_assert!(
+			assert!(
 				split.len() == 2,
 				"Malformed #include preprocessor directive {line}"
 			);
 			let mut substring = split[1];
-			r_assert!(
+			assert!(
 				substring.len() > 2,
 				"Expected path string in #include preprocessor directive {line}"
 			);
 			substring = &substring[1..(substring.len() - 1)];
 
-			acc += &preprocess_from_memory(file_map, substring.to_owned())?;
+			acc += &preprocess_from_memory(file_map, substring.to_owned(), defines, conditionals)?;
+		} else if line.starts_with("#define") {
+			let split: Vec<&str> = line.split_whitespace().collect();
+			if split.len() == 2 {
+				let key = split[1].to_string();
+				let value = "true".to_string();
+				defines.insert(key, value);
+			} else if split.len() == 3 {
+				let key = split[1].to_string();
+				let value = split[2].to_string();
+				defines.insert(key, value);
+			}
+		} else if line.starts_with("#ifdef") {
+			let split: Vec<&str> = line.split_whitespace().collect();
+			if split.len() == 2 {
+				conditionals.push(defines.contains_key(split[1]));
+			}
+		} else if line.starts_with("#ifndef") {
+			let split: Vec<&str> = line.split_whitespace().collect();
+			if split.len() == 2 {
+				conditionals.push(!defines.contains_key(split[1]));
+			}
 		} else {
 			acc += line;
 		}

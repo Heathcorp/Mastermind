@@ -1,3 +1,6 @@
+#ifndef STD_BITOPS
+#define STD_BITOPS
+
 /// shift left and wrap
 fn wshift_l(cell n) {
   cell val = n;

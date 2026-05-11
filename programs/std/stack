@@ -1,3 +1,6 @@
+#ifndef STD_STACK
+#define STD_STACK
+
 // Credit to @MSMissing for contributing this stack data type.
 
 // Be aware this data type uses embedded Brainfuck operations which may break user programs if not used carefully.
@@ -166,6 +169,8 @@ fn reverse(struct stack32 stack) {
   reverse(stack, out);
   move_stack(out, stack);
 }
+
+#endif
 
 
 // debug/test code:

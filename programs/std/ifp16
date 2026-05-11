@@ -1,5 +1,8 @@
-// #include <u8>
-// #include <i8>
+#ifndef STD_IFP16
+#define STD_IFP16
+
+#include <u8>
+#include <i8>
 #include <u16>
 
 struct ifp16 {
@@ -503,6 +506,8 @@ fn debug(struct ifp16 self) {
   output '.';
   debug(self.frac);
 }
+
+#endif
 
 // debug/test code:
 // struct ifp16 h;

@@ -1,3 +1,6 @@
+#ifndef STD_U8
+#define STD_U8
+
 // 11111111 [0-255] 
 
 // common cell operations
@@ -116,6 +119,8 @@ fn debug(cell self) {
     output bit;
   }
 }
+
+#endif
 
 // debug/test code
 // cell a; read(a);
