@@ -613,15 +613,19 @@ bf {
 
 ## Standard Library
 
-Currently the Mastermind standard library is very limited, and is effectively a set of example programs included in the web IDE and source repository.
+Currently the Mastermind standard library is very limited, and is effectively a set of example programs included in the web IDE and source repository. Most notably, standard read/print/math functions are implemented for `u8`, `i8`, `u16` and `ifp16` number types.
 
 ### Including files
 
-You can include/import other files using preprocessor directives. The Mastermind preprocessor is intended to mirror the C preprocessor, however it currently only supports the `#include` directive.
+You can include/import other files using preprocessor directives. The Mastermind preprocessor is intended to mirror the C preprocessor, currently supporting basic `#include`, `#ifdef`, `#ifndef`, `#endif`, and `#define`. Note that `#define` is currently only usable in conjunction with the conditional directives. This allows some conditional compilation, and header guards.
 
-The following is a basic example:
+In future these directives will be used to implement a testing system, and conditional compilation for fine-tuning optimisations for different purposes.
+
+The following is a basic example of a header guard and subsequent include:
 
 ```
+#ifndef _FILE1_MMI
+#define _FILE1_MMI
 // file1.mmi
 struct H {
   cell a;
@@ -629,6 +633,7 @@ struct H {
 fn print(struct H h) {
   output h.a;
 }
+#endif
 ```
 
 ```
@@ -643,7 +648,7 @@ print(h);
 
 ### Standard Library Examples
 
-The most mature files in the included examples are the following:
+The most mature files in the provided examples are the following:
 
 - `bitops`: bitshifting operations for cell types
 - `i8`: signed type for 8-bit integers and supporting functions
@@ -652,12 +657,11 @@ The most mature files in the included examples are the following:
 - `ifp16`: a signed 16-bit fixed-point number type and supporting functions
 - `stack`: includes a cell stack and associated functions that can hold up to 32 non-zero elements
 
-NOTE: due to current lack of header-guard support, importing multiple of these will likely cause a compiler error, until this is implemented, the best way to work around this is to only include `ifp16` as that includes the others.
-
 Example usage:
 
 ```
 #include <u16>
+#include <u8>
 
 // read a 16 bit number from stdin, add 55, then print
 
@@ -786,4 +790,4 @@ Detects if a code block is empty or has no effect on the program, and prunes the
 
 <!-- backend -->
 
-Brainfuck loops will be omitted if the cell they start on can be proven to be `0` at compile-time.
+Brainfuck loops will be omitted if the cells they start on are proven to be `0` at compile-time.
