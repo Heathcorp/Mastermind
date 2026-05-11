@@ -3,11 +3,8 @@
 
 // TODO: add tests for this!
 
-use std::{collections::HashMap, path::PathBuf};
-
 use itertools::Itertools;
-
-use crate::macros::macros::r_assert;
+use std::{collections::HashMap, path::PathBuf};
 
 pub fn preprocess(
 	file_path: PathBuf,
