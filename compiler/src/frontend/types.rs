@@ -10,12 +10,19 @@ pub enum Instruction<TC, OC> {
 	Free(MemoryId), // the number indicates which cell in the allocation stack should be freed (cell 0, is the top of the stack, 1 is the second element, etc)
 	OpenLoop(CellReference), // same with other numbers here, they indicate the cell in the allocation stack to use in the instruction
 	CloseLoop(CellReference), // pass in the cell id, this originally wasn't there but may be useful later on
-	AddToCell(CellReference, u8),
 	InputToCell(CellReference),
 	ClearCell(CellReference), // not sure if this should be here, seems common enough that it should be
 	AssertCellValue(CellReference, Option<u8>), // allows the user to hand-tune optimisations further
 	OutputCell(CellReference),
 	InsertBrainfuckAtCell(Vec<OC>, CellLocation<TC>),
+
+	AddToCell(CellReference, IRValue),
+	SetCell(CellReference, IRValue),
+}
+
+#[derive(Debug, Clone)]
+pub enum IRValue {
+	Immediate(u8),
 }
 
 #[derive(Debug, Clone)]

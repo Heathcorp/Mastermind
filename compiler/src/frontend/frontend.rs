@@ -112,7 +112,10 @@ impl MastermindContext {
 								s.len()
 							);
 							for (cell, chr) in zip(cells, s.bytes()) {
-								scope.push_instruction(Instruction::AddToCell(cell, chr));
+								scope.push_instruction(Instruction::AddToCell(
+									cell,
+									IRValue::Immediate(chr),
+								));
 							}
 						}
 
@@ -309,9 +312,9 @@ in assertion for {var}"
 
 							let mut prev = 0;
 							for c in s.bytes() {
-								scope.push_instruction(Instruction::AddToCell(
+								scope.push_instruction(Instruction::SetCell(
 									cell,
-									c.wrapping_sub(prev),
+									IRValue::Immediate(c.wrapping_sub(prev)),
 								));
 								scope.push_instruction(Instruction::OutputCell(cell));
 								prev = c;
@@ -395,18 +398,27 @@ in assertion for {var}"
 						match target.is_spread {
 							false => {
 								let cell = scope.get_cell(&target)?;
-								scope.push_instruction(Instruction::AddToCell(cell, 1));
+								scope.push_instruction(Instruction::AddToCell(
+									cell,
+									IRValue::Immediate(1),
+								));
 							}
 							true => {
 								let cells = scope.get_array_cells(&target)?;
 								for cell in cells {
-									scope.push_instruction(Instruction::AddToCell(cell, 1));
+									scope.push_instruction(Instruction::AddToCell(
+										cell,
+										IRValue::Immediate(1),
+									));
 								}
 							}
 						}
 					}
 
-					scope.push_instruction(Instruction::AddToCell(source_cell, -1i8 as u8)); // 255
+					scope.push_instruction(Instruction::AddToCell(
+						source_cell,
+						IRValue::Immediate(-1i8 as u8),
+					)); // 255
 					scope.push_instruction(Instruction::CloseLoop(source_cell));
 
 					// free the source cell if it was a expression we just created
@@ -484,7 +496,10 @@ in assertion for {var}"
 								memory_id: else_mem_id,
 								index: None,
 							};
-							new_scope.push_instruction(Instruction::AddToCell(else_cell, 1));
+							new_scope.push_instruction(Instruction::AddToCell(
+								else_cell,
+								IRValue::Immediate(1),
+							));
 							Some(else_cell)
 						}
 						None => None,
@@ -1413,7 +1428,10 @@ same type: found `{element_type}` in `{expr}`"
 	fn _add_expr_to_cell(&mut self, expr: &Expression, cell: CellReference) -> Result<(), String> {
 		let (imm, adds, subs) = expr.flatten()?;
 
-		self.push_instruction(Instruction::AddToCell(cell.clone(), imm));
+		self.push_instruction(Instruction::AddToCell(
+			cell.clone(),
+			IRValue::Immediate(imm),
+		));
 
 		let mut adds_set = HashMap::new();
 		for var in adds {
@@ -1462,7 +1480,10 @@ same type: found `{element_type}` in `{expr}`"
 
 		let (imm, adds, subs) = expr.flatten()?;
 
-		self.push_instruction(Instruction::AddToCell(cell.clone(), imm));
+		self.push_instruction(Instruction::AddToCell(
+			cell.clone(),
+			IRValue::Immediate(imm),
+		));
 
 		let mut adds_set = HashMap::new();
 		for var in adds {
@@ -1514,14 +1535,23 @@ same type: found `{element_type}` in `{expr}`"
 		};
 		// copy source to target and temp
 		self.push_instruction(Instruction::OpenLoop(source_cell));
-		self.push_instruction(Instruction::AddToCell(target_cell, constant as u8));
-		self.push_instruction(Instruction::AddToCell(temp_cell, 1));
-		self.push_instruction(Instruction::AddToCell(source_cell, -1i8 as u8));
+		self.push_instruction(Instruction::AddToCell(
+			target_cell,
+			IRValue::Immediate(constant as u8),
+		));
+		self.push_instruction(Instruction::AddToCell(temp_cell, IRValue::Immediate(1)));
+		self.push_instruction(Instruction::AddToCell(
+			source_cell,
+			IRValue::Immediate(-1i8 as u8),
+		));
 		self.push_instruction(Instruction::CloseLoop(source_cell));
 		// copy back from temp
 		self.push_instruction(Instruction::OpenLoop(temp_cell));
-		self.push_instruction(Instruction::AddToCell(source_cell, 1));
-		self.push_instruction(Instruction::AddToCell(temp_cell, -1i8 as u8));
+		self.push_instruction(Instruction::AddToCell(source_cell, IRValue::Immediate(1)));
+		self.push_instruction(Instruction::AddToCell(
+			temp_cell,
+			IRValue::Immediate(-1i8 as u8),
+		));
 		self.push_instruction(Instruction::CloseLoop(temp_cell));
 		self.push_instruction(Instruction::Free(temp_mem_id));
 	}
