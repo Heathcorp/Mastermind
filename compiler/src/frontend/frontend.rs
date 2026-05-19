@@ -273,8 +273,7 @@ in assertion for {var}"
 
 							scope._set_cell_to_expr(&value, cell)?;
 							scope.push_instruction(Instruction::OutputCell(cell));
-							scope.push_instruction(Instruction::ClearCell(cell)); // commenting this out might break things
-
+							scope.push_instruction(Instruction::ClearCell(cell));
 							scope.push_instruction(Instruction::Free(temp_mem_id));
 						}
 						Expression::ArrayLiteral(expressions) => {
@@ -293,7 +292,7 @@ in assertion for {var}"
 								scope._set_cell_to_expr(&value, cell)?;
 								scope.push_instruction(Instruction::OutputCell(cell));
 							}
-
+							scope.push_instruction(Instruction::ClearCell(cell));
 							scope.push_instruction(Instruction::Free(temp_mem_id));
 						}
 						Expression::StringLiteral(s) => {
@@ -506,7 +505,7 @@ in assertion for {var}"
 
 					new_scope.push_instruction(Instruction::OpenLoop(condition_cell));
 					// TODO: think about optimisations for clearing this variable, as the builder won't shorten it for safety as it doesn't know this loop is special
-					// new_scope.push_instruction(Instruction::ClearCell(condition_cell));
+					new_scope.push_instruction(Instruction::ClearCell(condition_cell));
 
 					// set the else condition cell
 					// above comment about optimisations also applies here
@@ -521,6 +520,7 @@ in assertion for {var}"
 					};
 
 					// close if block
+					// new_scope.push_instruction(Instruction::ClearCell(condition_cell));
 					new_scope.push_instruction(Instruction::CloseLoop(condition_cell));
 					new_scope.push_instruction(Instruction::Free(condition_cell.memory_id));
 

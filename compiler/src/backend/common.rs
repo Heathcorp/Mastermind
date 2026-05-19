@@ -119,13 +119,19 @@ outside of loop it was allocated"
 						r_panic!("Attempted to free memory id {id} which could not be found");
 					};
 
-					let None = known_values
-						.into_iter()
-						.find_map(|known_value| (known_value.unwrap_or(1) != 0).then_some(()))
-					else {
-						r_panic!(
-							"Attempted to free memory id {id} which has unknown or non-zero values"
-						);
+					match known_values.into_iter().find_map(|known_value| {
+						(known_value.unwrap_or(1) != 0).then_some(known_value)
+					}) {
+						Some(value) => {
+							r_panic!(
+								"Attempted to free memory id {id} which has value of {}",
+								match value {
+									Some(v) => format!("{}", v),
+									None => format!("Unknown"),
+								}
+							)
+						}
+						None => {}
 					};
 
 					allocator.free(cell_base, size)?;
@@ -504,6 +510,7 @@ pub trait BrainfuckBuilder<TC, OC> {
 	fn move_to_cell(&mut self, cell: TC);
 	fn add_to_current_cell(&mut self, imm: i8);
 	fn clear_current_cell(&mut self);
+	fn maybe_clear_current_cell(&mut self, known_value: u8);
 	fn output_current_cell(&mut self);
 	fn input_to_current_cell(&mut self);
 	fn open_loop(&mut self);
