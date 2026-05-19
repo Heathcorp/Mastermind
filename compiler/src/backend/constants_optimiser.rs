@@ -41,7 +41,7 @@ where
 				target_cell,
 				temp_cell,
 			);
-			println!("{value} - {known_value} -> {:#?}", ops.opcodes);
+			// println!("{value} - {known_value} -> {:#?}", ops.opcodes);
 
 			Some(ops)
 		}

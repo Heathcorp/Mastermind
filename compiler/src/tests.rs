@@ -107,15 +107,9 @@ pub mod black_box_tests {
 		let ctx = MastermindContext { config: OPT_NONE };
 		let stripped_program = strip_comments(raw_program);
 		let clauses = parse_program::<TC, OC>(&stripped_program)?;
-		println!("CLAUSES:");
-		println!("{:#?}", clauses);
 		let instructions = ctx.create_ir_scope(&clauses, None)?.build_ir(false);
-		println!("IR:");
-		println!("{:#?}", instructions);
 		let bf_program = ctx.ir_to_bf(instructions, None)?;
 		let bfs = bf_program.to_string();
-		println!("BF:");
-		println!("{bfs}");
 
 		// run generated brainfuck with input
 		run_code(BVM_CONFIG_1D, &bfs, input, Some(TESTING_BVM_MAX_STEPS))
@@ -135,15 +129,9 @@ pub mod black_box_tests {
 		};
 		let stripped_program = strip_comments(raw_program);
 		let clauses = parse_program::<TC, OC>(&stripped_program)?;
-		println!("CLAUSES:");
-		println!("{:#?}", clauses);
 		let instructions = ctx.create_ir_scope(&clauses, None)?.build_ir(false);
-		println!("IR:");
-		println!("{:#?}", instructions);
 		let bf_code = ctx.ir_to_bf(instructions, None)?;
 		let bfs = bf_code.to_string();
-		println!("BF:");
-		println!("{bfs}");
 
 		Ok(bfs)
 	}
