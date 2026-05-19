@@ -233,6 +233,12 @@ impl BrainfuckBuilder<TapeCell, Opcode> for BrainfuckBuilderData<TapeCell, Opcod
 		self.opcodes.push(Opcode::Subtract);
 		self.opcodes.push(Opcode::CloseLoop);
 	}
+	#[inline]
+	fn maybe_clear_current_cell(&mut self, known_value: Option<u8>) {
+		if known_value.unwrap_or(1) != 0 {
+			self.clear_current_cell();
+		}
+	}
 	fn output_current_cell(&mut self) {
 		self.opcodes.push(Opcode::Output);
 	}

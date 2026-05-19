@@ -135,10 +135,17 @@ pub mod black_box_tests {
 		};
 		let stripped_program = strip_comments(raw_program);
 		let clauses = parse_program::<TC, OC>(&stripped_program)?;
+		println!("CLAUSES:");
+		println!("{:#?}", clauses);
 		let instructions = ctx.create_ir_scope(&clauses, None)?.build_ir(false);
+		println!("IR:");
+		println!("{:#?}", instructions);
 		let bf_code = ctx.ir_to_bf(instructions, None)?;
+		let bfs = bf_code.to_string();
+		println!("BF:");
+		println!("{bfs}");
 
-		Ok(bf_code.to_string())
+		Ok(bfs)
 	}
 
 	#[test]
@@ -2517,7 +2524,7 @@ bf {
 "#;
 		assert_eq!(
 			compile_program::<TapeCell, Opcode>(program, None).unwrap(),
-			",>,>,<<>>>>>[-]+[-]<<<<<"
+			",>,>,<<>>>>>+[-]<<<<<"
 		);
 	}
 
@@ -2663,7 +2670,7 @@ cell b = 3;
 "#;
 		assert_eq!(
 			compile_program::<TapeCell2D, Opcode2D>(program, None).unwrap(),
-			">^^[-]+>>>>>[-]++>>>>>[-]+++<<<<<<<<<<<vv++>+++"
+			">^^+>>>>>++>>>>>+++<<<<<<<<<<<vv++>+++"
 		);
 	}
 
