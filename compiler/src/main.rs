@@ -114,7 +114,10 @@ fn main() -> Result<(), String> {
 			// c-style preprocessor (includes and maybe some simple conditionals to avoid double includes)
 			preprocess(file_path)
 		}
-		None => args.program.unwrap(),
+		None => match args.program {
+			Some(program) => program,
+			None => panic!("No program given"),
+		},
 	};
 
 	let bf_program = match args.compile {
@@ -133,10 +136,6 @@ fn main() -> Result<(), String> {
 					println!("{instructions:#?}");
 				}
 				let bf_code = ctx.ir_to_bf(instructions, None)?;
-				if args.debug && !args.run {
-					println!("BF:");
-					println!("{:#?}", bf_code.clone().to_string());
-				}
 				match ctx.config.optimise_generated_code {
 					true => ctx.optimise_bf2d(bf_code),
 					false => bf_code,
@@ -144,7 +143,15 @@ fn main() -> Result<(), String> {
 				.to_string()
 			} else {
 				let parsed_syntax = parse_program::<TapeCell, Opcode>(&stripped_program)?;
+				if args.debug {
+					println!("AST:");
+					println!("{parsed_syntax:#?}");
+				}
 				let instructions = ctx.create_ir_scope(&parsed_syntax, None)?.build_ir(false);
+				if args.debug {
+					println!("IR:");
+					println!("{instructions:#?}");
+				}
 				let bf_code = ctx.ir_to_bf(instructions, None)?;
 				match ctx.config.optimise_generated_code {
 					true => ctx.optimise_bf(bf_code),
