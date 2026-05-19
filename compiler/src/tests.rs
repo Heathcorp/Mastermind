@@ -108,6 +108,7 @@ pub mod black_box_tests {
 		let stripped_program = strip_comments(raw_program);
 		let clauses = parse_program::<TC, OC>(&stripped_program)?;
 		let instructions = ctx.create_ir_scope(&clauses, None)?.build_ir(false);
+		println!("{:#?}", instructions);
 		let bf_program = ctx.ir_to_bf(instructions, None)?;
 		let bfs = bf_program.to_string();
 

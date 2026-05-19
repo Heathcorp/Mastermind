@@ -1,6 +1,7 @@
 use super::constants_optimiser::calculate_optimal_addition;
 use crate::{
-	frontend::types::{CellLocation, Instruction, MemoryId},
+	backend::constants_optimiser::calculate_optimal_set,
+	frontend::types::{CellLocation, IRValue, Instruction, MemoryId},
 	macros::macros::{r_assert, r_panic},
 	misc::{MastermindConfig, MastermindContext},
 	parser::types::TapeCellLocation,
@@ -8,6 +9,7 @@ use crate::{
 
 use std::{
 	collections::{HashMap, HashSet},
+	fmt,
 	num::Wrapping,
 };
 
@@ -206,7 +208,7 @@ outside of loop it was allocated"
 						*known_value = Some(0);
 					}
 				}
-				Instruction::AddToCell(cell_obj, imm) => {
+				Instruction::AddToCell(cell_obj, irvalue) => {
 					let Some(AllocationMapEntry {
 						cell_base,
 						size,
@@ -217,6 +219,7 @@ outside of loop it was allocated"
 						r_panic!("Attempted to add to cell {cell_obj:#?} which could not be found");
 					};
 
+					let IRValue::Immediate(imm) = irvalue;
 					let mem_idx = cell_obj.index.unwrap_or(0);
 					r_assert!(
 						mem_idx < *size,
@@ -235,8 +238,12 @@ outside of loop it was allocated"
 						// TODO: instead find the nearest zero cell, doesn't matter if allocated or not
 						let temp_cell = allocator.allocate_temp_cell(cell);
 
-						let optimised_ops =
-							calculate_optimal_addition(imm as i8, ops.head_pos, cell, temp_cell);
+						let optimised_ops = calculate_optimal_addition(
+							IRValue::Immediate(imm),
+							ops.head_pos,
+							cell,
+							temp_cell,
+						);
 
 						ops.extend(optimised_ops.opcodes);
 						ops.head_pos = optimised_ops.head_pos;
@@ -254,6 +261,51 @@ outside of loop it was allocated"
 							*known_value = (Wrapping(*known_value) + Wrapping(imm)).0;
 						}
 					}
+				}
+				Instruction::SetCell(cell_obj, irvalue) => {
+					let Some(AllocationMapEntry {
+						cell_base,
+						size,
+						alloc_loop_depth: _,
+						known_values,
+					}) = alloc_map.get_mut(&cell_obj.memory_id)
+					else {
+						r_panic!("Attempted to set cell {cell_obj:#?} which could not be found");
+					};
+
+					let mem_idx = cell_obj.index.unwrap_or(0);
+					r_assert!(
+						mem_idx < *size,
+						"Attempted to access memory outside of allocation"
+					);
+
+					let IRValue::Immediate(imm) = irvalue;
+
+					let cell = cell_base.with_offset(mem_idx as i32);
+					let known_value = &mut known_values[mem_idx];
+
+					if self.config.optimise_constants {
+						let temp_cell = allocator.allocate_temp_cell(cell);
+
+						ops.move_to_cell(cell);
+						let optimized_ops = calculate_optimal_set(
+							irvalue,
+							ops.head_pos,
+							cell,
+							temp_cell,
+							*known_value,
+						);
+
+						ops.extend(optimized_ops.opcodes);
+						ops.head_pos = optimized_ops.head_pos;
+						allocator.free(temp_cell, 1)?;
+					} else {
+						ops.move_to_cell(cell);
+						ops.clear_current_cell();
+						ops.add_to_current_cell(imm as i8);
+					}
+
+					*known_value = Some(imm);
 				}
 				Instruction::InputToCell(cell_obj) => {
 					let Some(AllocationMapEntry {
@@ -403,7 +455,7 @@ outside of loop it was allocated"
 /// for now this is implemented by TapeCell (i32 1D location specifier), and TapeCell2D (2D)
 pub trait TapeCellVariant
 where
-	Self: PartialEq + Copy + Clone + Eq + TapeCellLocation,
+	Self: PartialEq + Copy + Clone + Eq + TapeCellLocation + fmt::Debug,
 {
 	fn origin_cell() -> Self;
 	fn with_offset(&self, offset: i32) -> Self;
@@ -412,7 +464,7 @@ where
 /// This trait must be implemented for a Brainfuck variant
 pub trait OpcodeVariant
 where
-	Self: Sized + Clone + Copy,
+	Self: Sized + Clone + Copy + fmt::Debug,
 {
 	fn try_from_char(c: char) -> Option<Self>;
 }

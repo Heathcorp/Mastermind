@@ -1,7 +1,61 @@
+use crate::frontend::types::IRValue;
+
 use super::common::{
 	BrainfuckBuilder, BrainfuckBuilderData, CellAllocator, CellAllocatorData, OpcodeVariant,
 	TapeCellVariant,
 };
+
+// Calculate the optimal way to set a cell
+pub fn calculate_optimal_set<TC: TapeCellVariant, OC: OpcodeVariant + std::fmt::Debug>(
+	irvalue: IRValue,
+	start_cell: TC,
+	target_cell: TC,
+	temp_cell: TC,
+	target_known: Option<u8>,
+) -> BrainfuckBuilderData<TC, OC>
+where
+	BrainfuckBuilderData<TC, OC>: BrainfuckBuilder<TC, OC>,
+	CellAllocatorData<TC>: CellAllocator<TC>,
+{
+	// this could certainly be cleaned up...
+	let IRValue::Immediate(value) = irvalue;
+	let value = value as i8;
+	let clearing_solution = {
+		let mut ops = BrainfuckBuilderData::new();
+		ops.head_pos = start_cell;
+		ops.move_to_cell(target_cell);
+		ops.clear_current_cell();
+		ops.add_to_current_cell(value);
+		ops
+	};
+
+	if target_known.is_none() {
+		return clearing_solution;
+	}
+
+	let adding_solution = match target_known {
+		Some(known_value) => {
+			let ops = calculate_optimal_addition(
+				IRValue::Immediate((value - (known_value as i8)) as u8),
+				start_cell,
+				target_cell,
+				temp_cell,
+			);
+			println!("{value} - {known_value} -> {:#?}", ops.opcodes);
+
+			Some(ops)
+		}
+
+		None => None,
+	};
+
+	let adding_solution = adding_solution.unwrap();
+	if clearing_solution.len() < adding_solution.len() {
+		clearing_solution
+	} else {
+		adding_solution
+	}
+}
 
 // basically, most ascii characters are large numbers, which are more efficient to calculate with multiplication than with a bunch of + or -
 // an optimising brainfuck runtime will prefer a long string of +++++ or ----- however the goal of mastermind is to be used for code golf, which is not about speed
@@ -12,7 +66,7 @@ use super::common::{
 // 5 * 5 * 7 : +++++[>+++++<-]>[<+++++++>-]<
 // TODO: make unit tests for this
 pub fn calculate_optimal_addition<TC: TapeCellVariant, OC: OpcodeVariant>(
-	value: i8,
+	irvalue: IRValue,
 	start_cell: TC,
 	target_cell: TC,
 	temp_cell: TC,
@@ -22,6 +76,8 @@ where
 	CellAllocatorData<TC>: CellAllocator<TC>,
 {
 	// can't abs() i8 directly because there is no +128i8, so abs(-128i8) crashes
+	let IRValue::Immediate(value) = irvalue;
+	let value = value as i8;
 	let abs_value = (value as i32).abs();
 
 	// STAGE 0:

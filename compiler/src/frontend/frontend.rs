@@ -87,7 +87,7 @@ impl MastermindContext {
 							| Expression::VariableReference(_),
 						) => {
 							let cell = scope.get_cell(&VariableTarget::from_definition(&var))?;
-							scope._add_expr_to_cell(&value, cell)?;
+							scope._set_cell_to_expr(&value, cell)?;
 						}
 
 						// multi-cell arrays and (array literals or strings)
@@ -100,7 +100,7 @@ impl MastermindContext {
 								expressions.len()
 							);
 							for (cell, expr) in zip(cells, expressions) {
-								scope._add_expr_to_cell(expr, cell)?;
+								scope._set_cell_to_expr(expr, cell)?;
 							}
 						}
 						(ValueType::Array(_, _), Expression::StringLiteral(s)) => {
@@ -112,7 +112,7 @@ impl MastermindContext {
 								s.len()
 							);
 							for (cell, chr) in zip(cells, s.bytes()) {
-								scope.push_instruction(Instruction::AddToCell(
+								scope.push_instruction(Instruction::SetCell(
 									cell,
 									IRValue::Immediate(chr),
 								));
@@ -164,8 +164,7 @@ impl MastermindContext {
 				} => match (var.is_spread, self_referencing) {
 					(false, false) => {
 						let cell = scope.get_cell(&var)?;
-						scope.push_instruction(Instruction::ClearCell(cell.clone()));
-						scope._add_expr_to_cell(&value, cell)?;
+						scope._set_cell_to_expr(&value, cell)?;
 					}
 					(false, true) => {
 						let cell = scope.get_cell(&var)?;
@@ -272,9 +271,9 @@ in assertion for {var}"
 								index: None,
 							};
 
-							scope._add_expr_to_cell(&value, cell)?;
+							scope._set_cell_to_expr(&value, cell)?;
 							scope.push_instruction(Instruction::OutputCell(cell));
-							scope.push_instruction(Instruction::ClearCell(cell));
+							scope.push_instruction(Instruction::ClearCell(cell)); // commenting this out might break things
 
 							scope.push_instruction(Instruction::Free(temp_mem_id));
 						}
@@ -291,9 +290,8 @@ in assertion for {var}"
 							};
 
 							for value in expressions {
-								scope._add_expr_to_cell(&value, cell)?;
+								scope._set_cell_to_expr(&value, cell)?;
 								scope.push_instruction(Instruction::OutputCell(cell));
-								scope.push_instruction(Instruction::ClearCell(cell));
 							}
 
 							scope.push_instruction(Instruction::Free(temp_mem_id));
@@ -310,14 +308,12 @@ in assertion for {var}"
 								index: None,
 							};
 
-							let mut prev = 0;
 							for c in s.bytes() {
 								scope.push_instruction(Instruction::SetCell(
 									cell,
-									IRValue::Immediate(c.wrapping_sub(prev)),
+									IRValue::Immediate(c),
 								));
 								scope.push_instruction(Instruction::OutputCell(cell));
-								prev = c;
 							}
 							scope.push_instruction(Instruction::ClearCell(cell));
 							scope.push_instruction(Instruction::Free(temp_mem_id));
@@ -496,7 +492,7 @@ in assertion for {var}"
 								memory_id: else_mem_id,
 								index: None,
 							};
-							new_scope.push_instruction(Instruction::AddToCell(
+							new_scope.push_instruction(Instruction::SetCell(
 								else_cell,
 								IRValue::Immediate(1),
 							));
@@ -506,11 +502,11 @@ in assertion for {var}"
 					};
 
 					// copy the condition expression to the temporary condition cell
-					new_scope._add_expr_to_cell(&condition, condition_cell)?;
+					new_scope._set_cell_to_expr(&condition, condition_cell)?;
 
 					new_scope.push_instruction(Instruction::OpenLoop(condition_cell));
 					// TODO: think about optimisations for clearing this variable, as the builder won't shorten it for safety as it doesn't know this loop is special
-					new_scope.push_instruction(Instruction::ClearCell(condition_cell));
+					// new_scope.push_instruction(Instruction::ClearCell(condition_cell));
 
 					// set the else condition cell
 					// above comment about optimisations also applies here
@@ -1432,6 +1428,28 @@ same type: found `{element_type}` in `{expr}`"
 			cell.clone(),
 			IRValue::Immediate(imm),
 		));
+
+		let mut adds_set = HashMap::new();
+		for var in adds {
+			let n = adds_set.remove(&var).unwrap_or(0);
+			adds_set.insert(var, n + 1);
+		}
+		for var in subs {
+			let n = adds_set.remove(&var).unwrap_or(0);
+			adds_set.insert(var, n - 1);
+		}
+
+		for (source, constant) in adds_set {
+			let source_cell = self.get_cell(&source)?;
+			self._copy_cell(source_cell, cell.clone(), constant);
+		}
+
+		Ok(())
+	}
+
+	fn _set_cell_to_expr(&mut self, expr: &Expression, cell: CellReference) -> Result<(), String> {
+		let (imm, adds, subs) = expr.flatten()?;
+		self.push_instruction(Instruction::SetCell(cell.clone(), IRValue::Immediate(imm)));
 
 		let mut adds_set = HashMap::new();
 		for var in adds {
