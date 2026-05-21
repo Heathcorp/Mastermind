@@ -305,11 +305,15 @@ outside of loop it was allocated"
 						ops.extend(optimized_ops.opcodes);
 						ops.head_pos = optimized_ops.head_pos;
 						allocator.free(temp_cell, 1)?;
-					} else {
+					} else if self.config.optimise_cell_clearing {
 						ops.move_to_cell(cell);
 						if known_value.unwrap_or(1) != 0 {
 							ops.clear_current_cell();
 						}
+						ops.add_to_current_cell(imm as i8);
+					} else {
+						ops.move_to_cell(cell);
+						ops.clear_current_cell();
 						ops.add_to_current_cell(imm as i8);
 					}
 
