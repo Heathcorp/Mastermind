@@ -7,7 +7,7 @@ use std::{collections::HashMap, path::PathBuf};
 
 use itertools::Itertools;
 
-use crate::macros::{self, macros::r_assert};
+use crate::macros::macros::r_assert;
 
 pub fn preprocess(file_path: PathBuf) -> String {
 	let file_contents = std::fs::read_to_string(&file_path)

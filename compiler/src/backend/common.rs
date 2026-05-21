@@ -307,7 +307,9 @@ outside of loop it was allocated"
 						allocator.free(temp_cell, 1)?;
 					} else {
 						ops.move_to_cell(cell);
-						ops.maybe_clear_current_cell(*known_value);
+						if known_value.unwrap_or(1) != 0 {
+							ops.clear_current_cell();
+						}
 						ops.add_to_current_cell(imm as i8);
 					}
 
@@ -510,7 +512,6 @@ pub trait BrainfuckBuilder<TC, OC> {
 	fn move_to_cell(&mut self, cell: TC);
 	fn add_to_current_cell(&mut self, imm: i8);
 	fn clear_current_cell(&mut self);
-	fn maybe_clear_current_cell(&mut self, known_value: Option<u8>);
 	fn output_current_cell(&mut self);
 	fn input_to_current_cell(&mut self);
 	fn open_loop(&mut self);
