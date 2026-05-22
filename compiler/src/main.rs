@@ -114,10 +114,7 @@ fn main() -> Result<(), String> {
 			// c-style preprocessor (includes and maybe some simple conditionals to avoid double includes)
 			preprocess(file_path)
 		}
-		None => match args.program {
-			Some(program) => program,
-			None => panic!("No program given"),
-		},
+		None => args.program.ok_or(format!("No program given"))?,
 	};
 
 	let bf_program = match args.compile {
