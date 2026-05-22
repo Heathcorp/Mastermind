@@ -119,20 +119,16 @@ outside of loop it was allocated"
 						r_panic!("Attempted to free memory id {id} which could not be found");
 					};
 
-					match known_values.into_iter().find_map(|known_value| {
-						(known_value.unwrap_or(1) != 0).then_some(known_value)
-					}) {
-						Some(value) => {
-							r_panic!(
-								"Attempted to free memory id {id} which has value of {}",
-								match value {
-									Some(v) => format!("{}", v),
-									None => format!("Unknown"),
-								}
-							)
-						}
-						None => {}
-					};
+					if known_values
+						.iter()
+						.find_map(|known_value| (!matches!(known_value, Some(0))).then_some(()))
+						.is_some()
+					{
+						r_panic!(
+							"Attempted to free memory id {id} which contains non-zero\
+ or unknown values: {known_values:#?}"
+						)
+					}
 
 					allocator.free(cell_base, size)?;
 				}
