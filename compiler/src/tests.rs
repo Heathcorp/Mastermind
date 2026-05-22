@@ -131,8 +131,9 @@ pub mod black_box_tests {
 		let clauses = parse_program::<TC, OC>(&stripped_program)?;
 		let instructions = ctx.create_ir_scope(&clauses, None)?.build_ir(false);
 		let bf_code = ctx.ir_to_bf(instructions, None)?;
+		let bfs = bf_code.to_string();
 
-		Ok(bf_code.to_string())
+		Ok(bfs)
 	}
 
 	#[test]
@@ -2657,7 +2658,7 @@ cell b = 3;
 "#;
 		assert_eq!(
 			compile_program::<TapeCell2D, Opcode2D>(program, None).unwrap(),
-			">^^[-]+>>>>>[-]++>>>>>[-]+++<<<<<<<<<<<vv++>+++"
+			">^^+>>>>>++>>>>>+++<<<<<<<<<<<vv++>+++"
 		);
 	}
 

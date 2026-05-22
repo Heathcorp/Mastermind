@@ -10,7 +10,8 @@ use itertools::Itertools;
 use crate::macros::macros::r_assert;
 
 pub fn preprocess(file_path: PathBuf) -> String {
-	let file_contents = std::fs::read_to_string(&file_path).unwrap();
+	let file_contents = std::fs::read_to_string(&file_path)
+		.expect(&format!("Could not find file {}", file_path.display()));
 	let mut dir_path = file_path.clone();
 	dir_path.pop();
 

@@ -1,10 +1,10 @@
 #![cfg(test)]
 
-use std::io::Cursor;
+// use std::io::Cursor;
 
 use crate::{
 	backend::{bf::*, bf2d::*, common::BrainfuckProgram},
-	brainfuck::{BrainfuckConfig, BrainfuckContext},
+	// brainfuck::{BrainfuckConfig, BrainfuckContext},
 	misc::{MastermindConfig, MastermindContext},
 };
 
@@ -94,9 +94,9 @@ fn _characteristic_test(input: &str, expected: &str) {
 	// TODO: implement actually running both codes, would require refactoring BVM
 	assert_eq!(tally_opcodes(&optimised), tally_opcodes(&expected));
 }
-fn _characteristic_test_2d(ctx: MastermindContext, input: &str, expected: &str) {
-	todo!();
-}
+// fn _characteristic_test_2d(ctx: MastermindContext, input: &str, expected: &str) {
+// 	todo!();
+// }
 
 #[test]
 fn standard_0() {

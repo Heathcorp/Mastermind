@@ -8,6 +8,11 @@ edition = "2021"
 [lib]
 crate-type = ["cdylib", "rlib"]
 
+[[bin]]
+name = "mmi"
+path = "src/main.rs"
+
+
 [dependencies]
 clap = { version = "4.4.2", features = ["derive"] }
 console_error_panic_hook = { version = "0.1.7", optional = true }

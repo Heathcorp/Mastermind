@@ -61,13 +61,29 @@ struct Arguments {
 	)]
 	run: bool,
 
-	#[arg(
-		short,
-		long,
-		default_value_t = 0,
-		help = "specify the level of optimisation, this is a bitmask value"
-	)]
-	optimise: usize,
+	#[arg(short = 'o', long, default_value_t = true)]
+	optimize_all: bool,
+
+	#[arg(long, default_value_t = false)]
+	optimize_generated_code: bool,
+
+	#[arg(long, default_value_t = false)]
+	optimize_generated_all_permutations: bool,
+
+	#[arg(long, default_value_t = false)]
+	optimize_cell_clearing: bool,
+
+	#[arg(long, default_value_t = false)]
+	optimize_unreachable_loops: bool,
+
+	#[arg(long, default_value_t = false)]
+	optimize_constants: bool,
+
+	#[arg(long, default_value_t = false)]
+	optimize_empty_blocks: bool,
+
+	#[arg(short, long, default_value_t = false)]
+	debug: bool,
 }
 
 fn main() -> Result<(), String> {
@@ -78,7 +94,17 @@ fn main() -> Result<(), String> {
 
 	let ctx = MastermindContext {
 		// TODO: change this to not be a bitmask, or at least document it
-		config: MastermindConfig::new(args.optimise),
+		config: MastermindConfig {
+			optimise_generated_code: args.optimize_generated_code || args.optimize_all,
+			optimise_generated_all_permutations: args.optimize_generated_all_permutations
+				|| args.optimize_all,
+			optimise_cell_clearing: args.optimize_cell_clearing || args.optimize_all,
+			optimise_unreachable_loops: args.optimize_unreachable_loops || args.optimize_all,
+			optimise_constants: args.optimize_constants || args.optimize_all,
+			optimise_empty_blocks: args.optimize_empty_blocks || args.optimize_all,
+			enable_2d_grid: false,
+			memory_allocation_method: 0,
+		},
 	};
 
 	let program = match args.file {
@@ -88,7 +114,7 @@ fn main() -> Result<(), String> {
 			// c-style preprocessor (includes and maybe some simple conditionals to avoid double includes)
 			preprocess(file_path)
 		}
-		None => args.program.unwrap(),
+		None => args.program.ok_or(format!("No program given"))?,
 	};
 
 	let bf_program = match args.compile {
@@ -97,7 +123,15 @@ fn main() -> Result<(), String> {
 			// compile the provided file
 			if ctx.config.enable_2d_grid {
 				let parsed_syntax = parse_program::<TapeCell2D, Opcode2D>(&stripped_program)?;
+				if args.debug {
+					println!("AST:");
+					println!("{parsed_syntax:#?}");
+				}
 				let instructions = ctx.create_ir_scope(&parsed_syntax, None)?.build_ir(false);
+				if args.debug {
+					println!("IR:");
+					println!("{instructions:#?}");
+				}
 				let bf_code = ctx.ir_to_bf(instructions, None)?;
 				match ctx.config.optimise_generated_code {
 					true => ctx.optimise_bf2d(bf_code),
@@ -106,7 +140,15 @@ fn main() -> Result<(), String> {
 				.to_string()
 			} else {
 				let parsed_syntax = parse_program::<TapeCell, Opcode>(&stripped_program)?;
+				if args.debug {
+					println!("AST:");
+					println!("{parsed_syntax:#?}");
+				}
 				let instructions = ctx.create_ir_scope(&parsed_syntax, None)?.build_ir(false);
+				if args.debug {
+					println!("IR:");
+					println!("{instructions:#?}");
+				}
 				let bf_code = ctx.ir_to_bf(instructions, None)?;
 				match ctx.config.optimise_generated_code {
 					true => ctx.optimise_bf(bf_code),
