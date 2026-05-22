@@ -307,13 +307,13 @@ outside of loop it was allocated"
 						allocator.free(temp_cell, 1)?;
 					} else if self.config.optimise_cell_clearing {
 						ops.move_to_cell(cell);
-						if known_value.unwrap_or(1) != 0 {
-							ops.clear_current_cell();
-						}
+						ops.clear_current_cell();
 						ops.add_to_current_cell(imm as i8);
 					} else {
 						ops.move_to_cell(cell);
-						ops.clear_current_cell();
+						if known_value.unwrap_or(1) != 0 {
+							ops.clear_current_cell();
+						}
 						ops.add_to_current_cell(imm as i8);
 					}
 
