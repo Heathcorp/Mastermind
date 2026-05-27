@@ -2,8 +2,8 @@ use super::{
 	expressions::Expression,
 	tokens::{next_token, Token},
 	types::{
-		Clause, ExtendedOpcode, LocationSpecifier, Reference, TapeCellLocation, VariableTarget,
-		VariableTargetReferenceChain, TypeExpression,
+		ArraySize, Clause, ExtendedOpcode, LocationSpecifier, Reference, TapeCellLocation,
+		TypeExpression, VariableTarget, VariableTargetReferenceChain,
 	},
 };
 use crate::{
@@ -25,9 +25,9 @@ pub fn parse_program<TC: TapeCellLocation, OC: OpcodeVariant>(
 	Ok(clauses)
 }
 
-fn parse_clause<TC: TapeCellLocation, OC: OpcodeVariant>(
+fn parse_clause<'source, TC: TapeCellLocation, OC: OpcodeVariant>(
 	chars: &mut &[char],
-) -> Result<Option<Clause<TC, OC>>, String> {
+) -> Result<Option<Clause<'source, TC, OC>>, String> {
 	let mut s = *chars;
 	// TODO: decide whether comments should be handled in the parser or not?
 	Ok(match next_token(&mut s)? {
@@ -59,6 +59,7 @@ fn parse_clause<TC: TapeCellLocation, OC: OpcodeVariant>(
 			_ => Some(parse_assign_clause(chars)?),
 		},
 		Token::Drain | Token::Copy => Some(parse_drain_copy_clause(chars)?),
+		Token::Type => Some(parse_type_alias_clause(chars)?),
 		Token::PlusPlus => {
 			*chars = s;
 			Some(Clause::AddAssign {
@@ -80,9 +81,9 @@ fn parse_clause<TC: TapeCellLocation, OC: OpcodeVariant>(
 	})
 }
 
-fn parse_block_clauses<TC: TapeCellLocation, OC: OpcodeVariant>(
+fn parse_block_clauses<'source, TC: TapeCellLocation, OC: OpcodeVariant>(
 	chars: &mut &[char],
-) -> Result<Vec<Clause<TC, OC>>, String> {
+) -> Result<Vec<Clause<'source, TC, OC>>, String> {
 	let Token::LeftBrace = next_token(chars)? else {
 		r_panic!("Expected `{{` in code block.");
 	};
@@ -174,9 +175,9 @@ impl TapeCellLocation for TapeCell2D {
 	}
 }
 
-fn parse_var_type_definition<TC: TapeCellLocation>(
+fn parse_var_type_definition<'source, TC: TapeCellLocation>(
 	chars: &mut &[char],
-) -> Result<VariableTypeDefinition<TC>, String> {
+) -> Result<VariableTypeDefinition<'source, TC>, String> {
 	let mut var_type = match next_token(chars)? {
 		Token::Cell => TypeExpression::Cell,
 		Token::Struct => {
@@ -197,7 +198,20 @@ fn parse_var_type_definition<TC: TapeCellLocation>(
 	{
 		let mut s = *chars;
 		while let Token::LeftSquareBracket = next_token(&mut s)? {
-			var_type = TypeExpression::Array(Box::new(var_type), parse_subscript(chars)?);
+			*chars = s;
+			var_type = TypeExpression::Array(
+				Box::new(var_type),
+				match next_token(&mut s)? {
+					Token::Asterisk => {
+						*chars = s;
+						ArraySize::Unknown
+					}
+					_ => ArraySize::Expression(Expression::parse(chars)?),
+				},
+			);
+			let Token::RightSquareBracket = next_token(chars)? else {
+				r_panic!("Missing `]` in array size.");
+			};
 			s = chars;
 		}
 	}
@@ -328,9 +342,9 @@ fn parse_integer_tuple<const LENGTH: usize>(chars: &mut &[char]) -> Result<[i32;
 ////////////////////////////
 ////////////////////////////
 
-fn parse_if_else_clause<TC: TapeCellLocation, OC: OpcodeVariant>(
+fn parse_if_else_clause<'source, TC: TapeCellLocation, OC: OpcodeVariant>(
 	chars: &mut &[char],
-) -> Result<Clause<TC, OC>, String> {
+) -> Result<Clause<'source, TC, OC>, String> {
 	let Token::If = next_token(chars)? else {
 		// TODO: add program snippet
 		r_panic!("Expected \"if\" in if-else clause.");
@@ -386,9 +400,9 @@ fn parse_if_else_clause<TC: TapeCellLocation, OC: OpcodeVariant>(
 	})
 }
 
-fn parse_while_clause<TC: TapeCellLocation, OC: OpcodeVariant>(
+fn parse_while_clause<'source, TC: TapeCellLocation, OC: OpcodeVariant>(
 	chars: &mut &[char],
-) -> Result<Clause<TC, OC>, String> {
+) -> Result<Clause<'source, TC, OC>, String> {
 	let Token::While = next_token(chars)? else {
 		// TODO: add source snippet
 		r_panic!("Expected `while` in while clause.");
@@ -414,9 +428,9 @@ fn parse_while_clause<TC: TapeCellLocation, OC: OpcodeVariant>(
 	})
 }
 
-fn parse_function_definition_clause<TC: TapeCellLocation, OC: OpcodeVariant>(
+fn parse_function_definition_clause<'source, TC: TapeCellLocation, OC: OpcodeVariant>(
 	chars: &mut &[char],
-) -> Result<Clause<TC, OC>, String> {
+) -> Result<Clause<'source, TC, OC>, String> {
 	let Token::Fn = next_token(chars)? else {
 		// TODO: add source snippet
 		r_panic!("Expected `fn` in function definition clause.");
@@ -457,7 +471,15 @@ fn parse_function_definition_clause<TC: TapeCellLocation, OC: OpcodeVariant>(
 	})
 }
 
-fn parse_function_call_clause<T, O>(chars: &mut &[char]) -> Result<Clause<T, O>, String> {
+fn parse_type_alias_clause<'source, TC: TapeCellLocation, OC: OpcodeVariant>(
+	chars: &mut &[char],
+) -> Result<Clause<'source, TC, OC>, String> {
+	todo!();
+}
+
+fn parse_function_call_clause<'source, T, O>(
+	chars: &mut &[char],
+) -> Result<Clause<'source, T, O>, String> {
 	let Token::Name(function_name) = next_token(chars)? else {
 		// TODO: add source snippet
 		r_panic!("Expected function name in function call clause.");
@@ -494,9 +516,9 @@ fn parse_function_call_clause<T, O>(chars: &mut &[char]) -> Result<Clause<T, O>,
 }
 
 /// Parse tokens representing a struct definition into a clause
-fn parse_struct_definition_clause<TC: TapeCellLocation, O>(
+fn parse_struct_definition_clause<'source, TC: TapeCellLocation, O>(
 	chars: &mut &[char],
-) -> Result<Clause<TC, O>, String> {
+) -> Result<Clause<'source, TC, O>, String> {
 	let Token::Struct = next_token(chars)? else {
 		// TODO: add source snippet
 		r_panic!("Expected `struct` in struct definition.");
@@ -534,7 +556,9 @@ fn parse_struct_definition_clause<TC: TapeCellLocation, O>(
 
 /// parse variable declarations and definitions.
 /// e.g. `cell x = 0;` or `struct DummyStruct y;`
-fn parse_let_clause<TC: TapeCellLocation, O>(chars: &mut &[char]) -> Result<Clause<TC, O>, String> {
+fn parse_let_clause<'source, TC: TapeCellLocation, O>(
+	chars: &mut &[char],
+) -> Result<Clause<'source, TC, O>, String> {
 	let var = parse_var_type_definition(chars)?;
 
 	let mut s = *chars;
@@ -552,7 +576,9 @@ fn parse_let_clause<TC: TapeCellLocation, O>(chars: &mut &[char]) -> Result<Clau
 	Ok(Clause::DeclareVariable { var })
 }
 
-fn parse_output_clause<T, O>(chars: &mut &[char]) -> Result<Clause<T, O>, String> {
+fn parse_output_clause<'source, T, O>(
+	chars: &mut &[char],
+) -> Result<Clause<'source, T, O>, String> {
 	let Token::Output = next_token(chars)? else {
 		// TODO: add source snippet
 		r_panic!("Expected keyword `output` in output clause.");
@@ -567,7 +593,7 @@ fn parse_output_clause<T, O>(chars: &mut &[char]) -> Result<Clause<T, O>, String
 	Ok(Clause::Output { value: expr })
 }
 
-fn parse_input_clause<T, O>(chars: &mut &[char]) -> Result<Clause<T, O>, String> {
+fn parse_input_clause<'source, T, O>(chars: &mut &[char]) -> Result<Clause<'source, T, O>, String> {
 	let Token::Input = next_token(chars)? else {
 		// TODO: add source snippet
 		r_panic!("Expected keyword `input` in input clause.");
@@ -582,7 +608,9 @@ fn parse_input_clause<T, O>(chars: &mut &[char]) -> Result<Clause<T, O>, String>
 	Ok(Clause::Input { var })
 }
 
-fn parse_assign_clause<T, O>(chars: &mut &[char]) -> Result<Clause<T, O>, String> {
+fn parse_assign_clause<'source, T, O>(
+	chars: &mut &[char],
+) -> Result<Clause<'source, T, O>, String> {
 	let var = parse_var_target(chars)?;
 
 	let operator = next_token(chars)?;
@@ -632,9 +660,9 @@ fn parse_assign_clause<T, O>(chars: &mut &[char]) -> Result<Clause<T, O>, String
 /// `drain g {i += 1;};`
 /// `drain g into j;`
 /// `copy foo into bar {g += 2; etc;};`
-fn parse_drain_copy_clause<TC: TapeCellLocation, OC: OpcodeVariant>(
+fn parse_drain_copy_clause<'source, TC: TapeCellLocation, OC: OpcodeVariant>(
 	chars: &mut &[char],
-) -> Result<Clause<TC, OC>, String> {
+) -> Result<Clause<'source, TC, OC>, String> {
 	let is_copying = match next_token(chars)? {
 		Token::Copy => true,
 		Token::Drain => false,
@@ -681,7 +709,9 @@ fn parse_drain_copy_clause<TC: TapeCellLocation, OC: OpcodeVariant>(
 	})
 }
 
-fn parse_assert_clause<T, O>(chars: &mut &[char]) -> Result<Clause<T, O>, String> {
+fn parse_assert_clause<'source, T, O>(
+	chars: &mut &[char],
+) -> Result<Clause<'source, T, O>, String> {
 	let Token::Assert = next_token(chars)? else {
 		r_panic!("Expected `assert` in assert clause.");
 	};
@@ -701,9 +731,9 @@ fn parse_assert_clause<T, O>(chars: &mut &[char]) -> Result<Clause<T, O>, String
 	Ok(Clause::AssertVariableValue { var, value })
 }
 
-fn parse_brainfuck_clause<TC: TapeCellLocation, OC: OpcodeVariant>(
+fn parse_brainfuck_clause<'source, TC: TapeCellLocation, OC: OpcodeVariant>(
 	chars: &mut &[char],
-) -> Result<Clause<TC, OC>, String> {
+) -> Result<Clause<'source, TC, OC>, String> {
 	let Token::Bf = next_token(chars)? else {
 		r_panic!("Expected `bf` in in-line Brainfuck clause.");
 	};

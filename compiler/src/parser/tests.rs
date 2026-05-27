@@ -4,8 +4,8 @@ mod parser_tests {
 		expressions::{Expression, Sign},
 		parser::parse_program,
 		types::{
-			Clause, ExtendedOpcode, LocationSpecifier, VariableTarget, VariableTypeDefinition,
-			TypeExpression,
+			ArraySize, Clause, ExtendedOpcode, LocationSpecifier, TypeExpression, VariableTarget,
+			VariableTypeDefinition,
 		},
 	};
 	use crate::backend::{
@@ -226,7 +226,7 @@ cell[5] ggghh = "hello";
 					name: String::from("ggghh"),
 					var_type: TypeExpression::Array(
 						Box::new(TypeExpression::Cell),
-						5,
+						ArraySize::Expression(Expression::NaturalNumber(5)),
 					),
 					location_specifier: LocationSpecifier::None,
 				},
@@ -246,7 +246,7 @@ cell[0] ggghh = "";
 					name: String::from("ggghh"),
 					var_type: TypeExpression::Array(
 						Box::new(TypeExpression::Cell),
-						0,
+						ArraySize::Expression(Expression::NaturalNumber(0)),
 					),
 					location_specifier: LocationSpecifier::None,
 				},
@@ -266,7 +266,7 @@ cell[1] ggghh = "hello";
 					name: String::from("ggghh"),
 					var_type: TypeExpression::Array(
 						Box::new(TypeExpression::Cell),
-						1,
+						ArraySize::Expression(Expression::NaturalNumber(1)),
 					),
 					location_specifier: LocationSpecifier::None,
 				},
@@ -286,7 +286,7 @@ cell[6] ggghh = "hel'lo";
 					name: String::from("ggghh"),
 					var_type: TypeExpression::Array(
 						Box::new(TypeExpression::Cell),
-						6,
+						ArraySize::Expression(Expression::NaturalNumber(6)),
 					),
 					location_specifier: LocationSpecifier::None,
 				},
@@ -306,7 +306,7 @@ cell[7] ggghh = "\"hello\"";
 					name: String::from("ggghh"),
 					var_type: TypeExpression::Array(
 						Box::new(TypeExpression::Cell),
-						7,
+						ArraySize::Expression(Expression::NaturalNumber(7)),
 					),
 					location_specifier: LocationSpecifier::None,
 				},
@@ -326,7 +326,7 @@ cell[0] ggghh = [];
 					name: String::from("ggghh"),
 					var_type: TypeExpression::Array(
 						Box::new(TypeExpression::Cell),
-						0,
+						ArraySize::Expression(Expression::NaturalNumber(0)),
 					),
 					location_specifier: LocationSpecifier::None,
 				},
@@ -346,7 +346,7 @@ cell[333] arr = [45, 53];
 					name: String::from("arr"),
 					var_type: TypeExpression::Array(
 						Box::new(TypeExpression::Cell),
-						333,
+						ArraySize::Expression(Expression::NaturalNumber(333)),
 					),
 					location_specifier: LocationSpecifier::None,
 				},
@@ -369,7 +369,7 @@ cell[333] arr = [45 + 123, 53];
 					name: String::from("arr"),
 					var_type: TypeExpression::Array(
 						Box::new(TypeExpression::Cell),
-						333,
+						ArraySize::Expression(Expression::NaturalNumber(333)),
 					),
 					location_specifier: LocationSpecifier::None,
 				},
@@ -398,7 +398,7 @@ cell[333] arr = [45 + 123, -(53 + 0+78-9)];
 					name: String::from("arr"),
 					var_type: TypeExpression::Array(
 						Box::new(TypeExpression::Cell),
-						333,
+						ArraySize::Expression(Expression::NaturalNumber(333)),
 					),
 					location_specifier: LocationSpecifier::None,
 				},
@@ -438,7 +438,7 @@ cell[3] arr = ['h', 53, (((4)))];
 					name: String::from("arr"),
 					var_type: TypeExpression::Array(
 						Box::new(TypeExpression::Cell),
-						3,
+						ArraySize::Expression(Expression::NaturalNumber(3)),
 					),
 					location_specifier: LocationSpecifier::None,
 				},
@@ -461,10 +461,8 @@ struct nonsense[39] arr @-56 = ["hello!", 53, [4,5,6]];
 				var: VariableTypeDefinition {
 					name: String::from("arr"),
 					var_type: TypeExpression::Array(
-						Box::new(TypeExpression::LegacyStruct(String::from(
-							"nonsense",
-						))),
-						39,
+						Box::new(TypeExpression::LegacyStruct(String::from("nonsense"))),
+						ArraySize::Expression(Expression::NaturalNumber(39)),
 					),
 					location_specifier: LocationSpecifier::Cell(-56),
 				},
@@ -491,10 +489,8 @@ struct nonsense[39] arr @-56 = ["hello!", ',', [4,"hello comma: ,",6]];
 				var: VariableTypeDefinition {
 					name: String::from("arr"),
 					var_type: TypeExpression::Array(
-						Box::new(TypeExpression::LegacyStruct(String::from(
-							"nonsense",
-						))),
-						39,
+						Box::new(TypeExpression::LegacyStruct(String::from("nonsense"))),
+						ArraySize::Expression(Expression::NaturalNumber(39)),
 					),
 					location_specifier: LocationSpecifier::Cell(-56),
 				},
@@ -521,10 +517,8 @@ struct nonsense[39] arr @-56 = 56 - ( 4+3+( -7-5 +(6)-(((( (0) )))) ) );
 				var: VariableTypeDefinition {
 					name: String::from("arr"),
 					var_type: TypeExpression::Array(
-						Box::new(TypeExpression::LegacyStruct(String::from(
-							"nonsense",
-						))),
-						39,
+						Box::new(TypeExpression::LegacyStruct(String::from("nonsense"))),
+						ArraySize::Expression(Expression::NaturalNumber(39)),
 					),
 					location_specifier: LocationSpecifier::Cell(-56),
 				},

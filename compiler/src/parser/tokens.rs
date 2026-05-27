@@ -89,6 +89,7 @@ pub fn next_token(chars: &mut &[char]) -> Result<Token, String> {
 				"assert" => Token::Assert,
 				"equals" => Token::Equals,
 				"unknown" => Token::Unknown,
+				"type" => Token::Type,
 				"true" => Token::True,
 				"false" => Token::False,
 				_ => Token::Name(word),
@@ -275,6 +276,7 @@ fn parse_string_literal(chars: &mut &[char]) -> Result<String, String> {
 #[derive(Debug, Clone, PartialEq)]
 pub enum Token {
 	None,
+	Type,
 	Output,
 	Input,
 	Fn,
@@ -324,6 +326,7 @@ impl std::fmt::Display for Token {
 			Token::Output
 			| Token::Input
 			| Token::Fn
+			| Token::Type
 			| Token::Cell
 			| Token::Struct
 			| Token::While
@@ -361,6 +364,7 @@ impl std::fmt::Display for Token {
 				Token::Output => "output",
 				Token::Input => "input",
 				Token::Fn => "fn",
+				Token::Type => "type",
 				Token::Cell => "cell",
 				Token::Struct => "struct",
 				Token::While => "while",
