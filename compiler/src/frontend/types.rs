@@ -90,9 +90,9 @@ impl Memory {
 }
 
 #[derive(Clone, Debug)] // probably shouldn't be cloning here but whatever
-pub struct Function<TC, OC> {
+pub struct Function<'source, TC, OC> {
 	pub arguments: Vec<(String, ValueType)>,
-	pub block: Vec<Clause<TC, OC>>,
+	pub block: Vec<Clause<'source, TC, OC>>,
 }
 
 #[derive(Clone, Debug, PartialEq, Eq)]

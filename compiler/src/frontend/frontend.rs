@@ -11,19 +11,24 @@ use crate::{
 	parser::{
 		expressions::Expression,
 		types::{
-			Clause, ExtendedOpcode, LocationSpecifier, StructFieldTypeDefinition, VariableTarget,
-			VariableTypeDefinition, VariableTypeReference,
+			Clause, ExtendedOpcode, LocationSpecifier, StructFieldTypeDefinition, TypeExpression,
+			VariableTarget, VariableTypeDefinition,
 		},
 	},
 };
 use std::{collections::HashMap, fmt::Display, iter::zip};
 
 impl MastermindContext {
-	pub fn create_ir_scope<'a, TC: 'static + TapeCellVariant, OC: 'static + OpcodeVariant>(
+	pub fn create_ir_scope<
+		'this,
+		'source,
+		TC: 'static + TapeCellVariant,
+		OC: 'static + OpcodeVariant,
+	>(
 		&self,
-		clauses: &[Clause<TC, OC>],
-		outer_scope: Option<&'a ScopeBuilder<TC, OC>>,
-	) -> Result<ScopeBuilder<'a, TC, OC>, String>
+		clauses: &'source [Clause<'source, TC, OC>],
+		outer_scope: Option<&'this ScopeBuilder<'source, 'this, TC, OC>>,
+	) -> Result<ScopeBuilder<'this, 'source, TC, OC>, String>
 	where
 		BrainfuckBuilderData<TC, OC>: BrainfuckBuilder<TC, OC>,
 		CellAllocatorData<TC>: CellAllocator<TC>,
@@ -40,7 +45,7 @@ impl MastermindContext {
 		// first stage: structs (these need to be defined before functions, so they can be used as arguments)
 		for clause in clauses {
 			match clause {
-				Clause::DefineStruct { name, fields } => {
+				Clause::DefineStructType { name, fields } => {
 					// convert fields with 2D or 1D location specifiers to valid struct location specifiers
 					scope.register_struct_definition(name, fields.clone())?;
 				}
@@ -68,6 +73,9 @@ impl MastermindContext {
 
 		for clause in filtered_clauses_2 {
 			match clause {
+				Clause::DefineTypeAlias(alias, type_expr) => {
+					todo!()
+				}
 				Clause::DeclareVariable { var } => {
 					// create an allocation in the scope
 					scope.allocate_variable(var)?;
@@ -655,7 +663,7 @@ function arguments are not supported."
 						.instructions
 						.extend(argument_translation_scope.build_ir(false));
 				}
-				Clause::DefineStruct { name: _, fields: _ }
+				Clause::DefineStructType { name: _, fields: _ }
 				| Clause::DefineFunction {
 					name: _,
 					arguments: _,
@@ -672,9 +680,9 @@ function arguments are not supported."
 #[derive(Clone, Debug)]
 /// Scope type represents a Mastermind code block,
 /// any variables or functions defined within a {block} are owned by the scope and cleaned up before continuing
-pub struct ScopeBuilder<'a, TC, OC> {
+pub struct ScopeBuilder<'source, 'this, TC, OC> {
 	/// a reference to the parent scope, for accessing things defined outside of this scope
-	outer_scope: Option<&'a ScopeBuilder<'a, TC, OC>>,
+	outer_scope: Option<&'this ScopeBuilder<'source, 'this, TC, OC>>,
 	/// If true, scope is not able to access variables from outer scope.
 	/// Used for embedded mm so that the inner mm can use outer functions but not variables.
 	types_only: bool,
@@ -686,7 +694,11 @@ pub struct ScopeBuilder<'a, TC, OC> {
 	variable_memory: HashMap<String, (ValueType, Memory)>,
 
 	/// Functions accessible by any code within or in the current scope
-	functions: Vec<(String, Vec<(String, ValueType)>, Vec<Clause<TC, OC>>)>,
+	functions: Vec<(
+		String,
+		Vec<(String, ValueType)>,
+		Vec<Clause<'source, TC, OC>>,
+	)>,
 	/// Struct types definitions
 	structs: HashMap<String, DictStructType>,
 
@@ -694,12 +706,12 @@ pub struct ScopeBuilder<'a, TC, OC> {
 	instructions: Vec<Instruction<TC, OC>>,
 }
 
-impl<TC, OC> ScopeBuilder<'_, TC, OC>
+impl<'source, 'this, TC, OC> ScopeBuilder<'source, 'this, TC, OC>
 where
 	TC: Display + Clone,
 	OC: Clone,
 {
-	pub fn new() -> ScopeBuilder<'static, TC, OC> {
+	pub fn new() -> ScopeBuilder<'source, 'static, TC, OC> {
 		ScopeBuilder {
 			outer_scope: None,
 			types_only: false,
@@ -922,7 +934,7 @@ with correct arguments in current scope"
 		&mut self,
 		new_function_name: &str,
 		new_arguments: Vec<VariableTypeDefinition<TC>>,
-		new_block: Vec<Clause<TC, OC>>,
+		new_block: Vec<Clause<'source, TC, OC>>,
 	) -> Result<(), String> {
 		let absolute_arguments: Vec<(String, ValueType)> = new_arguments
 			.into_iter()
@@ -972,16 +984,22 @@ more than once in the same scope: \"{new_function_name}\""
 	}
 
 	/// Construct an absolute type from a type reference
-	fn create_absolute_type(&self, type_ref: &VariableTypeReference) -> Result<ValueType, String> {
+	fn create_absolute_type(&self, type_ref: &TypeExpression) -> Result<ValueType, String> {
 		Ok(match type_ref {
-			VariableTypeReference::Cell => ValueType::Cell,
-			VariableTypeReference::Struct(struct_type_name) => {
+			TypeExpression::Cell => ValueType::Cell,
+			TypeExpression::LegacyStruct(struct_type_name) => {
 				ValueType::from_struct(self.get_struct_definition(struct_type_name)?.clone())
 			}
-			VariableTypeReference::Array(variable_type_reference, len) => ValueType::Array(
-				*len,
-				Box::new(self.create_absolute_type(variable_type_reference)?),
-			),
+			// TypeExpression::Array(variable_type_reference, len) => ValueType::Array(
+			// 	*len,
+			// 	Box::new(self.create_absolute_type(variable_type_reference)?),
+			// ),
+			TypeExpression::Array(variable_type_reference, len) => todo!(),
+			TypeExpression::NamedType(_) => todo!(),
+			TypeExpression::Tuple(type_expressions) => todo!(),
+			TypeExpression::NamedTuple(type_expressions) => todo!(),
+			TypeExpression::Record(items) => todo!(),
+			TypeExpression::NamedRecord(_, items) => todo!(),
 		})
 	}
 
@@ -1582,7 +1600,7 @@ mod scope_builder_tests {
 		backend::bf::{Opcode, TapeCell},
 		parser::{
 			expressions::Sign,
-			types::{Reference, VariableTargetReferenceChain},
+			types::{ArraySize, Reference, VariableTargetReferenceChain},
 		},
 	};
 
@@ -1593,7 +1611,7 @@ mod scope_builder_tests {
 		let mut scope = ScopeBuilder::<TapeCell, Opcode>::new();
 		let allocated_type = scope.allocate_variable(VariableTypeDefinition {
 			name: String::from("var"),
-			var_type: VariableTypeReference::Cell,
+			var_type: TypeExpression::Cell,
 			location_specifier: LocationSpecifier::None,
 		});
 		assert_eq!(allocated_type, Ok(&ValueType::Cell));
@@ -1672,7 +1690,7 @@ mod scope_builder_tests {
 		scope
 			.allocate_variable(VariableTypeDefinition {
 				name: String::from("var"),
-				var_type: VariableTypeReference::Cell,
+				var_type: TypeExpression::Cell,
 				location_specifier: LocationSpecifier::None,
 			})
 			.unwrap();
@@ -1710,7 +1728,10 @@ mod scope_builder_tests {
 		scope
 			.allocate_variable(VariableTypeDefinition {
 				name: String::from("arr"),
-				var_type: VariableTypeReference::Array(Box::new(VariableTypeReference::Cell), 3),
+				var_type: TypeExpression::Array(
+					Box::new(TypeExpression::Cell),
+					ArraySize::Expression(Expression::NaturalNumber(3)),
+				),
 				location_specifier: LocationSpecifier::None,
 			})
 			.unwrap();

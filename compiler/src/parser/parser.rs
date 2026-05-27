@@ -3,7 +3,7 @@ use super::{
 	tokens::{next_token, Token},
 	types::{
 		Clause, ExtendedOpcode, LocationSpecifier, Reference, TapeCellLocation, VariableTarget,
-		VariableTargetReferenceChain, VariableTypeReference,
+		VariableTargetReferenceChain, TypeExpression,
 	},
 };
 use crate::{
@@ -178,14 +178,14 @@ fn parse_var_type_definition<TC: TapeCellLocation>(
 	chars: &mut &[char],
 ) -> Result<VariableTypeDefinition<TC>, String> {
 	let mut var_type = match next_token(chars)? {
-		Token::Cell => VariableTypeReference::Cell,
+		Token::Cell => TypeExpression::Cell,
 		Token::Struct => {
 			let Token::Name(struct_name) = next_token(chars)? else {
 				// TODO: add source snippet
 				r_panic!("Expected struct type name in variable definition.");
 			};
 
-			VariableTypeReference::Struct(struct_name)
+			TypeExpression::LegacyStruct(struct_name)
 		}
 		token => {
 			// TODO: add source snippet
@@ -197,7 +197,7 @@ fn parse_var_type_definition<TC: TapeCellLocation>(
 	{
 		let mut s = *chars;
 		while let Token::LeftSquareBracket = next_token(&mut s)? {
-			var_type = VariableTypeReference::Array(Box::new(var_type), parse_subscript(chars)?);
+			var_type = TypeExpression::Array(Box::new(var_type), parse_subscript(chars)?);
 			s = chars;
 		}
 	}
@@ -529,7 +529,7 @@ fn parse_struct_definition_clause<TC: TapeCellLocation, O>(
 		}
 	}
 
-	Ok(Clause::DefineStruct { name, fields })
+	Ok(Clause::DefineStructType { name, fields })
 }
 
 /// parse variable declarations and definitions.

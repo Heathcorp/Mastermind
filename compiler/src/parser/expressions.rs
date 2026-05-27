@@ -9,8 +9,7 @@ use itertools::Itertools;
 use std::num::Wrapping;
 
 // TODO: simplify expression data structure for negative sums of single values
-#[derive(Debug, Clone)]
-#[cfg_attr(test, derive(PartialEq))]
+#[derive(Debug, Clone, Hash, PartialEq, Eq)]
 pub enum Expression {
 	SumExpression {
 		sign: Sign,
@@ -22,8 +21,8 @@ pub enum Expression {
 	StringLiteral(String),
 }
 
-#[derive(Debug, Clone)]
-#[cfg_attr(test, derive(PartialEq))]
+// TODO: refactor/remove a lot of these derives where not necessary
+#[derive(Debug, Clone, Hash, PartialEq, Eq)]
 pub enum Sign {
 	Positive,
 	Negative,

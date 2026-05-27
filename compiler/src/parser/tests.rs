@@ -5,7 +5,7 @@ mod parser_tests {
 		parser::parse_program,
 		types::{
 			Clause, ExtendedOpcode, LocationSpecifier, VariableTarget, VariableTypeDefinition,
-			VariableTypeReference,
+			TypeExpression,
 		},
 	};
 	use crate::backend::{
@@ -78,7 +78,7 @@ mod parser_tests {
 			&[Clause::DeclareVariable {
 				var: VariableTypeDefinition {
 					name: String::from("x"),
-					var_type: VariableTypeReference::Cell,
+					var_type: TypeExpression::Cell,
 					location_specifier: LocationSpecifier::Cell(TapeCell2D(0, 1)),
 				},
 			}],
@@ -92,7 +92,7 @@ mod parser_tests {
 			&[Clause::DeclareVariable {
 				var: VariableTypeDefinition {
 					name: String::from("xyz"),
-					var_type: VariableTypeReference::Cell,
+					var_type: TypeExpression::Cell,
 					location_specifier: LocationSpecifier::Cell(TapeCell2D(-10, -101)),
 				},
 			}],
@@ -106,7 +106,7 @@ mod parser_tests {
 			&[Clause::DeclareVariable {
 				var: VariableTypeDefinition {
 					name: String::from("v"),
-					var_type: VariableTypeReference::Cell,
+					var_type: TypeExpression::Cell,
 					location_specifier: LocationSpecifier::None,
 				},
 			}],
@@ -120,7 +120,7 @@ mod parser_tests {
 			&[Clause::DeclareVariable {
 				var: VariableTypeDefinition {
 					name: String::from("v"),
-					var_type: VariableTypeReference::Cell,
+					var_type: TypeExpression::Cell,
 					location_specifier: LocationSpecifier::None,
 				},
 			}],
@@ -135,7 +135,7 @@ mod parser_tests {
 				Clause::DeclareVariable {
 					var: VariableTypeDefinition {
 						name: String::from("v"),
-						var_type: VariableTypeReference::Cell,
+						var_type: TypeExpression::Cell,
 						location_specifier: LocationSpecifier::None,
 					},
 				},
@@ -147,7 +147,7 @@ mod parser_tests {
 						ExtendedOpcode::Block(vec![Clause::DeclareVariable {
 							var: VariableTypeDefinition {
 								name: String::from("v"),
-								var_type: VariableTypeReference::Cell,
+								var_type: TypeExpression::Cell,
 								location_specifier: LocationSpecifier::None,
 							},
 						}]),
@@ -166,7 +166,7 @@ mod parser_tests {
 				Clause::DeclareVariable {
 					var: VariableTypeDefinition {
 						name: String::from("v"),
-						var_type: VariableTypeReference::Cell,
+						var_type: TypeExpression::Cell,
 						location_specifier: LocationSpecifier::None,
 					},
 				},
@@ -178,7 +178,7 @@ mod parser_tests {
 						ExtendedOpcode::Block(vec![Clause::DeclareVariable {
 							var: VariableTypeDefinition {
 								name: String::from("v"),
-								var_type: VariableTypeReference::Cell,
+								var_type: TypeExpression::Cell,
 								location_specifier: LocationSpecifier::None,
 							},
 						}]),
@@ -224,8 +224,8 @@ cell[5] ggghh = "hello";
 			&[Clause::DefineVariable {
 				var: VariableTypeDefinition {
 					name: String::from("ggghh"),
-					var_type: VariableTypeReference::Array(
-						Box::new(VariableTypeReference::Cell),
+					var_type: TypeExpression::Array(
+						Box::new(TypeExpression::Cell),
 						5,
 					),
 					location_specifier: LocationSpecifier::None,
@@ -244,8 +244,8 @@ cell[0] ggghh = "";
 			&[Clause::DefineVariable {
 				var: VariableTypeDefinition {
 					name: String::from("ggghh"),
-					var_type: VariableTypeReference::Array(
-						Box::new(VariableTypeReference::Cell),
+					var_type: TypeExpression::Array(
+						Box::new(TypeExpression::Cell),
 						0,
 					),
 					location_specifier: LocationSpecifier::None,
@@ -264,8 +264,8 @@ cell[1] ggghh = "hello";
 			&[Clause::DefineVariable {
 				var: VariableTypeDefinition {
 					name: String::from("ggghh"),
-					var_type: VariableTypeReference::Array(
-						Box::new(VariableTypeReference::Cell),
+					var_type: TypeExpression::Array(
+						Box::new(TypeExpression::Cell),
 						1,
 					),
 					location_specifier: LocationSpecifier::None,
@@ -284,8 +284,8 @@ cell[6] ggghh = "hel'lo";
 			&[Clause::DefineVariable {
 				var: VariableTypeDefinition {
 					name: String::from("ggghh"),
-					var_type: VariableTypeReference::Array(
-						Box::new(VariableTypeReference::Cell),
+					var_type: TypeExpression::Array(
+						Box::new(TypeExpression::Cell),
 						6,
 					),
 					location_specifier: LocationSpecifier::None,
@@ -304,8 +304,8 @@ cell[7] ggghh = "\"hello\"";
 			&[Clause::DefineVariable {
 				var: VariableTypeDefinition {
 					name: String::from("ggghh"),
-					var_type: VariableTypeReference::Array(
-						Box::new(VariableTypeReference::Cell),
+					var_type: TypeExpression::Array(
+						Box::new(TypeExpression::Cell),
 						7,
 					),
 					location_specifier: LocationSpecifier::None,
@@ -324,8 +324,8 @@ cell[0] ggghh = [];
 			&[Clause::DefineVariable {
 				var: VariableTypeDefinition {
 					name: String::from("ggghh"),
-					var_type: VariableTypeReference::Array(
-						Box::new(VariableTypeReference::Cell),
+					var_type: TypeExpression::Array(
+						Box::new(TypeExpression::Cell),
 						0,
 					),
 					location_specifier: LocationSpecifier::None,
@@ -344,8 +344,8 @@ cell[333] arr = [45, 53];
 			&[Clause::DefineVariable {
 				var: VariableTypeDefinition {
 					name: String::from("arr"),
-					var_type: VariableTypeReference::Array(
-						Box::new(VariableTypeReference::Cell),
+					var_type: TypeExpression::Array(
+						Box::new(TypeExpression::Cell),
 						333,
 					),
 					location_specifier: LocationSpecifier::None,
@@ -367,8 +367,8 @@ cell[333] arr = [45 + 123, 53];
 			&[Clause::DefineVariable {
 				var: VariableTypeDefinition {
 					name: String::from("arr"),
-					var_type: VariableTypeReference::Array(
-						Box::new(VariableTypeReference::Cell),
+					var_type: TypeExpression::Array(
+						Box::new(TypeExpression::Cell),
 						333,
 					),
 					location_specifier: LocationSpecifier::None,
@@ -396,8 +396,8 @@ cell[333] arr = [45 + 123, -(53 + 0+78-9)];
 			&[Clause::DefineVariable {
 				var: VariableTypeDefinition {
 					name: String::from("arr"),
-					var_type: VariableTypeReference::Array(
-						Box::new(VariableTypeReference::Cell),
+					var_type: TypeExpression::Array(
+						Box::new(TypeExpression::Cell),
 						333,
 					),
 					location_specifier: LocationSpecifier::None,
@@ -436,8 +436,8 @@ cell[3] arr = ['h', 53, (((4)))];
 			&[Clause::DefineVariable {
 				var: VariableTypeDefinition {
 					name: String::from("arr"),
-					var_type: VariableTypeReference::Array(
-						Box::new(VariableTypeReference::Cell),
+					var_type: TypeExpression::Array(
+						Box::new(TypeExpression::Cell),
 						3,
 					),
 					location_specifier: LocationSpecifier::None,
@@ -460,8 +460,10 @@ struct nonsense[39] arr @-56 = ["hello!", 53, [4,5,6]];
 			&[Clause::DefineVariable {
 				var: VariableTypeDefinition {
 					name: String::from("arr"),
-					var_type: VariableTypeReference::Array(
-						Box::new(VariableTypeReference::Struct(String::from("nonsense"))),
+					var_type: TypeExpression::Array(
+						Box::new(TypeExpression::LegacyStruct(String::from(
+							"nonsense",
+						))),
 						39,
 					),
 					location_specifier: LocationSpecifier::Cell(-56),
@@ -488,8 +490,10 @@ struct nonsense[39] arr @-56 = ["hello!", ',', [4,"hello comma: ,",6]];
 			&[Clause::DefineVariable {
 				var: VariableTypeDefinition {
 					name: String::from("arr"),
-					var_type: VariableTypeReference::Array(
-						Box::new(VariableTypeReference::Struct(String::from("nonsense"))),
+					var_type: TypeExpression::Array(
+						Box::new(TypeExpression::LegacyStruct(String::from(
+							"nonsense",
+						))),
 						39,
 					),
 					location_specifier: LocationSpecifier::Cell(-56),
@@ -516,8 +520,10 @@ struct nonsense[39] arr @-56 = 56 - ( 4+3+( -7-5 +(6)-(((( (0) )))) ) );
 			&[Clause::DefineVariable {
 				var: VariableTypeDefinition {
 					name: String::from("arr"),
-					var_type: VariableTypeReference::Array(
-						Box::new(VariableTypeReference::Struct(String::from("nonsense"))),
+					var_type: TypeExpression::Array(
+						Box::new(TypeExpression::LegacyStruct(String::from(
+							"nonsense",
+						))),
 						39,
 					),
 					location_specifier: LocationSpecifier::Cell(-56),

@@ -6,18 +6,25 @@ use crate::macros::macros::r_panic;
 /// - OC: Opcode represents the valid Brainfuck Opcodes that we're generating (also used for 2D or other BF variants)
 #[derive(Debug, Clone)]
 #[cfg_attr(test, derive(PartialEq))]
-pub enum Clause<TC, OC> {
+pub enum Clause<'source, TC, OC> {
 	None,
+	DefineTypeAlias(&'source str, TypeExpression<'source>),
+	DefineFunction {
+		name: String,
+		// TODO: fix the type here, as function definitions don't actually need location specifiers and therefore don't need a tape cell type
+		arguments: Vec<VariableTypeDefinition<'source, TC>>,
+		block: Vec<Clause<'source, TC, OC>>,
+	},
+	DefineStructType {
+		name: String,
+		fields: Vec<StructFieldTypeDefinition<'source>>,
+	},
 	DeclareVariable {
-		var: VariableTypeDefinition<TC>,
+		var: VariableTypeDefinition<'source, TC>,
 	},
 	DefineVariable {
-		var: VariableTypeDefinition<TC>,
+		var: VariableTypeDefinition<'source, TC>,
 		value: Expression,
-	},
-	DefineStruct {
-		name: String,
-		fields: Vec<StructFieldTypeDefinition>,
 	},
 	AddAssign {
 		var: VariableTarget,
@@ -38,13 +45,13 @@ pub enum Clause<TC, OC> {
 	DrainLoop {
 		source: Expression,
 		targets: Vec<VariableTarget>,
-		block: Option<Vec<Clause<TC, OC>>>,
+		block: Option<Vec<Clause<'source, TC, OC>>>,
 		// TODO: reassess this syntax
 		is_copying: bool,
 	},
 	While {
 		var: VariableTarget,
-		block: Vec<Clause<TC, OC>>,
+		block: Vec<Clause<'source, TC, OC>>,
 	},
 	Output {
 		value: Expression,
@@ -52,39 +59,33 @@ pub enum Clause<TC, OC> {
 	Input {
 		var: VariableTarget,
 	},
-	DefineFunction {
-		name: String,
-		// TODO: fix the type here, as function definitions don't actually need location specifiers and therefore don't need a tape cell type
-		arguments: Vec<VariableTypeDefinition<TC>>,
-		block: Vec<Clause<TC, OC>>,
-	},
 	CallFunction {
 		function_name: String,
 		arguments: Vec<Expression>,
 	},
 	If {
 		condition: Expression,
-		if_block: Vec<Clause<TC, OC>>,
+		if_block: Vec<Clause<'source, TC, OC>>,
 	},
 	IfNot {
 		condition: Expression,
-		if_not_block: Vec<Clause<TC, OC>>,
+		if_not_block: Vec<Clause<'source, TC, OC>>,
 	},
 	IfElse {
 		condition: Expression,
-		if_block: Vec<Clause<TC, OC>>,
-		else_block: Vec<Clause<TC, OC>>,
+		if_block: Vec<Clause<'source, TC, OC>>,
+		else_block: Vec<Clause<'source, TC, OC>>,
 	},
 	IfNotElse {
 		condition: Expression,
-		if_not_block: Vec<Clause<TC, OC>>,
-		else_block: Vec<Clause<TC, OC>>,
+		if_not_block: Vec<Clause<'source, TC, OC>>,
+		else_block: Vec<Clause<'source, TC, OC>>,
 	},
-	Block(Vec<Clause<TC, OC>>),
+	Block(Vec<Clause<'source, TC, OC>>),
 	Brainfuck {
 		location_specifier: LocationSpecifier<TC>,
 		clobbered_variables: Vec<VariableTarget>,
-		operations: Vec<ExtendedOpcode<TC, OC>>,
+		operations: Vec<ExtendedOpcode<'source, TC, OC>>,
 	},
 }
 
@@ -106,17 +107,29 @@ where
 // extended brainfuck opcodes to include mastermind code blocks
 #[derive(Debug, Clone)]
 #[cfg_attr(test, derive(PartialEq))]
-pub enum ExtendedOpcode<TC, OC> {
+pub enum ExtendedOpcode<'source, TC, OC> {
 	Opcode(OC),
-	Block(Vec<Clause<TC, OC>>),
+	Block(Vec<Clause<'source, TC, OC>>),
 }
 
 #[derive(Debug, Clone, Hash, PartialEq, Eq)]
 /// the type of a variable according to the user, not validated yet as the parser does not keep track of types
-pub enum VariableTypeReference {
+pub enum TypeExpression<'source> {
+	NamedType(&'source str),
 	Cell,
-	Struct(String),
-	Array(Box<VariableTypeReference>, usize),
+	LegacyStruct(String),
+	Array(Box<TypeExpression<'source>>, ArraySize),
+	Tuple(Vec<TypeExpression<'source>>),
+	NamedTuple(Vec<TypeExpression<'source>>),
+	Record(Vec<(&'source str, TypeExpression<'source>)>),
+	NamedRecord(&'source str, Vec<(&'source str, TypeExpression<'source>)>),
+}
+
+// TODO: fix these derives, are they needed?
+#[derive(Debug, Clone, Hash, PartialEq, Eq)]
+pub enum ArraySize {
+	Expression(Expression), // compile-time constant expression
+	Unknown,                // [*]
 }
 
 #[derive(Debug, Clone, Hash, PartialEq, Eq)]
@@ -132,17 +145,17 @@ impl<T> LocationSpecifier<T> {
 }
 
 #[derive(Debug, Clone, Hash, PartialEq, Eq)]
-pub struct VariableTypeDefinition<TC> {
+pub struct VariableTypeDefinition<'source, TC> {
 	pub name: String,
-	pub var_type: VariableTypeReference,
+	pub var_type: TypeExpression<'source>,
 	pub location_specifier: LocationSpecifier<TC>,
 	// Infinite {name: String, pattern: ???},
 }
 
 #[derive(Debug, Clone, PartialEq)]
-pub struct StructFieldTypeDefinition {
+pub struct StructFieldTypeDefinition<'source> {
 	pub name: String,
-	pub field_type: VariableTypeReference,
+	pub field_type: TypeExpression<'source>,
 	pub location_offset_specifier: Option<usize>,
 }
 // let non_neg_location_specifier = match &var_def.location_specifier {
@@ -163,13 +176,14 @@ pub struct StructFieldTypeDefinition {
 // 		r_panic!( "Location specifiers in struct definitions must be relative, not variables: {var_def}")
 // 	}
 // };
-impl<TC> TryInto<StructFieldTypeDefinition> for VariableTypeDefinition<TC>
+impl<'source, TC> TryInto<StructFieldTypeDefinition<'source>>
+	for VariableTypeDefinition<'source, TC>
 where
 	TC: TapeCellLocation,
 {
 	type Error = String;
 
-	fn try_into(self) -> Result<StructFieldTypeDefinition, String> {
+	fn try_into(self) -> Result<StructFieldTypeDefinition<'source>, String> {
 		let location_offset_specifier = match &self.location_specifier {
 			LocationSpecifier::None => None,
 			LocationSpecifier::Cell(cell) => Some(match cell.to_positive_cell_offset() {
@@ -217,21 +231,27 @@ impl VariableTarget {
 	}
 }
 
-impl std::fmt::Display for VariableTypeReference {
+impl std::fmt::Display for TypeExpression<'_> {
 	fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
 		match &self {
-			VariableTypeReference::Cell => f.write_str("cell"),
-			VariableTypeReference::Struct(struct_name) => {
+			TypeExpression::Cell => f.write_str("cell"),
+			TypeExpression::LegacyStruct(struct_name) => {
 				f.write_fmt(format_args!("struct {struct_name}"))
 			}
-			VariableTypeReference::Array(element_type, len) => {
-				f.write_fmt(format_args!("{element_type}[{len}]"))
-			}
+			// TypeExpression::Array(element_type, len) => {
+			// 	f.write_fmt(format_args!("{element_type}[{len}]"))
+			// }
+			TypeExpression::Array(element_type, len) => todo!(),
+			TypeExpression::NamedType(_) => todo!(),
+			TypeExpression::Tuple(type_expressions) => todo!(),
+			TypeExpression::NamedTuple(type_expressions) => todo!(),
+			TypeExpression::Record(items) => todo!(),
+			TypeExpression::NamedRecord(_, items) => todo!(),
 		}
 	}
 }
 
-impl<T: std::fmt::Display> std::fmt::Display for VariableTypeDefinition<T> {
+impl<T: std::fmt::Display> std::fmt::Display for VariableTypeDefinition<'_, T> {
 	fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
 		f.write_str(&format!("{} {}", self.var_type, self.name))?;
 		match &self.location_specifier {
