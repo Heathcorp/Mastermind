@@ -10,14 +10,14 @@ use std::num::Wrapping;
 
 // TODO: simplify expression data structure for negative sums of single values
 #[derive(Debug, Clone, Hash, PartialEq, Eq)]
-pub enum Expression {
+pub enum Expression<'source> {
 	SumExpression {
 		sign: Sign,
-		summands: Vec<Expression>,
+		summands: Vec<Expression<'source>>,
 	},
 	NaturalNumber(usize),
-	VariableReference(VariableTarget),
-	ArrayLiteral(Vec<Expression>),
+	VariableReference(VariableTarget<'source>),
+	ArrayLiteral(Vec<Expression<'source>>),
 	StringLiteral(String),
 }
 

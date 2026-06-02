@@ -89,52 +89,88 @@ impl Memory {
 	}
 }
 
-#[derive(Clone, Debug)] // probably shouldn't be cloning here but whatever
+#[derive(Clone, Debug)] // TODO: clean up derives
 pub struct Function<'source, TC, OC> {
-	pub arguments: Vec<(String, ValueType)>,
+	pub arguments: Vec<(String, ValueType<'source>)>,
 	pub block: Vec<Clause<'source, TC, OC>>,
 }
 
 #[derive(Clone, Debug, PartialEq, Eq)]
-/// an absolute definition of a type, as opposed to `VariableTypeReference` which is more of a reference
-pub enum ValueType {
+/// an absolute definition of a type, as opposed to `TypeExpression`
+pub enum ValueType<'source> {
 	Cell,
-	Array(usize, Box<ValueType>),
-	DictStruct(Vec<(String, ValueType, Option<usize>)>),
-	// TupleStruct(Vec<ValueType>),
+	/// x[50]; cell[1][1]
+	Array(Box<ValueType<'source>>, usize),
+	/// struct x {} // not sure whether to keep this or not
+	LegacyStruct(
+		&'source str,
+		Vec<(&'source str, ValueType<'source>, Option<usize>)>,
+	),
+	/// (cell); (cell,cell)
+	Tuple(Vec<ValueType<'source>>),
+	/// x(cell); x(cell,cell)
+	NamedTuple(&'source str, Vec<ValueType<'source>>),
+	/// {cell x}
+	Record(Vec<(&'source str, ValueType<'source>)>),
+	/// x{cell x}
+	NamedRecord(&'source str, Vec<(&'source str, ValueType<'source>)>),
+	// Function {
+	// 	return_type: Box<ValueType<'source>>,
+	// 	arg_types: Vec<ValueType<'source>>,
+	// },
 }
+// pub enum ArrayTypeSize {
+// 	Fixed(usize),
+// 	Unknown
+// }
 
 #[derive(Clone, Debug)]
 /// equivalent to ValueType::DictStruct enum variant,
 /// Rust doesn't support enum variants as types yet so need this workaround for struct definitions in scope object
-pub struct DictStructType(pub Vec<(String, ValueType, Option<usize>)>);
-impl ValueType {
-	pub fn from_struct(struct_def: DictStructType) -> Self {
-		ValueType::DictStruct(struct_def.0)
+pub struct DictStructType<'source>(
+	&'source str,
+	pub Vec<(&'source str, ValueType<'source>, Option<usize>)>,
+);
+impl<'source> ValueType<'source> {
+	pub fn from_struct(struct_def: DictStructType<'source>) -> Self {
+		ValueType::LegacyStruct(struct_def.0, struct_def.1)
 	}
 
 	// TODO: make size() and get_and_validate_subfield_cell_map() more efficient,
 	//  currently these two recurse back and forth and are a bit of a monster combo
 
 	/// return the type size in cells
-	pub fn size(&self) -> Result<usize, String> {
+	pub fn size(&'source self) -> Result<usize, String> {
 		Ok(match self {
 			ValueType::Cell => 1,
-			ValueType::Array(len, value_type) => *len * value_type.size()?,
-			ValueType::DictStruct(fields) => Self::get_and_validate_subfield_cell_map(fields)?.1,
+			ValueType::Array(value_type, len) => *len * value_type.size()?,
+			ValueType::LegacyStruct(name, fields) => {
+				Self::get_and_validate_subfield_cell_map(fields)?.1
+			}
+			ValueType::Tuple(value_types) => todo!(),
+			ValueType::NamedTuple(_, value_types) => todo!(),
+			ValueType::Record(items) => todo!(),
+			ValueType::NamedRecord(_, items) => todo!(),
 		})
 	}
 
 	/// deterministically place all struct subfields on a non-negative cell, return the positions of each and the total length
 	/// return Err() if location specified subfields overlap
 	pub fn get_and_validate_subfield_cell_map(
-		fields: &Vec<(String, ValueType, Option<usize>)>,
-	) -> Result<(HashMap<&String, (usize, &ValueType)>, usize), String> {
+		fields: &'source Vec<(&'source str, ValueType, Option<usize>)>,
+	) -> Result<
+		(
+			HashMap<&'source str, (usize, &'source ValueType<'source>)>,
+			usize,
+		),
+		String,
+	> {
 		// (set of cells, max cell)
 		let mut cell_map = HashMap::new();
 
 		// map of field names and their starting cells
-		let mut subfield_map = HashMap::new();
+		let mut subfield_map: HashMap<&'source str, (usize, &'source ValueType<'source>)> =
+			HashMap::new();
 		let mut max_cell = 0usize;
 		let mut unfixed_fields = vec![];
 		// handle the cells with specified locations
@@ -192,7 +228,7 @@ impl ValueType {
 		let mut cur_index = 0;
 		for subfield_ref in subfield_chain.0.iter() {
 			match (cur_field, subfield_ref) {
-				(ValueType::Array(len, element_type), Reference::Index(index)) => {
+				(ValueType::Array(element_type, len), Reference::Index(index)) => {
 					r_assert!(
 						index < len,
 						"Index \"{subfield_ref}\" must be less than array length ({len})."
@@ -200,7 +236,7 @@ impl ValueType {
 					cur_index += element_type.size()? * index;
 					cur_field = element_type;
 				}
-				(ValueType::DictStruct(fields), Reference::NamedField(subfield_name)) => {
+				(ValueType::LegacyStruct(name, fields), Reference::NamedField(subfield_name)) => {
 					let (subfield_map, _size) = Self::get_and_validate_subfield_cell_map(fields)?;
 					let Some((subfield_cell_offset, subfield_type)) =
 						subfield_map.get(subfield_name)
@@ -211,7 +247,7 @@ impl ValueType {
 					cur_field = subfield_type;
 				}
 
-				(ValueType::DictStruct(_), Reference::Index(_)) => {
+				(ValueType::LegacyStruct(_), Reference::Index(_)) => {
 					r_panic!("Cannot read index subfield \"{subfield_ref}\" of struct type.")
 				}
 				(ValueType::Array(_, _), Reference::NamedField(_)) => {
@@ -220,13 +256,21 @@ impl ValueType {
 				(ValueType::Cell, subfield_ref) => {
 					r_panic!("Attempted to get subfield \"{subfield_ref}\" of cell type.")
 				}
+				(ValueType::Tuple(value_types), Reference::NamedField(_)) => todo!(),
+				(ValueType::Tuple(value_types), Reference::Index(_)) => todo!(),
+				(ValueType::NamedTuple(_, value_types), Reference::NamedField(_)) => todo!(),
+				(ValueType::NamedTuple(_, value_types), Reference::Index(_)) => todo!(),
+				(ValueType::Record(items), Reference::NamedField(_)) => todo!(),
+				(ValueType::Record(items), Reference::Index(_)) => todo!(),
+				(ValueType::NamedRecord(_, items), Reference::NamedField(_)) => todo!(),
+				(ValueType::NamedRecord(_, items), Reference::Index(_)) => todo!(),
 			}
 		}
 		Ok((cur_field, cur_index))
 	}
 }
 
-impl std::fmt::Display for ValueType {
+impl std::fmt::Display for ValueType<'_> {
 	fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
 		match self {
 			ValueType::Cell => {
@@ -235,20 +279,24 @@ impl std::fmt::Display for ValueType {
 			ValueType::Array(length, element_type) => {
 				f.write_fmt(format_args!("{element_type}[{length}]"))?;
 			}
-			ValueType::DictStruct(fields) => {
-				f.write_str("{")?;
+			ValueType::LegacyStruct(name, fields) => {
+				write!(f, "{name} {{");
 				let fields_len = fields.len();
-				for (i, (field_name, field_type, offset)) in fields.iter().enumerate() {
+				for (i, (field_name, field_type)) in fields.iter().enumerate() {
 					f.write_fmt(format_args!("{field_type} {field_name}"))?;
-					if let Some(offset) = offset {
-						f.write_fmt(format_args!(" @{offset}"))?;
-					}
+					// if let Some(offset) = offset {
+					// 	f.write_fmt(format_args!(" @{offset}"))?;
+					// }
 					f.write_str(";")?;
 					if i < (fields_len - 1) {
 						f.write_str(" ")?;
 					}
 				}
 			}
+			ValueType::Tuple(value_types) => todo!(),
+			ValueType::NamedTuple(_, value_types) => todo!(),
+			ValueType::Record(items) => todo!(),
+			ValueType::NamedRecord(_, items) => todo!(),
 		}
 		Ok(())
 	}

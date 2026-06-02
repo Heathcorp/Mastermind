@@ -27,37 +27,37 @@ pub enum Clause<'source, TC, OC> {
 		value: Expression,
 	},
 	AddAssign {
-		var: VariableTarget,
+		var: VariableTarget<'source>,
 		value: Expression,
 		self_referencing: bool,
 	},
 	Assign {
-		var: VariableTarget,
+		var: VariableTarget<'source>,
 		value: Expression,
 		self_referencing: bool,
 	},
 	AssertVariableValue {
-		var: VariableTarget,
+		var: VariableTarget<'source>,
 		// Some(constant) indicates we know the value, None indicates we don't know the value
 		// typically will either be used for assert unknown or assert 0
 		value: Option<Expression>,
 	},
 	DrainLoop {
 		source: Expression,
-		targets: Vec<VariableTarget>,
+		targets: Vec<VariableTarget<'source>>,
 		block: Option<Vec<Clause<'source, TC, OC>>>,
 		// TODO: reassess this syntax
 		is_copying: bool,
 	},
 	While {
-		var: VariableTarget,
+		var: VariableTarget<'source>,
 		block: Vec<Clause<'source, TC, OC>>,
 	},
 	Output {
 		value: Expression,
 	},
 	Input {
-		var: VariableTarget,
+		var: VariableTarget<'source>,
 	},
 	CallFunction {
 		function_name: String,
@@ -83,13 +83,13 @@ pub enum Clause<'source, TC, OC> {
 	},
 	Block(Vec<Clause<'source, TC, OC>>),
 	Brainfuck {
-		location_specifier: LocationSpecifier<TC>,
-		clobbered_variables: Vec<VariableTarget>,
+		location_specifier: LocationSpecifier<'source, TC>,
+		clobbered_variables: Vec<VariableTarget<'source>>,
 		operations: Vec<ExtendedOpcode<'source, TC, OC>>,
 	},
 }
 
-pub trait TapeCellLocation
+pub trait TapeCellLocation<'source>
 where
 	Self: Sized + std::fmt::Display,
 {
@@ -97,7 +97,9 @@ where
 	/// let g @(4,2) = 68;
 	/// or
 	/// let p @3 = 68;
-	fn parse_location_specifier(chars: &mut &[char]) -> Result<LocationSpecifier<Self>, String>;
+	fn parse_location_specifier(
+		chars: &mut &[char],
+	) -> Result<LocationSpecifier<'source, Self>, String>;
 
 	/// safely cast a 2D or 1D location specifier into a 1D non-negative cell offset,
 	///  for use with struct fields
@@ -117,28 +119,42 @@ pub enum ExtendedOpcode<'source, TC, OC> {
 pub enum TypeExpression<'source> {
 	NamedType(&'source str),
 	Cell,
-	LegacyStruct(String),
-	Array(Box<TypeExpression<'source>>, ArraySize),
-	Tuple(Vec<TypeExpression<'source>>),
-	NamedTuple(Vec<TypeExpression<'source>>),
-	Record(Vec<(&'source str, TypeExpression<'source>)>),
-	NamedRecord(&'source str, Vec<(&'source str, TypeExpression<'source>)>),
+	LegacyStruct(&'source str),
+	Array(Box<TypeExpression<'source>>, ArraySize<'source>),
+	Tuple(Vec<(TypeExpression<'source>, Option<Expression<'source>>)>),
+	NamedTuple(Vec<(TypeExpression<'source>, Option<Expression<'source>>)>),
+	Record(
+		Vec<(
+			&'source str,
+			TypeExpression<'source>,
+			Option<Expression<'source>>,
+		)>,
+	),
+	NamedRecord(
+		&'source str,
+		Vec<(
+			&'source str,
+			TypeExpression<'source>,
+			Option<Expression<'source>>,
+		)>,
+	),
+	// Union
 }
 
 // TODO: fix these derives, are they needed?
 #[derive(Debug, Clone, Hash, PartialEq, Eq)]
-pub enum ArraySize {
-	Expression(Expression), // compile-time constant expression
-	Unknown,                // [*]
+pub enum ArraySize<'source> {
+	Expression(Expression<'source>), // compile-time constant expression
+	Dynamic,                         // [*]
 }
 
 #[derive(Debug, Clone, Hash, PartialEq, Eq)]
-pub enum LocationSpecifier<TC> {
+pub enum LocationSpecifier<'source, TC> {
 	None,
 	Cell(TC),
-	Variable(VariableTarget),
+	Variable(VariableTarget<'source>),
 }
-impl<T> LocationSpecifier<T> {
+impl<'source, T> LocationSpecifier<'source, T> {
 	fn is_none(&self) -> bool {
 		matches!(self, LocationSpecifier::None)
 	}
@@ -148,7 +164,7 @@ impl<T> LocationSpecifier<T> {
 pub struct VariableTypeDefinition<'source, TC> {
 	pub name: String,
 	pub var_type: TypeExpression<'source>,
-	pub location_specifier: LocationSpecifier<TC>,
+	pub location_specifier: LocationSpecifier<'source, TC>,
 	// Infinite {name: String, pattern: ???},
 }
 
@@ -179,7 +195,7 @@ pub struct StructFieldTypeDefinition<'source> {
 impl<'source, TC> TryInto<StructFieldTypeDefinition<'source>>
 	for VariableTypeDefinition<'source, TC>
 where
-	TC: TapeCellLocation,
+	TC: TapeCellLocation<'source>,
 {
 	type Error = String;
 
@@ -204,23 +220,23 @@ must be relative, not variable."
 }
 
 #[derive(Debug, Clone, Hash, PartialEq, Eq)]
-pub enum Reference {
-	NamedField(String),
+pub enum Reference<'source> {
+	NamedField(&'source str),
 	Index(usize),
 }
 
 /// Represents a list of subfield references after the `.` or `[x]` operators, e.g. `obj.h[6]` would have `['h', '[6]']`
 // a bit verbose, not quite sure about this
 #[derive(Debug, Clone, Hash, PartialEq, Eq)]
-pub struct VariableTargetReferenceChain(pub Vec<Reference>);
+pub struct VariableTargetReferenceChain<'source>(pub Vec<Reference<'source>>);
 /// Represents a target variable in an expression, this has no type informatino
 #[derive(Debug, Clone, Hash, PartialEq, Eq)]
-pub struct VariableTarget {
+pub struct VariableTarget<'source> {
 	pub name: String,
-	pub subfields: Option<VariableTargetReferenceChain>,
+	pub subfields: Option<VariableTargetReferenceChain<'source>>,
 	pub is_spread: bool,
 }
-impl VariableTarget {
+impl<'source> VariableTarget<'source> {
 	/// convert a definition to a target for use with definition clauses (as opposed to declarations)
 	pub fn from_definition<T>(var_def: &VariableTypeDefinition<T>) -> Self {
 		VariableTarget {
@@ -265,7 +281,7 @@ impl<T: std::fmt::Display> std::fmt::Display for VariableTypeDefinition<'_, T> {
 	}
 }
 
-impl<T: std::fmt::Display> std::fmt::Display for LocationSpecifier<T> {
+impl<T: std::fmt::Display> std::fmt::Display for LocationSpecifier<'_, T> {
 	fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
 		f.write_str("@")?;
 		match self {
@@ -278,7 +294,7 @@ impl<T: std::fmt::Display> std::fmt::Display for LocationSpecifier<T> {
 	}
 }
 
-impl std::fmt::Display for Reference {
+impl std::fmt::Display for Reference<'_> {
 	fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
 		match self {
 			Reference::NamedField(subfield_name) => f.write_str(&format!(".{subfield_name}"))?,
@@ -289,7 +305,7 @@ impl std::fmt::Display for Reference {
 	}
 }
 
-impl std::fmt::Display for VariableTarget {
+impl std::fmt::Display for VariableTarget<'_> {
 	fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
 		if self.is_spread {
 			f.write_str("*")?;

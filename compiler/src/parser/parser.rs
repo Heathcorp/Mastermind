@@ -471,7 +471,7 @@ fn parse_function_definition_clause<'source, TC: TapeCellLocation, OC: OpcodeVar
 	})
 }
 
-fn parse_type_alias_clause<'source, TC: TapeCellLocation, OC: OpcodeVariant>(
+fn parse_type_alias_clause<'source, TC: TapeCellLocation<'source>, OC: OpcodeVariant>(
 	chars: &mut &[char],
 ) -> Result<Clause<'source, TC, OC>, String> {
 	todo!();
